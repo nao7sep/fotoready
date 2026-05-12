@@ -382,6 +382,14 @@ select:disabled {
   font-size: 11px;
 }
 
+.error-strip span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .histogram-placeholder {
   border-top: 1px solid #2f2f2f;
   background: linear-gradient(90deg, #242424, #34302c, #2a3835, #242424);

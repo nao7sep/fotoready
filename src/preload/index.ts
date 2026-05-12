@@ -4,7 +4,8 @@ import type { FotoReadyApi } from "@shared/types/ipc";
 const api: FotoReadyApi = {
   system: {
     getInfo: () => ipcRenderer.invoke("system.getInfo"),
-    pickFile: (options) => ipcRenderer.invoke("system.pickFile", options)
+    pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
+    revealInFolder: (filePath) => ipcRenderer.invoke("system.revealInFolder", filePath)
   },
   settings: {
     get: () => ipcRenderer.invoke("settings.get"),
@@ -24,6 +25,7 @@ const api: FotoReadyApi = {
     select: (taskId) => ipcRenderer.invoke("task.select", taskId),
     fork: (taskId) => ipcRenderer.invoke("task.fork", taskId),
     delete: (taskId) => ipcRenderer.invoke("task.delete", taskId),
+    dismissError: (taskId) => ipcRenderer.invoke("task.dismissError", taskId),
     retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),
     save: (taskId) => ipcRenderer.invoke("task.save", taskId),
     saveAll: () => ipcRenderer.invoke("task.saveAll"),

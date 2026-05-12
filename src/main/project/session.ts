@@ -175,6 +175,21 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  async dismissTaskError(taskId: string): Promise<ProjectSessionSnapshot> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    task.error = null;
+    if (task.status === "error") {
+      task.status = "pending";
+    }
+    task.updatedAt = nowIso();
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
   async retryTask(taskId: string): Promise<ProjectSessionSnapshot> {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task) {

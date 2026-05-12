@@ -63,6 +63,7 @@ export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
+    revealInFolder(filePath: string): Promise<void>;
   };
   settings: {
     get(): Promise<GlobalSettings>;
@@ -82,6 +83,7 @@ export type FotoReadyApi = {
     select(taskId: string): Promise<ProjectSnapshot>;
     fork(taskId: string): Promise<ProjectSnapshot>;
     delete(taskId: string): Promise<ProjectSnapshot>;
+    dismissError(taskId: string): Promise<ProjectSnapshot>;
     retry(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;
     saveAll(): Promise<ProjectSnapshot>;

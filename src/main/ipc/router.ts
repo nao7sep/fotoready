@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/project/session";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -38,6 +38,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     version: ctx.version,
     dataDir: ctx.paths.dataDir
   }));
+  ipcMain.handle("system.revealInFolder", async (_event, filePath: string) => {
+    shell.showItemInFolder(filePath);
+  });
   ipcMain.handle("system.pickFile", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {
@@ -139,6 +142,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.select", async (_event, taskId: string) => publishResult(ctx.projectSession.selectTask(taskId)));
   ipcMain.handle("task.fork", async (_event, taskId: string) => publishResult(ctx.projectSession.forkTask(taskId)));
   ipcMain.handle("task.delete", async (_event, taskId: string) => publishResult(ctx.projectSession.deleteTask(taskId)));
+  ipcMain.handle("task.dismissError", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
   ipcMain.handle("task.retry", async (_event, taskId: string) => publishResult(ctx.projectSession.retryTask(taskId)));
   ipcMain.handle("task.save", async (_event, taskId: string) => publishResult(ctx.projectSession.saveTask(taskId)));
   ipcMain.handle("task.saveAll", async () => publishResult(ctx.projectSession.saveAllPending()));

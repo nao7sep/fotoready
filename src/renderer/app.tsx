@@ -188,6 +188,14 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.retry(taskId));
   }
 
+  async function dismissError(taskId: string): Promise<void> {
+    await refreshProject(await api.task.dismissError(taskId));
+  }
+
+  async function revealSource(): Promise<void> {
+    if (activeOriginal) await api.system.revealInFolder(activeOriginal.sourcePath);
+  }
+
   async function undoTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.undo(taskId));
   }
@@ -425,6 +433,9 @@ function App(): React.JSX.Element {
             <div className="error-strip">
               <strong>{activeTask.error.stage}</strong>
               <span>{activeTask.error.message}</span>
+              <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>Retry</button>
+              <button className="inline-action" disabled={!activeOriginal} type="button" onClick={() => void revealSource()}>Reveal source</button>
+              <button className="inline-action" type="button" onClick={() => void dismissError(activeTask.id)}>Dismiss</button>
             </div>
           ) : null}
           <div className="histogram-placeholder" />

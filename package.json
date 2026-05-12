@@ -49,9 +49,11 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
+      "out/**/*",
+      "node_modules/**/*",
       "package.json"
     ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "identity": null
     }

@@ -38,8 +38,7 @@ Current implementation status:
 - Central error modal with retry/edit/reveal/dismiss actions and renderer warn/error forwarding to session logs.
 - LUT catalog IPC with generated built-in `.cube` files, shallow user LUT scanning, and a saved-LUT selector in the LUT op form.
 - Renderer panel decomposition for Originals and Tasks while keeping App focused on orchestration.
-
-Deeper settings forms and packaging polish are planned as later phases.
+- Electron-builder release configuration for the generated `out/` bundles and production dependencies.
 
 ## Development
 
@@ -54,4 +53,10 @@ npm run dev
 npm run build
 ```
 
-Packaging uses `electron-builder`. Code signing is not configured, so macOS builds will show the standard unsigned-app warning.
+## Package
+
+```sh
+npm run package
+```
+
+Packaging uses `electron-builder` and writes unpacked artifacts to `release/`. Code signing is not configured, so macOS builds show the standard unsigned-app warning.

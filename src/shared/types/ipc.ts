@@ -51,6 +51,7 @@ export type FotoReadyApi = {
   };
   settings: {
     get(): Promise<GlobalSettings>;
+    setGeminiApiKey(apiKey: string): Promise<void>;
   };
   project: {
     current(): Promise<ProjectSnapshot>;
@@ -78,6 +79,9 @@ export type FotoReadyApi = {
   };
   preview: {
     render(taskId: string): Promise<PreviewResult>;
+  };
+  vision: {
+    runForTask(taskId: string): Promise<ProjectSnapshot>;
   };
   rename: {
     preview(templateId?: string): Promise<RenamePreview>;

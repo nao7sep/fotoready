@@ -17,6 +17,8 @@ function App(): React.JSX.Element {
   const [preview, setPreview] = useState<{ taskId: string; dataUrl: string; width: number; height: number } | null>(null);
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
   const [renameOpen, setRenameOpen] = useState(false);
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
 
   useEffect(() => {
@@ -126,6 +128,17 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
   }
 
+  async function runVision(taskId: string): Promise<void> {
+    await refreshProject(await api.vision.runForTask(taskId));
+  }
+
+  async function saveApiKey(): Promise<void> {
+    if (!apiKeyDraft.trim()) return;
+    await api.settings.setGeminiApiKey(apiKeyDraft.trim());
+    setApiKeyDraft("");
+    setApiKeyOpen(false);
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -145,7 +158,7 @@ function App(): React.JSX.Element {
         <button className="toolbar-button" type="button" onClick={() => void openProject()}>Open</button>
         <button className="toolbar-button" type="button" onClick={() => void saveProjectAs()}>Save as</button>
         <div className="output-path">Output: {project?.outputDir ?? settings?.defaultOutputDirectory ?? "./out"}</div>
-        <button className="icon-button" type="button" title="Settings">
+        <button className="icon-button" type="button" title="Settings" onClick={() => setApiKeyOpen(true)}>
           <Settings size={18} />
         </button>
         <button className="icon-button" type="button" title="Menu">
@@ -230,6 +243,11 @@ function App(): React.JSX.Element {
                 <CopyPlus size={14} /> Fork as new task
               </button>
             ) : null}
+            {activeTask?.status === "done" && !activeTask.output?.vision ? (
+              <button className="inline-action" type="button" onClick={() => void runVision(activeTask.id)}>
+                Generate description
+              </button>
+            ) : null}
           </div>
           <div className="histogram-placeholder" />
         </section>
@@ -290,6 +308,25 @@ function App(): React.JSX.Element {
           }}
           templates={settings.filenameTemplates}
         />
+      ) : null}
+
+      {apiKeyOpen ? (
+        <div className="modal-backdrop">
+          <section className="modal small-modal">
+            <header className="modal-header">
+              <h2>Gemini API Key</h2>
+              <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Close</button>
+            </header>
+            <label className="stacked-field">
+              API key
+              <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.currentTarget.value)} />
+            </label>
+            <footer className="modal-actions">
+              <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Cancel</button>
+              <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={() => void saveApiKey()}>Save key</button>
+            </footer>
+          </section>
+        </div>
       ) : null}
 
       <footer className="status-bar">
@@ -447,6 +484,14 @@ function OutputControls({
         <input type="checkbox" disabled={disabled || !task} checked={task?.analyzeContent ?? true} onChange={(event) => onAnalyzeContentChange(event.currentTarget.checked)} />
         Describe contents
       </label>
+      {task?.output?.vision ? (
+        <div className="vision-description">
+          <span>Generated description</span>
+          <p>{task.output.vision.description}</p>
+        </div>
+      ) : task?.error?.stage === "vision" ? (
+        <div className="modal-error">{task.error.message}</div>
+      ) : null}
       <label className="stacked-field">
         Custom slug
         <input disabled={disabled || !task} placeholder="manual-descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />

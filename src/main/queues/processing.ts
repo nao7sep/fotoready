@@ -3,9 +3,11 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
+import type { GlobalSettings } from "@shared/types/settings";
 import { runPipeline } from "@runtime/pipeline-runner";
+import { injectMetadata, stripMetadata } from "@adapters/metadata/exiftool";
 
-export async function processTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
+export async function processTask(project: Project, taskId: string, projectPath: string | null, settings: GlobalSettings): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
     throw new Error(`Task not found: ${taskId}`);
@@ -34,6 +36,8 @@ export async function processTask(project: Project, taskId: string, projectPath:
       throw new Error("Processing did not produce an output file.");
     }
 
+    await applyMetadataPolicy(result.outputPath, task, settings);
+
     task.pipeline = result.appliedPipeline;
     task.status = "done";
     task.output = {
@@ -49,6 +53,14 @@ export async function processTask(project: Project, taskId: string, projectPath:
     task.status = "error";
     task.error = taskError(error);
     task.updatedAt = nowIso();
+  }
+}
+
+async function applyMetadataPolicy(outputPath: string, task: Task, settings: GlobalSettings): Promise<void> {
+  const keep = task.metadataStripOverride ?? settings.defaultMetadataStrip;
+  await stripMetadata(outputPath, keep);
+  if (settings.injectAuthorCopyright) {
+    await injectMetadata(outputPath, settings.injectFields);
   }
 }
 

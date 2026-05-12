@@ -20,6 +20,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   }));
 
   ipcMain.handle("settings.get", async () => ctx.settings);
+  ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
   ipcMain.handle("project.new", async (_event, name?: string) => ctx.projectSession.newProject(name));
   ipcMain.handle("project.openFromDialog", async (event) => {
@@ -94,6 +95,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       .map(({ type, label, category, defaultParams, visible }) => ({ type, label, category, defaultParams, visible }))
   );
   ipcMain.handle("preview.render", async (_event, taskId: string) => ctx.projectSession.renderPreview(taskId));
+  ipcMain.handle("vision.runForTask", async (_event, taskId: string) => ctx.projectSession.runVision(taskId));
   ipcMain.handle("rename.preview", async (_event, templateId?: string) => ctx.projectSession.previewRename(templateId));
   ipcMain.handle("rename.run", async (_event, templateId?: string) => ctx.projectSession.runRename(templateId));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());

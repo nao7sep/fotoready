@@ -13,8 +13,10 @@ Current implementation status:
 - Main-process preview rendering displayed in the editor canvas.
 - Rename preview/run flow for done tasks using filename templates and manual custom slugs.
 - JSON cache IO and an import-time JPEG source-facts queue scaffold.
+- Gemini vision adapter, encrypted API-key storage, vision input preparation, result cache, and Generate description action.
+- ExifTool-backed metadata stripping and optional injection after output encoding.
 
-Vision, metadata writing, full queue concurrency, complete JPEG quality detection, and packaging polish are planned as later phases.
+Full queue concurrency, complete JPEG quality detection, settings UI depth, and packaging polish are planned as later phases.
 
 ## Development
 

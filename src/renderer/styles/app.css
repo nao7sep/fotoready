@@ -440,6 +440,11 @@ select:disabled {
   box-shadow: 0 20px 80px rgb(0 0 0 / 55%);
 }
 
+.small-modal {
+  width: min(520px, calc(100vw - 80px));
+  grid-template-rows: auto auto auto;
+}
+
 .modal-header,
 .modal-actions {
   display: flex;
@@ -499,4 +504,26 @@ select:disabled {
 .modal-error {
   color: #fecaca;
   background: #4c1d1d;
+}
+
+.vision-description {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #343434;
+  border-radius: 6px;
+  background: #1a1a1a;
+}
+
+.vision-description span {
+  color: #aaa49d;
+  font-size: 11px;
+}
+
+.vision-description p {
+  user-select: text;
+  margin: 0;
+  color: #eeeae5;
+  font-size: 12px;
+  line-height: 1.45;
 }

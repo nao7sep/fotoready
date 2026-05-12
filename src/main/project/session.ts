@@ -16,6 +16,7 @@ import { getOpDefinition } from "@core/ops/catalog";
 import { renderTaskPreview, type PreviewResult } from "@main/preview/preview-service";
 import { previewRename, runRename } from "@main/rename/rename-service";
 import type { QualityQueue } from "@main/queues/quality";
+import type { VisionQueue } from "@main/queues/vision";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -30,7 +31,8 @@ export class ProjectSession {
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue | null = null
+    private readonly qualityQueue: QualityQueue | null = null,
+    private readonly visionQueue: VisionQueue | null = null
   ) {
     this.#project = createEmptyProject("Untitled Project", settings.defaultOutputDirectory);
   }
@@ -128,7 +130,8 @@ export class ProjectSession {
   }
 
   async saveTask(taskId: string): Promise<ProjectSessionSnapshot> {
-    await processTask(this.#project, taskId, this.#projectPath);
+    await processTask(this.#project, taskId, this.#projectPath, this.settings);
+    await this.runVisionIfNeeded(taskId);
     await this.persistIfSaved();
     return this.snapshot();
   }
@@ -140,7 +143,8 @@ export class ProjectSession {
       .map((task) => task.id);
 
     for (const taskId of pendingTaskIds) {
-      await processTask(this.#project, taskId, this.#projectPath);
+      await processTask(this.#project, taskId, this.#projectPath, this.settings);
+      await this.runVisionIfNeeded(taskId);
     }
 
     await this.persistIfSaved();
@@ -236,6 +240,22 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  async runVision(taskId: string): Promise<ProjectSessionSnapshot> {
+    if (!this.visionQueue) {
+      throw new Error("Vision queue is not configured.");
+    }
+    await this.visionQueue.runForTask(this.#project, taskId);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async setGeminiApiKey(apiKey: string): Promise<void> {
+    if (!this.visionQueue) {
+      throw new Error("Vision queue is not configured.");
+    }
+    await this.visionQueue.setGeminiApiKey(apiKey);
+  }
+
   private async persistIfSaved(): Promise<void> {
     if (this.#projectPath) {
       await saveProject(this.#projectPath, this.#project);
@@ -251,6 +271,13 @@ export class ProjectSession {
       throw new Error("Only pending tasks can be edited. Fork this task before editing.");
     }
     return task;
+  }
+
+  private async runVisionIfNeeded(taskId: string): Promise<void> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (task?.status === "done" && task.analyzeContent && task.output && !task.output.vision) {
+      await this.visionQueue?.runForTask(this.#project, taskId);
+    }
   }
 }
 

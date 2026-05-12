@@ -6,7 +6,8 @@ const api: FotoReadyApi = {
     getInfo: () => ipcRenderer.invoke("system.getInfo")
   },
   settings: {
-    get: () => ipcRenderer.invoke("settings.get")
+    get: () => ipcRenderer.invoke("settings.get"),
+    setGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings.setGeminiApiKey", apiKey)
   },
   project: {
     current: () => ipcRenderer.invoke("project.current"),
@@ -34,6 +35,9 @@ const api: FotoReadyApi = {
   },
   preview: {
     render: (taskId) => ipcRenderer.invoke("preview.render", taskId)
+  },
+  vision: {
+    runForTask: (taskId) => ipcRenderer.invoke("vision.runForTask", taskId)
   },
   rename: {
     preview: (templateId) => ipcRenderer.invoke("rename.preview", templateId),

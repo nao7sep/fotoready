@@ -7,6 +7,7 @@ import { loadSettings } from "./persistence/settings-io";
 import { registerIpcHandlers } from "./ipc/router";
 import { ProjectSession } from "./project/session";
 import { QualityQueue } from "./queues/quality";
+import { VisionQueue } from "./queues/vision";
 import { APP_NAME } from "@shared/constants";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +20,8 @@ export async function bootstrap(): Promise<void> {
   const logger = await createLogger(paths.logsDir);
   const settings = await loadSettings(paths.settingsPath);
   const qualityQueue = new QualityQueue(paths);
-  const projectSession = new ProjectSession(settings, qualityQueue);
+  const visionQueue = new VisionQueue(paths, settings);
+  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue);
 
   registerIpcHandlers({
     paths,

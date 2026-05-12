@@ -5,7 +5,7 @@ import type { Pipeline } from "@shared/types/pipeline";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
-import { loadCubeLut, sampleCubeLut } from "@adapters/lut/cube-loader";
+import { sampleCubeLut, type CubeLut } from "./lut/cube";
 
 export type PipelineRunContext = {
   sourcePath: string;
@@ -13,6 +13,7 @@ export type PipelineRunContext = {
   outputPath?: string;
   previewLongEdge?: number;
   log?: (message: string, extra?: Record<string, unknown>) => void;
+  resolveLut?: (cubePath: string) => Promise<CubeLut>;
 };
 
 export type PipelineRunResult =
@@ -26,7 +27,7 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
 
   for (const op of executedOps) {
     if (!op.enabled) continue;
-    work = await applyOp(work, op, image.width, image.height);
+    work = await applyOp(work, op, image.width, image.height, ctx);
   }
 
   if (ctx.previewLongEdge) {
@@ -96,7 +97,13 @@ export function orderOpsForExecution(ops: OpInstance[], log?: PipelineRunContext
   return [...withoutMoved.slice(0, afterResize), ...outputSharpenOps, ...withoutMoved.slice(afterResize)];
 }
 
-async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): Promise<sharp.Sharp> {
+async function applyOp(
+  image: sharp.Sharp,
+  op: OpInstance,
+  sourceWidth: number,
+  sourceHeight: number,
+  ctx: Pick<PipelineRunContext, "resolveLut">
+): Promise<sharp.Sharp> {
   switch (op.type) {
     case "crop":
       return applyCrop(image, op, sourceWidth, sourceHeight);
@@ -132,7 +139,7 @@ async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, 
     case "watermark-image":
       return applyImageWatermark(image, op, sourceWidth, sourceHeight);
     case "lut":
-      return applyLut(image, op);
+      return applyLut(image, op, ctx.resolveLut);
     default:
       return image;
   }
@@ -338,11 +345,18 @@ async function applyImageWatermark(image: sharp.Sharp, op: OpInstance, sourceWid
   return image.composite([{ input: watermark.data, left, top }]);
 }
 
-async function applyLut(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
+async function applyLut(
+  image: sharp.Sharp,
+  op: OpInstance,
+  resolveLut: PipelineRunContext["resolveLut"]
+): Promise<sharp.Sharp> {
   const cubePath = stringParam(op, "cubePath", "");
   if (!cubePath) return image;
+  if (!resolveLut) {
+    throw new Error("LUT loading is not configured for this pipeline run.");
+  }
 
-  const lut = await loadCubeLut(cubePath);
+  const lut = await resolveLut(cubePath);
   const strength = Math.max(0, Math.min(1, numberParam(op, "strength", 1)));
   const metadata = await image.metadata();
   const width = metadata.width ?? 0;

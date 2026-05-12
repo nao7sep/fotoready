@@ -11,7 +11,7 @@ import { sha256Bytes } from "@runtime/hash";
 import { createEmptyProject, loadProject, saveProject } from "@main/persistence/project-io";
 import { processTask } from "@main/queues/processing";
 import { queueSnapshotFromProject } from "@main/queues/snapshot";
-import type { QueueSnapshot, RenamePreview } from "@shared/types/ipc";
+import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
 import { previewRename, runRename } from "@main/rename/rename-service";
@@ -19,6 +19,9 @@ import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import { deleteSelectedFiles } from "@main/files/safe-delete";
+import { applyOpParamChange } from "@shared/validation/ops";
+import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOriginalSourcePath } from "./source-resolver";
 
 export type ProjectSessionSnapshot = {
@@ -89,6 +92,9 @@ export class ProjectSession {
   }
 
   async saveAs(projectPath: string): Promise<ProjectSessionSnapshot> {
+    if (this.#project.name === "Untitled Project") {
+      this.#project.name = basenameWithoutProjectExtension(projectPath);
+    }
     await saveProject(projectPath, this.#project);
     this.#projectPath = projectPath;
     return this.snapshot();
@@ -184,11 +190,21 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async deleteTask(taskId: string): Promise<ProjectSessionSnapshot> {
+  async deleteTask(taskId: string, options: TaskDeleteOptions = {}): Promise<ProjectSessionSnapshot> {
     const index = this.#project.tasks.findIndex((task) => task.id === taskId);
     if (index === -1) {
       throw new Error(`Task not found: ${taskId}`);
     }
+    assertTaskDeleteOptions(options);
+
+    const task = this.#project.tasks[index];
+    const outputPaths = task.output
+      ? [
+          options.deleteStagedOutput ? task.output.stagedPath : null,
+          options.deleteFinalOutput ? task.output.finalPath : null
+        ].filter((filePath): filePath is string => typeof filePath === "string")
+      : [];
+    await deleteSelectedFiles(outputPaths);
 
     this.#project.tasks.splice(index, 1);
     this.#taskUndoHistory.delete(taskId);
@@ -324,6 +340,9 @@ export class ProjectSession {
   async setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
+    if (typeof enabled !== "boolean") {
+      throw new Error("Op enabled state must be a boolean.");
+    }
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
@@ -334,8 +353,9 @@ export class ProjectSession {
   async updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
+    const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpDefinition);
     this.recordTaskEdit(task);
-    task.pipeline.ops[opIndex].params[key] = value;
+    task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     await this.persistIfSaved();
     return this.snapshot();
@@ -343,6 +363,9 @@ export class ProjectSession {
 
   async setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    if (typeof analyzeContent !== "boolean") {
+      throw new Error("analyzeContent must be a boolean.");
+    }
     this.recordTaskEdit(task);
     task.analyzeContent = analyzeContent;
     touchTask(task);
@@ -352,6 +375,9 @@ export class ProjectSession {
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    if (customSlug !== null && typeof customSlug !== "string") {
+      throw new Error("customSlug must be a string or null.");
+    }
     this.recordTaskEdit(task);
     task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
     touchTask(task);
@@ -361,11 +387,9 @@ export class ProjectSession {
 
   async updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    const nextOutput = applyOutputSettingChange(task.pipeline.output, key, value);
     this.recordTaskEdit(task);
-    task.pipeline.output = {
-      ...task.pipeline.output,
-      [key]: value
-    };
+    task.pipeline.output = nextOutput;
     touchTask(task);
     await this.persistIfSaved();
     return this.snapshot();
@@ -548,8 +572,21 @@ function assertOpIndex(task: Task, opIndex: number): void {
   }
 }
 
+function assertTaskDeleteOptions(options: TaskDeleteOptions): void {
+  if (options.deleteStagedOutput !== undefined && typeof options.deleteStagedOutput !== "boolean") {
+    throw new Error("deleteStagedOutput must be a boolean when provided.");
+  }
+  if (options.deleteFinalOutput !== undefined && typeof options.deleteFinalOutput !== "boolean") {
+    throw new Error("deleteFinalOutput must be a boolean when provided.");
+  }
+}
+
 function touchTask(task: Task): void {
   task.updatedAt = nowIso();
   task.output = null;
   task.error = null;
+}
+
+function basenameWithoutProjectExtension(projectPath: string): string {
+  return path.basename(projectPath).replace(/\.fotoready\.json$/i, "");
 }

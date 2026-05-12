@@ -61,6 +61,7 @@ export type GlobalSettings = Required<Omit<ProjectSettings, "projectContext">> &
   customPromptAddendum: string;
   cacheResults: boolean;
   filenameTemplates: FilenameTemplate[];
+  recentProjectPaths: string[];
   slugMinWords: number;
   slugMaxWords: number;
   slugCollisionResolution: "hash-suffix";

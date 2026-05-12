@@ -1,5 +1,6 @@
 import { parentPort } from "node:worker_threads";
 import sharp from "sharp";
+import { loadCubeLut } from "@adapters/lut/cube-loader";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
 import { runPipeline } from "@runtime/pipeline-runner";
 import { sha256Bytes } from "@runtime/hash";
@@ -10,7 +11,8 @@ export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResu
     sourceHash: job.sourceHash,
     outputPath: job.outputPath ?? undefined,
     previewLongEdge: job.kind === "preview" ? job.previewLongEdge ?? undefined : undefined,
-    log: (message, extra) => parentPort?.postMessage({ jobId: job.jobId, message, extra })
+    log: (message, extra) => parentPort?.postMessage({ jobId: job.jobId, message, extra }),
+    resolveLut: loadCubeLut
   });
 
   if (job.kind === "process") {
@@ -31,7 +33,8 @@ export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResu
     const processed = await runPipeline(job.pipeline, {
       sourcePath: job.sourcePath,
       sourceHash: job.sourceHash,
-      previewLongEdge: job.previewLongEdge ?? 768
+      previewLongEdge: job.previewLongEdge ?? 768,
+      resolveLut: loadCubeLut
     });
     if (processed.kind !== "buffer") {
       throw new Error("Vision preparation job did not produce a buffer result.");

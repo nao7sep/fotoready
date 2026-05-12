@@ -66,6 +66,11 @@ export type LutEntry = {
 
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
+export type TaskDeleteOptions = {
+  deleteStagedOutput?: boolean;
+  deleteFinalOutput?: boolean;
+};
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -83,6 +88,7 @@ export type FotoReadyApi = {
     current(): Promise<ProjectSnapshot>;
     newProject(name?: string): Promise<ProjectSnapshot>;
     openFromDialog(): Promise<ProjectSnapshot>;
+    openRecent(projectPath: string): Promise<ProjectSnapshot>;
     saveAsFromDialog(): Promise<ProjectSnapshot>;
     setOutputDirFromDialog(): Promise<ProjectSnapshot>;
     addOriginals(sourcePaths: string[]): Promise<ProjectSnapshot>;
@@ -93,7 +99,7 @@ export type FotoReadyApi = {
   task: {
     select(taskId: string): Promise<ProjectSnapshot>;
     fork(taskId: string): Promise<ProjectSnapshot>;
-    delete(taskId: string): Promise<ProjectSnapshot>;
+    delete(taskId: string, options?: TaskDeleteOptions): Promise<ProjectSnapshot>;
     dismissError(taskId: string): Promise<ProjectSnapshot>;
     retry(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;

@@ -2,6 +2,7 @@ import sharp from "sharp";
 import type { Original, Project, Task } from "@shared/types/project";
 import { runPipeline } from "@runtime/pipeline-runner";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import { loadCubeLut } from "@adapters/lut/cube-loader";
 
 export type PreviewResult = {
   taskId: string;
@@ -54,7 +55,8 @@ export async function renderTaskPreview(project: Project, taskId: string, previe
     : await runPipeline(task.pipeline, {
       sourcePath: original.sourcePath,
       sourceHash: original.sourceHash,
-      previewLongEdge
+      previewLongEdge,
+      resolveLut: loadCubeLut
     });
 
   if (result.kind !== "buffer" && result.kind !== "preview") {

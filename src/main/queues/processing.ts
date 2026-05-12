@@ -8,6 +8,7 @@ import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
+import { loadCubeLut } from "@adapters/lut/cube-loader";
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -91,7 +92,7 @@ async function processOutputPipeline(
     return { ...result, kind: "file" };
   }
 
-  const result = await runPipeline(resolved, { sourcePath, sourceHash, outputPath });
+  const result = await runPipeline(resolved, { sourcePath, sourceHash, outputPath, resolveLut: loadCubeLut });
   if (result.kind !== "file") throw new Error("Processing did not produce an output file.");
   return result;
 }
@@ -122,7 +123,7 @@ async function processMatchSourceSize(
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
   const rendered = workerPool
     ? await workerPool.renderBuffer({ sourcePath, sourceHash, pipeline, previewLongEdge: null })
-    : await runPipeline(pipeline, { sourcePath, sourceHash });
+    : await runPipeline(pipeline, { sourcePath, sourceHash, resolveLut: loadCubeLut });
   if (rendered.kind !== "buffer" && rendered.kind !== "preview") throw new Error("Match-source-size render did not produce a raw buffer.");
 
   const startQuality = sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure;

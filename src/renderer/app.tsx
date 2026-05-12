@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { CopyPlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
-import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
+import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramPanel } from "./components/canvas/histogram-panel";
@@ -45,6 +45,7 @@ function App(): React.JSX.Element {
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
   const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
+  const projectPathLabel = projectSnapshot?.projectPath ?? "Unsaved project";
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -196,6 +197,7 @@ function App(): React.JSX.Element {
 
   async function openProject(): Promise<void> {
     await refreshProject(await api.project.openFromDialog());
+    setSettings(await api.settings.get());
   }
 
   async function newProject(): Promise<void> {
@@ -204,6 +206,18 @@ function App(): React.JSX.Element {
 
   async function saveProjectAs(): Promise<void> {
     await refreshProject(await api.project.saveAsFromDialog());
+    setSettings(await api.settings.get());
+  }
+
+  async function openRecentProject(projectPath: string): Promise<void> {
+    try {
+      await refreshProject(await api.project.openRecent(projectPath));
+      setSettings(await api.settings.get());
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : String(error));
+      setSettings(await api.settings.get());
+    }
   }
 
   async function setOutputDir(): Promise<void> {
@@ -236,9 +250,15 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.fork(taskId));
   }
 
-  async function deleteTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.delete(taskId));
-    setSelectedRenameTaskIds((current) => current.filter((id) => id !== taskId));
+  async function deleteTask(task: Task): Promise<void> {
+    try {
+      const deleteOptions = resolveTaskDeleteOptions(task, settings);
+      await refreshProject(await api.task.delete(task.id, deleteOptions));
+      setSelectedRenameTaskIds((current) => current.filter((id) => id !== task.id));
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function retryTask(taskId: string): Promise<void> {
@@ -364,9 +384,10 @@ function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <header className="top-bar">
-        <button className="project-button" type="button">
-          {project?.name ?? "Untitled Project"}
-        </button>
+        <div className="project-meta">
+          <strong className="project-name">{project?.name ?? "Untitled Project"}</strong>
+          <span className="project-file" title={projectPathLabel}>{projectPathLabel}</span>
+        </div>
         <button className="toolbar-button" type="button" onClick={() => void newProject()}>New</button>
         <button className="toolbar-button" type="button" onClick={() => void openProject()}>Open</button>
         <button className="toolbar-button" type="button" onClick={() => void saveProjectAs()}>Save as</button>
@@ -379,13 +400,27 @@ function App(): React.JSX.Element {
         </button>
         {menuOpen ? (
           <div className="app-menu">
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
-              void openSettings();
-            }}>Settings</button>
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
-              setShortcutsOpen(true);
+             <button type="button" onClick={() => {
+               setMenuOpen(false);
+               void openSettings();
+             }}>Settings</button>
+             {settings?.recentProjectPaths.length ? <div className="app-menu-section">Recent projects</div> : null}
+             {settings?.recentProjectPaths.map((projectPath) => (
+               <button
+                 key={projectPath}
+                 title={projectPath}
+                 type="button"
+                 onClick={() => {
+                   setMenuOpen(false);
+                   void openRecentProject(projectPath);
+                 }}
+               >
+                 {basename(projectPath)}
+               </button>
+             ))}
+             <button type="button" onClick={() => {
+               setMenuOpen(false);
+               setShortcutsOpen(true);
             }}>Keyboard shortcuts</button>
             <button type="button" onClick={() => {
               setMenuOpen(false);
@@ -451,7 +486,7 @@ function App(): React.JSX.Element {
               </button>
             ) : null}
             {activeTask ? (
-              <button className="inline-action danger" type="button" onClick={() => void deleteTask(activeTask.id)}>
+              <button className="inline-action danger" type="button" onClick={() => void deleteTask(activeTask)}>
                 <Trash2 size={14} /> Delete
               </button>
             ) : null}
@@ -661,6 +696,37 @@ function stringifyLogArgs(args: unknown[]): string {
       return String(arg);
     }
   }).join(" ");
+}
+
+function resolveTaskDeleteOptions(task: Task, settings: GlobalSettings | null): TaskDeleteOptions | undefined {
+  if (task.status !== "done" || !task.output) {
+    return undefined;
+  }
+
+  const hasSeparateFinalOutput = Boolean(task.output.finalPath && task.output.finalPath !== task.output.stagedPath);
+  if (!settings?.confirmDeleteOutputFiles) {
+    return hasSeparateFinalOutput
+      ? { deleteFinalOutput: true }
+      : task.output.stagedPath
+        ? { deleteStagedOutput: true }
+        : undefined;
+  }
+
+  if (hasSeparateFinalOutput && task.output.finalPath) {
+    return {
+      deleteFinalOutput: window.confirm(`Delete the renamed output file from disk?\n\n${task.output.finalPath}`)
+    };
+  }
+
+  if (task.output.stagedPath) {
+    const shouldDeleteOutput = window.confirm(`Delete the task output file from disk?\n\n${task.output.stagedPath}`);
+    return {
+      deleteStagedOutput: shouldDeleteOutput,
+      deleteFinalOutput: task.output.finalPath === task.output.stagedPath ? shouldDeleteOutput : false
+    };
+  }
+
+  return undefined;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

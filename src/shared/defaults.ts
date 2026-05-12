@@ -77,6 +77,7 @@ export function defaultGlobalSettings(
     customPromptAddendum: "",
     cacheResults: true,
     filenameTemplates: [builtinFilenameTemplate],
+    recentProjectPaths: [],
     defaultTemplateId: BUILTIN_FILENAME_TEMPLATE_ID,
     slugMinWords: 4,
     slugMaxWords: 7,

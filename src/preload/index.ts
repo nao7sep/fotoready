@@ -18,6 +18,7 @@ const api: FotoReadyApi = {
     current: () => ipcRenderer.invoke("project.current"),
     newProject: (name?: string) => ipcRenderer.invoke("project.new", name),
     openFromDialog: () => ipcRenderer.invoke("project.openFromDialog"),
+    openRecent: (projectPath) => ipcRenderer.invoke("project.openRecent", projectPath),
     saveAsFromDialog: () => ipcRenderer.invoke("project.saveAsFromDialog"),
     setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
     addOriginals: (sourcePaths) => ipcRenderer.invoke("project.addOriginals", sourcePaths),
@@ -28,7 +29,7 @@ const api: FotoReadyApi = {
   task: {
     select: (taskId) => ipcRenderer.invoke("task.select", taskId),
     fork: (taskId) => ipcRenderer.invoke("task.fork", taskId),
-    delete: (taskId) => ipcRenderer.invoke("task.delete", taskId),
+    delete: (taskId, options) => ipcRenderer.invoke("task.delete", taskId, options),
     dismissError: (taskId) => ipcRenderer.invoke("task.dismissError", taskId),
     retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),
     save: (taskId) => ipcRenderer.invoke("task.save", taskId),

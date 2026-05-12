@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CopyPlus, ImagePlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
+import { CopyPlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
@@ -9,6 +9,8 @@ import type { OpInstance } from "@shared/types/op";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { RenameModal } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
+import { OriginalsPanel } from "./components/panels/originals-panel";
+import { TasksPanel } from "./components/panels/tasks-panel";
 import "./styles/app.css";
 
 function App(): React.JSX.Element {
@@ -372,73 +374,28 @@ function App(): React.JSX.Element {
       </header>
 
       <section className={`workspace ${!showOriginals ? "hide-originals" : ""} ${!showTasks ? "hide-tasks" : ""} ${!showOps ? "hide-ops" : ""}`}>
-        {showOriginals ? <aside className="panel originals-panel">
-          <PanelHeader title="Originals" />
-          <button className="drop-target" type="button" onClick={addOriginals}>
-            <ImagePlus size={18} />
-            Add originals
-          </button>
-          <div className="list">
-            {project?.originals.map((original) => (
-              <button
-                className={`list-row ${activeOriginal?.id === original.id ? "active" : ""}`}
-                key={original.id}
-                type="button"
-                onClick={() => void selectOriginal(original.id)}
-              >
-                <span className="thumb">
-                  {originalThumbnails[original.id] ? <img src={originalThumbnails[original.id]} alt="" /> : null}
-                </span>
-                <span className="row-copy">
-                  <span className="row-title">{basename(original.sourcePath)}</span>
-                  <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside> : null}
+        {showOriginals ? (
+          <OriginalsPanel
+            activeOriginalId={activeOriginal?.id ?? null}
+            originals={project?.originals ?? []}
+            thumbnails={originalThumbnails}
+            onAdd={() => void addOriginals()}
+            onSelect={(originalId) => void selectOriginal(originalId)}
+          />
+        ) : null}
 
-        {showTasks ? <aside className="panel tasks-panel">
-          <PanelHeader title="Tasks" />
-          {project?.tasks.length ? (
-            <div className="list">
-              {project.tasks.map((task) => (
-                <button
-                  className={`list-row task-row ${activeTask?.id === task.id ? "active" : ""}`}
-                  key={task.id}
-                  type="button"
-                  onClick={() => void selectTask(task.id)}
-                >
-                  {task.status === "done" ? (
-                    <input
-                      aria-label="Select for rename"
-                      checked={selectedRenameTaskIds.includes(task.id)}
-                      className="row-checkbox"
-                      type="checkbox"
-                      onChange={(event) => toggleRenameSelection(task.id, event.currentTarget.checked)}
-                      onClick={(event) => event.stopPropagation()}
-                    />
-                  ) : null}
-                  <span className={`status-dot ${task.status}`} aria-hidden="true">{statusIndicator(task)}</span>
-                  <span className="task-copy">
-                    <span className="row-title">{taskLabel(task, projectSnapshot?.project.originals ?? [])}</span>
-                    <span className="row-detail">{task.status} · {task.pipeline.ops.length} ops</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">No tasks yet</div>
-          )}
-          <div className="panel-actions">
-            <button className="primary-action" type="button" onClick={() => void saveAll()} disabled={!project?.tasks.some((task) => task.status === "pending")}>
-              <Save size={16} /> Save all
-            </button>
-            <button className="toolbar-button" type="button" disabled={!project?.tasks.some((task) => task.status === "done")} onClick={() => setRenameOpen(true)}>
-              Rename...
-            </button>
-          </div>
-        </aside> : null}
+        {showTasks ? (
+          <TasksPanel
+            activeTaskId={activeTask?.id ?? null}
+            originals={project?.originals ?? []}
+            selectedRenameTaskIds={selectedRenameTaskIds}
+            tasks={project?.tasks ?? []}
+            onRename={() => setRenameOpen(true)}
+            onSaveAll={() => void saveAll()}
+            onSelect={(taskId) => void selectTask(taskId)}
+            onToggleRenameSelection={toggleRenameSelection}
+          />
+        ) : null}
 
         <section className="editor-panel">
           <div className="canvas-frame">

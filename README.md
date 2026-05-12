@@ -37,6 +37,7 @@ Current implementation status:
 - Rename workflow with explicit done-task selection, selected-task scope, generation progress, and clearer staged/proposed preview rows.
 - Central error modal with retry/edit/reveal/dismiss actions and renderer warn/error forwarding to session logs.
 - LUT catalog IPC with generated built-in `.cube` files, shallow user LUT scanning, and a saved-LUT selector in the LUT op form.
+- Renderer panel decomposition for Originals and Tasks while keeping App focused on orchestration.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

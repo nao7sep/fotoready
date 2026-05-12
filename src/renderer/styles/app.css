@@ -145,8 +145,12 @@ input {
   min-height: 120px;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 8px;
   border: 1px dashed #55504a;
   border-radius: 8px;
+  background: transparent;
+  width: calc(100% - 24px);
 }
 
 .empty-state {
@@ -160,6 +164,76 @@ input {
   gap: 8px;
   padding: 12px;
   border-top: 1px solid #2f2f2f;
+}
+
+.list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 1px;
+}
+
+.list-row {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #292929;
+  color: #ddd8d2;
+  background: transparent;
+  text-align: left;
+}
+
+.list-row.active {
+  background: #263633;
+}
+
+.row-title,
+.row-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-title {
+  font-size: 13px;
+  color: #eeeae5;
+}
+
+.row-detail {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #9f9992;
+}
+
+.status-dot {
+  flex: 0 0 16px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.status-dot.pending {
+  color: #eab308;
+}
+
+.status-dot.processing {
+  color: #facc15;
+}
+
+.status-dot.done {
+  color: #60a5fa;
+}
+
+.status-dot.error {
+  color: #f87171;
+}
+
+.task-copy {
+  min-width: 0;
 }
 
 .editor-panel {
@@ -184,11 +258,26 @@ input {
 .pipeline-strip {
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 0 12px;
   border-top: 1px solid #2f2f2f;
   color: #b9b6b1;
   font-size: 12px;
   background: #1c1c1c;
+}
+
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #3f3f3f;
+  border-radius: 6px;
+  color: #f5f5f4;
+  background: #292929;
+  font-size: 12px;
 }
 
 .histogram-placeholder {

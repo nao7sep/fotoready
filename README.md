@@ -2,7 +2,15 @@
 
 FotoReady is a cross-platform desktop photo editor for blogging and publication workflows.
 
-This repository is in phase 1 implementation: the Electron/Vite/React shell, shared domain contracts, app data directory, settings persistence, logging, preload IPC boundary, and core op catalog are in place. Image processing, project editing, queues, vision, metadata writing, and packaging polish are planned as later phases.
+Current implementation status:
+
+- Electron/Vite/React shell with the four-column editor layout.
+- Shared domain contracts for projects, originals, tasks, pipelines, settings, ops, and IPC.
+- App data directory at `~/.fotoready`, settings persistence, and session logging.
+- Project session state with original import, active task selection, task forking, and pending-task processing.
+- Basic sharp-backed pipeline runtime for decode, crop, rotate, resize, denoise, sharpen, and output encoding.
+
+Vision, metadata writing, rename flow, preview rendering, full queue concurrency, and packaging polish are planned as later phases.
 
 ## Development
 

@@ -5,6 +5,7 @@ import { configureUserDataPath, getAppPaths } from "./paths";
 import { createLogger } from "./logging/logger";
 import { loadSettings } from "./persistence/settings-io";
 import { registerIpcHandlers } from "./ipc/router";
+import { ProjectSession } from "./project/session";
 import { APP_NAME } from "@shared/constants";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,10 +17,12 @@ export async function bootstrap(): Promise<void> {
   const paths = getAppPaths();
   const logger = await createLogger(paths.logsDir);
   const settings = await loadSettings(paths.settingsPath);
+  const projectSession = new ProjectSession(settings);
 
   registerIpcHandlers({
     paths,
     settings,
+    projectSession,
     version: app.getVersion()
   });
 

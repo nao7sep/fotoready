@@ -1,0 +1,59 @@
+{
+  "name": "fotoready",
+  "version": "0.1.0",
+  "description": "FotoReady photo editor for blogging and publication workflows.",
+  "main": "out/main/index.js",
+  "author": "Yoshinao Inoguchi <nao7sep@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "preview": "electron-vite preview",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@google/genai": "^2.0.1",
+    "@vitejs/plugin-react": "^5.1.0",
+    "clsx": "^2.1.1",
+    "electron-updater": "^6.6.2",
+    "exiftool-vendored": "^35.20.0",
+    "konva": "^10.3.0",
+    "lucide-react": "^0.475.0",
+    "nanoid": "^5.1.11",
+    "p-queue": "^9.2.0",
+    "pino": "^10.3.1",
+    "piscina": "^5.1.4",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-konva": "^19.0.10",
+    "sharp": "^0.34.5",
+    "tailwind-merge": "^2.6.0",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.2.7"
+  },
+  "build": {
+    "appId": "com.fotoready.desktop",
+    "productName": "FotoReady",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "identity": null
+    }
+  }
+}

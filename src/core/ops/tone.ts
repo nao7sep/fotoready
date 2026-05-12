@@ -29,3 +29,41 @@ registerOp({
   schema: { type: "object", properties: {}, additionalProperties: true },
   visible: true
 });
+
+registerOp({
+  type: "curves",
+  label: "Curves",
+  category: "Tone",
+  defaultParams: { rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] },
+  paramScaling: { rgb: "scale_invariant" },
+  schema: { type: "object", properties: {}, additionalProperties: true },
+  visible: true
+});
+
+registerOp({
+  type: "hsl",
+  label: "HSL",
+  category: "Tone",
+  defaultParams: {
+    red: { hue: 0, sat: 0, lum: 0 },
+    orange: { hue: 0, sat: 0, lum: 0 },
+    yellow: { hue: 0, sat: 0, lum: 0 },
+    green: { hue: 0, sat: 0, lum: 0 },
+    aqua: { hue: 0, sat: 0, lum: 0 },
+    blue: { hue: 0, sat: 0, lum: 0 },
+    purple: { hue: 0, sat: 0, lum: 0 },
+    magenta: { hue: 0, sat: 0, lum: 0 }
+  },
+  paramScaling: {
+    red: "scale_invariant",
+    orange: "scale_invariant",
+    yellow: "scale_invariant",
+    green: "scale_invariant",
+    aqua: "scale_invariant",
+    blue: "scale_invariant",
+    purple: "scale_invariant",
+    magenta: "scale_invariant"
+  },
+  schema: { type: "object", properties: {}, additionalProperties: true },
+  visible: true
+});

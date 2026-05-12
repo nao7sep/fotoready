@@ -28,6 +28,7 @@ Current implementation status:
 - Per-task undo history for pending task edits through the Cmd/Ctrl+Z shortcut.
 - Current-task error actions for retry, source reveal, and dismiss.
 - Expanded settings controls for encoding, vision, performance, preview, and path defaults.
+- Runtime-backed curves and HSL tone ops, source date preservation, and post-metadata output hashing.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

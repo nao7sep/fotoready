@@ -7,7 +7,7 @@ import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
-import { injectMetadata, stripMetadata } from "@adapters/metadata/exiftool";
+import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 
@@ -50,14 +50,15 @@ export async function processTask(
       throw new Error("Processing did not produce an output file.");
     }
 
-    await applyMetadataPolicy(result.outputPath, task, settings);
+    const savedAt = new Date();
+    const finalFacts = await applyMetadataPolicy(result.outputPath, original.sourcePath, task, settings, savedAt);
 
     task.pipeline = result.appliedPipeline;
     task.status = "done";
     task.output = {
       stagedPath: result.outputPath,
-      stagedAt: nowIso(),
-      outputHash: result.outputHash,
+      stagedAt: savedAt.toISOString(),
+      outputHash: finalFacts.outputHash,
       vision: null,
       finalPath: null,
       renamedAt: null
@@ -172,12 +173,15 @@ function clampQuality(value: number): number {
   return Math.max(1, Math.min(100, Math.round(value)));
 }
 
-async function applyMetadataPolicy(outputPath: string, task: Task, settings: GlobalSettings): Promise<void> {
+async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
   const keep = task.metadataStripOverride ?? settings.defaultMetadataStrip;
   await stripMetadata(outputPath, keep);
+  await writeOutputDates(outputPath, sourcePath, settings.preserveSourceDates, savedAt);
   if (settings.injectAuthorCopyright) {
     await injectMetadata(outputPath, settings.injectFields);
   }
+  const bytes = await fs.readFile(outputPath);
+  return { outputHash: sha256Bytes(bytes) };
 }
 
 async function stagedOutputPath(project: Project, task: Task, sourcePath: string, projectPath: string | null): Promise<string> {

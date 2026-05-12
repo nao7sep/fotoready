@@ -678,6 +678,25 @@ select:disabled {
   gap: 10px;
 }
 
+.hsl-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.hsl-row {
+  display: grid;
+  grid-template-columns: 70px repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
+}
+
+.hsl-row span {
+  padding-bottom: 7px;
+  color: #d6d3d1;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
 .settings-section-header {
   display: flex;
   align-items: center;

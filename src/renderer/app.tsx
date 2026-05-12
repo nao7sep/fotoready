@@ -861,6 +861,55 @@ function OpParams({
     );
   }
 
+  if (op.type === "curves") {
+    const points = curvePointsValue(op.params.rgb);
+    return (
+      <div className="field-grid">
+        {points.map((point, index) => (
+          <React.Fragment key={index}>
+            <label>
+              In {index + 1}
+              <input disabled={disabled} max={255} min={0} type="number" value={point[0]} onChange={(event) => onParamChange("rgb", points.map((item, itemIndex) => itemIndex === index ? [event.currentTarget.valueAsNumber, item[1]] : item))} />
+            </label>
+            <label>
+              Out {index + 1}
+              <input disabled={disabled} max={255} min={0} type="number" value={point[1]} onChange={(event) => onParamChange("rgb", points.map((item, itemIndex) => itemIndex === index ? [item[0], event.currentTarget.valueAsNumber] : item))} />
+            </label>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  if (op.type === "hsl") {
+    return (
+      <div className="hsl-grid">
+        {hslRanges.map((range) => {
+          const params = hslRangeValue(op.params[range]);
+          return (
+            <div className="hsl-row" key={range}>
+              <span>{range}</span>
+              {(["hue", "sat", "lum"] as const).map((key) => (
+                <label key={key}>
+                  {key}
+                  <input
+                    disabled={disabled}
+                    max={key === "hue" ? 180 : 1}
+                    min={key === "hue" ? -180 : -1}
+                    step={key === "hue" ? 1 : 0.05}
+                    type="number"
+                    value={params[key]}
+                    onChange={(event) => onParamChange(range, { ...params, [key]: event.currentTarget.valueAsNumber })}
+                  />
+                </label>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   if (op.type === "unsharp-mask") {
     return (
       <div className="field-grid">
@@ -1113,6 +1162,27 @@ function numberValue(value: unknown, fallback: number): number {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+const hslRanges = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;
+
+function curvePointsValue(value: unknown): Array<[number, number]> {
+  if (!Array.isArray(value)) return [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]];
+  const points = value.filter((point): point is [number, number] =>
+    Array.isArray(point) &&
+    typeof point[0] === "number" &&
+    typeof point[1] === "number"
+  );
+  return points.length ? points : [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]];
+}
+
+function hslRangeValue(value: unknown): { hue: number; sat: number; lum: number } {
+  const params = value && typeof value === "object" ? value as Partial<{ hue: number; sat: number; lum: number }> : {};
+  return {
+    hue: numberValue(params.hue, 0),
+    sat: numberValue(params.sat, 0),
+    lum: numberValue(params.lum, 0)
+  };
 }
 
 function firstRect(value: unknown): { x: number; y: number; w: number; h: number } {

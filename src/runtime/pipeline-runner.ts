@@ -106,6 +106,10 @@ async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, 
       return applyResize(image, op);
     case "levels":
       return applyLevels(image, op);
+    case "curves":
+      return applyCurves(image, op);
+    case "hsl":
+      return applyHsl(image, op);
     case "white-balance":
       return applyWhiteBalance(image, op);
     case "auto-tone":
@@ -175,6 +179,59 @@ function applyWhiteBalance(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
   const blue = 1 - temperature / 500;
   const green = 1 + tint / 700;
   return image.linear([red, green, blue], [0, 0, 0]);
+}
+
+async function applyCurves(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
+  const metadata = await image.metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (width <= 0 || height <= 0) return image;
+
+  const lut = curveLookup(curvePointsParam(op.params.rgb));
+  const raw = await image.ensureAlpha().raw().toBuffer();
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    raw[offset] = lut[raw[offset]];
+    raw[offset + 1] = lut[raw[offset + 1]];
+    raw[offset + 2] = lut[raw[offset + 2]];
+  }
+
+  return (await import("sharp")).default(raw, {
+    raw: {
+      width,
+      height,
+      channels: 4
+    }
+  });
+}
+
+async function applyHsl(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
+  const metadata = await image.metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (width <= 0 || height <= 0) return image;
+
+  const raw = await image.ensureAlpha().raw().toBuffer();
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    const hsl = rgbToHsl(raw[offset], raw[offset + 1], raw[offset + 2]);
+    const adjustment = hslAdjustmentForHue(op, hsl.h);
+    if (!adjustment) continue;
+    const rgb = hslToRgb(
+      wrapHue(hsl.h + adjustment.hue),
+      clamp01(hsl.s * (1 + adjustment.sat)),
+      clamp01(hsl.l + adjustment.lum)
+    );
+    raw[offset] = rgb.r;
+    raw[offset + 1] = rgb.g;
+    raw[offset + 2] = rgb.b;
+  }
+
+  return (await import("sharp")).default(raw, {
+    raw: {
+      width,
+      height,
+      channels: 4
+    }
+  });
 }
 
 function applyFillRedaction(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): sharp.Sharp {
@@ -310,6 +367,118 @@ async function applyLut(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp
       channels: 4
     }
   });
+}
+
+function curvePointsParam(value: unknown): Array<[number, number]> {
+  if (!Array.isArray(value)) return [[0, 0], [255, 255]];
+  const points = value
+    .filter((point): point is [number, number] =>
+      Array.isArray(point) &&
+      point.length >= 2 &&
+      typeof point[0] === "number" &&
+      typeof point[1] === "number"
+    )
+    .map(([x, y]) => [Math.max(0, Math.min(255, x)), Math.max(0, Math.min(255, y))] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+  return points.length >= 2 ? points : [[0, 0], [255, 255]];
+}
+
+function curveLookup(points: Array<[number, number]>): Uint8Array {
+  const lut = new Uint8Array(256);
+  for (let value = 0; value < 256; value += 1) {
+    const upperIndex = points.findIndex(([x]) => x >= value);
+    if (upperIndex === -1) {
+      lut[value] = Math.round(points[points.length - 1][1]);
+      continue;
+    }
+    if (upperIndex <= 0) {
+      lut[value] = Math.round(points[0][1]);
+      continue;
+    }
+    const lower = points[upperIndex - 1];
+    const upper = points[upperIndex];
+    const span = Math.max(1, upper[0] - lower[0]);
+    const t = (value - lower[0]) / span;
+    lut[value] = Math.round(lower[1] + (upper[1] - lower[1]) * t);
+  }
+  return lut;
+}
+
+function hslAdjustmentForHue(op: OpInstance, hue: number): { hue: number; sat: number; lum: number } | null {
+  const range = hueRangeName(hue);
+  const params = op.params[range];
+  if (!params || typeof params !== "object") return null;
+  const values = params as Record<string, unknown>;
+  return {
+    hue: clampNumber(values.hue, -180, 180, 0),
+    sat: clampNumber(values.sat, -1, 1, 0),
+    lum: clampNumber(values.lum, -1, 1, 0)
+  };
+}
+
+function hueRangeName(hue: number): string {
+  if (hue < 15 || hue >= 345) return "red";
+  if (hue < 45) return "orange";
+  if (hue < 75) return "yellow";
+  if (hue < 165) return "green";
+  if (hue < 195) return "aqua";
+  if (hue < 255) return "blue";
+  if (hue < 285) return "purple";
+  return "magenta";
+}
+
+function rgbToHsl(rByte: number, gByte: number, bByte: number): { h: number; s: number; l: number } {
+  const r = rByte / 255;
+  const g = gByte / 255;
+  const b = bByte / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const delta = max - min;
+  const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  const h = max === r
+    ? ((g - b) / delta + (g < b ? 6 : 0)) * 60
+    : max === g
+      ? ((b - r) / delta + 2) * 60
+      : ((r - g) / delta + 4) * 60;
+  return { h, s, l };
+}
+
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  if (s === 0) {
+    const value = Math.round(l * 255);
+    return { r: value, g: value, b: value };
+  }
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const r = hueToRgb(p, q, h / 360 + 1 / 3);
+  const g = hueToRgb(p, q, h / 360);
+  const b = hueToRgb(p, q, h / 360 - 1 / 3);
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+}
+
+function hueToRgb(p: number, q: number, tValue: number): number {
+  let t = tValue;
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1 / 6) return p + (q - p) * 6 * t;
+  if (t < 1 / 2) return q;
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+  return p;
+}
+
+function wrapHue(value: number): number {
+  return ((value % 360) + 360) % 360;
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 }
 
 function numberParam(op: OpInstance, key: string, fallback: number): number {

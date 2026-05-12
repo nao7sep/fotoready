@@ -31,6 +31,21 @@ export async function injectMetadata(outputPath: string, fields: MetadataFields)
   await exiftool.write(outputPath, tags, ["-overwrite_original"]);
 }
 
+export async function writeOutputDates(outputPath: string, sourcePath: string, preserveSourceDates: boolean, savedAt: Date): Promise<void> {
+  const sourceDates = preserveSourceDates ? await readSourceDates(sourcePath) : null;
+  const modifyDate = exifDate(savedAt);
+  await exiftool.write(
+    outputPath,
+    {
+      DateTimeOriginal: sourceDates?.dateTimeOriginal ?? modifyDate,
+      CreateDate: sourceDates?.createDate ?? sourceDates?.dateTimeOriginal ?? modifyDate,
+      ModifyDate: modifyDate
+    } as WriteTags,
+    ["-overwrite_original"]
+  );
+  await removeExiftoolOriginal(outputPath);
+}
+
 function metadataFieldsToTags(fields: MetadataFields): WriteTags {
   const tags: Record<string, string | string[] | boolean> = {};
   assign(tags, ["EXIF:Artist", "IPTC:By-line", "XMP-dc:Creator"], fields.author ?? fields.creator);
@@ -56,4 +71,28 @@ function assign(target: Record<string, string | string[] | boolean>, keys: strin
 
 async function removeExiftoolOriginal(outputPath: string): Promise<void> {
   await fs.rm(`${outputPath}_original`, { force: true });
+}
+
+async function readSourceDates(sourcePath: string): Promise<{ dateTimeOriginal?: string; createDate?: string }> {
+  try {
+    const tags = await exiftool.read(sourcePath);
+    return {
+      dateTimeOriginal: tagDate(tags.DateTimeOriginal),
+      createDate: tagDate(tags.CreateDate)
+    };
+  } catch {
+    return {};
+  }
+}
+
+function tagDate(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return exifDate(value);
+  if (typeof value === "object" && "rawValue" in value && typeof value.rawValue === "string") return value.rawValue;
+  return typeof value === "string" ? value : undefined;
+}
+
+function exifDate(date: Date): string {
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${date.getFullYear()}:${pad(date.getMonth() + 1)}:${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }

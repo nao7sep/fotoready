@@ -7,6 +7,7 @@ export type QueueSnapshot = {
   total: number;
   processing: number;
   errors: number;
+  paused: boolean;
 };
 
 export type SystemInfo = {
@@ -116,6 +117,8 @@ export type FotoReadyApi = {
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;
+    pause(): Promise<QueueSnapshot>;
+    resume(): Promise<QueueSnapshot>;
   };
   events: {
     onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;

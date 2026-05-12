@@ -32,6 +32,7 @@ Current implementation status:
 - Piscina-backed pipeline worker entry wired into processing and preview rendering.
 - Source-file recovery by content hash across last-seen, project, and output directories.
 - Konva-backed editor canvas with before/after, fit/100% zoom, and authored overlay visualization.
+- Functional app menu, About modal, and IPC-backed queue pause/resume controls.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

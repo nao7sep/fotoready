@@ -248,6 +248,16 @@ export class ProjectSession {
     return queueSnapshotFromProject(this.#project);
   }
 
+  pauseQueues(): QueueSnapshot {
+    this.processingQueue?.pause();
+    return this.queueSnapshot();
+  }
+
+  resumeQueues(): QueueSnapshot {
+    this.processingQueue?.resume();
+    return this.queueSnapshot();
+  }
+
   async renderPreview(taskId: string): Promise<PreviewResult> {
     await this.ensureTaskSourcePath(taskId);
     return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool);

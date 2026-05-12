@@ -57,7 +57,9 @@ const api: FotoReadyApi = {
     clear: () => ipcRenderer.invoke("caches.clear")
   },
   queues: {
-    snapshot: () => ipcRenderer.invoke("queues.snapshot")
+    snapshot: () => ipcRenderer.invoke("queues.snapshot"),
+    pause: () => ipcRenderer.invoke("queues.pause"),
+    resume: () => ipcRenderer.invoke("queues.resume")
   },
   events: {
     onProjectSnapshot: (callback) => {

@@ -170,4 +170,14 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return getCacheSizes(ctx.paths);
   });
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
+  ipcMain.handle("queues.pause", async () => {
+    const snapshot = ctx.projectSession.pauseQueues();
+    publishSnapshots();
+    return snapshot;
+  });
+  ipcMain.handle("queues.resume", async () => {
+    const snapshot = ctx.projectSession.resumeQueues();
+    publishSnapshots();
+    return snapshot;
+  });
 }

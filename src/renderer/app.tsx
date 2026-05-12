@@ -21,13 +21,15 @@ function App(): React.JSX.Element {
   const [renameOpen, setRenameOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showOriginals, setShowOriginals] = useState(true);
   const [showTasks, setShowTasks] = useState(true);
   const [showOps, setShowOps] = useState(true);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
-  const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
+  const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0, paused: false });
 
   const project = projectSnapshot?.project;
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
@@ -314,6 +316,14 @@ function App(): React.JSX.Element {
     setQueue(await api.queues.snapshot());
   }
 
+  async function pauseQueues(): Promise<void> {
+    setQueue(await api.queues.pause());
+  }
+
+  async function resumeQueues(): Promise<void> {
+    setQueue(await api.queues.resume());
+  }
+
   return (
     <main className="app-shell">
       <header className="top-bar">
@@ -327,9 +337,25 @@ function App(): React.JSX.Element {
         <button className="icon-button" type="button" title="Settings" onClick={() => void openSettings()}>
           <Settings size={18} />
         </button>
-        <button className="icon-button" type="button" title="Menu">
+        <button className="icon-button" type="button" title="Menu" onClick={() => setMenuOpen((value) => !value)}>
           <Menu size={18} />
         </button>
+        {menuOpen ? (
+          <div className="app-menu">
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
+              void openSettings();
+            }}>Settings</button>
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
+              setShortcutsOpen(true);
+            }}>Keyboard shortcuts</button>
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
+              setAboutOpen(true);
+            }}>About FotoReady</button>
+          </div>
+        ) : null}
       </header>
 
       <section className={`workspace ${!showOriginals ? "hide-originals" : ""} ${!showTasks ? "hide-tasks" : ""} ${!showOps ? "hide-ops" : ""}`}>
@@ -707,16 +733,40 @@ function App(): React.JSX.Element {
         </div>
       ) : null}
 
+      {aboutOpen ? (
+        <div className="modal-backdrop">
+          <section className="modal small-modal">
+            <header className="modal-header">
+              <h2>About FotoReady</h2>
+              <button className="toolbar-button" type="button" onClick={() => setAboutOpen(false)}>Close</button>
+            </header>
+            <div className="settings-summary">
+              <span>Application</span>
+              <code>{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</code>
+            </div>
+            <div className="settings-summary">
+              <span>Data directory</span>
+              <code>{systemInfo?.dataDir ?? "~/.fotoready"}</code>
+            </div>
+            <div className="settings-summary">
+              <span>License</span>
+              <code>MIT</code>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <footer className="status-bar">
         <span>
           Queue: {queue.done}/{queue.total} done
           {queue.processing > 0 ? ` · ${queue.processing} processing` : ""}
           {queue.errors > 0 ? ` · ${queue.errors} errors` : ""}
+          {queue.paused ? " · paused" : ""}
         </span>
-        <button className="icon-button compact" type="button" title="Pause queues">
+        <button className="icon-button compact" type="button" title="Pause queues" onClick={() => void pauseQueues()} disabled={queue.paused}>
           <Pause size={15} />
         </button>
-        <button className="icon-button compact" type="button" title="Resume queues">
+        <button className="icon-button compact" type="button" title="Resume queues" onClick={() => void resumeQueues()} disabled={!queue.paused}>
           <Play size={15} />
         </button>
         <span className="version">{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</span>

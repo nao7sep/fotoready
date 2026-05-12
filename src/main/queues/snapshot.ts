@@ -6,7 +6,8 @@ export function emptyQueueSnapshot(): QueueSnapshot {
     done: 0,
     total: 0,
     processing: 0,
-    errors: 0
+    errors: 0,
+    paused: false
   };
 }
 
@@ -15,6 +16,7 @@ export function queueSnapshotFromProject(project: Project): QueueSnapshot {
     done: project.tasks.filter((task) => task.status === "done").length,
     total: project.tasks.length,
     processing: project.tasks.filter((task) => task.status === "processing").length,
-    errors: project.tasks.filter((task) => task.status === "error").length
+    errors: project.tasks.filter((task) => task.status === "error").length,
+    paused: false
   };
 }

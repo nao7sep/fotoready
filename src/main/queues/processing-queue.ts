@@ -42,11 +42,20 @@ export class ProcessingQueue {
     await Promise.all(pendingTaskIds.map((taskId) => this.runTask(project, taskId, projectPath)));
   }
 
+  pause(): void {
+    this.#queue.pause();
+  }
+
+  resume(): void {
+    this.#queue.start();
+  }
+
   snapshot(project: Project): QueueSnapshot {
     const base = queueSnapshotFromProject(project);
     return {
       ...base,
-      processing: this.#queue.pending + base.processing
+      processing: this.#queue.pending + base.processing,
+      paused: this.#queue.isPaused
     };
   }
 

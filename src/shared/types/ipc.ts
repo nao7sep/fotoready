@@ -104,8 +104,8 @@ export type FotoReadyApi = {
     runForTask(taskId: string): Promise<ProjectSnapshot>;
   };
   rename: {
-    preview(templateId?: string): Promise<RenamePreview>;
-    run(templateId?: string): Promise<ProjectSnapshot>;
+    preview(templateId?: string, taskIds?: string[]): Promise<RenamePreview>;
+    run(templateId?: string, taskIds?: string[]): Promise<ProjectSnapshot>;
   };
   caches: {
     sizes(): Promise<CacheSizes>;

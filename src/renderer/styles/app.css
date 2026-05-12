@@ -585,9 +585,44 @@ select:disabled {
   background: #4b3b16;
 }
 
+.modal-warning .inline-action {
+  margin-left: 10px;
+}
+
 .modal-error {
   color: #fecaca;
   background: #4c1d1d;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  width: fit-content;
+  overflow: hidden;
+  border: 1px solid #3f3f3f;
+  border-radius: 6px;
+}
+
+.segmented-control button {
+  padding: 7px 10px;
+  border: 0;
+  border-right: 1px solid #3f3f3f;
+  color: #d6d3d1;
+  background: #262626;
+  font: inherit;
+}
+
+.segmented-control button:last-child {
+  border-right: 0;
+}
+
+.segmented-control button.active {
+  color: #f5f5f4;
+  background: #3b3b3b;
+}
+
+.segmented-control button:disabled {
+  color: #706d69;
 }
 
 .vision-description {

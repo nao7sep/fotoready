@@ -309,12 +309,12 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async previewRename(templateId?: string): Promise<RenamePreview> {
-    return previewRename(this.#project, this.settings, templateId);
+  async previewRename(templateId?: string, taskIds?: string[]): Promise<RenamePreview> {
+    return previewRename(this.#project, this.settings, templateId, taskIds);
   }
 
-  async runRename(templateId?: string): Promise<ProjectSessionSnapshot> {
-    await runRename(this.#project, this.settings, templateId);
+  async runRename(templateId?: string, taskIds?: string[]): Promise<ProjectSessionSnapshot> {
+    await runRename(this.#project, this.settings, templateId, taskIds);
     await this.persistIfSaved();
     return this.snapshot();
   }

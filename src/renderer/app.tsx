@@ -472,11 +472,17 @@ function App(): React.JSX.Element {
         <RenameModal
           defaultTemplateId={project?.settings.defaultTemplateId ?? settings.defaultTemplateId}
           onClose={() => setRenameOpen(false)}
-          onPreview={(templateId) => api.rename.preview(templateId)}
-          onRun={async (templateId) => {
-            await refreshProject(await api.rename.run(templateId));
+          onGenerateMissing={async (taskIds) => {
+            for (const taskId of taskIds) {
+              await refreshProject(await api.vision.runForTask(taskId));
+            }
+          }}
+          onPreview={(templateId, taskIds) => api.rename.preview(templateId, taskIds)}
+          onRun={async (templateId, taskIds) => {
+            await refreshProject(await api.rename.run(templateId, taskIds));
             setRenameOpen(false);
           }}
+          selectedTaskId={activeTask?.status === "done" ? activeTask.id : null}
           templates={settings.filenameTemplates}
         />
       ) : null}

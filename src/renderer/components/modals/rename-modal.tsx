@@ -5,26 +5,37 @@ import type { RenamePreview } from "@shared/types/ipc";
 export function RenameModal({
   templates,
   defaultTemplateId,
+  selectedTaskId,
   onClose,
+  onGenerateMissing,
   onPreview,
   onRun
 }: {
   templates: FilenameTemplate[];
   defaultTemplateId: string;
+  selectedTaskId: string | null;
   onClose(): void;
-  onPreview(templateId: string): Promise<RenamePreview>;
-  onRun(templateId: string): Promise<void>;
+  onGenerateMissing(taskIds: string[]): Promise<void>;
+  onPreview(templateId: string, taskIds?: string[]): Promise<RenamePreview>;
+  onRun(templateId: string, taskIds?: string[]): Promise<void>;
 }): React.JSX.Element {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
+  const [scope, setScope] = useState<"all" | "selected">("all");
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canUseSelected = selectedTaskId !== null;
+  const scopedTaskIds = scope === "selected" && selectedTaskId ? [selectedTaskId] : undefined;
+
+  useEffect(() => {
+    if (!canUseSelected && scope === "selected") setScope("all");
+  }, [canUseSelected, scope]);
 
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
     setError(null);
-    void onPreview(templateId)
+    void onPreview(templateId, scopedTaskIds)
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
@@ -38,13 +49,28 @@ export function RenameModal({
     return () => {
       cancelled = true;
     };
-  }, [onPreview, templateId]);
+  }, [onPreview, scope, selectedTaskId, templateId]);
 
   async function confirm(): Promise<void> {
     setBusy(true);
     setError(null);
     try {
-      await onRun(templateId);
+      await onRun(templateId, scopedTaskIds);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateMissing(): Promise<void> {
+    const missingTaskIds = preview?.items.filter((item) => item.missingSlug).map((item) => item.taskId) ?? [];
+    if (missingTaskIds.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onGenerateMissing(missingTaskIds);
+      setPreview(await onPreview(templateId, scopedTaskIds));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
@@ -69,9 +95,15 @@ export function RenameModal({
           </select>
         </label>
 
+        <div className="segmented-control">
+          <button className={scope === "all" ? "active" : ""} type="button" onClick={() => setScope("all")}>All done tasks</button>
+          <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected task only</button>
+        </div>
+
         {preview?.missingSlugCount ? (
           <div className="modal-warning">
             {preview.missingSlugCount} of {preview.items.length} done tasks need a custom slug before rename.
+            <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
           </div>
         ) : null}
 

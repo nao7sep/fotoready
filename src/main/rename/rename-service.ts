@@ -13,10 +13,12 @@ import { normalizeSlugCandidate } from "@core/slug/rules";
 
 type RenamePlanItem = RenamePreview["items"][number];
 
-export async function previewRename(project: Project, settings: GlobalSettings, templateId?: string): Promise<RenamePreview> {
+export async function previewRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<RenamePreview> {
   const template = findTemplate(project, settings, templateId);
+  const scopedTaskIds = taskIds?.length ? new Set(taskIds) : null;
   const doneTasks = project.tasks
     .filter((task): task is Task & { output: NonNullable<Task["output"]> } => task.status === "done" && task.output !== null)
+    .filter((task) => !scopedTaskIds || scopedTaskIds.has(task.id))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const needsSlug = template.pattern.includes("{slug}");
@@ -67,8 +69,8 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   };
 }
 
-export async function runRename(project: Project, settings: GlobalSettings, templateId?: string): Promise<void> {
-  const preview = await previewRename(project, settings, templateId);
+export async function runRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<void> {
+  const preview = await previewRename(project, settings, templateId, taskIds);
   if (preview.missingSlugCount > 0) {
     throw new Error(`${preview.missingSlugCount} task(s) need a custom slug or vision result before rename.`);
   }

@@ -46,8 +46,8 @@ const api: FotoReadyApi = {
     runForTask: (taskId) => ipcRenderer.invoke("vision.runForTask", taskId)
   },
   rename: {
-    preview: (templateId) => ipcRenderer.invoke("rename.preview", templateId),
-    run: (templateId) => ipcRenderer.invoke("rename.run", templateId)
+    preview: (templateId, taskIds) => ipcRenderer.invoke("rename.preview", templateId, taskIds),
+    run: (templateId, taskIds) => ipcRenderer.invoke("rename.run", templateId, taskIds)
   },
   caches: {
     sizes: () => ipcRenderer.invoke("caches.sizes"),

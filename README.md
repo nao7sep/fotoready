@@ -33,6 +33,7 @@ Current implementation status:
 - Source-file recovery by content hash across last-seen, project, and output directories.
 - Konva-backed editor canvas with before/after, fit/100% zoom, and authored overlay visualization.
 - Functional app menu, About modal, and IPC-backed queue pause/resume controls.
+- Tabbed settings modal covering general, encoding, vision, metadata, naming, path, performance, and cache settings.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

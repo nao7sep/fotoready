@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CopyPlus, ImagePlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
-import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
+import type { GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { RenameModal } from "./components/modals/rename-modal";
+import { AppSettingsModal } from "./components/modals/settings-modal";
 import "./styles/app.css";
 
 function App(): React.JSX.Element {
@@ -268,44 +269,6 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
-  function updateSettingsTemplate(templateId: string, patch: Partial<FilenameTemplate>): void {
-    if (!settingsDraft) return;
-    setSettingsDraft({
-      ...settingsDraft,
-      filenameTemplates: settingsDraft.filenameTemplates.map((template) => (
-        template.id === templateId ? { ...template, ...patch } : template
-      ))
-    });
-  }
-
-  function addSettingsTemplate(): void {
-    if (!settingsDraft) return;
-    const id = `template-${crypto.randomUUID()}`;
-    setSettingsDraft({
-      ...settingsDraft,
-      defaultTemplateId: id,
-      filenameTemplates: [
-        ...settingsDraft.filenameTemplates,
-        {
-          id,
-          name: "Custom template",
-          pattern: "{slug}-{date:saved|local|yyyymmdd}.{ext}"
-        }
-      ]
-    });
-  }
-
-  function deleteSettingsTemplate(templateId: string): void {
-    if (!settingsDraft) return;
-    const nextTemplates = settingsDraft.filenameTemplates.filter((template) => template.id !== templateId || template.builtin);
-    const fallbackTemplateId = nextTemplates[0]?.id ?? settingsDraft.defaultTemplateId;
-    setSettingsDraft({
-      ...settingsDraft,
-      filenameTemplates: nextTemplates,
-      defaultTemplateId: settingsDraft.defaultTemplateId === templateId ? fallbackTemplateId : settingsDraft.defaultTemplateId
-    });
-  }
-
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -532,177 +495,18 @@ function App(): React.JSX.Element {
       ) : null}
 
       {apiKeyOpen ? (
-        <div className="modal-backdrop">
-          <section className="modal settings-modal">
-            <header className="modal-header">
-              <h2>Settings</h2>
-              <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Close</button>
-            </header>
-            <div className="settings-summary">
-              <span>Data directory</span>
-              <code>{systemInfo?.dataDir ?? "~/.fotoready"}</code>
-            </div>
-            <label className="stacked-field">
-              Gemini API key
-              <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.currentTarget.value)} />
-            </label>
-            {settingsDraft ? (
-              <div className="settings-grid">
-                <label className="stacked-field">
-                  Default format
-                  <select value={settingsDraft.defaultOutputFormat} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultOutputFormat: event.currentTarget.value as GlobalSettings["defaultOutputFormat"] })}>
-                    {["jpeg", "webp", "avif", "png"].map((format) => <option key={format}>{format}</option>)}
-                  </select>
-                </label>
-                <label className="stacked-field">
-                  WebP quality
-                  <input min={1} max={100} type="number" value={settingsDraft.defaultWebpQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultWebpQuality: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  JPEG fixed quality
-                  <input min={1} max={100} type="number" value={settingsDraft.jpegFixedQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegFixedQuality: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  JPEG strategy
-                  <select value={settingsDraft.jpegStrategy} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegStrategy: event.currentTarget.value as GlobalSettings["jpegStrategy"] })}>
-                    {["match-source-size", "match-source-quality", "fixed", "prompt-per-task"].map((strategy) => <option key={strategy}>{strategy}</option>)}
-                  </select>
-                </label>
-                <label className="stacked-field">
-                  JPEG fallback quality
-                  <input min={1} max={100} type="number" value={settingsDraft.jpegQualityOnDetectionFailure} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegQualityOnDetectionFailure: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  WebP method
-                  <input min={0} max={6} type="number" value={settingsDraft.webpMethod} onChange={(event) => setSettingsDraft({ ...settingsDraft, webpMethod: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  AVIF quality
-                  <input min={1} max={100} type="number" value={settingsDraft.defaultAvifQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultAvifQuality: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  AVIF effort
-                  <input min={0} max={9} type="number" value={settingsDraft.avifEffort} onChange={(event) => setSettingsDraft({ ...settingsDraft, avifEffort: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="toggle-row">
-                  <input type="checkbox" checked={settingsDraft.defaultPngPalette} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultPngPalette: event.currentTarget.checked })} />
-                  PNG palette
-                </label>
-                <label className="toggle-row">
-                  <input type="checkbox" checked={settingsDraft.defaultAnalyzeContent} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultAnalyzeContent: event.currentTarget.checked })} />
-                  Describe by default
-                </label>
-                <label className="stacked-field">
-                  Vision model
-                  <input type="text" value={settingsDraft.model} onChange={(event) => setSettingsDraft({ ...settingsDraft, model: event.currentTarget.value })} />
-                </label>
-                <label className="stacked-field">
-                  Vision long edge
-                  <input min={128} max={4096} type="number" value={settingsDraft.preResizeLongEdge} onChange={(event) => setSettingsDraft({ ...settingsDraft, preResizeLongEdge: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  Max concurrent
-                  <input min={1} max={16} type="number" value={settingsDraft.maxConcurrent} onChange={(event) => setSettingsDraft({ ...settingsDraft, maxConcurrent: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  Worker pool
-                  <input min={1} max={16} type="number" value={settingsDraft.workerPoolSize} onChange={(event) => setSettingsDraft({ ...settingsDraft, workerPoolSize: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="toggle-row">
-                  <input type="checkbox" checked={settingsDraft.cacheResults} onChange={(event) => setSettingsDraft({ ...settingsDraft, cacheResults: event.currentTarget.checked })} />
-                  Cache vision
-                </label>
-                <label className="stacked-field">
-                  Camera timezone
-                  <input type="text" value={settingsDraft.cameraTimezone} onChange={(event) => setSettingsDraft({ ...settingsDraft, cameraTimezone: event.currentTarget.value })} />
-                </label>
-                <label className="stacked-field">
-                  Preview long edge
-                  <input min={320} max={4096} type="number" value={settingsDraft.previewLongEdge} onChange={(event) => setSettingsDraft({ ...settingsDraft, previewLongEdge: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field">
-                  Preview debounce
-                  <input min={0} max={2000} type="number" value={settingsDraft.previewDebounceMs} onChange={(event) => setSettingsDraft({ ...settingsDraft, previewDebounceMs: event.currentTarget.valueAsNumber })} />
-                </label>
-                <label className="stacked-field span-two">
-                  Prompt addendum
-                  <input type="text" value={settingsDraft.customPromptAddendum} onChange={(event) => setSettingsDraft({ ...settingsDraft, customPromptAddendum: event.currentTarget.value })} />
-                </label>
-                <label className="stacked-field span-two">
-                  Default output directory
-                  <input type="text" value={settingsDraft.defaultOutputDirectory} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultOutputDirectory: event.currentTarget.value })} />
-                </label>
-                <label className="stacked-field span-two">
-                  LUT folder
-                  <input type="text" value={settingsDraft.lutFolder} onChange={(event) => setSettingsDraft({ ...settingsDraft, lutFolder: event.currentTarget.value })} />
-                </label>
-                <label className="stacked-field span-two">
-                  Default watermark image
-                  <input type="text" value={settingsDraft.defaultWatermarkImage} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultWatermarkImage: event.currentTarget.value })} />
-                </label>
-                <label className="toggle-row span-two">
-                  <input type="checkbox" checked={settingsDraft.injectAuthorCopyright} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectAuthorCopyright: event.currentTarget.checked })} />
-                  Inject author/copyright metadata
-                </label>
-                <label className="stacked-field">
-                  Author
-                  <input type="text" value={settingsDraft.injectFields.author ?? ""} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectFields: { ...settingsDraft.injectFields, author: event.currentTarget.value } })} />
-                </label>
-                <label className="stacked-field">
-                  Copyright
-                  <input type="text" value={settingsDraft.injectFields.copyright ?? ""} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectFields: { ...settingsDraft.injectFields, copyright: event.currentTarget.value } })} />
-                </label>
-              </div>
-            ) : null}
-            {settingsDraft ? (
-              <section className="template-settings">
-                <div className="settings-section-header">
-                  <h3>Filename templates</h3>
-                  <button className="toolbar-button" type="button" onClick={addSettingsTemplate}>Add template</button>
-                </div>
-                <label className="stacked-field">
-                  Default template
-                  <select value={settingsDraft.defaultTemplateId} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultTemplateId: event.currentTarget.value })}>
-                    {settingsDraft.filenameTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>{template.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="template-settings-list">
-                  {settingsDraft.filenameTemplates.map((template) => (
-                    <div className="template-settings-row" key={template.id}>
-                      <input
-                        aria-label="Template name"
-                        disabled={template.builtin}
-                        type="text"
-                        value={template.name}
-                        onChange={(event) => updateSettingsTemplate(template.id, { name: event.currentTarget.value })}
-                      />
-                      <input
-                        aria-label="Template pattern"
-                        disabled={template.builtin}
-                        type="text"
-                        value={template.pattern}
-                        onChange={(event) => updateSettingsTemplate(template.id, { pattern: event.currentTarget.value })}
-                      />
-                      <button className="toolbar-button" disabled={template.builtin} type="button" onClick={() => deleteSettingsTemplate(template.id)}>Delete</button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            <div className="settings-summary">
-              <span>Caches</span>
-              <code>source {formatBytes(cacheSizes?.sourceFactsBytes ?? 0)} · vision {formatBytes(cacheSizes?.visionFactsBytes ?? 0)}</code>
-            </div>
-            <footer className="modal-actions">
-              <button className="toolbar-button" type="button" onClick={() => void clearCaches()}>Clear caches</button>
-              <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Cancel</button>
-              <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={() => void saveApiKey()}>Save key</button>
-              <button className="primary-action" type="button" disabled={!settingsDraft} onClick={() => void saveSettingsDraft()}>Save settings</button>
-            </footer>
-          </section>
-        </div>
+        <AppSettingsModal
+          apiKeyDraft={apiKeyDraft}
+          cacheSizes={cacheSizes}
+          onApiKeyDraftChange={setApiKeyDraft}
+          onClearCaches={() => void clearCaches()}
+          onClose={() => setApiKeyOpen(false)}
+          onSaveApiKey={() => void saveApiKey()}
+          onSaveSettings={() => void saveSettingsDraft()}
+          settingsDraft={settingsDraft}
+          setSettingsDraft={setSettingsDraft}
+          systemInfo={systemInfo}
+        />
       ) : null}
 
       {shortcutsOpen ? (
@@ -1246,12 +1050,6 @@ function firstRect(value: unknown): { x: number; y: number; w: number; h: number
     };
   }
   return { x: 0, y: 0, w: 0.25, h: 0.25 };
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

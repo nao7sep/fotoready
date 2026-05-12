@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import sharp from "sharp";
 import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
-import type { GlobalSettings } from "@shared/types/settings";
+import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
@@ -196,14 +196,34 @@ function clampQuality(value: number): number {
 }
 
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
-  const keep = task.metadataStripOverride ?? settings.defaultMetadataStrip;
+  const policy = metadataPolicy(task, settings);
+  const keep = task.metadataStripOverride ?? policy.keep;
   await stripMetadata(outputPath, keep);
   await writeOutputDates(outputPath, sourcePath, settings.preserveSourceDates, savedAt);
-  if (settings.injectAuthorCopyright) {
-    await injectMetadata(outputPath, settings.injectFields);
+  if (Object.keys(policy.injectFields).length > 0) {
+    await injectMetadata(outputPath, policy.injectFields);
   }
   const bytes = await fs.readFile(outputPath);
   return { outputHash: sha256Bytes(bytes) };
+}
+
+function metadataPolicy(task: Task, settings: GlobalSettings): { keep: MetadataStripMode; injectFields: MetadataFields } {
+  let keep = settings.defaultMetadataStrip;
+  let injectFields = settings.injectAuthorCopyright ? settings.injectFields : {};
+
+  for (const op of task.pipeline.ops) {
+    if (!op.enabled) continue;
+    if (op.type === "strip-metadata" && Array.isArray(op.params.keep)) {
+      keep = op.params.keep.filter((field): field is MetadataStripMode[number] =>
+        field === "author" || field === "copyright" || field === "orientation" || field === "colorspace"
+      );
+    }
+    if (op.type === "inject-metadata" && op.params.fields && typeof op.params.fields === "object") {
+      injectFields = { ...injectFields, ...(op.params.fields as MetadataFields) };
+    }
+  }
+
+  return { keep, injectFields };
 }
 
 async function stagedOutputPath(project: Project, task: Task, sourcePath: string, projectPath: string | null): Promise<string> {

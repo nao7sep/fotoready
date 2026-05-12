@@ -988,7 +988,40 @@ function OpParams({
     );
   }
 
-  return <div className="row-detail">Parameters will be available in a later phase.</div>;
+  if (op.type === "strip-metadata") {
+    const keep = metadataKeepValue(op.params.keep);
+    return (
+      <div className="field-grid">
+        {(["author", "copyright", "orientation", "colorspace"] as const).map((field) => (
+          <label className="toggle-row" key={field}>
+            <input
+              disabled={disabled}
+              type="checkbox"
+              checked={keep.includes(field)}
+              onChange={(event) => onParamChange("keep", event.currentTarget.checked ? [...keep, field] : keep.filter((item) => item !== field))}
+            />
+            Keep {field}
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  if (op.type === "inject-metadata") {
+    const fields = metadataFieldsValue(op.params.fields);
+    return (
+      <div className="field-grid">
+        {(["author", "copyright", "description", "credit"] as const).map((field) => (
+          <label className="stacked-field" key={field}>
+            {field}
+            <input disabled={disabled} type="text" value={fields[field] ?? ""} onChange={(event) => onParamChange("fields", { ...fields, [field]: event.currentTarget.value })} />
+          </label>
+        ))}
+      </div>
+    );
+  }
+
+  return <div className="row-detail">No editable parameters.</div>;
 }
 
 function OutputControls({
@@ -1115,6 +1148,16 @@ function hslRangeValue(value: unknown): { hue: number; sat: number; lum: number 
     sat: numberValue(params.sat, 0),
     lum: numberValue(params.lum, 0)
   };
+}
+
+function metadataKeepValue(value: unknown): Array<"author" | "copyright" | "orientation" | "colorspace"> {
+  const allowed = ["author", "copyright", "orientation", "colorspace"] as const;
+  if (!Array.isArray(value)) return [...allowed];
+  return value.filter((item): item is typeof allowed[number] => allowed.some((field) => field === item));
+}
+
+function metadataFieldsValue(value: unknown): Record<string, string> {
+  return value && typeof value === "object" ? value as Record<string, string> : {};
 }
 
 function firstRect(value: unknown): { x: number; y: number; w: number; h: number } {

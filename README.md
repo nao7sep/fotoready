@@ -39,6 +39,7 @@ Current implementation status:
 - LUT catalog IPC with generated built-in `.cube` files, shallow user LUT scanning, and a saved-LUT selector in the LUT op form.
 - Renderer panel decomposition for Originals and Tasks while keeping App focused on orchestration.
 - Electron-builder release configuration for the generated `out/` bundles and production dependencies.
+- Metadata ops integrated into processing and surfaced with focused parameter controls.
 
 ## Development
 

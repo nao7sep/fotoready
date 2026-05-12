@@ -6,6 +6,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
+import { HistogramPanel } from "./components/canvas/histogram-panel";
 import { RenameModal } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -454,7 +455,7 @@ function App(): React.JSX.Element {
               <button className="inline-action" type="button" onClick={() => void dismissError(activeTask.id)}>Dismiss</button>
             </div>
           ) : null}
-          <div className="histogram-placeholder" />
+          <HistogramPanel preview={activePreview} previewState={previewState} task={activeTask} />
         </section>
 
         {showOps ? <WorkspaceSplitter label="Resize Ops panel" onPointerDown={workspaceLayout.startResize("ops")} /> : null}

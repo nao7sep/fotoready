@@ -104,6 +104,12 @@ async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, 
       return image.rotate(numberParam(op, "degrees", 0), { background: stringParam(op, "fillColor", "#ffffff") });
     case "resize":
       return applyResize(image, op);
+    case "levels":
+      return applyLevels(image, op);
+    case "white-balance":
+      return applyWhiteBalance(image, op);
+    case "auto-tone":
+      return op.params.enabled === false ? image : image.normalize();
     case "unsharp-mask":
       return image.sharpen({
         sigma: Math.max(0.3, numberParam(op, "radius", 1)),
@@ -145,6 +151,24 @@ function applyResize(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
 
 function resizeLongEdge(image: sharp.Sharp, value: number): sharp.Sharp {
   return image.resize({ width: value, height: value, fit: "inside", withoutEnlargement: true });
+}
+
+function applyLevels(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
+  const blackPoint = Math.max(0, Math.min(254, numberParam(op, "blackPoint", 0)));
+  const whitePoint = Math.max(blackPoint + 1, Math.min(255, numberParam(op, "whitePoint", 255)));
+  const gamma = Math.max(0.1, Math.min(5, numberParam(op, "gamma", 1)));
+  const multiplier = 255 / (whitePoint - blackPoint);
+  const offset = -blackPoint * multiplier;
+  return image.linear(multiplier, offset).gamma(gamma);
+}
+
+function applyWhiteBalance(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
+  const temperature = Math.max(-100, Math.min(100, numberParam(op, "temperature", 0)));
+  const tint = Math.max(-100, Math.min(100, numberParam(op, "tint", 0)));
+  const red = 1 + temperature / 500;
+  const blue = 1 - temperature / 500;
+  const green = 1 + tint / 700;
+  return image.linear([red, green, blue], [0, 0, 0]);
 }
 
 function applyFillRedaction(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): sharp.Sharp {

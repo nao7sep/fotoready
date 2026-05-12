@@ -596,6 +596,55 @@ function OpParams({
     );
   }
 
+  if (op.type === "levels") {
+    return (
+      <div className="field-grid">
+        <label>
+          Black
+          <input disabled={disabled} max={254} min={0} type="number" value={numberValue(op.params.blackPoint, 0)} onChange={(event) => onParamChange("blackPoint", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label>
+          White
+          <input disabled={disabled} max={255} min={1} type="number" value={numberValue(op.params.whitePoint, 255)} onChange={(event) => onParamChange("whitePoint", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label className="span-two">
+          Gamma
+          <input disabled={disabled} max={5} min={0.1} step={0.05} type="number" value={numberValue(op.params.gamma, 1)} onChange={(event) => onParamChange("gamma", event.currentTarget.valueAsNumber)} />
+        </label>
+      </div>
+    );
+  }
+
+  if (op.type === "white-balance") {
+    return (
+      <div className="field-grid">
+        <label>
+          Temperature
+          <input disabled={disabled} max={100} min={-100} type="number" value={numberValue(op.params.temperature, 0)} onChange={(event) => onParamChange("temperature", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label>
+          Tint
+          <input disabled={disabled} max={100} min={-100} type="number" value={numberValue(op.params.tint, 0)} onChange={(event) => onParamChange("tint", event.currentTarget.valueAsNumber)} />
+        </label>
+      </div>
+    );
+  }
+
+  if (op.type === "auto-tone") {
+    return (
+      <div className="field-grid">
+        <label className="toggle-row span-two">
+          <input disabled={disabled} type="checkbox" checked={op.params.enabled !== false} onChange={(event) => onParamChange("enabled", event.currentTarget.checked)} />
+          Enabled
+        </label>
+        <label className="span-two">
+          Strength
+          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={numberValue(op.params.strength, 0.7)} onChange={(event) => onParamChange("strength", event.currentTarget.valueAsNumber)} />
+        </label>
+      </div>
+    );
+  }
+
   if (op.type === "unsharp-mask") {
     return (
       <div className="field-grid">

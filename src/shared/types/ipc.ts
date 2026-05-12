@@ -30,6 +30,13 @@ export type PreviewResult = {
   height: number;
 };
 
+export type OriginalThumbnail = {
+  originalId: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
 export type RenamePreviewItem = {
   taskId: string;
   stagedPath: string;
@@ -89,6 +96,7 @@ export type FotoReadyApi = {
   };
   preview: {
     render(taskId: string): Promise<PreviewResult>;
+    originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {
     runForTask(taskId: string): Promise<ProjectSnapshot>;

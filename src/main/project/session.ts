@@ -13,7 +13,7 @@ import { processTask } from "@main/queues/processing";
 import { queueSnapshotFromProject } from "@main/queues/snapshot";
 import type { QueueSnapshot, RenamePreview } from "@shared/types/ipc";
 import { getOpDefinition } from "@core/ops/catalog";
-import { renderTaskPreview, type PreviewResult } from "@main/preview/preview-service";
+import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
 import { previewRename, runRename } from "@main/rename/rename-service";
 import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
@@ -228,6 +228,14 @@ export class ProjectSession {
 
   async renderPreview(taskId: string): Promise<PreviewResult> {
     return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge);
+  }
+
+  async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {
+    const original = this.#project.originals.find((item) => item.id === originalId);
+    if (!original) {
+      throw new Error(`Original not found: ${originalId}`);
+    }
+    return renderOriginalThumbnail(original);
   }
 
   async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {

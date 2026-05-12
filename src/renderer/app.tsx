@@ -15,6 +15,7 @@ function App(): React.JSX.Element {
   const [projectSnapshot, setProjectSnapshot] = useState<ProjectSnapshot | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [preview, setPreview] = useState<{ taskId: string; dataUrl: string; width: number; height: number } | null>(null);
+  const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
   const [renameOpen, setRenameOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
@@ -117,6 +118,31 @@ function App(): React.JSX.Element {
       cancelled = true;
     };
   }, [activeTask?.id, activeTask?.updatedAt, activeTask?.pipeline.ops.length]);
+
+  useEffect(() => {
+    const originals = project?.originals ?? [];
+    const missing = originals.filter((original) => !originalThumbnails[original.id]);
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    for (const original of missing) {
+      void api.preview.originalThumbnail(original.id)
+        .then((thumbnail) => {
+          if (!cancelled) {
+            setOriginalThumbnails((current) => ({ ...current, [thumbnail.originalId]: thumbnail.dataUrl }));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setOriginalThumbnails((current) => ({ ...current, [original.id]: "" }));
+          }
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.originals, originalThumbnails]);
 
   async function addOriginals(): Promise<void> {
     await refreshProject(await api.project.addOriginalsFromDialog());
@@ -259,8 +285,13 @@ function App(): React.JSX.Element {
                 type="button"
                 onClick={() => void selectOriginal(original.id)}
               >
-                <span className="row-title">{basename(original.sourcePath)}</span>
-                <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
+                <span className="thumb">
+                  {originalThumbnails[original.id] ? <img src={originalThumbnails[original.id]} alt="" /> : null}
+                </span>
+                <span className="row-copy">
+                  <span className="row-title">{basename(original.sourcePath)}</span>
+                  <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
+                </span>
               </button>
             ))}
           </div>

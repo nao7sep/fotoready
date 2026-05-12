@@ -12,7 +12,7 @@ export class PipelineWorkerPool {
 
   constructor(workerPoolSize: number) {
     this.#pool = new Piscina({
-      filename: path.join(__dirname, "pipeline-worker.js"),
+      filename: path.join(__dirname, "workers/pipeline-worker.js"),
       maxThreads: Math.max(1, workerPoolSize)
     });
   }

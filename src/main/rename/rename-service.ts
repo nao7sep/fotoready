@@ -27,18 +27,25 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   })));
 
   const items: RenamePlanItem[] = [];
+  const renderNow = new Date();
   for (const [index, task] of doneTasks.entries()) {
     const stagedPath = task.output.stagedPath;
     const metadata = await sharp(stagedPath).metadata();
     const ext = outputExtension(stagedPath);
     const slug = slugMap.get(task.id) ?? "untitled-output";
+    const original = project.originals.find((candidate) => candidate.id === task.originalId);
+    const sourceFileMtime = await sourceMtime(original?.sourcePath, stagedPath);
     const proposedName = renderFilenameTemplate(template.pattern, {
       slug,
       w: metadata.width ?? 0,
       h: metadata.height ?? 0,
       ext,
       outputHash: task.output.outputHash,
-      index: index + 1
+      index: index + 1,
+      savedAt: task.output.stagedAt,
+      sourceFileMtime,
+      now: renderNow,
+      takenAt: null
     });
     const proposedPath = path.join(path.dirname(stagedPath), proposedName);
     const missingSlug = needsSlug && !task.customSlug && !task.output.vision;
@@ -99,6 +106,18 @@ function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): s
 
 function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
+}
+
+async function sourceMtime(sourcePath: string | undefined, stagedPath: string): Promise<Date> {
+  for (const candidate of [sourcePath, stagedPath]) {
+    if (!candidate) continue;
+    try {
+      return (await fs.stat(candidate)).mtime;
+    } catch {
+      // Fall through to the next available file path.
+    }
+  }
+  return new Date();
 }
 
 async function ensureNoCollision(filePath: string): Promise<void> {

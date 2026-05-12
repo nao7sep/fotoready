@@ -523,6 +523,12 @@ select:disabled {
   grid-template-rows: auto auto auto;
 }
 
+.settings-modal {
+  width: min(760px, calc(100vw - 80px));
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
+  overflow: auto;
+}
+
 .modal-header,
 .modal-actions {
   display: flex;
@@ -627,6 +633,38 @@ select:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-section-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+}
+
+.template-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.template-settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.template-settings-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(240px, 1.3fr) auto;
+  gap: 8px;
+}
+
+.template-settings-row input {
+  min-width: 0;
 }
 
 .shortcut-list {

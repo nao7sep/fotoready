@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CopyPlus, ImagePlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
-import type { GlobalSettings } from "@shared/types/settings";
+import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
@@ -250,6 +250,44 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
+  function updateSettingsTemplate(templateId: string, patch: Partial<FilenameTemplate>): void {
+    if (!settingsDraft) return;
+    setSettingsDraft({
+      ...settingsDraft,
+      filenameTemplates: settingsDraft.filenameTemplates.map((template) => (
+        template.id === templateId ? { ...template, ...patch } : template
+      ))
+    });
+  }
+
+  function addSettingsTemplate(): void {
+    if (!settingsDraft) return;
+    const id = `template-${crypto.randomUUID()}`;
+    setSettingsDraft({
+      ...settingsDraft,
+      defaultTemplateId: id,
+      filenameTemplates: [
+        ...settingsDraft.filenameTemplates,
+        {
+          id,
+          name: "Custom template",
+          pattern: "{slug}-{date:saved|local|yyyymmdd}.{ext}"
+        }
+      ]
+    });
+  }
+
+  function deleteSettingsTemplate(templateId: string): void {
+    if (!settingsDraft) return;
+    const nextTemplates = settingsDraft.filenameTemplates.filter((template) => template.id !== templateId || template.builtin);
+    const fallbackTemplateId = nextTemplates[0]?.id ?? settingsDraft.defaultTemplateId;
+    setSettingsDraft({
+      ...settingsDraft,
+      filenameTemplates: nextTemplates,
+      defaultTemplateId: settingsDraft.defaultTemplateId === templateId ? fallbackTemplateId : settingsDraft.defaultTemplateId
+    });
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -445,7 +483,7 @@ function App(): React.JSX.Element {
 
       {apiKeyOpen ? (
         <div className="modal-backdrop">
-          <section className="modal small-modal">
+          <section className="modal settings-modal">
             <header className="modal-header">
               <h2>Settings</h2>
               <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Close</button>
@@ -495,6 +533,43 @@ function App(): React.JSX.Element {
                   <input type="text" value={settingsDraft.injectFields.copyright ?? ""} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectFields: { ...settingsDraft.injectFields, copyright: event.currentTarget.value } })} />
                 </label>
               </div>
+            ) : null}
+            {settingsDraft ? (
+              <section className="template-settings">
+                <div className="settings-section-header">
+                  <h3>Filename templates</h3>
+                  <button className="toolbar-button" type="button" onClick={addSettingsTemplate}>Add template</button>
+                </div>
+                <label className="stacked-field">
+                  Default template
+                  <select value={settingsDraft.defaultTemplateId} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultTemplateId: event.currentTarget.value })}>
+                    {settingsDraft.filenameTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>{template.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="template-settings-list">
+                  {settingsDraft.filenameTemplates.map((template) => (
+                    <div className="template-settings-row" key={template.id}>
+                      <input
+                        aria-label="Template name"
+                        disabled={template.builtin}
+                        type="text"
+                        value={template.name}
+                        onChange={(event) => updateSettingsTemplate(template.id, { name: event.currentTarget.value })}
+                      />
+                      <input
+                        aria-label="Template pattern"
+                        disabled={template.builtin}
+                        type="text"
+                        value={template.pattern}
+                        onChange={(event) => updateSettingsTemplate(template.id, { pattern: event.currentTarget.value })}
+                      />
+                      <button className="toolbar-button" disabled={template.builtin} type="button" onClick={() => deleteSettingsTemplate(template.id)}>Delete</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
             ) : null}
             <div className="settings-summary">
               <span>Caches</span>

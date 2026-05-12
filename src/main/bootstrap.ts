@@ -9,6 +9,7 @@ import { ProjectSession } from "./project/session";
 import { QualityQueue } from "./queues/quality";
 import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
+import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,8 +23,9 @@ export async function bootstrap(): Promise<void> {
   const settings = await loadSettings(paths.settingsPath);
   const qualityQueue = new QualityQueue(paths);
   const visionQueue = new VisionQueue(paths, settings);
-  const processingQueue = new ProcessingQueue(settings, qualityQueue);
-  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue);
+  const pipelineWorkerPool = new PipelineWorkerPool(settings.workerPoolSize);
+  const processingQueue = new ProcessingQueue(settings, qualityQueue, pipelineWorkerPool);
+  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue, pipelineWorkerPool);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   await projectSession.openLastProjectIfAvailable();
 
@@ -58,6 +60,10 @@ export async function bootstrap(): Promise<void> {
   }
 
   logger.info({ mod: "main.bootstrap", dataDir: paths.dataDir }, "app started");
+
+  app.once("before-quit", () => {
+    void pipelineWorkerPool.destroy();
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void bootstrap();

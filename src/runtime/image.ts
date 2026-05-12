@@ -42,5 +42,5 @@ export type WorkerJob = {
 
 export type WorkerResult =
   | { kind: "process"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }
-  | { kind: "preview"; bitmap: ArrayBuffer; width: number; height: number; format: "rgba8" }
+  | { kind: "preview"; bitmap: ArrayBuffer; width: number; height: number; format: "rgba8"; appliedPipeline: Pipeline }
   | { kind: "vision-prepare"; bytes: Buffer; mimeType: "image/jpeg"; sha256: string };

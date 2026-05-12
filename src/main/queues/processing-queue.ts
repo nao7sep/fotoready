@@ -5,6 +5,7 @@ import type { QueueSnapshot } from "@shared/types/ipc";
 import type { QualityQueue } from "./quality";
 import { processTask } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
+import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 export class ProcessingQueue {
   #queue: PQueue;
@@ -13,6 +14,7 @@ export class ProcessingQueue {
   constructor(
     private readonly settings: GlobalSettings,
     private readonly qualityQueue: QualityQueue | null,
+    private readonly workerPool: PipelineWorkerPool | null,
     onUpdate: (() => void | Promise<void>) | null = null
   ) {
     this.#onUpdate = onUpdate;
@@ -26,7 +28,7 @@ export class ProcessingQueue {
   async runTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
     await this.#queue.add(async () => {
       const sourceFacts = await this.sourceFactsForTask(project, taskId);
-      await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined);
+      await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
     });
   }
 

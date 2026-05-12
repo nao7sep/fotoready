@@ -18,6 +18,7 @@ import { previewRename, runRename } from "@main/rename/rename-service";
 import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
+import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -36,7 +37,8 @@ export class ProjectSession {
     private readonly settings: GlobalSettings,
     private readonly qualityQueue: QualityQueue | null = null,
     private readonly visionQueue: VisionQueue | null = null,
-    private readonly processingQueue: ProcessingQueue | null = null
+    private readonly processingQueue: ProcessingQueue | null = null,
+    private readonly workerPool: PipelineWorkerPool | null = null
   ) {
     this.#project = createEmptyProject("Untitled Project", settings.defaultOutputDirectory);
   }
@@ -214,7 +216,7 @@ export class ProjectSession {
     if (this.processingQueue) {
       await this.processingQueue.runTask(this.#project, taskId, this.#projectPath);
     } else {
-      await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
+      await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId), undefined, this.workerPool);
     }
     await this.runVisionIfNeeded(taskId);
     await this.persistIfSaved();
@@ -227,7 +229,7 @@ export class ProjectSession {
       await this.processingQueue.runPending(this.#project, this.#projectPath);
     } else {
       for (const taskId of pendingTaskIds) {
-        await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
+        await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId), undefined, this.workerPool);
       }
     }
     for (const taskId of pendingTaskIds) {
@@ -246,7 +248,7 @@ export class ProjectSession {
   }
 
   async renderPreview(taskId: string): Promise<PreviewResult> {
-    return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge);
+    return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {

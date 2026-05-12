@@ -17,7 +17,10 @@ export default defineConfig({
     resolve: { alias },
     build: {
       rollupOptions: {
-        input: resolve("src/main/index.ts")
+        input: {
+          index: resolve("src/main/index.ts"),
+          "workers/pipeline-worker": resolve("src/main/workers/pipeline-worker.ts")
+        }
       }
     }
   },

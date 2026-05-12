@@ -57,7 +57,8 @@ export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResu
     bitmap: toArrayBuffer(result.bytes),
     width: result.width,
     height: result.height,
-    format: "rgba8"
+    format: "rgba8",
+    appliedPipeline: result.appliedPipeline
   };
 }
 

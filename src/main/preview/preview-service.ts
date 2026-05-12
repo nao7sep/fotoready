@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import type { Original, Project, Task } from "@shared/types/project";
 import { runPipeline } from "@runtime/pipeline-runner";
+import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 export type PreviewResult = {
   taskId: string;
@@ -32,7 +33,7 @@ export async function renderOriginalThumbnail(original: Original, longEdge = 160
   };
 }
 
-export async function renderTaskPreview(project: Project, taskId: string, previewLongEdge: number): Promise<PreviewResult> {
+export async function renderTaskPreview(project: Project, taskId: string, previewLongEdge: number, workerPool?: PipelineWorkerPool | null): Promise<PreviewResult> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
     throw new Error(`Task not found: ${taskId}`);
@@ -43,17 +44,25 @@ export async function renderTaskPreview(project: Project, taskId: string, previe
     throw new Error(`Original not found for task: ${taskId}`);
   }
 
-  const result = await runPipeline(task.pipeline, {
-    sourcePath: original.sourcePath,
-    sourceHash: original.sourceHash,
-    previewLongEdge
-  });
+  const result = workerPool
+    ? await workerPool.renderBuffer({
+      sourcePath: original.sourcePath,
+      sourceHash: original.sourceHash,
+      pipeline: task.pipeline,
+      previewLongEdge
+    })
+    : await runPipeline(task.pipeline, {
+      sourcePath: original.sourcePath,
+      sourceHash: original.sourceHash,
+      previewLongEdge
+    });
 
-  if (result.kind !== "buffer") {
+  if (result.kind !== "buffer" && result.kind !== "preview") {
     throw new Error("Preview render did not produce a buffer.");
   }
 
-  const png = await sharp(result.bytes, {
+  const raw = result.kind === "preview" ? Buffer.from(result.bitmap) : result.bytes;
+  const png = await sharp(raw, {
     raw: {
       width: result.width,
       height: result.height,

@@ -86,6 +86,7 @@ export function defaultGlobalSettings(
     sidecarLocation: "in-project-file",
     lutFolder: "~/.fotoready/luts/",
     defaultWatermarkImage: "",
+    lastProjectPath: null,
     workerPoolSize,
     previewLongEdge: 1600,
     previewDebounceMs: 150

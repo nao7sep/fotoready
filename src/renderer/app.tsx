@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { CopyPlus, ImagePlus, Menu, Pause, Play, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
-import type { OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
+import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
 import { RenameModal } from "./components/modals/rename-modal";
@@ -19,6 +19,7 @@ function App(): React.JSX.Element {
   const [renameOpen, setRenameOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
 
   useEffect(() => {
@@ -139,6 +140,15 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
+  async function openSettings(): Promise<void> {
+    setCacheSizes(await api.caches.sizes());
+    setApiKeyOpen(true);
+  }
+
+  async function clearCaches(): Promise<void> {
+    setCacheSizes(await api.caches.clear());
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -158,7 +168,7 @@ function App(): React.JSX.Element {
         <button className="toolbar-button" type="button" onClick={() => void openProject()}>Open</button>
         <button className="toolbar-button" type="button" onClick={() => void saveProjectAs()}>Save as</button>
         <div className="output-path">Output: {project?.outputDir ?? settings?.defaultOutputDirectory ?? "./out"}</div>
-        <button className="icon-button" type="button" title="Settings" onClick={() => setApiKeyOpen(true)}>
+        <button className="icon-button" type="button" title="Settings" onClick={() => void openSettings()}>
           <Settings size={18} />
         </button>
         <button className="icon-button" type="button" title="Menu">
@@ -314,14 +324,23 @@ function App(): React.JSX.Element {
         <div className="modal-backdrop">
           <section className="modal small-modal">
             <header className="modal-header">
-              <h2>Gemini API Key</h2>
+              <h2>Settings</h2>
               <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Close</button>
             </header>
+            <div className="settings-summary">
+              <span>Data directory</span>
+              <code>{systemInfo?.dataDir ?? "~/.fotoready"}</code>
+            </div>
             <label className="stacked-field">
-              API key
+              Gemini API key
               <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.currentTarget.value)} />
             </label>
+            <div className="settings-summary">
+              <span>Caches</span>
+              <code>source {formatBytes(cacheSizes?.sourceFactsBytes ?? 0)} · vision {formatBytes(cacheSizes?.visionFactsBytes ?? 0)}</code>
+            </div>
             <footer className="modal-actions">
+              <button className="toolbar-button" type="button" onClick={() => void clearCaches()}>Clear caches</button>
               <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Cancel</button>
               <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={() => void saveApiKey()}>Save key</button>
             </footer>
@@ -506,6 +525,23 @@ function OutputControls({
         Quality
         <input disabled={disabled || !task || typeof task?.pipeline.output.quality !== "number"} max={100} min={1} type="number" value={typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82} onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)} />
       </label>
+      {task?.pipeline.output.format === "jpeg" ? (
+        <label className="stacked-field">
+          JPEG strategy
+          <select
+            disabled={disabled || !task}
+            value={typeof task.pipeline.output.quality === "number" ? "fixed" : task.pipeline.output.quality}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              onOutputChange("quality", value === "fixed" ? 85 : value);
+            }}
+          >
+            <option value="fixed">fixed</option>
+            <option value="match-source-quality">match-source-quality</option>
+            <option value="match-source-size">match-source-size</option>
+          </select>
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -539,6 +575,12 @@ function numberValue(value: unknown, fallback: number): number {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

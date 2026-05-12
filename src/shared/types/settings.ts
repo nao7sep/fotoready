@@ -30,6 +30,7 @@ export type ProjectSettings = {
   lutFolder?: string;
   defaultWatermarkImage?: string;
   projectContext?: string;
+  lastProjectPath?: string | null;
 };
 
 export type GlobalSettings = Required<Omit<ProjectSettings, "projectContext">> & {

@@ -15,8 +15,11 @@ Current implementation status:
 - JSON cache IO and an import-time JPEG source-facts queue scaffold.
 - Gemini vision adapter, encrypted API-key storage, vision input preparation, result cache, and Generate description action.
 - ExifTool-backed metadata stripping and optional injection after output encoding.
+- JPEG DQT quality detection cached by source hash and used for source-quality JPEG output.
+- Startup recovery demotes in-flight processing tasks and reloads the last opened/saved project.
+- Compact settings surface for encrypted Gemini key entry, data directory, cache sizes, and cache clearing.
 
-Full queue concurrency, complete JPEG quality detection, settings UI depth, and packaging polish are planned as later phases.
+Full queue concurrency, binary-search `match-source-size`, deeper settings forms, and packaging polish are planned as later phases.
 
 ## Development
 

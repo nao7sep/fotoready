@@ -45,6 +45,11 @@ export type RenamePreview = {
   missingSlugCount: number;
 };
 
+export type CacheSizes = {
+  sourceFactsBytes: number;
+  visionFactsBytes: number;
+};
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -86,6 +91,10 @@ export type FotoReadyApi = {
   rename: {
     preview(templateId?: string): Promise<RenamePreview>;
     run(templateId?: string): Promise<ProjectSnapshot>;
+  };
+  caches: {
+    sizes(): Promise<CacheSizes>;
+    clear(): Promise<CacheSizes>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

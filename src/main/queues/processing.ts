@@ -4,10 +4,18 @@ import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
+import type { Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import { injectMetadata, stripMetadata } from "@adapters/metadata/exiftool";
+import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 
-export async function processTask(project: Project, taskId: string, projectPath: string | null, settings: GlobalSettings): Promise<void> {
+export async function processTask(
+  project: Project,
+  taskId: string,
+  projectPath: string | null,
+  settings: GlobalSettings,
+  sourceFacts: SourceJpegFacts | null = null
+): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
     throw new Error(`Task not found: ${taskId}`);
@@ -26,7 +34,8 @@ export async function processTask(project: Project, taskId: string, projectPath:
     const outputPath = await stagedOutputPath(project, task, original.sourcePath, projectPath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    const result = await runPipeline(task.pipeline, {
+    const effectivePipeline = resolveOutputQuality(task.pipeline, settings, sourceFacts);
+    const result = await runPipeline(effectivePipeline, {
       sourcePath: original.sourcePath,
       sourceHash: original.sourceHash,
       outputPath
@@ -54,6 +63,29 @@ export async function processTask(project: Project, taskId: string, projectPath:
     task.error = taskError(error);
     task.updatedAt = nowIso();
   }
+}
+
+function resolveOutputQuality(pipeline: Pipeline, settings: GlobalSettings, sourceFacts: SourceJpegFacts | null): Pipeline {
+  if (pipeline.output.format !== "jpeg") return pipeline;
+  if (pipeline.output.quality === "match-source-size") {
+    return {
+      ...pipeline,
+      output: {
+        ...pipeline.output,
+        quality: sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure
+      }
+    };
+  }
+  if (pipeline.output.quality === "match-source-quality") {
+    return {
+      ...pipeline,
+      output: {
+        ...pipeline.output,
+        quality: sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure
+      }
+    };
+  }
+  return pipeline;
 }
 
 async function applyMetadataPolicy(outputPath: string, task: Task, settings: GlobalSettings): Promise<void> {

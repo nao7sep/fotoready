@@ -20,6 +20,13 @@ export class QualityQueue {
     await saveJsonCache(this.paths.sourceFactsPath, cache);
   }
 
+  async factsForOriginal(original: Original): Promise<SourceJpegFacts | null> {
+    if (original.format !== "jpeg") return null;
+    await this.enqueueOriginal(original);
+    const cache = await this.cache();
+    return cache[original.sourceHash] ?? null;
+  }
+
   private async cache(): Promise<JsonObjectCache<SourceJpegFacts>> {
     this.#cache ??= await loadJsonCache<SourceJpegFacts>(this.paths.sourceFactsPath);
     return this.#cache;

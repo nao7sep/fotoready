@@ -43,6 +43,10 @@ const api: FotoReadyApi = {
     preview: (templateId) => ipcRenderer.invoke("rename.preview", templateId),
     run: (templateId) => ipcRenderer.invoke("rename.run", templateId)
   },
+  caches: {
+    sizes: () => ipcRenderer.invoke("caches.sizes"),
+    clear: () => ipcRenderer.invoke("caches.clear")
+  },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
   }

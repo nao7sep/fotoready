@@ -56,8 +56,19 @@ export class ProjectSession {
     const loaded = await loadProject(projectPath);
     this.#projectPath = loaded.path;
     this.#project = loaded.project;
+    await this.recoverProjectQueues();
     this.#activeTaskId = this.#project.tasks[0]?.id ?? null;
+    await this.persistIfSaved();
     return this.snapshot();
+  }
+
+  async openLastProjectIfAvailable(): Promise<void> {
+    if (!this.settings.lastProjectPath) return;
+    try {
+      await this.open(this.settings.lastProjectPath);
+    } catch {
+      this.settings.lastProjectPath = null;
+    }
   }
 
   async saveAs(projectPath: string): Promise<ProjectSessionSnapshot> {
@@ -130,7 +141,7 @@ export class ProjectSession {
   }
 
   async saveTask(taskId: string): Promise<ProjectSessionSnapshot> {
-    await processTask(this.#project, taskId, this.#projectPath, this.settings);
+    await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
     await this.runVisionIfNeeded(taskId);
     await this.persistIfSaved();
     return this.snapshot();
@@ -143,7 +154,7 @@ export class ProjectSession {
       .map((task) => task.id);
 
     for (const taskId of pendingTaskIds) {
-      await processTask(this.#project, taskId, this.#projectPath, this.settings);
+      await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
       await this.runVisionIfNeeded(taskId);
     }
 
@@ -276,6 +287,29 @@ export class ProjectSession {
   private async runVisionIfNeeded(taskId: string): Promise<void> {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (task?.status === "done" && task.analyzeContent && task.output && !task.output.vision) {
+      await this.visionQueue?.runForTask(this.#project, taskId);
+    }
+  }
+
+  private async sourceFactsForTask(taskId: string) {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
+    return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
+  }
+
+  private async recoverProjectQueues(): Promise<void> {
+    for (const task of this.#project.tasks) {
+      if (task.status === "processing") {
+        task.status = "pending";
+        task.updatedAt = nowIso();
+      }
+    }
+
+    const missingVisionTaskIds = this.#project.tasks
+      .filter((task) => task.status === "done" && task.analyzeContent && task.output && !task.output.vision)
+      .map((task) => task.id);
+
+    for (const taskId of missingVisionTaskIds) {
       await this.visionQueue?.runForTask(this.#project, taskId);
     }
   }

@@ -527,3 +527,20 @@ select:disabled {
   font-size: 12px;
   line-height: 1.45;
 }
+
+.settings-summary {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.settings-summary span {
+  color: #aaa49d;
+}
+
+.settings-summary code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eeeae5;
+}

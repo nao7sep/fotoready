@@ -4,6 +4,8 @@ import type { ProjectSession } from "@main/project/session";
 import type { GlobalSettings } from "@shared/types/settings";
 import { APP_NAME, PROJECT_EXTENSION } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
+import { saveSettings } from "@main/persistence/settings-io";
+import { clearCaches, getCacheSizes } from "@main/persistence/cache-admin";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -38,7 +40,10 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     if (result.canceled || result.filePaths.length === 0) {
       return ctx.projectSession.snapshot();
     }
-    return ctx.projectSession.open(result.filePaths[0]);
+    const snapshot = await ctx.projectSession.open(result.filePaths[0]);
+    ctx.settings.lastProjectPath = result.filePaths[0];
+    await saveSettings(ctx.paths.settingsPath, ctx.settings);
+    return snapshot;
   });
   ipcMain.handle("project.saveAsFromDialog", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
@@ -57,7 +62,10 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       return ctx.projectSession.snapshot();
     }
     const projectPath = result.filePath.endsWith(PROJECT_EXTENSION) ? result.filePath : `${result.filePath}${PROJECT_EXTENSION}`;
-    return ctx.projectSession.saveAs(projectPath);
+    const snapshot = await ctx.projectSession.saveAs(projectPath);
+    ctx.settings.lastProjectPath = projectPath;
+    await saveSettings(ctx.paths.settingsPath, ctx.settings);
+    return snapshot;
   });
   ipcMain.handle("project.addOriginalsFromDialog", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
@@ -98,5 +106,10 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("vision.runForTask", async (_event, taskId: string) => ctx.projectSession.runVision(taskId));
   ipcMain.handle("rename.preview", async (_event, templateId?: string) => ctx.projectSession.previewRename(templateId));
   ipcMain.handle("rename.run", async (_event, templateId?: string) => ctx.projectSession.runRename(templateId));
+  ipcMain.handle("caches.sizes", async () => getCacheSizes(ctx.paths));
+  ipcMain.handle("caches.clear", async () => {
+    await clearCaches(ctx.paths);
+    return getCacheSizes(ctx.paths);
+  });
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

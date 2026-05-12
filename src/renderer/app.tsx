@@ -214,6 +214,20 @@ function App(): React.JSX.Element {
     await refreshProject(await api.project.selectOriginal(originalId));
   }
 
+  async function removeOriginal(originalId: string): Promise<void> {
+    const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
+    if (settings?.confirmDeleteOriginalWithTasks && taskCount > 0) {
+      const confirmed = window.confirm(`Remove this original and ${taskCount} task${taskCount === 1 ? "" : "s"} from the project? Source files are not deleted.`);
+      if (!confirmed) return;
+    }
+    await refreshProject(await api.project.removeOriginal(originalId));
+    setOriginalThumbnails((current) => {
+      const next = { ...current };
+      delete next[originalId];
+      return next;
+    });
+  }
+
   async function selectTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.select(taskId));
   }
@@ -389,6 +403,7 @@ function App(): React.JSX.Element {
             thumbnails={originalThumbnails}
             onAdd={() => void addOriginals()}
             onDropFiles={(sourcePaths) => void addOriginalPaths(sourcePaths)}
+            onRemove={(originalId) => void removeOriginal(originalId)}
             onSelect={(originalId) => void selectOriginal(originalId)}
           />
         ) : null}

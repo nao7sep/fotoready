@@ -1,5 +1,5 @@
 import React from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import type { Original } from "@shared/types/project";
 
 export function OriginalsPanel({
@@ -8,6 +8,7 @@ export function OriginalsPanel({
   thumbnails,
   onAdd,
   onDropFiles,
+  onRemove,
   onSelect
 }: {
   activeOriginalId: string | null;
@@ -15,6 +16,7 @@ export function OriginalsPanel({
   thumbnails: Record<string, string>;
   onAdd(): void;
   onDropFiles(sourcePaths: string[]): void;
+  onRemove(originalId: string): void;
   onSelect(originalId: string): void;
 }): React.JSX.Element {
   const [dragActive, setDragActive] = React.useState(false);
@@ -43,20 +45,20 @@ export function OriginalsPanel({
       </button>
       <div className="list">
         {originals.map((original) => (
-          <button
-            className={`list-row ${activeOriginalId === original.id ? "active" : ""}`}
-            key={original.id}
-            type="button"
-            onClick={() => onSelect(original.id)}
-          >
-            <span className="thumb">
-              {thumbnails[original.id] ? <img src={thumbnails[original.id]} alt="" /> : null}
-            </span>
-            <span className="row-copy">
-              <span className="row-title">{basename(original.sourcePath)}</span>
-              <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
-            </span>
-          </button>
+          <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`} key={original.id}>
+            <button className="row-main-action" type="button" onClick={() => onSelect(original.id)}>
+              <span className="thumb">
+                {thumbnails[original.id] ? <img src={thumbnails[original.id]} alt="" /> : null}
+              </span>
+              <span className="row-copy">
+                <span className="row-title">{basename(original.sourcePath)}</span>
+                <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
+              </span>
+            </button>
+            <button className="icon-button compact row-remove-button" title="Remove original" type="button" onClick={() => onRemove(original.id)}>
+              <Trash2 size={13} />
+            </button>
+          </div>
         ))}
       </div>
     </aside>

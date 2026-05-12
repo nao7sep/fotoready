@@ -139,6 +139,27 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  async removeOriginal(originalId: string): Promise<ProjectSessionSnapshot> {
+    const originalIndex = this.#project.originals.findIndex((item) => item.id === originalId);
+    if (originalIndex === -1) {
+      throw new Error(`Original not found: ${originalId}`);
+    }
+
+    const removedTaskIds = new Set(this.#project.tasks.filter((task) => task.originalId === originalId).map((task) => task.id));
+    this.#project.originals.splice(originalIndex, 1);
+    this.#project.tasks = this.#project.tasks.filter((task) => !removedTaskIds.has(task.id));
+    for (const taskId of removedTaskIds) {
+      this.#taskUndoHistory.delete(taskId);
+    }
+
+    if (this.#activeTaskId && removedTaskIds.has(this.#activeTaskId)) {
+      this.#activeTaskId = this.#project.tasks[0]?.id ?? null;
+    }
+
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
   async selectTask(taskId: string): Promise<ProjectSessionSnapshot> {
     if (!this.#project.tasks.some((task) => task.id === taskId)) {
       throw new Error(`Task not found: ${taskId}`);

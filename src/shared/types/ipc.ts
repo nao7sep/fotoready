@@ -87,6 +87,7 @@ export type FotoReadyApi = {
     setOutputDirFromDialog(): Promise<ProjectSnapshot>;
     addOriginals(sourcePaths: string[]): Promise<ProjectSnapshot>;
     addOriginalsFromDialog(): Promise<ProjectSnapshot>;
+    removeOriginal(originalId: string): Promise<ProjectSnapshot>;
     selectOriginal(originalId: string): Promise<ProjectSnapshot>;
   };
   task: {

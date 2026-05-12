@@ -272,6 +272,34 @@ select:disabled {
   text-align: left;
 }
 
+.list-row.with-actions {
+  padding: 0 8px 0 0;
+}
+
+.row-main-action {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  padding: 8px 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.row-remove-button {
+  flex: 0 0 24px;
+  opacity: 0;
+}
+
+.list-row:hover .row-remove-button,
+.list-row:focus-within .row-remove-button {
+  opacity: 1;
+}
+
 .list-row.active {
   background: #263633;
 }

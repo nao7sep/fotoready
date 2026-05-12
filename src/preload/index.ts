@@ -22,6 +22,7 @@ const api: FotoReadyApi = {
     setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
     addOriginals: (sourcePaths) => ipcRenderer.invoke("project.addOriginals", sourcePaths),
     addOriginalsFromDialog: () => ipcRenderer.invoke("project.addOriginalsFromDialog"),
+    removeOriginal: (originalId) => ipcRenderer.invoke("project.removeOriginal", originalId),
     selectOriginal: (originalId) => ipcRenderer.invoke("project.selectOriginal", originalId)
   },
   task: {

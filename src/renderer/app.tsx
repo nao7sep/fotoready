@@ -624,6 +624,21 @@ function OpParams({
     );
   }
 
+  if (op.type === "lut") {
+    return (
+      <div className="field-grid">
+        <label className="span-two">
+          .cube path
+          <input disabled={disabled} type="text" value={stringValue(op.params.cubePath, "")} onChange={(event) => onParamChange("cubePath", event.currentTarget.value)} />
+        </label>
+        <label className="span-two">
+          Strength
+          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={numberValue(op.params.strength, 1)} onChange={(event) => onParamChange("strength", event.currentTarget.valueAsNumber)} />
+        </label>
+      </div>
+    );
+  }
+
   if (op.type === "redact-fill") {
     const rect = firstRect(op.params.rects);
     return (

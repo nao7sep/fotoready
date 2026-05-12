@@ -5,6 +5,7 @@ import type { Pipeline } from "@shared/types/pipeline";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
+import { loadCubeLut, sampleCubeLut } from "@adapters/lut/cube-loader";
 
 export type PipelineRunContext = {
   sourcePath: string;
@@ -25,7 +26,7 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
 
   for (const op of executedOps) {
     if (!op.enabled) continue;
-    work = applyOp(work, op, image.width, image.height);
+    work = await applyOp(work, op, image.width, image.height);
   }
 
   if (ctx.previewLongEdge) {
@@ -95,7 +96,7 @@ export function orderOpsForExecution(ops: OpInstance[], log?: PipelineRunContext
   return [...withoutMoved.slice(0, afterResize), ...outputSharpenOps, ...withoutMoved.slice(afterResize)];
 }
 
-function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): sharp.Sharp {
+async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): Promise<sharp.Sharp> {
   switch (op.type) {
     case "crop":
       return applyCrop(image, op, sourceWidth, sourceHeight);
@@ -114,6 +115,8 @@ function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, source
       return applyFillRedaction(image, op, sourceWidth, sourceHeight);
     case "watermark-text":
       return applyTextWatermark(image, op, sourceWidth, sourceHeight);
+    case "lut":
+      return applyLut(image, op);
     default:
       return image;
   }
@@ -187,6 +190,37 @@ function applyTextWatermark(image: sharp.Sharp, op: OpInstance, sourceWidth: num
   const { left, top } = anchorPosition(anchor, sourceWidth, sourceHeight, svgWidth, svgHeight, marginX, marginY);
 
   return image.composite([{ input: Buffer.from(svg), left, top }]);
+}
+
+async function applyLut(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
+  const cubePath = stringParam(op, "cubePath", "");
+  if (!cubePath) return image;
+
+  const lut = await loadCubeLut(cubePath);
+  const strength = Math.max(0, Math.min(1, numberParam(op, "strength", 1)));
+  const metadata = await image.metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (width <= 0 || height <= 0) return image;
+
+  const raw = await image.ensureAlpha().raw().toBuffer();
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    const r = raw[offset] / 255;
+    const g = raw[offset + 1] / 255;
+    const b = raw[offset + 2] / 255;
+    const sampled = sampleCubeLut(lut, r, g, b);
+    raw[offset] = Math.round((r + (sampled[0] - r) * strength) * 255);
+    raw[offset + 1] = Math.round((g + (sampled[1] - g) * strength) * 255);
+    raw[offset + 2] = Math.round((b + (sampled[2] - b) * strength) * 255);
+  }
+
+  return (await import("sharp")).default(raw, {
+    raw: {
+      width,
+      height,
+      channels: 4
+    }
+  });
 }
 
 function numberParam(op: OpInstance, key: string, fallback: number): number {

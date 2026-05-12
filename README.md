@@ -40,6 +40,7 @@ Current implementation status:
 - Renderer panel decomposition for Originals and Tasks while keeping App focused on orchestration.
 - Electron-builder release configuration for the generated `out/` bundles and production dependencies.
 - Metadata ops integrated into processing and surfaced with focused parameter controls.
+- Generated macOS app icon assets wired into electron-builder packaging.
 
 ## Development
 
@@ -61,10 +62,11 @@ npm run package
 ```
 
 Packaging uses `electron-builder` and writes unpacked artifacts to `release/`.
+Run `npm run icons` after changing icon artwork to refresh the generated PNG and ICNS assets.
 
 Current release notes:
 
 - `npm run package` has been smoke-tested on macOS arm64.
 - The unpacked app is written to `release/mac-arm64/FotoReady.app`.
 - Code signing is not configured, so macOS builds show the standard unsigned-app warning.
-- A custom app icon is not configured yet; packaged builds currently use Electron's default icon.
+- The packaged macOS app uses the generated FotoReady icon from `build/icon.icns`.

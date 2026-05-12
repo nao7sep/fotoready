@@ -11,6 +11,7 @@ import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metad
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import { resolveOriginalSourcePath } from "@main/project/source-resolver";
 
 export async function processTask(
   project: Project,
@@ -37,17 +38,18 @@ export async function processTask(
   await onUpdate?.();
 
   try {
-    const outputPath = await stagedOutputPath(project, task, original.sourcePath, projectPath);
+    const sourcePath = await resolveOriginalSourcePath(original, { projectPath, outputDir: project.outputDir });
+    const outputPath = await stagedOutputPath(project, task, sourcePath, projectPath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    const result = await processOutputPipeline(task.pipeline, original.sourcePath, original.sourceHash, original.size, outputPath, settings, sourceFacts, workerPool);
+    const result = await processOutputPipeline(task.pipeline, sourcePath, original.sourceHash, original.size, outputPath, settings, sourceFacts, workerPool);
 
     if (result.kind !== "file") {
       throw new Error("Processing did not produce an output file.");
     }
 
     const savedAt = new Date();
-    const finalFacts = await applyMetadataPolicy(result.outputPath, original.sourcePath, task, settings, savedAt);
+    const finalFacts = await applyMetadataPolicy(result.outputPath, sourcePath, task, settings, savedAt);
 
     task.pipeline = result.appliedPipeline;
     task.status = "done";

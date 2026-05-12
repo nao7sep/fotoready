@@ -19,6 +19,7 @@ import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import { resolveOriginalSourcePath } from "./source-resolver";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -248,6 +249,7 @@ export class ProjectSession {
   }
 
   async renderPreview(taskId: string): Promise<PreviewResult> {
+    await this.ensureTaskSourcePath(taskId);
     return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool);
   }
 
@@ -256,6 +258,7 @@ export class ProjectSession {
     if (!original) {
       throw new Error(`Original not found: ${originalId}`);
     }
+    await this.ensureOriginalSourcePath(original);
     return renderOriginalThumbnail(original);
   }
 
@@ -418,7 +421,23 @@ export class ProjectSession {
   private async sourceFactsForTask(taskId: string) {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
+    if (original) await this.ensureOriginalSourcePath(original);
     return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
+  }
+
+  private async ensureTaskSourcePath(taskId: string): Promise<void> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
+    if (!original) return;
+    await this.ensureOriginalSourcePath(original);
+  }
+
+  private async ensureOriginalSourcePath(original: Original): Promise<void> {
+    const previousPath = original.sourcePath;
+    await resolveOriginalSourcePath(original, { projectPath: this.#projectPath, outputDir: this.#project.outputDir });
+    if (original.sourcePath !== previousPath) {
+      await this.persistIfSaved();
+    }
   }
 
   private async recoverProjectQueues(): Promise<void> {

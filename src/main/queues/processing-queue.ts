@@ -6,6 +6,7 @@ import type { QualityQueue } from "./quality";
 import { processTask } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import { resolveOriginalSourcePath } from "@main/project/source-resolver";
 
 export class ProcessingQueue {
   #queue: PQueue;
@@ -27,7 +28,7 @@ export class ProcessingQueue {
 
   async runTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
     await this.#queue.add(async () => {
-      const sourceFacts = await this.sourceFactsForTask(project, taskId);
+      const sourceFacts = await this.sourceFactsForTask(project, taskId, projectPath);
       await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
     });
   }
@@ -49,9 +50,10 @@ export class ProcessingQueue {
     };
   }
 
-  private async sourceFactsForTask(project: Project, taskId: string) {
+  private async sourceFactsForTask(project: Project, taskId: string, projectPath: string | null) {
     const task = project.tasks.find((item) => item.id === taskId);
     const original = task ? project.originals.find((item) => item.id === task.originalId) : null;
+    if (original) await resolveOriginalSourcePath(original, { projectPath, outputDir: project.outputDir });
     return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
   }
 }

@@ -7,20 +7,39 @@ export function OriginalsPanel({
   originals,
   thumbnails,
   onAdd,
+  onDropFiles,
   onSelect
 }: {
   activeOriginalId: string | null;
   originals: Original[];
   thumbnails: Record<string, string>;
   onAdd(): void;
+  onDropFiles(sourcePaths: string[]): void;
   onSelect(originalId: string): void;
 }): React.JSX.Element {
+  const [dragActive, setDragActive] = React.useState(false);
+
+  function onDragOver(event: React.DragEvent): void {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragActive(true);
+  }
+
+  function onDrop(event: React.DragEvent): void {
+    event.preventDefault();
+    setDragActive(false);
+    const sourcePaths = Array.from(event.dataTransfer.files)
+      .map((file) => window.api.system.filePathForFile(file))
+      .filter((filePath) => filePath.length > 0);
+    onDropFiles(sourcePaths);
+  }
+
   return (
-    <aside className="panel originals-panel">
+    <aside className={`panel originals-panel ${dragActive ? "drag-active" : ""}`} onDragLeave={() => setDragActive(false)} onDragOver={onDragOver} onDrop={onDrop}>
       <PanelHeader title="Originals" />
       <button className="drop-target" type="button" onClick={onAdd}>
         <ImagePlus size={18} />
-        Add originals
+        Drop or add originals
       </button>
       <div className="list">
         {originals.map((original) => (

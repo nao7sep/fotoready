@@ -1,9 +1,10 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { FotoReadyApi } from "@shared/types/ipc";
 
 const api: FotoReadyApi = {
   system: {
     getInfo: () => ipcRenderer.invoke("system.getInfo"),
+    filePathForFile: (file) => webUtils.getPathForFile(file),
     log: (level, message, detail) => ipcRenderer.invoke("system.log", level, message, detail),
     pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
     revealInFolder: (filePath) => ipcRenderer.invoke("system.revealInFolder", filePath)
@@ -19,6 +20,7 @@ const api: FotoReadyApi = {
     openFromDialog: () => ipcRenderer.invoke("project.openFromDialog"),
     saveAsFromDialog: () => ipcRenderer.invoke("project.saveAsFromDialog"),
     setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
+    addOriginals: (sourcePaths) => ipcRenderer.invoke("project.addOriginals", sourcePaths),
     addOriginalsFromDialog: () => ipcRenderer.invoke("project.addOriginalsFromDialog"),
     selectOriginal: (originalId) => ipcRenderer.invoke("project.selectOriginal", originalId)
   },

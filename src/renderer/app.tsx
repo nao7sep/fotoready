@@ -11,6 +11,7 @@ import { RenameModal } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
+import { useWorkspaceLayout } from "./layout/workspace-layout";
 import "./styles/app.css";
 
 function App(): React.JSX.Element {
@@ -36,6 +37,7 @@ function App(): React.JSX.Element {
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0, paused: false });
+  const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
   const project = projectSnapshot?.project;
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
@@ -184,6 +186,11 @@ function App(): React.JSX.Element {
 
   async function addOriginals(): Promise<void> {
     await refreshProject(await api.project.addOriginalsFromDialog());
+  }
+
+  async function addOriginalPaths(sourcePaths: string[]): Promise<void> {
+    if (sourcePaths.length === 0) return;
+    await refreshProject(await api.project.addOriginals(sourcePaths));
   }
 
   async function openProject(): Promise<void> {
@@ -373,16 +380,18 @@ function App(): React.JSX.Element {
         ) : null}
       </header>
 
-      <section className={`workspace ${!showOriginals ? "hide-originals" : ""} ${!showTasks ? "hide-tasks" : ""} ${!showOps ? "hide-ops" : ""}`}>
+      <section className="workspace" style={{ gridTemplateColumns: workspaceLayout.gridTemplateColumns }}>
         {showOriginals ? (
           <OriginalsPanel
             activeOriginalId={activeOriginal?.id ?? null}
             originals={project?.originals ?? []}
             thumbnails={originalThumbnails}
             onAdd={() => void addOriginals()}
+            onDropFiles={(sourcePaths) => void addOriginalPaths(sourcePaths)}
             onSelect={(originalId) => void selectOriginal(originalId)}
           />
         ) : null}
+        {showOriginals ? <WorkspaceSplitter label="Resize Originals panel" onPointerDown={workspaceLayout.startResize("originals")} /> : null}
 
         {showTasks ? (
           <TasksPanel
@@ -396,6 +405,7 @@ function App(): React.JSX.Element {
             onToggleRenameSelection={toggleRenameSelection}
           />
         ) : null}
+        {showTasks ? <WorkspaceSplitter label="Resize Tasks panel" onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
 
         <section className="editor-panel">
           <div className="canvas-frame">
@@ -446,6 +456,8 @@ function App(): React.JSX.Element {
           ) : null}
           <div className="histogram-placeholder" />
         </section>
+
+        {showOps ? <WorkspaceSplitter label="Resize Ops panel" onPointerDown={workspaceLayout.startResize("ops")} /> : null}
 
         {showOps ? <aside className="panel ops-panel">
           <PanelHeader title="Ops" />
@@ -1092,6 +1104,16 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
       <h2>{title}</h2>
     </div>
   );
+}
+
+function WorkspaceSplitter({
+  label,
+  onPointerDown
+}: {
+  label: string;
+  onPointerDown(event: React.PointerEvent<HTMLButtonElement>): void;
+}): React.JSX.Element {
+  return <button aria-label={label} className="workspace-splitter" type="button" onPointerDown={onPointerDown} />;
 }
 
 function basename(sourcePath: string): string {

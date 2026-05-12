@@ -69,6 +69,7 @@ export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
+    filePathForFile(file: File): string;
     log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
@@ -84,6 +85,7 @@ export type FotoReadyApi = {
     openFromDialog(): Promise<ProjectSnapshot>;
     saveAsFromDialog(): Promise<ProjectSnapshot>;
     setOutputDirFromDialog(): Promise<ProjectSnapshot>;
+    addOriginals(sourcePaths: string[]): Promise<ProjectSnapshot>;
     addOriginalsFromDialog(): Promise<ProjectSnapshot>;
     selectOriginal(originalId: string): Promise<ProjectSnapshot>;
   };

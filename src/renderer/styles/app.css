@@ -156,35 +156,31 @@ select:disabled {
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: 200px 240px minmax(660px, 1fr) 340px;
+  grid-template-columns: 200px 6px 240px 6px minmax(520px, 1fr) 6px 340px;
 }
 
-.workspace.hide-originals {
-  grid-template-columns: 240px minmax(860px, 1fr) 340px;
+.workspace-splitter {
+  min-width: 6px;
+  width: 6px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #262626;
+  border-left: 1px solid #262626;
+  border-radius: 0;
+  background: #191919;
+  cursor: col-resize;
 }
 
-.workspace.hide-tasks {
-  grid-template-columns: 200px minmax(900px, 1fr) 340px;
+.workspace-splitter:hover,
+.workspace-splitter:focus-visible,
+.is-resizing-workspace .workspace-splitter {
+  background: #315c55;
 }
 
-.workspace.hide-ops {
-  grid-template-columns: 200px 240px minmax(1000px, 1fr);
-}
-
-.workspace.hide-originals.hide-tasks {
-  grid-template-columns: minmax(1100px, 1fr) 340px;
-}
-
-.workspace.hide-originals.hide-ops {
-  grid-template-columns: 240px minmax(1200px, 1fr);
-}
-
-.workspace.hide-tasks.hide-ops {
-  grid-template-columns: 200px minmax(1240px, 1fr);
-}
-
-.workspace.hide-originals.hide-tasks.hide-ops {
-  grid-template-columns: minmax(1440px, 1fr);
+.is-resizing-workspace {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .panel,
@@ -234,6 +230,12 @@ select:disabled {
   border-radius: 8px;
   background: transparent;
   width: calc(100% - 24px);
+}
+
+.originals-panel.drag-active .drop-target {
+  border-color: #8ce0d3;
+  color: #d8fffa;
+  background: rgb(49 92 85 / 34%);
 }
 
 .empty-state {

@@ -3,7 +3,8 @@ import type { FotoReadyApi } from "@shared/types/ipc";
 
 const api: FotoReadyApi = {
   system: {
-    getInfo: () => ipcRenderer.invoke("system.getInfo")
+    getInfo: () => ipcRenderer.invoke("system.getInfo"),
+    pickFile: (options) => ipcRenderer.invoke("system.pickFile", options)
   },
   settings: {
     get: () => ipcRenderer.invoke("settings.get"),

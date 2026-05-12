@@ -38,6 +38,19 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     version: ctx.version,
     dataDir: ctx.paths.dataDir
   }));
+  ipcMain.handle("system.pickFile", async (event, options: { title: string; extensions: string[] }) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const dialogOptions: OpenDialogOptions = {
+      title: options.title,
+      properties: ["openFile"],
+      filters: [
+        { name: "Supported files", extensions: options.extensions },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    };
+    const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
 
   ipcMain.handle("settings.get", async () => ctx.settings);
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));

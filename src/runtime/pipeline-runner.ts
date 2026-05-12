@@ -119,8 +119,14 @@ async function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, 
       return image.median(Math.max(1, Math.round(numberParam(op, "strength", 0.3) * 3)));
     case "redact-fill":
       return applyFillRedaction(image, op, sourceWidth, sourceHeight);
+    case "redact-blur":
+      return applyBlurRedaction(image, op, sourceWidth, sourceHeight);
+    case "redact-pixelate":
+      return applyPixelateRedaction(image, op, sourceWidth, sourceHeight);
     case "watermark-text":
       return applyTextWatermark(image, op, sourceWidth, sourceHeight);
+    case "watermark-image":
+      return applyImageWatermark(image, op, sourceWidth, sourceHeight);
     case "lut":
       return applyLut(image, op);
     default:
@@ -216,6 +222,65 @@ function applyTextWatermark(image: sharp.Sharp, op: OpInstance, sourceWidth: num
   return image.composite([{ input: Buffer.from(svg), left, top }]);
 }
 
+async function applyBlurRedaction(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): Promise<sharp.Sharp> {
+  const rects = rectsParam(op.params.rects);
+  if (rects.length === 0) return image;
+
+  const overlays = await Promise.all(rects.map(async (rect) => {
+    const region = regionFromRect(rect, sourceWidth, sourceHeight);
+    const input = await image
+      .clone()
+      .extract(region)
+      .blur(Math.max(0.3, numberParam(op, "radius", 20)))
+      .toBuffer();
+    return { input, left: region.left, top: region.top };
+  }));
+
+  return image.composite(overlays);
+}
+
+async function applyPixelateRedaction(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): Promise<sharp.Sharp> {
+  const rects = rectsParam(op.params.rects);
+  if (rects.length === 0) return image;
+
+  const longEdge = Math.max(sourceWidth, sourceHeight);
+  const blockSize = Math.max(2, Math.round(numberParam(op, "blockSize", 0.015) * longEdge));
+  const overlays = await Promise.all(rects.map(async (rect) => {
+    const region = regionFromRect(rect, sourceWidth, sourceHeight);
+    const tinyWidth = Math.max(1, Math.ceil(region.width / blockSize));
+    const tinyHeight = Math.max(1, Math.ceil(region.height / blockSize));
+    const input = await image
+      .clone()
+      .extract(region)
+      .resize(tinyWidth, tinyHeight, { kernel: "nearest" })
+      .resize(region.width, region.height, { kernel: "nearest" })
+      .toBuffer();
+    return { input, left: region.left, top: region.top };
+  }));
+
+  return image.composite(overlays);
+}
+
+async function applyImageWatermark(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): Promise<sharp.Sharp> {
+  const pngPath = stringParam(op, "pngPath", "");
+  if (!pngPath) return image;
+
+  const longEdge = Math.max(sourceWidth, sourceHeight);
+  const scale = Math.max(0.01, Math.min(1, numberParam(op, "scale", 0.15)));
+  const width = Math.max(1, Math.round(longEdge * scale));
+  const marginX = Math.round(numberParam(op, "marginX", 0.02) * longEdge);
+  const marginY = Math.round(numberParam(op, "marginY", 0.02) * longEdge);
+  const opacity = Math.max(0, Math.min(1, numberParam(op, "opacity", 0.7)));
+  const watermark = await (await import("sharp")).default(pngPath)
+    .resize({ width, withoutEnlargement: true })
+    .ensureAlpha()
+    .modulate({ brightness: opacity })
+    .toBuffer({ resolveWithObject: true });
+  const { left, top } = anchorPosition(stringParam(op, "anchor", "bottom-right"), sourceWidth, sourceHeight, watermark.info.width, watermark.info.height, marginX, marginY);
+
+  return image.composite([{ input: watermark.data, left, top }]);
+}
+
 async function applyLut(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
   const cubePath = stringParam(op, "cubePath", "");
   if (!cubePath) return image;
@@ -267,6 +332,15 @@ function rectsParam(value: unknown): Array<{ x: number; y: number; w: number; h:
     typeof (item as { w?: unknown }).w === "number" &&
     typeof (item as { h?: unknown }).h === "number"
   );
+}
+
+function regionFromRect(rect: { x: number; y: number; w: number; h: number }, sourceWidth: number, sourceHeight: number): { left: number; top: number; width: number; height: number } {
+  const longEdge = Math.max(sourceWidth, sourceHeight);
+  const left = Math.max(0, Math.round(rect.x * longEdge));
+  const top = Math.max(0, Math.round(rect.y * longEdge));
+  const width = Math.max(1, Math.min(Math.round(rect.w * longEdge), sourceWidth - left));
+  const height = Math.max(1, Math.min(Math.round(rect.h * longEdge), sourceHeight - top));
+  return { left, top, width, height };
 }
 
 function anchorPosition(anchor: string, imageWidth: number, imageHeight: number, width: number, height: number, marginX: number, marginY: number): { left: number; top: number } {

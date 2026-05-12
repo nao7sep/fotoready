@@ -62,6 +62,7 @@ export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
+    pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
   };
   settings: {
     get(): Promise<GlobalSettings>;

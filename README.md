@@ -22,6 +22,7 @@ Current implementation status:
 - Concurrent processing queue using configured worker pool size, plus task retry/delete controls and visible error details.
 - Project and queue snapshot event streaming from main to renderer.
 - Initial keyboard shortcuts, panel toggles, shortcuts modal, New project, and output directory picker.
+- Runtime-backed tone, LUT, redaction, and watermark ops with focused controls and file pickers.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

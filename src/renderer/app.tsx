@@ -680,6 +680,10 @@ function OpParams({
           .cube path
           <input disabled={disabled} type="text" value={stringValue(op.params.cubePath, "")} onChange={(event) => onParamChange("cubePath", event.currentTarget.value)} />
         </label>
+        <button className="toolbar-button span-two" disabled={disabled} type="button" onClick={async () => {
+          const picked = await api.system.pickFile({ title: "Choose Cube LUT", extensions: ["cube"] });
+          if (picked) onParamChange("cubePath", picked);
+        }}>Browse LUT...</button>
         <label className="span-two">
           Strength
           <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={numberValue(op.params.strength, 1)} onChange={(event) => onParamChange("strength", event.currentTarget.valueAsNumber)} />
@@ -714,6 +718,33 @@ function OpParams({
     );
   }
 
+  if (op.type === "redact-blur" || op.type === "redact-pixelate") {
+    const rect = firstRect(op.params.rects);
+    const sizeKey = op.type === "redact-blur" ? "radius" : "blockSize";
+    return (
+      <div className="field-grid four">
+        {["x", "y", "w", "h"].map((key) => (
+          <label key={key}>
+            {key}
+            <input
+              disabled={disabled}
+              max={1}
+              min={0}
+              step={0.01}
+              type="number"
+              value={numberValue(rect[key as keyof typeof rect], key === "w" || key === "h" ? 0.25 : 0)}
+              onChange={(event) => onParamChange("rects", [{ ...rect, [key]: event.currentTarget.valueAsNumber }])}
+            />
+          </label>
+        ))}
+        <label className="span-two">
+          {op.type === "redact-blur" ? "Radius" : "Block size"}
+          <input disabled={disabled} min={0.001} step={0.005} type="number" value={numberValue(op.params[sizeKey], op.type === "redact-blur" ? 0.02 : 0.015)} onChange={(event) => onParamChange(sizeKey, event.currentTarget.valueAsNumber)} />
+        </label>
+      </div>
+    );
+  }
+
   if (op.type === "watermark-text") {
     return (
       <div className="field-grid">
@@ -738,6 +769,35 @@ function OpParams({
         <label>
           Color
           <input disabled={disabled} type="color" value={stringValue(op.params.color, "#ffffff")} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
+        </label>
+      </div>
+    );
+  }
+
+  if (op.type === "watermark-image") {
+    return (
+      <div className="field-grid">
+        <label className="span-two">
+          PNG path
+          <input disabled={disabled} type="text" value={stringValue(op.params.pngPath, "")} onChange={(event) => onParamChange("pngPath", event.currentTarget.value)} />
+        </label>
+        <button className="toolbar-button span-two" disabled={disabled} type="button" onClick={async () => {
+          const picked = await api.system.pickFile({ title: "Choose Watermark PNG", extensions: ["png"] });
+          if (picked) onParamChange("pngPath", picked);
+        }}>Browse PNG...</button>
+        <label>
+          Anchor
+          <select disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(event) => onParamChange("anchor", event.currentTarget.value)}>
+            {["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"].map((anchor) => <option key={anchor}>{anchor}</option>)}
+          </select>
+        </label>
+        <label>
+          Scale
+          <input disabled={disabled} max={1} min={0.01} step={0.01} type="number" value={numberValue(op.params.scale, 0.15)} onChange={(event) => onParamChange("scale", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label className="span-two">
+          Opacity
+          <input disabled={disabled} max={1} min={0} step={0.05} type="number" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
         </label>
       </div>
     );

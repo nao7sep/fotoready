@@ -16,7 +16,8 @@ export async function processTask(
   taskId: string,
   projectPath: string | null,
   settings: GlobalSettings,
-  sourceFacts: SourceJpegFacts | null = null
+  sourceFacts: SourceJpegFacts | null = null,
+  onUpdate?: () => void | Promise<void>
 ): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
@@ -31,6 +32,7 @@ export async function processTask(
   task.status = "processing";
   task.error = null;
   task.updatedAt = nowIso();
+  await onUpdate?.();
 
   try {
     const outputPath = await stagedOutputPath(project, task, original.sourcePath, projectPath);
@@ -61,10 +63,12 @@ export async function processTask(
       renamedAt: null
     };
     task.updatedAt = nowIso();
+    await onUpdate?.();
   } catch (error) {
     task.status = "error";
     task.error = taskError(error);
     task.updatedAt = nowIso();
+    await onUpdate?.();
   }
 }
 

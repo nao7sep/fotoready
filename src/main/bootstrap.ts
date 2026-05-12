@@ -24,6 +24,7 @@ export async function bootstrap(): Promise<void> {
   const visionQueue = new VisionQueue(paths, settings);
   const processingQueue = new ProcessingQueue(settings, qualityQueue);
   const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue);
+  processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   await projectSession.openLastProjectIfAvailable();
 
   registerIpcHandlers({

@@ -18,9 +18,18 @@ function App(): React.JSX.Element {
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
   const [renameOpen, setRenameOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [showOriginals, setShowOriginals] = useState(true);
+  const [showTasks, setShowTasks] = useState(true);
+  const [showOps, setShowOps] = useState(true);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
+
+  const project = projectSnapshot?.project;
+  const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
+  const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
+  const activePreview = preview?.taskId === activeTask?.id ? preview : null;
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot()]).then(
@@ -34,10 +43,52 @@ function App(): React.JSX.Element {
     );
   }, []);
 
-  const project = projectSnapshot?.project;
-  const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
-  const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
-  const activePreview = preview?.taskId === activeTask?.id ? preview : null;
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key === "1") {
+        event.preventDefault();
+        setShowOriginals((value) => !value);
+      } else if (mod && event.key === "2") {
+        event.preventDefault();
+        setShowTasks((value) => !value);
+      } else if (mod && event.key === "3") {
+        event.preventDefault();
+        setShowOps((value) => !value);
+      } else if (mod && event.key.toLowerCase() === "s" && event.shiftKey) {
+        event.preventDefault();
+        void saveAll();
+      } else if (mod && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (activeTask?.status === "pending") void saveTask(activeTask.id);
+      } else if (mod && event.key.toLowerCase() === "r") {
+        event.preventDefault();
+        if (project?.tasks.some((task) => task.status === "done")) setRenameOpen(true);
+      } else if (mod && event.key === ",") {
+        event.preventDefault();
+        void openSettings();
+      } else if (event.key === "?" && !mod) {
+        event.preventDefault();
+        setShortcutsOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTask?.id, activeTask?.status, project?.tasks]);
+
+  useEffect(() => {
+    const offProject = api.events.onProjectSnapshot((snapshot) => {
+      setProjectSnapshot(snapshot);
+    });
+    const offQueue = api.events.onQueueSnapshot((snapshot) => {
+      setQueue(snapshot);
+    });
+    return () => {
+      offProject();
+      offQueue();
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeTask) {
@@ -75,8 +126,16 @@ function App(): React.JSX.Element {
     await refreshProject(await api.project.openFromDialog());
   }
 
+  async function newProject(): Promise<void> {
+    await refreshProject(await api.project.newProject());
+  }
+
   async function saveProjectAs(): Promise<void> {
     await refreshProject(await api.project.saveAsFromDialog());
+  }
+
+  async function setOutputDir(): Promise<void> {
+    await refreshProject(await api.project.setOutputDirFromDialog());
   }
 
   async function selectOriginal(originalId: string): Promise<void> {
@@ -173,9 +232,10 @@ function App(): React.JSX.Element {
         <button className="project-button" type="button">
           {project?.name ?? "Untitled Project"}
         </button>
+        <button className="toolbar-button" type="button" onClick={() => void newProject()}>New</button>
         <button className="toolbar-button" type="button" onClick={() => void openProject()}>Open</button>
         <button className="toolbar-button" type="button" onClick={() => void saveProjectAs()}>Save as</button>
-        <div className="output-path">Output: {project?.outputDir ?? settings?.defaultOutputDirectory ?? "./out"}</div>
+        <button className="output-path" type="button" onClick={() => void setOutputDir()}>Output: {project?.outputDir ?? settings?.defaultOutputDirectory ?? "./out"}</button>
         <button className="icon-button" type="button" title="Settings" onClick={() => void openSettings()}>
           <Settings size={18} />
         </button>
@@ -184,8 +244,8 @@ function App(): React.JSX.Element {
         </button>
       </header>
 
-      <section className="workspace">
-        <aside className="panel originals-panel">
+      <section className={`workspace ${!showOriginals ? "hide-originals" : ""} ${!showTasks ? "hide-tasks" : ""} ${!showOps ? "hide-ops" : ""}`}>
+        {showOriginals ? <aside className="panel originals-panel">
           <PanelHeader title="Originals" />
           <button className="drop-target" type="button" onClick={addOriginals}>
             <ImagePlus size={18} />
@@ -204,9 +264,9 @@ function App(): React.JSX.Element {
               </button>
             ))}
           </div>
-        </aside>
+        </aside> : null}
 
-        <aside className="panel tasks-panel">
+        {showTasks ? <aside className="panel tasks-panel">
           <PanelHeader title="Tasks" />
           {project?.tasks.length ? (
             <div className="list">
@@ -236,7 +296,7 @@ function App(): React.JSX.Element {
               Rename...
             </button>
           </div>
-        </aside>
+        </aside> : null}
 
         <section className="editor-panel">
           <div className="canvas-frame">
@@ -286,7 +346,7 @@ function App(): React.JSX.Element {
           <div className="histogram-placeholder" />
         </section>
 
-        <aside className="panel ops-panel">
+        {showOps ? <aside className="panel ops-panel">
           <PanelHeader title="Ops" />
           {activeTask ? (
             <div className="current-ops">
@@ -328,7 +388,7 @@ function App(): React.JSX.Element {
               )}
             </section>
           ))}
-        </aside>
+        </aside> : null}
       </section>
 
       {renameOpen && settings ? (
@@ -368,6 +428,34 @@ function App(): React.JSX.Element {
               <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Cancel</button>
               <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={() => void saveApiKey()}>Save key</button>
             </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {shortcutsOpen ? (
+        <div className="modal-backdrop">
+          <section className="modal small-modal">
+            <header className="modal-header">
+              <h2>Keyboard Shortcuts</h2>
+              <button className="toolbar-button" type="button" onClick={() => setShortcutsOpen(false)}>Close</button>
+            </header>
+            <div className="shortcut-list">
+              {[
+                ["Cmd/Ctrl+1", "Toggle Originals"],
+                ["Cmd/Ctrl+2", "Toggle Tasks"],
+                ["Cmd/Ctrl+3", "Toggle Ops"],
+                ["Cmd/Ctrl+S", "Save current task"],
+                ["Cmd/Ctrl+Shift+S", "Save all"],
+                ["Cmd/Ctrl+R", "Rename"],
+                ["Cmd/Ctrl+,", "Settings"],
+                ["?", "Keyboard shortcuts"]
+              ].map(([keys, action]) => (
+                <div className="shortcut-row" key={keys}>
+                  <kbd>{keys}</kbd>
+                  <span>{action}</span>
+                </div>
+              ))}
+            </div>
           </section>
         </div>
       ) : null}

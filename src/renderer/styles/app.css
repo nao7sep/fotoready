@@ -103,12 +103,47 @@ select:disabled {
   color: #c7c2bc;
   margin-left: 8px;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace {
   min-height: 0;
   display: grid;
   grid-template-columns: 200px 240px minmax(660px, 1fr) 340px;
+}
+
+.workspace.hide-originals {
+  grid-template-columns: 240px minmax(860px, 1fr) 340px;
+}
+
+.workspace.hide-tasks {
+  grid-template-columns: 200px minmax(900px, 1fr) 340px;
+}
+
+.workspace.hide-ops {
+  grid-template-columns: 200px 240px minmax(1000px, 1fr);
+}
+
+.workspace.hide-originals.hide-tasks {
+  grid-template-columns: minmax(1100px, 1fr) 340px;
+}
+
+.workspace.hide-originals.hide-ops {
+  grid-template-columns: 240px minmax(1200px, 1fr);
+}
+
+.workspace.hide-tasks.hide-ops {
+  grid-template-columns: 200px minmax(1240px, 1fr);
+}
+
+.workspace.hide-originals.hide-tasks.hide-ops {
+  grid-template-columns: minmax(1440px, 1fr);
 }
 
 .panel,
@@ -565,4 +600,27 @@ select:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #eeeae5;
+}
+
+.shortcut-list {
+  display: grid;
+  gap: 6px;
+}
+
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 4px 7px;
+  border: 1px solid #454545;
+  border-radius: 5px;
+  color: #f5f5f4;
+  background: #171717;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

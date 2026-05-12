@@ -50,6 +50,8 @@ export type CacheSizes = {
   visionFactsBytes: number;
 };
 
+export type ProjectEventName = "project.snapshot" | "queue.snapshot";
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -63,6 +65,7 @@ export type FotoReadyApi = {
     newProject(name?: string): Promise<ProjectSnapshot>;
     openFromDialog(): Promise<ProjectSnapshot>;
     saveAsFromDialog(): Promise<ProjectSnapshot>;
+    setOutputDirFromDialog(): Promise<ProjectSnapshot>;
     addOriginalsFromDialog(): Promise<ProjectSnapshot>;
     selectOriginal(originalId: string): Promise<ProjectSnapshot>;
   };
@@ -100,5 +103,9 @@ export type FotoReadyApi = {
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;
+  };
+  events: {
+    onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;
+    onQueueSnapshot(callback: (snapshot: QueueSnapshot) => void): () => void;
   };
 };

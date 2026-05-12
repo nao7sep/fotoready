@@ -29,6 +29,7 @@ export class ProjectSession {
   #projectPath: string | null = null;
   #project: Project;
   #activeTaskId: string | null = null;
+  #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -45,6 +46,14 @@ export class ProjectSession {
       project: this.#project,
       activeTaskId: this.#activeTaskId
     };
+  }
+
+  setSnapshotListener(listener: (snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>): void {
+    this.#snapshotListener = listener;
+  }
+
+  async emitSnapshot(): Promise<void> {
+    await this.#snapshotListener?.(this.snapshot(), this.queueSnapshot());
   }
 
   async newProject(name = "Untitled Project"): Promise<ProjectSessionSnapshot> {
@@ -76,6 +85,12 @@ export class ProjectSession {
   async saveAs(projectPath: string): Promise<ProjectSessionSnapshot> {
     await saveProject(projectPath, this.#project);
     this.#projectPath = projectPath;
+    return this.snapshot();
+  }
+
+  async setOutputDir(outputDir: string): Promise<ProjectSessionSnapshot> {
+    this.#project.outputDir = outputDir;
+    await this.persistIfSaved();
     return this.snapshot();
   }
 

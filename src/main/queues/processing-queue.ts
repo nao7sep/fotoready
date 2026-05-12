@@ -8,18 +8,25 @@ import { queueSnapshotFromProject } from "./snapshot";
 
 export class ProcessingQueue {
   #queue: PQueue;
+  #onUpdate: (() => void | Promise<void>) | null;
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue | null
+    private readonly qualityQueue: QualityQueue | null,
+    onUpdate: (() => void | Promise<void>) | null = null
   ) {
+    this.#onUpdate = onUpdate;
     this.#queue = new PQueue({ concurrency: Math.max(1, settings.workerPoolSize) });
+  }
+
+  setUpdateListener(listener: () => void | Promise<void>): void {
+    this.#onUpdate = listener;
   }
 
   async runTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
     await this.#queue.add(async () => {
       const sourceFacts = await this.sourceFactsForTask(project, taskId);
-      await processTask(project, taskId, projectPath, this.settings, sourceFacts);
+      await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined);
     });
   }
 

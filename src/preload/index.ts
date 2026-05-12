@@ -14,6 +14,7 @@ const api: FotoReadyApi = {
     newProject: (name?: string) => ipcRenderer.invoke("project.new", name),
     openFromDialog: () => ipcRenderer.invoke("project.openFromDialog"),
     saveAsFromDialog: () => ipcRenderer.invoke("project.saveAsFromDialog"),
+    setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
     addOriginalsFromDialog: () => ipcRenderer.invoke("project.addOriginalsFromDialog"),
     selectOriginal: (originalId) => ipcRenderer.invoke("project.selectOriginal", originalId)
   },
@@ -51,6 +52,18 @@ const api: FotoReadyApi = {
   },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
+  },
+  events: {
+    onProjectSnapshot: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof callback>[0]) => callback(snapshot);
+      ipcRenderer.on("project.snapshot", listener);
+      return () => ipcRenderer.off("project.snapshot", listener);
+    },
+    onQueueSnapshot: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof callback>[0]) => callback(snapshot);
+      ipcRenderer.on("queue.snapshot", listener);
+      return () => ipcRenderer.off("queue.snapshot", listener);
+    }
   }
 };
 

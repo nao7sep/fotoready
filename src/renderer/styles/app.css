@@ -17,7 +17,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -90,6 +91,12 @@ input {
 
 .toolbar-button:disabled {
   color: #77716a;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  opacity: 0.55;
 }
 
 .output-path {
@@ -246,6 +253,7 @@ input {
   min-height: 0;
   display: grid;
   place-items: center;
+  padding: 24px;
   background:
     linear-gradient(45deg, #202020 25%, transparent 25%),
     linear-gradient(-45deg, #202020 25%, transparent 25%),
@@ -253,6 +261,22 @@ input {
     linear-gradient(-45deg, transparent 75%, #202020 75%);
   background-size: 28px 28px;
   background-position: 0 0, 0 14px, 14px -14px, -14px 0;
+}
+
+.preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 45%);
+}
+
+.preview-error {
+  display: block;
+  margin-top: 8px;
+  color: #f87171;
 }
 
 .pipeline-strip {
@@ -294,6 +318,88 @@ input {
   gap: 10px;
   padding: 12px;
   border-bottom: 1px solid #2f2f2f;
+}
+
+.current-ops {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid #2f2f2f;
+}
+
+.ops-empty {
+  color: #8f8982;
+  font-size: 12px;
+}
+
+.pipeline-op-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #343434;
+  border-radius: 8px;
+  background: #222;
+}
+
+.op-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.op-card-header .toggle-row {
+  min-width: 0;
+  flex: 1;
+}
+
+.op-buttons,
+.output-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.field-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.field-grid label,
+.stacked-field {
+  display: grid;
+  gap: 4px;
+  color: #aaa49d;
+  font-size: 11px;
+}
+
+.span-two {
+  grid-column: span 2;
+}
+
+.field-grid input,
+.field-grid select,
+.stacked-field input,
+.stacked-field select {
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  border: 1px solid #3f3f3f;
+  border-radius: 6px;
+  color: #f5f5f4;
+  background: #171717;
+  padding: 0 7px;
+}
+
+.field-grid input[type="color"] {
+  padding: 2px;
+}
+
+.stacked-field input[type="range"] {
+  padding: 0;
 }
 
 .full-width {

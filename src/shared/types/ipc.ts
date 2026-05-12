@@ -1,5 +1,6 @@
 import type { GlobalSettings } from "./settings";
 import type { Project } from "./project";
+import type { OpDefinition } from "./op";
 
 export type QueueSnapshot = {
   done: number;
@@ -20,6 +21,15 @@ export type ProjectSnapshot = {
   activeTaskId: string | null;
 };
 
+export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "category" | "defaultParams" | "visible">;
+
+export type PreviewResult = {
+  taskId: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -30,6 +40,8 @@ export type FotoReadyApi = {
   project: {
     current(): Promise<ProjectSnapshot>;
     newProject(name?: string): Promise<ProjectSnapshot>;
+    openFromDialog(): Promise<ProjectSnapshot>;
+    saveAsFromDialog(): Promise<ProjectSnapshot>;
     addOriginalsFromDialog(): Promise<ProjectSnapshot>;
     selectOriginal(originalId: string): Promise<ProjectSnapshot>;
   };
@@ -38,6 +50,18 @@ export type FotoReadyApi = {
     fork(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;
     saveAll(): Promise<ProjectSnapshot>;
+    addOp(taskId: string, opType: string): Promise<ProjectSnapshot>;
+    removeOp(taskId: string, opIndex: number): Promise<ProjectSnapshot>;
+    setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
+    updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSnapshot>;
+    setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
+    updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
+  };
+  ops: {
+    list(): Promise<OpCatalogItem[]>;
+  };
+  preview: {
+    render(taskId: string): Promise<PreviewResult>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

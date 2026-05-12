@@ -12,6 +12,8 @@ import { createEmptyProject, loadProject, saveProject } from "@main/persistence/
 import { processTask } from "@main/queues/processing";
 import { queueSnapshotFromProject } from "@main/queues/snapshot";
 import type { QueueSnapshot } from "@shared/types/ipc";
+import { getOpDefinition } from "@core/ops/catalog";
+import { renderTaskPreview, type PreviewResult } from "@main/preview/preview-service";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -143,10 +145,88 @@ export class ProjectSession {
     return queueSnapshotFromProject(this.#project);
   }
 
+  async renderPreview(taskId: string): Promise<PreviewResult> {
+    return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge);
+  }
+
+  async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    const definition = getOpDefinition(opType);
+    if (!definition || !definition.visible) {
+      throw new Error(`Unknown editable op: ${opType}`);
+    }
+
+    task.pipeline.ops.push({
+      type: definition.type,
+      params: structuredClone(definition.defaultParams),
+      enabled: true
+    });
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async removeOp(taskId: string, opIndex: number): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    assertOpIndex(task, opIndex);
+    task.pipeline.ops.splice(opIndex, 1);
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    assertOpIndex(task, opIndex);
+    task.pipeline.ops[opIndex].enabled = enabled;
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    assertOpIndex(task, opIndex);
+    task.pipeline.ops[opIndex].params[key] = value;
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    task.analyzeContent = analyzeContent;
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    task.pipeline.output = {
+      ...task.pipeline.output,
+      [key]: value
+    };
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
   private async persistIfSaved(): Promise<void> {
     if (this.#projectPath) {
       await saveProject(this.#projectPath, this.#project);
     }
+  }
+
+  private editableTask(taskId: string): Task {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (task.status !== "pending") {
+      throw new Error("Only pending tasks can be edited. Fork this task before editing.");
+    }
+    return task;
   }
 }
 
@@ -201,4 +281,16 @@ function createTaskForOriginal(originalId: string, settings: GlobalSettings): Ta
 
 function isUntouchedTask(task: Task): boolean {
   return task.status === "pending" && task.pipeline.ops.length === 0 && task.output === null && task.error === null;
+}
+
+function assertOpIndex(task: Task, opIndex: number): void {
+  if (!Number.isInteger(opIndex) || opIndex < 0 || opIndex >= task.pipeline.ops.length) {
+    throw new Error(`Op index out of range: ${opIndex}`);
+  }
+}
+
+function touchTask(task: Task): void {
+  task.updatedAt = nowIso();
+  task.output = null;
+  task.error = null;
 }

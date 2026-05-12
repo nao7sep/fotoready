@@ -9,8 +9,10 @@ Current implementation status:
 - App data directory at `~/.fotoready`, settings persistence, and session logging.
 - Project session state with original import, active task selection, task forking, and pending-task processing.
 - Basic sharp-backed pipeline runtime for decode, crop, rotate, resize, denoise, sharpen, and output encoding.
+- Editable pending-task pipelines with op add/remove/toggle controls and initial parameter forms.
+- Main-process preview rendering displayed in the editor canvas.
 
-Vision, metadata writing, rename flow, preview rendering, full queue concurrency, and packaging polish are planned as later phases.
+Vision, metadata writing, rename flow, full queue concurrency, and packaging polish are planned as later phases.
 
 ## Development
 

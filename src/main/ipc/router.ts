@@ -2,7 +2,8 @@ import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from "electron
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/project/session";
 import type { GlobalSettings } from "@shared/types/settings";
-import { APP_NAME } from "@shared/constants";
+import { APP_NAME, PROJECT_EXTENSION } from "@shared/constants";
+import { listOpDefinitions } from "@core/ops/catalog";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -21,6 +22,42 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("settings.get", async () => ctx.settings);
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
   ipcMain.handle("project.new", async (_event, name?: string) => ctx.projectSession.newProject(name));
+  ipcMain.handle("project.openFromDialog", async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options: OpenDialogOptions = {
+      title: "Open FotoReady Project",
+      properties: ["openFile"],
+      filters: [
+        { name: "FotoReady Project", extensions: ["fotoready.json"] },
+        { name: "JSON", extensions: ["json"] },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    };
+    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) {
+      return ctx.projectSession.snapshot();
+    }
+    return ctx.projectSession.open(result.filePaths[0]);
+  });
+  ipcMain.handle("project.saveAsFromDialog", async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const result = owner
+      ? await dialog.showSaveDialog(owner, {
+        title: "Save FotoReady Project",
+        defaultPath: `untitled${PROJECT_EXTENSION}`,
+        filters: [{ name: "FotoReady Project", extensions: ["fotoready.json"] }]
+      })
+      : await dialog.showSaveDialog({
+        title: "Save FotoReady Project",
+        defaultPath: `untitled${PROJECT_EXTENSION}`,
+        filters: [{ name: "FotoReady Project", extensions: ["fotoready.json"] }]
+      });
+    if (result.canceled || !result.filePath) {
+      return ctx.projectSession.snapshot();
+    }
+    const projectPath = result.filePath.endsWith(PROJECT_EXTENSION) ? result.filePath : `${result.filePath}${PROJECT_EXTENSION}`;
+    return ctx.projectSession.saveAs(projectPath);
+  });
   ipcMain.handle("project.addOriginalsFromDialog", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
@@ -44,5 +81,17 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.fork", async (_event, taskId: string) => ctx.projectSession.forkTask(taskId));
   ipcMain.handle("task.save", async (_event, taskId: string) => ctx.projectSession.saveTask(taskId));
   ipcMain.handle("task.saveAll", async () => ctx.projectSession.saveAllPending());
+  ipcMain.handle("task.addOp", async (_event, taskId: string, opType: string) => ctx.projectSession.addOp(taskId, opType));
+  ipcMain.handle("task.removeOp", async (_event, taskId: string, opIndex: number) => ctx.projectSession.removeOp(taskId, opIndex));
+  ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opIndex: number, enabled: boolean) => ctx.projectSession.setOpEnabled(taskId, opIndex, enabled));
+  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opIndex: number, key: string, value: unknown) => ctx.projectSession.updateOpParam(taskId, opIndex, key, value));
+  ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => ctx.projectSession.setAnalyzeContent(taskId, analyzeContent));
+  ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => ctx.projectSession.updateOutput(taskId, key, value));
+  ipcMain.handle("ops.list", async () =>
+    listOpDefinitions()
+      .filter((op) => op.visible)
+      .map(({ type, label, category, defaultParams, visible }) => ({ type, label, category, defaultParams, visible }))
+  );
+  ipcMain.handle("preview.render", async (_event, taskId: string) => ctx.projectSession.renderPreview(taskId));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

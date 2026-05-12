@@ -5,27 +5,32 @@ import type { RenamePreview } from "@shared/types/ipc";
 export function RenameModal({
   templates,
   defaultTemplateId,
-  selectedTaskId,
+  doneTasks,
   onClose,
   onGenerateMissing,
   onPreview,
-  onRun
+  onRun,
+  onTaskSelected,
+  selectedTaskIds
 }: {
   templates: FilenameTemplate[];
   defaultTemplateId: string;
-  selectedTaskId: string | null;
+  doneTasks: Array<{ id: string; label: string; selected: boolean }>;
   onClose(): void;
-  onGenerateMissing(taskIds: string[]): Promise<void>;
+  onGenerateMissing(taskIds: string[], onProgress: (done: number, total: number) => void): Promise<void>;
   onPreview(templateId: string, taskIds?: string[]): Promise<RenamePreview>;
   onRun(templateId: string, taskIds?: string[]): Promise<void>;
+  onTaskSelected(taskId: string, selected: boolean): void;
+  selectedTaskIds: string[];
 }): React.JSX.Element {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
   const [scope, setScope] = useState<"all" | "selected">("all");
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canUseSelected = selectedTaskId !== null;
-  const scopedTaskIds = scope === "selected" && selectedTaskId ? [selectedTaskId] : undefined;
+  const [generationProgress, setGenerationProgress] = useState<{ done: number; total: number } | null>(null);
+  const canUseSelected = selectedTaskIds.length > 0;
+  const scopedTaskIds = scope === "selected" && selectedTaskIds.length > 0 ? selectedTaskIds : undefined;
 
   useEffect(() => {
     if (!canUseSelected && scope === "selected") setScope("all");
@@ -49,7 +54,7 @@ export function RenameModal({
     return () => {
       cancelled = true;
     };
-  }, [onPreview, scope, selectedTaskId, templateId]);
+  }, [onPreview, scope, selectedTaskIds, templateId]);
 
   async function confirm(): Promise<void> {
     setBusy(true);
@@ -68,12 +73,14 @@ export function RenameModal({
     if (missingTaskIds.length === 0) return;
     setBusy(true);
     setError(null);
+    setGenerationProgress({ done: 0, total: missingTaskIds.length });
     try {
-      await onGenerateMissing(missingTaskIds);
+      await onGenerateMissing(missingTaskIds, (done, total) => setGenerationProgress({ done, total }));
       setPreview(await onPreview(templateId, scopedTaskIds));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
+      setGenerationProgress(null);
       setBusy(false);
     }
   }
@@ -97,7 +104,16 @@ export function RenameModal({
 
         <div className="segmented-control">
           <button className={scope === "all" ? "active" : ""} type="button" onClick={() => setScope("all")}>All done tasks</button>
-          <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected task only</button>
+          <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected tasks</button>
+        </div>
+
+        <div className="rename-selection-list">
+          {doneTasks.length ? doneTasks.map((task) => (
+            <label className="rename-selection-row" key={task.id}>
+              <input type="checkbox" checked={task.selected} onChange={(event) => onTaskSelected(task.id, event.currentTarget.checked)} />
+              <span>{task.label}</span>
+            </label>
+          )) : <div className="ops-empty">No done tasks available</div>}
         </div>
 
         {preview?.missingSlugCount ? (
@@ -107,13 +123,17 @@ export function RenameModal({
           </div>
         ) : null}
 
+        {generationProgress ? (
+          <div className="modal-warning">Generating descriptions {generationProgress.done}/{generationProgress.total}</div>
+        ) : null}
+
         {error ? <div className="modal-error">{error}</div> : null}
 
         <div className="rename-preview-list">
           {preview?.items.length ? preview.items.map((item) => (
             <div className={`rename-preview-row ${item.missingSlug ? "blocked" : ""}`} key={item.taskId}>
-              <span>{item.stagedName}</span>
-              <span>{item.proposedName}</span>
+              <span title={item.stagedPath}>{item.stagedName}</span>
+              <span title={item.proposedPath}>{item.missingSlug ? "Needs slug data" : item.proposedName}</span>
             </div>
           )) : (
             <div className="ops-empty">{busy ? "Preparing preview..." : "No done tasks to rename"}</div>

@@ -34,6 +34,7 @@ Current implementation status:
 - Konva-backed editor canvas with before/after, fit/100% zoom, and authored overlay visualization.
 - Functional app menu, About modal, and IPC-backed queue pause/resume controls.
 - Tabbed settings modal covering general, encoding, vision, metadata, naming, path, performance, and cache settings.
+- Rename workflow with explicit done-task selection, selected-task scope, generation progress, and clearer staged/proposed preview rows.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

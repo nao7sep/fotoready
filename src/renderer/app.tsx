@@ -27,6 +27,7 @@ function App(): React.JSX.Element {
   const [showOriginals, setShowOriginals] = useState(true);
   const [showTasks, setShowTasks] = useState(true);
   const [showOps, setShowOps] = useState(true);
+  const [selectedRenameTaskIds, setSelectedRenameTaskIds] = useState<string[]>([]);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
@@ -186,6 +187,7 @@ function App(): React.JSX.Element {
 
   async function deleteTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.delete(taskId));
+    setSelectedRenameTaskIds((current) => current.filter((id) => id !== taskId));
   }
 
   async function retryTask(taskId: string): Promise<void> {
@@ -276,7 +278,16 @@ function App(): React.JSX.Element {
 
   async function refreshProject(snapshot: ProjectSnapshot): Promise<void> {
     setProjectSnapshot(snapshot);
+    const doneTaskIds = new Set(snapshot.project.tasks.filter((task) => task.status === "done").map((task) => task.id));
+    setSelectedRenameTaskIds((current) => current.filter((taskId) => doneTaskIds.has(taskId)));
     setQueue(await api.queues.snapshot());
+  }
+
+  function toggleRenameSelection(taskId: string, selected: boolean): void {
+    setSelectedRenameTaskIds((current) => {
+      if (selected) return current.includes(taskId) ? current : [...current, taskId];
+      return current.filter((id) => id !== taskId);
+    });
   }
 
   async function pauseQueues(): Promise<void> {
@@ -359,6 +370,16 @@ function App(): React.JSX.Element {
                   type="button"
                   onClick={() => void selectTask(task.id)}
                 >
+                  {task.status === "done" ? (
+                    <input
+                      aria-label="Select for rename"
+                      checked={selectedRenameTaskIds.includes(task.id)}
+                      className="row-checkbox"
+                      type="checkbox"
+                      onChange={(event) => toggleRenameSelection(task.id, event.currentTarget.checked)}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  ) : null}
                   <span className={`status-dot ${task.status}`} aria-hidden="true">{statusIndicator(task)}</span>
                   <span className="task-copy">
                     <span className="row-title">{taskLabel(task, projectSnapshot?.project.originals ?? [])}</span>
@@ -478,10 +499,16 @@ function App(): React.JSX.Element {
       {renameOpen && settings ? (
         <RenameModal
           defaultTemplateId={project?.settings.defaultTemplateId ?? settings.defaultTemplateId}
+          doneTasks={(project?.tasks ?? []).filter((task) => task.status === "done").map((task) => ({
+            id: task.id,
+            label: taskLabel(task, project?.originals ?? []),
+            selected: selectedRenameTaskIds.includes(task.id)
+          }))}
           onClose={() => setRenameOpen(false)}
-          onGenerateMissing={async (taskIds) => {
-            for (const taskId of taskIds) {
+          onGenerateMissing={async (taskIds, onProgress) => {
+            for (const [index, taskId] of taskIds.entries()) {
               await refreshProject(await api.vision.runForTask(taskId));
+              onProgress(index + 1, taskIds.length);
             }
           }}
           onPreview={(templateId, taskIds) => api.rename.preview(templateId, taskIds)}
@@ -489,7 +516,8 @@ function App(): React.JSX.Element {
             await refreshProject(await api.rename.run(templateId, taskIds));
             setRenameOpen(false);
           }}
-          selectedTaskId={activeTask?.status === "done" ? activeTask.id : null}
+          onTaskSelected={toggleRenameSelection}
+          selectedTaskIds={selectedRenameTaskIds}
           templates={settings.filenameTemplates}
         />
       ) : null}

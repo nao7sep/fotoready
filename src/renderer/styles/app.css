@@ -315,6 +315,10 @@ select:disabled {
   text-align: center;
 }
 
+.row-checkbox {
+  flex: 0 0 auto;
+}
+
 .status-dot.pending {
   color: #eab308;
 }
@@ -693,6 +697,34 @@ select:disabled {
 
 .rename-preview-row.blocked {
   color: #facc15;
+}
+
+.rename-selection-list {
+  display: grid;
+  max-height: 120px;
+  overflow: auto;
+  border: 1px solid #343434;
+  border-radius: 8px;
+}
+
+.rename-selection-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid #303030;
+  font-size: 12px;
+}
+
+.rename-selection-row:last-child {
+  border-bottom: 0;
+}
+
+.rename-selection-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-warning,

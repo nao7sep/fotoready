@@ -623,6 +623,12 @@ select:disabled {
   color: #eeeae5;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .shortcut-list {
   display: grid;
   gap: 6px;

@@ -66,6 +66,7 @@ export type FotoReadyApi = {
   };
   settings: {
     get(): Promise<GlobalSettings>;
+    update(patch: Partial<GlobalSettings>): Promise<GlobalSettings>;
     setGeminiApiKey(apiKey: string): Promise<void>;
   };
   project: {

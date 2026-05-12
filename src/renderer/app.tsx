@@ -24,6 +24,7 @@ function App(): React.JSX.Element {
   const [showTasks, setShowTasks] = useState(true);
   const [showOps, setShowOps] = useState(true);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
 
@@ -235,11 +236,18 @@ function App(): React.JSX.Element {
 
   async function openSettings(): Promise<void> {
     setCacheSizes(await api.caches.sizes());
+    setSettingsDraft(settings);
     setApiKeyOpen(true);
   }
 
   async function clearCaches(): Promise<void> {
     setCacheSizes(await api.caches.clear());
+  }
+
+  async function saveSettingsDraft(): Promise<void> {
+    if (!settingsDraft) return;
+    setSettings(await api.settings.update(settingsDraft));
+    setApiKeyOpen(false);
   }
 
   async function updateOutput(key: string, value: unknown): Promise<void> {
@@ -450,6 +458,44 @@ function App(): React.JSX.Element {
               Gemini API key
               <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.currentTarget.value)} />
             </label>
+            {settingsDraft ? (
+              <div className="settings-grid">
+                <label className="stacked-field">
+                  Default format
+                  <select value={settingsDraft.defaultOutputFormat} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultOutputFormat: event.currentTarget.value as GlobalSettings["defaultOutputFormat"] })}>
+                    {["jpeg", "webp", "avif", "png"].map((format) => <option key={format}>{format}</option>)}
+                  </select>
+                </label>
+                <label className="stacked-field">
+                  WebP quality
+                  <input min={1} max={100} type="number" value={settingsDraft.defaultWebpQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultWebpQuality: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  JPEG fixed quality
+                  <input min={1} max={100} type="number" value={settingsDraft.jpegFixedQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegFixedQuality: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  Vision model
+                  <input type="text" value={settingsDraft.model} onChange={(event) => setSettingsDraft({ ...settingsDraft, model: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field span-two">
+                  Prompt addendum
+                  <input type="text" value={settingsDraft.customPromptAddendum} onChange={(event) => setSettingsDraft({ ...settingsDraft, customPromptAddendum: event.currentTarget.value })} />
+                </label>
+                <label className="toggle-row span-two">
+                  <input type="checkbox" checked={settingsDraft.injectAuthorCopyright} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectAuthorCopyright: event.currentTarget.checked })} />
+                  Inject author/copyright metadata
+                </label>
+                <label className="stacked-field">
+                  Author
+                  <input type="text" value={settingsDraft.injectFields.author ?? ""} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectFields: { ...settingsDraft.injectFields, author: event.currentTarget.value } })} />
+                </label>
+                <label className="stacked-field">
+                  Copyright
+                  <input type="text" value={settingsDraft.injectFields.copyright ?? ""} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectFields: { ...settingsDraft.injectFields, copyright: event.currentTarget.value } })} />
+                </label>
+              </div>
+            ) : null}
             <div className="settings-summary">
               <span>Caches</span>
               <code>source {formatBytes(cacheSizes?.sourceFactsBytes ?? 0)} · vision {formatBytes(cacheSizes?.visionFactsBytes ?? 0)}</code>
@@ -458,6 +504,7 @@ function App(): React.JSX.Element {
               <button className="toolbar-button" type="button" onClick={() => void clearCaches()}>Clear caches</button>
               <button className="toolbar-button" type="button" onClick={() => setApiKeyOpen(false)}>Cancel</button>
               <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={() => void saveApiKey()}>Save key</button>
+              <button className="primary-action" type="button" disabled={!settingsDraft} onClick={() => void saveSettingsDraft()}>Save settings</button>
             </footer>
           </section>
         </div>

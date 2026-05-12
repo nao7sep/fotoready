@@ -537,12 +537,82 @@ function App(): React.JSX.Element {
                   <input min={1} max={100} type="number" value={settingsDraft.jpegFixedQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegFixedQuality: event.currentTarget.valueAsNumber })} />
                 </label>
                 <label className="stacked-field">
+                  JPEG strategy
+                  <select value={settingsDraft.jpegStrategy} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegStrategy: event.currentTarget.value as GlobalSettings["jpegStrategy"] })}>
+                    {["match-source-size", "match-source-quality", "fixed", "prompt-per-task"].map((strategy) => <option key={strategy}>{strategy}</option>)}
+                  </select>
+                </label>
+                <label className="stacked-field">
+                  JPEG fallback quality
+                  <input min={1} max={100} type="number" value={settingsDraft.jpegQualityOnDetectionFailure} onChange={(event) => setSettingsDraft({ ...settingsDraft, jpegQualityOnDetectionFailure: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  WebP method
+                  <input min={0} max={6} type="number" value={settingsDraft.webpMethod} onChange={(event) => setSettingsDraft({ ...settingsDraft, webpMethod: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  AVIF quality
+                  <input min={1} max={100} type="number" value={settingsDraft.defaultAvifQuality} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultAvifQuality: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  AVIF effort
+                  <input min={0} max={9} type="number" value={settingsDraft.avifEffort} onChange={(event) => setSettingsDraft({ ...settingsDraft, avifEffort: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="toggle-row">
+                  <input type="checkbox" checked={settingsDraft.defaultPngPalette} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultPngPalette: event.currentTarget.checked })} />
+                  PNG palette
+                </label>
+                <label className="toggle-row">
+                  <input type="checkbox" checked={settingsDraft.defaultAnalyzeContent} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultAnalyzeContent: event.currentTarget.checked })} />
+                  Describe by default
+                </label>
+                <label className="stacked-field">
                   Vision model
                   <input type="text" value={settingsDraft.model} onChange={(event) => setSettingsDraft({ ...settingsDraft, model: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field">
+                  Vision long edge
+                  <input min={128} max={4096} type="number" value={settingsDraft.preResizeLongEdge} onChange={(event) => setSettingsDraft({ ...settingsDraft, preResizeLongEdge: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  Max concurrent
+                  <input min={1} max={16} type="number" value={settingsDraft.maxConcurrent} onChange={(event) => setSettingsDraft({ ...settingsDraft, maxConcurrent: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  Worker pool
+                  <input min={1} max={16} type="number" value={settingsDraft.workerPoolSize} onChange={(event) => setSettingsDraft({ ...settingsDraft, workerPoolSize: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="toggle-row">
+                  <input type="checkbox" checked={settingsDraft.cacheResults} onChange={(event) => setSettingsDraft({ ...settingsDraft, cacheResults: event.currentTarget.checked })} />
+                  Cache vision
+                </label>
+                <label className="stacked-field">
+                  Camera timezone
+                  <input type="text" value={settingsDraft.cameraTimezone} onChange={(event) => setSettingsDraft({ ...settingsDraft, cameraTimezone: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field">
+                  Preview long edge
+                  <input min={320} max={4096} type="number" value={settingsDraft.previewLongEdge} onChange={(event) => setSettingsDraft({ ...settingsDraft, previewLongEdge: event.currentTarget.valueAsNumber })} />
+                </label>
+                <label className="stacked-field">
+                  Preview debounce
+                  <input min={0} max={2000} type="number" value={settingsDraft.previewDebounceMs} onChange={(event) => setSettingsDraft({ ...settingsDraft, previewDebounceMs: event.currentTarget.valueAsNumber })} />
                 </label>
                 <label className="stacked-field span-two">
                   Prompt addendum
                   <input type="text" value={settingsDraft.customPromptAddendum} onChange={(event) => setSettingsDraft({ ...settingsDraft, customPromptAddendum: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field span-two">
+                  Default output directory
+                  <input type="text" value={settingsDraft.defaultOutputDirectory} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultOutputDirectory: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field span-two">
+                  LUT folder
+                  <input type="text" value={settingsDraft.lutFolder} onChange={(event) => setSettingsDraft({ ...settingsDraft, lutFolder: event.currentTarget.value })} />
+                </label>
+                <label className="stacked-field span-two">
+                  Default watermark image
+                  <input type="text" value={settingsDraft.defaultWatermarkImage} onChange={(event) => setSettingsDraft({ ...settingsDraft, defaultWatermarkImage: event.currentTarget.value })} />
                 </label>
                 <label className="toggle-row span-two">
                   <input type="checkbox" checked={settingsDraft.injectAuthorCopyright} onChange={(event) => setSettingsDraft({ ...settingsDraft, injectAuthorCopyright: event.currentTarget.checked })} />

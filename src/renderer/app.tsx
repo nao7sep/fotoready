@@ -23,6 +23,7 @@ function App(): React.JSX.Element {
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [errorsOpen, setErrorsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showOriginals, setShowOriginals] = useState(true);
   const [showTasks, setShowTasks] = useState(true);
@@ -37,6 +38,7 @@ function App(): React.JSX.Element {
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
+  const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot()]).then(
@@ -48,6 +50,29 @@ function App(): React.JSX.Element {
         setQueue(snapshot);
       }
     );
+  }, []);
+
+  useEffect(() => {
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    console.warn = (...args: unknown[]) => {
+      originalWarn(...args);
+      void api.system.log("warn", stringifyLogArgs(args));
+    };
+    console.error = (...args: unknown[]) => {
+      originalError(...args);
+      void api.system.log("error", stringifyLogArgs(args));
+    };
+    const onError = (event: ErrorEvent) => void api.system.log("error", event.message, event.error instanceof Error ? event.error.stack ?? null : null);
+    const onRejection = (event: PromiseRejectionEvent) => void api.system.log("error", "Unhandled renderer rejection", stringifyLogArgs([event.reason]));
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      console.warn = originalWarn;
+      console.error = originalError;
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
 
   useEffect(() => {
@@ -200,6 +225,17 @@ function App(): React.JSX.Element {
 
   async function revealSource(): Promise<void> {
     if (activeOriginal) await api.system.revealInFolder(activeOriginal.sourcePath);
+  }
+
+  async function revealTaskSource(task: Task): Promise<void> {
+    const original = project?.originals.find((item) => item.id === task.originalId);
+    if (original) await api.system.revealInFolder(original.sourcePath);
+  }
+
+  async function editErroredTask(task: Task): Promise<void> {
+    if (task.error) await refreshProject(await api.task.dismissError(task.id));
+    await refreshProject(await api.task.select(task.id));
+    setErrorsOpen(false);
   }
 
   async function undoTask(taskId: string): Promise<void> {
@@ -595,6 +631,11 @@ function App(): React.JSX.Element {
           {queue.errors > 0 ? ` · ${queue.errors} errors` : ""}
           {queue.paused ? " · paused" : ""}
         </span>
+        {erroredTasks.length ? (
+          <button className="toolbar-button compact-text" type="button" onClick={() => setErrorsOpen(true)}>
+            Errors
+          </button>
+        ) : null}
         <button className="icon-button compact" type="button" title="Pause queues" onClick={() => void pauseQueues()} disabled={queue.paused}>
           <Pause size={15} />
         </button>
@@ -603,6 +644,31 @@ function App(): React.JSX.Element {
         </button>
         <span className="version">{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</span>
       </footer>
+
+      {errorsOpen ? (
+        <div className="modal-backdrop">
+          <section className="modal">
+            <header className="modal-header">
+              <h2>Errors</h2>
+              <button className="toolbar-button" type="button" onClick={() => setErrorsOpen(false)}>Close</button>
+            </header>
+            <div className="error-center-list">
+              {erroredTasks.length ? erroredTasks.map((task) => (
+                <div className="error-center-row" key={task.id}>
+                  <div>
+                    <strong>{taskLabel(task, project?.originals ?? [])}</strong>
+                    <span>{task.error?.stage}: {task.error?.message}</span>
+                  </div>
+                  <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
+                  <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
+                  <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
+                  <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
+                </div>
+              )) : <div className="ops-empty">No current task errors</div>}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -1044,6 +1110,18 @@ function numberValue(value: unknown, fallback: number): number {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function stringifyLogArgs(args: unknown[]): string {
+  return args.map((arg) => {
+    if (arg instanceof Error) return arg.stack ?? arg.message;
+    if (typeof arg === "string") return arg;
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return String(arg);
+    }
+  }).join(" ");
 }
 
 const hslRanges = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;

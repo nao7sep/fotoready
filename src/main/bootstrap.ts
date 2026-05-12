@@ -33,6 +33,7 @@ export async function bootstrap(): Promise<void> {
     paths,
     settings,
     projectSession,
+    logger,
     version: app.getVersion()
   });
 

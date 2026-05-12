@@ -35,6 +35,7 @@ Current implementation status:
 - Functional app menu, About modal, and IPC-backed queue pause/resume controls.
 - Tabbed settings modal covering general, encoding, vision, metadata, naming, path, performance, and cache settings.
 - Rename workflow with explicit done-task selection, selected-task scope, generation progress, and clearer staged/proposed preview rows.
+- Central error modal with retry/edit/reveal/dismiss actions and renderer warn/error forwarding to session logs.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

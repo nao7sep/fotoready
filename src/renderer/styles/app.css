@@ -125,6 +125,11 @@ select {
   height: 24px;
 }
 
+.compact-text {
+  height: 26px;
+  font-size: 12px;
+}
+
 .toolbar-button:disabled {
   color: #77716a;
 }
@@ -478,6 +483,46 @@ select:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.error-center-list {
+  min-height: 260px;
+  overflow: auto;
+  border: 1px solid #343434;
+  border-radius: 8px;
+}
+
+.error-center-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, auto);
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #303030;
+}
+
+.error-center-row:last-child {
+  border-bottom: 0;
+}
+
+.error-center-row strong,
+.error-center-row span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error-center-row strong {
+  color: #eeeae5;
+  font-size: 13px;
+}
+
+.error-center-row span {
+  margin-top: 3px;
+  color: #fecaca;
+  font-size: 12px;
 }
 
 .histogram-placeholder {

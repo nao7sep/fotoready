@@ -63,6 +63,7 @@ export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
+    log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
   };

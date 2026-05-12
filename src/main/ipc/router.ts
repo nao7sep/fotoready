@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/project/session";
+import type { AppLogger } from "@main/logging/logger";
 import type { GlobalSettings } from "@shared/types/settings";
 import { APP_NAME, PROJECT_EXTENSION } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
@@ -11,6 +12,7 @@ export type RouterContext = {
   paths: AppPaths;
   settings: GlobalSettings;
   projectSession: ProjectSession;
+  logger: AppLogger;
   version: string;
 };
 
@@ -38,6 +40,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     version: ctx.version,
     dataDir: ctx.paths.dataDir
   }));
+  ipcMain.handle("system.log", async (_event, level: "warn" | "error", message: string, detail?: string | null) => {
+    ctx.logger[level]({ mod: "renderer", detail: detail ?? null }, message);
+  });
   ipcMain.handle("system.revealInFolder", async (_event, filePath: string) => {
     shell.showItemInFolder(filePath);
   });

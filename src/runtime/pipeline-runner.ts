@@ -110,6 +110,10 @@ function applyOp(image: sharp.Sharp, op: OpInstance, sourceWidth: number, source
       });
     case "denoise":
       return image.median(Math.max(1, Math.round(numberParam(op, "strength", 0.3) * 3)));
+    case "redact-fill":
+      return applyFillRedaction(image, op, sourceWidth, sourceHeight);
+    case "watermark-text":
+      return applyTextWatermark(image, op, sourceWidth, sourceHeight);
     default:
       return image;
   }
@@ -140,6 +144,51 @@ function resizeLongEdge(image: sharp.Sharp, value: number): sharp.Sharp {
   return image.resize({ width: value, height: value, fit: "inside", withoutEnlargement: true });
 }
 
+function applyFillRedaction(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): sharp.Sharp {
+  const rects = rectsParam(op.params.rects);
+  if (rects.length === 0) return image;
+
+  const longEdge = Math.max(sourceWidth, sourceHeight);
+  return image.composite(rects.map((rect) => {
+    const left = Math.max(0, Math.round(rect.x * longEdge));
+    const top = Math.max(0, Math.round(rect.y * longEdge));
+    const width = Math.max(1, Math.round(rect.w * longEdge));
+    const height = Math.max(1, Math.round(rect.h * longEdge));
+    return {
+      input: {
+        create: {
+          width: Math.min(width, sourceWidth - left),
+          height: Math.min(height, sourceHeight - top),
+          channels: 4 as const,
+          background: stringParam(op, "color", "#000000")
+        }
+      },
+      left,
+      top
+    };
+  }));
+}
+
+function applyTextWatermark(image: sharp.Sharp, op: OpInstance, sourceWidth: number, sourceHeight: number): sharp.Sharp {
+  const text = stringParam(op, "text", "");
+  if (!text.trim()) return image;
+
+  const longEdge = Math.max(sourceWidth, sourceHeight);
+  const fontSize = Math.max(8, Math.round(numberParam(op, "size", 0.03) * longEdge));
+  const opacity = Math.max(0, Math.min(1, numberParam(op, "opacity", 0.7)));
+  const marginX = Math.round(numberParam(op, "marginX", 0.02) * longEdge);
+  const marginY = Math.round(numberParam(op, "marginY", 0.02) * longEdge);
+  const svgWidth = Math.min(sourceWidth, Math.max(fontSize * 4, text.length * fontSize));
+  const svgHeight = Math.ceil(fontSize * 1.6);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}">
+  <text x="0" y="${Math.round(fontSize * 1.15)}" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="${fontSize}" fill="${escapeXml(stringParam(op, "color", "#ffffff"))}" fill-opacity="${opacity}">${escapeXml(text)}</text>
+</svg>`;
+  const anchor = stringParam(op, "anchor", "bottom-right");
+  const { left, top } = anchorPosition(anchor, sourceWidth, sourceHeight, svgWidth, svgHeight, marginX, marginY);
+
+  return image.composite([{ input: Buffer.from(svg), left, top }]);
+}
+
 function numberParam(op: OpInstance, key: string, fallback: number): number {
   const value = op.params[key];
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -148,4 +197,31 @@ function numberParam(op: OpInstance, key: string, fallback: number): number {
 function stringParam(op: OpInstance, key: string, fallback: string): string {
   const value = op.params[key];
   return typeof value === "string" ? value : fallback;
+}
+
+function rectsParam(value: unknown): Array<{ x: number; y: number; w: number; h: number }> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is { x: number; y: number; w: number; h: number } =>
+    item !== null &&
+    typeof item === "object" &&
+    typeof (item as { x?: unknown }).x === "number" &&
+    typeof (item as { y?: unknown }).y === "number" &&
+    typeof (item as { w?: unknown }).w === "number" &&
+    typeof (item as { h?: unknown }).h === "number"
+  );
+}
+
+function anchorPosition(anchor: string, imageWidth: number, imageHeight: number, width: number, height: number, marginX: number, marginY: number): { left: number; top: number } {
+  const horizontal = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
+  const vertical = anchor.includes("top") ? "top" : anchor.includes("bottom") ? "bottom" : "center";
+  const left = horizontal === "left" ? marginX : horizontal === "right" ? imageWidth - width - marginX : Math.round((imageWidth - width) / 2);
+  const top = vertical === "top" ? marginY : vertical === "bottom" ? imageHeight - height - marginY : Math.round((imageHeight - height) / 2);
+  return {
+    left: Math.max(0, left),
+    top: Math.max(0, top)
+  };
+}
+
+function escapeXml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

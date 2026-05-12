@@ -624,6 +624,61 @@ function OpParams({
     );
   }
 
+  if (op.type === "redact-fill") {
+    const rect = firstRect(op.params.rects);
+    return (
+      <div className="field-grid four">
+        {["x", "y", "w", "h"].map((key) => (
+          <label key={key}>
+            {key}
+            <input
+              disabled={disabled}
+              max={1}
+              min={0}
+              step={0.01}
+              type="number"
+              value={numberValue(rect[key as keyof typeof rect], key === "w" || key === "h" ? 0.25 : 0)}
+              onChange={(event) => onParamChange("rects", [{ ...rect, [key]: event.currentTarget.valueAsNumber }])}
+            />
+          </label>
+        ))}
+        <label className="span-two">
+          Color
+          <input disabled={disabled} type="color" value={stringValue(op.params.color, "#000000")} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
+        </label>
+      </div>
+    );
+  }
+
+  if (op.type === "watermark-text") {
+    return (
+      <div className="field-grid">
+        <label className="span-two">
+          Text
+          <input disabled={disabled} type="text" value={stringValue(op.params.text, "")} onChange={(event) => onParamChange("text", event.currentTarget.value)} />
+        </label>
+        <label>
+          Anchor
+          <select disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(event) => onParamChange("anchor", event.currentTarget.value)}>
+            {["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"].map((anchor) => <option key={anchor}>{anchor}</option>)}
+          </select>
+        </label>
+        <label>
+          Size
+          <input disabled={disabled} max={0.2} min={0.005} step={0.005} type="number" value={numberValue(op.params.size, 0.03)} onChange={(event) => onParamChange("size", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label>
+          Opacity
+          <input disabled={disabled} max={1} min={0} step={0.05} type="number" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label>
+          Color
+          <input disabled={disabled} type="color" value={stringValue(op.params.color, "#ffffff")} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
+        </label>
+      </div>
+    );
+  }
+
   return <div className="row-detail">Parameters will be available in a later phase.</div>;
 }
 
@@ -718,6 +773,19 @@ function numberValue(value: unknown, fallback: number): number {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function firstRect(value: unknown): { x: number; y: number; w: number; h: number } {
+  if (Array.isArray(value) && value[0] && typeof value[0] === "object") {
+    const rect = value[0] as Partial<{ x: number; y: number; w: number; h: number }>;
+    return {
+      x: numberValue(rect.x, 0),
+      y: numberValue(rect.y, 0),
+      w: numberValue(rect.w, 0.25),
+      h: numberValue(rect.h, 0.25)
+    };
+  }
+  return { x: 0, y: 0, w: 0.25, h: 0.25 };
 }
 
 function formatBytes(bytes: number): string {

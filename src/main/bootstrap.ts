@@ -8,6 +8,7 @@ import { registerIpcHandlers } from "./ipc/router";
 import { ProjectSession } from "./project/session";
 import { QualityQueue } from "./queues/quality";
 import { VisionQueue } from "./queues/vision";
+import { ProcessingQueue } from "./queues/processing-queue";
 import { APP_NAME } from "@shared/constants";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,7 +22,8 @@ export async function bootstrap(): Promise<void> {
   const settings = await loadSettings(paths.settingsPath);
   const qualityQueue = new QualityQueue(paths);
   const visionQueue = new VisionQueue(paths, settings);
-  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue);
+  const processingQueue = new ProcessingQueue(settings, qualityQueue);
+  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue);
   await projectSession.openLastProjectIfAvailable();
 
   registerIpcHandlers({

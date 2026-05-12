@@ -69,6 +69,8 @@ export type FotoReadyApi = {
   task: {
     select(taskId: string): Promise<ProjectSnapshot>;
     fork(taskId: string): Promise<ProjectSnapshot>;
+    delete(taskId: string): Promise<ProjectSnapshot>;
+    retry(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;
     saveAll(): Promise<ProjectSnapshot>;
     addOp(taskId: string, opType: string): Promise<ProjectSnapshot>;

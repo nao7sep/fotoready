@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CopyPlus, ImagePlus, Menu, Pause, Play, Save, Settings, Trash2 } from "lucide-react";
+import { CopyPlus, ImagePlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
@@ -89,6 +89,14 @@ function App(): React.JSX.Element {
 
   async function forkTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.fork(taskId));
+  }
+
+  async function deleteTask(taskId: string): Promise<void> {
+    await refreshProject(await api.task.delete(taskId));
+  }
+
+  async function retryTask(taskId: string): Promise<void> {
+    await refreshProject(await api.task.retry(taskId));
   }
 
   async function saveTask(taskId: string): Promise<void> {
@@ -253,12 +261,28 @@ function App(): React.JSX.Element {
                 <CopyPlus size={14} /> Fork as new task
               </button>
             ) : null}
+            {activeTask?.error ? (
+              <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>
+                <RotateCcw size={14} /> Retry
+              </button>
+            ) : null}
+            {activeTask ? (
+              <button className="inline-action danger" type="button" onClick={() => void deleteTask(activeTask.id)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            ) : null}
             {activeTask?.status === "done" && !activeTask.output?.vision ? (
               <button className="inline-action" type="button" onClick={() => void runVision(activeTask.id)}>
                 Generate description
               </button>
             ) : null}
           </div>
+          {activeTask?.error ? (
+            <div className="error-strip">
+              <strong>{activeTask.error.stage}</strong>
+              <span>{activeTask.error.message}</span>
+            </div>
+          ) : null}
           <div className="histogram-placeholder" />
         </section>
 

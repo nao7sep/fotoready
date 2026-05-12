@@ -18,8 +18,10 @@ Current implementation status:
 - JPEG DQT quality detection cached by source hash and used for source-quality JPEG output.
 - Startup recovery demotes in-flight processing tasks and reloads the last opened/saved project.
 - Compact settings surface for encrypted Gemini key entry, data directory, cache sizes, and cache clearing.
+- Binary-search JPEG `match-source-size` encoding against the original source byte size.
+- Concurrent processing queue using configured worker pool size, plus task retry/delete controls and visible error details.
 
-Full queue concurrency, binary-search `match-source-size`, deeper settings forms, and packaging polish are planned as later phases.
+Queue event streaming, deeper settings forms, and packaging polish are planned as later phases.
 
 ## Development
 

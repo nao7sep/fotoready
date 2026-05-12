@@ -17,6 +17,7 @@ import { renderTaskPreview, type PreviewResult } from "@main/preview/preview-ser
 import { previewRename, runRename } from "@main/rename/rename-service";
 import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
+import type { ProcessingQueue } from "@main/queues/processing-queue";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -32,7 +33,8 @@ export class ProjectSession {
   constructor(
     private readonly settings: GlobalSettings,
     private readonly qualityQueue: QualityQueue | null = null,
-    private readonly visionQueue: VisionQueue | null = null
+    private readonly visionQueue: VisionQueue | null = null,
+    private readonly processingQueue: ProcessingQueue | null = null
   ) {
     this.#project = createEmptyProject("Untitled Project", settings.defaultOutputDirectory);
   }
@@ -140,21 +142,61 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  async deleteTask(taskId: string): Promise<ProjectSessionSnapshot> {
+    const index = this.#project.tasks.findIndex((task) => task.id === taskId);
+    if (index === -1) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    this.#project.tasks.splice(index, 1);
+    if (this.#activeTaskId === taskId) {
+      this.#activeTaskId = this.#project.tasks[index]?.id ?? this.#project.tasks[index - 1]?.id ?? null;
+    }
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async retryTask(taskId: string): Promise<ProjectSessionSnapshot> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    if (task.error?.stage === "vision" && task.status === "done") {
+      task.error = null;
+      await this.runVision(taskId);
+      return this.snapshot();
+    }
+
+    task.status = "pending";
+    task.error = null;
+    task.output = null;
+    task.updatedAt = nowIso();
+    await this.saveTask(taskId);
+    return this.snapshot();
+  }
+
   async saveTask(taskId: string): Promise<ProjectSessionSnapshot> {
-    await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
+    if (this.processingQueue) {
+      await this.processingQueue.runTask(this.#project, taskId, this.#projectPath);
+    } else {
+      await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
+    }
     await this.runVisionIfNeeded(taskId);
     await this.persistIfSaved();
     return this.snapshot();
   }
 
   async saveAllPending(): Promise<ProjectSessionSnapshot> {
-    const pendingTaskIds = this.#project.tasks
-      .filter((task) => task.status === "pending")
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .map((task) => task.id);
-
+    const pendingTaskIds = this.#project.tasks.filter((task) => task.status === "pending").map((task) => task.id);
+    if (this.processingQueue) {
+      await this.processingQueue.runPending(this.#project, this.#projectPath);
+    } else {
+      for (const taskId of pendingTaskIds) {
+        await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
+      }
+    }
     for (const taskId of pendingTaskIds) {
-      await processTask(this.#project, taskId, this.#projectPath, this.settings, await this.sourceFactsForTask(taskId));
       await this.runVisionIfNeeded(taskId);
     }
 
@@ -163,6 +205,9 @@ export class ProjectSession {
   }
 
   queueSnapshot(): QueueSnapshot {
+    if (this.processingQueue) {
+      return this.processingQueue.snapshot(this.#project);
+    }
     return queueSnapshotFromProject(this.#project);
   }
 

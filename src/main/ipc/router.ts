@@ -88,6 +88,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("project.selectOriginal", async (_event, originalId: string) => ctx.projectSession.selectOriginal(originalId));
   ipcMain.handle("task.select", async (_event, taskId: string) => ctx.projectSession.selectTask(taskId));
   ipcMain.handle("task.fork", async (_event, taskId: string) => ctx.projectSession.forkTask(taskId));
+  ipcMain.handle("task.delete", async (_event, taskId: string) => ctx.projectSession.deleteTask(taskId));
+  ipcMain.handle("task.retry", async (_event, taskId: string) => ctx.projectSession.retryTask(taskId));
   ipcMain.handle("task.save", async (_event, taskId: string) => ctx.projectSession.saveTask(taskId));
   ipcMain.handle("task.saveAll", async () => ctx.projectSession.saveAllPending());
   ipcMain.handle("task.addOp", async (_event, taskId: string, opType: string) => ctx.projectSession.addOp(taskId, opType));

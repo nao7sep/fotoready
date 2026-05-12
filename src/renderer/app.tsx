@@ -6,6 +6,7 @@ import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
+import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { RenameModal } from "./components/modals/rename-modal";
 import "./styles/app.css";
 
@@ -392,14 +393,13 @@ function App(): React.JSX.Element {
 
         <section className="editor-panel">
           <div className="canvas-frame">
-            {activePreview ? (
-              <img className="preview-image" src={activePreview.dataUrl} width={activePreview.width} height={activePreview.height} alt="" />
-            ) : (
-              <div className="canvas-placeholder">
-                {previewState === "loading" ? "Rendering preview..." : activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
-                {previewState === "error" ? <span className="preview-error">Preview failed</span> : null}
-              </div>
-            )}
+            <EditorCanvas
+              fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
+              originalDataUrl={activeOriginal ? originalThumbnails[activeOriginal.id] || null : null}
+              preview={activePreview}
+              previewState={previewState}
+              task={activeTask}
+            />
           </div>
           <div className="pipeline-strip">
             Pipeline: {activeTask?.pipeline.ops.length ? `${activeTask.pipeline.ops.length} ops` : "empty"}

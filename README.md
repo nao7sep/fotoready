@@ -31,6 +31,7 @@ Current implementation status:
 - Runtime-backed curves and HSL tone ops, source date preservation, and post-metadata output hashing.
 - Piscina-backed pipeline worker entry wired into processing and preview rendering.
 - Source-file recovery by content hash across last-seen, project, and output directories.
+- Konva-backed editor canvas with before/after, fit/100% zoom, and authored overlay visualization.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

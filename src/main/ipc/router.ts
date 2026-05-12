@@ -1,3 +1,4 @@
+import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/project/session";
@@ -7,6 +8,7 @@ import { APP_NAME, PROJECT_EXTENSION } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { saveSettings } from "@main/persistence/settings-io";
 import { clearCaches, getCacheSizes } from "@main/persistence/cache-admin";
+import { listLuts } from "@main/luts/lut-catalog";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -169,6 +171,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("vision.runForTask", async (_event, taskId: string) => publishResult(ctx.projectSession.runVision(taskId)));
   ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
+  ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("caches.sizes", async () => getCacheSizes(ctx.paths));
   ipcMain.handle("caches.clear", async () => {
     await clearCaches(ctx.paths);

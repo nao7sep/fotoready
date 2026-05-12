@@ -58,6 +58,12 @@ export type CacheSizes = {
   visionFactsBytes: number;
 };
 
+export type LutEntry = {
+  name: string;
+  path: string;
+  builtin: boolean;
+};
+
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
 export type FotoReadyApi = {
@@ -111,6 +117,9 @@ export type FotoReadyApi = {
   rename: {
     preview(templateId?: string, taskIds?: string[]): Promise<RenamePreview>;
     run(templateId?: string, taskIds?: string[]): Promise<ProjectSnapshot>;
+  };
+  luts: {
+    list(): Promise<LutEntry[]>;
   };
   caches: {
     sizes(): Promise<CacheSizes>;

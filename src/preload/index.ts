@@ -53,6 +53,9 @@ const api: FotoReadyApi = {
     preview: (templateId, taskIds) => ipcRenderer.invoke("rename.preview", templateId, taskIds),
     run: (templateId, taskIds) => ipcRenderer.invoke("rename.run", templateId, taskIds)
   },
+  luts: {
+    list: () => ipcRenderer.invoke("luts.list")
+  },
   caches: {
     sizes: () => ipcRenderer.invoke("caches.sizes"),
     clear: () => ipcRenderer.invoke("caches.clear")

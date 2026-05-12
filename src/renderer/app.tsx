@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { CopyPlus, ImagePlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
-import type { CacheSizes, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
+import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
@@ -16,6 +16,7 @@ function App(): React.JSX.Element {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [projectSnapshot, setProjectSnapshot] = useState<ProjectSnapshot | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
+  const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [preview, setPreview] = useState<{ taskId: string; dataUrl: string; width: number; height: number } | null>(null);
   const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
@@ -41,13 +42,14 @@ function App(): React.JSX.Element {
   const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
 
   useEffect(() => {
-    void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot()]).then(
-      ([info, loadedSettings, loadedProject, loadedOps, snapshot]) => {
+    void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
+      ([info, loadedSettings, loadedProject, loadedOps, snapshot, loadedLuts]) => {
         setSystemInfo(info);
         setSettings(loadedSettings);
         setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
         setQueue(snapshot);
+        setLutEntries(loadedLuts);
       }
     );
   }, []);
@@ -304,6 +306,7 @@ function App(): React.JSX.Element {
   async function saveSettingsDraft(): Promise<void> {
     if (!settingsDraft) return;
     setSettings(await api.settings.update(settingsDraft));
+    setLutEntries(await api.luts.list());
     setApiKeyOpen(false);
   }
 
@@ -496,6 +499,7 @@ function App(): React.JSX.Element {
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={activeTask.status !== "pending"}
                   index={index}
+                  luts={lutEntries}
                   key={`${op.type}-${index}`}
                   op={op}
                   onEnabledChange={(enabled) => void setOpEnabled(index, enabled)}
@@ -679,12 +683,14 @@ function PipelineOpCard({
   index,
   op,
   onEnabledChange,
+  luts,
   onParamChange,
   onRemove
 }: {
   catalogItem: OpCatalogItem | null;
   disabled: boolean;
   index: number;
+  luts: LutEntry[];
   op: OpInstance;
   onEnabledChange(enabled: boolean): void;
   onParamChange(key: string, value: unknown): void;
@@ -701,17 +707,19 @@ function PipelineOpCard({
           <Trash2 size={14} />
         </button>
       </div>
-      <OpParams op={op} disabled={disabled} onParamChange={onParamChange} />
+      <OpParams op={op} disabled={disabled} luts={luts} onParamChange={onParamChange} />
     </section>
   );
 }
 
 function OpParams({
   disabled,
+  luts,
   op,
   onParamChange
 }: {
   disabled: boolean;
+  luts: LutEntry[];
   op: OpInstance;
   onParamChange(key: string, value: unknown): void;
 }): React.JSX.Element {
@@ -889,6 +897,13 @@ function OpParams({
   if (op.type === "lut") {
     return (
       <div className="field-grid">
+        <label className="span-two">
+          Saved LUT
+          <select disabled={disabled || luts.length === 0} value={stringValue(op.params.cubePath, "")} onChange={(event) => onParamChange("cubePath", event.currentTarget.value)}>
+            <option value="">Choose a LUT</option>
+            {luts.map((lut) => <option key={lut.path} value={lut.path}>{lut.builtin ? "Built-in: " : ""}{lut.name}</option>)}
+          </select>
+        </label>
         <label className="span-two">
           .cube path
           <input disabled={disabled} type="text" value={stringValue(op.params.cubePath, "")} onChange={(event) => onParamChange("cubePath", event.currentTarget.value)} />

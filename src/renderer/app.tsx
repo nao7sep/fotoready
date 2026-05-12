@@ -63,6 +63,9 @@ function App(): React.JSX.Element {
       } else if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
         if (activeTask?.status === "pending") void saveTask(activeTask.id);
+      } else if (mod && event.key.toLowerCase() === "z" && !event.shiftKey) {
+        event.preventDefault();
+        if (activeTask?.status === "pending") void undoTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "r") {
         event.preventDefault();
         if (project?.tasks.some((task) => task.status === "done")) setRenameOpen(true);
@@ -183,6 +186,10 @@ function App(): React.JSX.Element {
 
   async function retryTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.retry(taskId));
+  }
+
+  async function undoTask(taskId: string): Promise<void> {
+    await refreshProject(await api.task.undo(taskId));
   }
 
   async function saveTask(taskId: string): Promise<void> {

@@ -29,6 +29,7 @@ export class ProjectSession {
   #projectPath: string | null = null;
   #project: Project;
   #activeTaskId: string | null = null;
+  #taskUndoHistory = new Map<string, Task[]>();
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
 
   constructor(
@@ -60,6 +61,7 @@ export class ProjectSession {
     this.#projectPath = null;
     this.#project = createEmptyProject(name, this.settings.defaultOutputDirectory);
     this.#activeTaskId = null;
+    this.#taskUndoHistory.clear();
     return this.snapshot();
   }
 
@@ -67,6 +69,7 @@ export class ProjectSession {
     const loaded = await loadProject(projectPath);
     this.#projectPath = loaded.path;
     this.#project = loaded.project;
+    this.#taskUndoHistory.clear();
     await this.recoverProjectQueues();
     this.#activeTaskId = this.#project.tasks[0]?.id ?? null;
     await this.persistIfSaved();
@@ -164,6 +167,7 @@ export class ProjectSession {
     }
 
     this.#project.tasks.splice(index, 1);
+    this.#taskUndoHistory.delete(taskId);
     if (this.#activeTaskId === taskId) {
       this.#activeTaskId = this.#project.tasks[index]?.id ?? this.#project.tasks[index - 1]?.id ?? null;
     }
@@ -244,6 +248,7 @@ export class ProjectSession {
     if (!definition || !definition.visible) {
       throw new Error(`Unknown editable op: ${opType}`);
     }
+    this.recordTaskEdit(task);
 
     task.pipeline.ops.push({
       type: definition.type,
@@ -258,6 +263,7 @@ export class ProjectSession {
   async removeOp(taskId: string, opIndex: number): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
+    this.recordTaskEdit(task);
     task.pipeline.ops.splice(opIndex, 1);
     touchTask(task);
     await this.persistIfSaved();
@@ -267,6 +273,7 @@ export class ProjectSession {
   async setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
+    this.recordTaskEdit(task);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
     await this.persistIfSaved();
@@ -276,6 +283,7 @@ export class ProjectSession {
   async updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
+    this.recordTaskEdit(task);
     task.pipeline.ops[opIndex].params[key] = value;
     touchTask(task);
     await this.persistIfSaved();
@@ -284,6 +292,7 @@ export class ProjectSession {
 
   async setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    this.recordTaskEdit(task);
     task.analyzeContent = analyzeContent;
     touchTask(task);
     await this.persistIfSaved();
@@ -292,6 +301,7 @@ export class ProjectSession {
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    this.recordTaskEdit(task);
     task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
     touchTask(task);
     await this.persistIfSaved();
@@ -300,11 +310,33 @@ export class ProjectSession {
 
   async updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
+    this.recordTaskEdit(task);
     task.pipeline.output = {
       ...task.pipeline.output,
       [key]: value
     };
     touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async undoTaskEdit(taskId: string): Promise<ProjectSessionSnapshot> {
+    const index = this.#project.tasks.findIndex((item) => item.id === taskId);
+    const task = index >= 0 ? this.#project.tasks[index] : null;
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (task.status !== "pending") {
+      throw new Error("Only pending tasks can be undone. Fork this task before editing.");
+    }
+
+    const history = this.#taskUndoHistory.get(taskId);
+    const previous = history?.pop();
+    if (!previous) {
+      return this.snapshot();
+    }
+
+    this.#project.tasks[index] = previous;
     await this.persistIfSaved();
     return this.snapshot();
   }
@@ -350,6 +382,13 @@ export class ProjectSession {
       throw new Error("Only pending tasks can be edited. Fork this task before editing.");
     }
     return task;
+  }
+
+  private recordTaskEdit(task: Task): void {
+    const history = this.#taskUndoHistory.get(task.id) ?? [];
+    history.push(structuredClone(task));
+    if (history.length > 50) history.shift();
+    this.#taskUndoHistory.set(task.id, history);
   }
 
   private async runVisionIfNeeded(taskId: string): Promise<void> {

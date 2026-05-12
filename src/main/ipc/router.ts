@@ -146,6 +146,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.removeOp", async (_event, taskId: string, opIndex: number) => publishResult(ctx.projectSession.removeOp(taskId, opIndex)));
   ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opIndex: number, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opIndex, enabled)));
   ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opIndex: number, key: string, value: unknown) => publishResult(ctx.projectSession.updateOpParam(taskId, opIndex, key, value)));
+  ipcMain.handle("task.undo", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
   ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => publishResult(ctx.projectSession.setAnalyzeContent(taskId, analyzeContent)));
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));

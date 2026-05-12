@@ -25,6 +25,7 @@ Current implementation status:
 - Runtime-backed tone, LUT, redaction, and watermark ops with focused controls and file pickers.
 - Filename template settings with slug, size, extension, hash, padded index, and date placeholders.
 - Rename modal scope selection and inline description generation for missing slug data.
+- Per-task undo history for pending task edits through the Cmd/Ctrl+Z shortcut.
 
 Deeper settings forms and packaging polish are planned as later phases.
 

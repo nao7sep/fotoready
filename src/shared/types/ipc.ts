@@ -89,6 +89,7 @@ export type FotoReadyApi = {
     removeOp(taskId: string, opIndex: number): Promise<ProjectSnapshot>;
     setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
     updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSnapshot>;
+    undo(taskId: string): Promise<ProjectSnapshot>;
     setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
     updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;

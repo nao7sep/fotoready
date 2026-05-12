@@ -11,8 +11,10 @@ Current implementation status:
 - Basic sharp-backed pipeline runtime for decode, crop, rotate, resize, denoise, sharpen, and output encoding.
 - Editable pending-task pipelines with op add/remove/toggle controls and initial parameter forms.
 - Main-process preview rendering displayed in the editor canvas.
+- Rename preview/run flow for done tasks using filename templates and manual custom slugs.
+- JSON cache IO and an import-time JPEG source-facts queue scaffold.
 
-Vision, metadata writing, rename flow, full queue concurrency, and packaging polish are planned as later phases.
+Vision, metadata writing, full queue concurrency, complete JPEG quality detection, and packaging polish are planned as later phases.
 
 ## Development
 

@@ -86,6 +86,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opIndex: number, enabled: boolean) => ctx.projectSession.setOpEnabled(taskId, opIndex, enabled));
   ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opIndex: number, key: string, value: unknown) => ctx.projectSession.updateOpParam(taskId, opIndex, key, value));
   ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => ctx.projectSession.setAnalyzeContent(taskId, analyzeContent));
+  ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => ctx.projectSession.setCustomSlug(taskId, customSlug));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => ctx.projectSession.updateOutput(taskId, key, value));
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions()
@@ -93,5 +94,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       .map(({ type, label, category, defaultParams, visible }) => ({ type, label, category, defaultParams, visible }))
   );
   ipcMain.handle("preview.render", async (_event, taskId: string) => ctx.projectSession.renderPreview(taskId));
+  ipcMain.handle("rename.preview", async (_event, templateId?: string) => ctx.projectSession.previewRename(templateId));
+  ipcMain.handle("rename.run", async (_event, templateId?: string) => ctx.projectSession.runRename(templateId));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

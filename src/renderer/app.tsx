@@ -6,6 +6,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import type { OpInstance } from "@shared/types/op";
+import { RenameModal } from "./components/modals/rename-modal";
 import "./styles/app.css";
 
 function App(): React.JSX.Element {
@@ -15,6 +16,7 @@ function App(): React.JSX.Element {
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [preview, setPreview] = useState<{ taskId: string; dataUrl: string; width: number; height: number } | null>(null);
   const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
+  const [renameOpen, setRenameOpen] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0 });
 
   useEffect(() => {
@@ -119,6 +121,11 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.setAnalyzeContent(activeTask.id, analyzeContent));
   }
 
+  async function setCustomSlug(customSlug: string | null): Promise<void> {
+    if (!activeTask) return;
+    await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -194,7 +201,7 @@ function App(): React.JSX.Element {
             <button className="primary-action" type="button" onClick={() => void saveAll()} disabled={!project?.tasks.some((task) => task.status === "pending")}>
               <Save size={16} /> Save all
             </button>
-            <button className="toolbar-button" type="button" disabled>
+            <button className="toolbar-button" type="button" disabled={!project?.tasks.some((task) => task.status === "done")} onClick={() => setRenameOpen(true)}>
               Rename...
             </button>
           </div>
@@ -255,6 +262,7 @@ function App(): React.JSX.Element {
                   disabled={!activeTask || activeTask.status !== "pending"}
                   task={activeTask}
                   onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
+                  onCustomSlugChange={(value) => void setCustomSlug(value)}
                   onOutputChange={(key, value) => void updateOutput(key, value)}
                 />
               ) : (
@@ -270,6 +278,19 @@ function App(): React.JSX.Element {
           ))}
         </aside>
       </section>
+
+      {renameOpen && settings ? (
+        <RenameModal
+          defaultTemplateId={project?.settings.defaultTemplateId ?? settings.defaultTemplateId}
+          onClose={() => setRenameOpen(false)}
+          onPreview={(templateId) => api.rename.preview(templateId)}
+          onRun={async (templateId) => {
+            await refreshProject(await api.rename.run(templateId));
+            setRenameOpen(false);
+          }}
+          templates={settings.filenameTemplates}
+        />
+      ) : null}
 
       <footer className="status-bar">
         <span>
@@ -411,11 +432,13 @@ function OutputControls({
   disabled,
   task,
   onAnalyzeContentChange,
+  onCustomSlugChange,
   onOutputChange
 }: {
   disabled: boolean;
   task: Task | null;
   onAnalyzeContentChange(value: boolean): void;
+  onCustomSlugChange(value: string | null): void;
   onOutputChange(key: string, value: unknown): void;
 }): React.JSX.Element {
   return (
@@ -423,6 +446,10 @@ function OutputControls({
       <label className="toggle-row" title="When this task is saved, use AI to generate a description of the image. Used for alt text, slugs, and notes.">
         <input type="checkbox" disabled={disabled || !task} checked={task?.analyzeContent ?? true} onChange={(event) => onAnalyzeContentChange(event.currentTarget.checked)} />
         Describe contents
+      </label>
+      <label className="stacked-field">
+        Custom slug
+        <input disabled={disabled || !task} placeholder="manual-descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
       </label>
       <label className="stacked-field">
         Format

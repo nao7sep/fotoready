@@ -26,6 +26,7 @@ const api: FotoReadyApi = {
     setOpEnabled: (taskId, opIndex, enabled) => ipcRenderer.invoke("task.setOpEnabled", taskId, opIndex, enabled),
     updateOpParam: (taskId, opIndex, key, value) => ipcRenderer.invoke("task.updateOpParam", taskId, opIndex, key, value),
     setAnalyzeContent: (taskId, analyzeContent) => ipcRenderer.invoke("task.setAnalyzeContent", taskId, analyzeContent),
+    setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),
     updateOutput: (taskId, key, value) => ipcRenderer.invoke("task.updateOutput", taskId, key, value)
   },
   ops: {
@@ -33,6 +34,10 @@ const api: FotoReadyApi = {
   },
   preview: {
     render: (taskId) => ipcRenderer.invoke("preview.render", taskId)
+  },
+  rename: {
+    preview: (templateId) => ipcRenderer.invoke("rename.preview", templateId),
+    run: (templateId) => ipcRenderer.invoke("rename.run", templateId)
   },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")

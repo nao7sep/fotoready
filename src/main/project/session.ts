@@ -11,9 +11,11 @@ import { sha256Bytes } from "@runtime/hash";
 import { createEmptyProject, loadProject, saveProject } from "@main/persistence/project-io";
 import { processTask } from "@main/queues/processing";
 import { queueSnapshotFromProject } from "@main/queues/snapshot";
-import type { QueueSnapshot } from "@shared/types/ipc";
+import type { QueueSnapshot, RenamePreview } from "@shared/types/ipc";
 import { getOpDefinition } from "@core/ops/catalog";
 import { renderTaskPreview, type PreviewResult } from "@main/preview/preview-service";
+import { previewRename, runRename } from "@main/rename/rename-service";
+import type { QualityQueue } from "@main/queues/quality";
 
 export type ProjectSessionSnapshot = {
   projectPath: string | null;
@@ -26,7 +28,10 @@ export class ProjectSession {
   #project: Project;
   #activeTaskId: string | null = null;
 
-  constructor(private readonly settings: GlobalSettings) {
+  constructor(
+    private readonly settings: GlobalSettings,
+    private readonly qualityQueue: QualityQueue | null = null
+  ) {
     this.#project = createEmptyProject("Untitled Project", settings.defaultOutputDirectory);
   }
 
@@ -67,6 +72,7 @@ export class ProjectSession {
 
       if (!existing) {
         this.#project.originals.push(original);
+        await this.qualityQueue?.enqueueOriginal(original);
       }
 
       await this.selectOriginal(targetOriginal.id);
@@ -201,6 +207,14 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
   async updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     task.pipeline.output = {
@@ -208,6 +222,16 @@ export class ProjectSession {
       [key]: value
     };
     touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async previewRename(templateId?: string): Promise<RenamePreview> {
+    return previewRename(this.#project, this.settings, templateId);
+  }
+
+  async runRename(templateId?: string): Promise<ProjectSessionSnapshot> {
+    await runRename(this.#project, this.settings, templateId);
     await this.persistIfSaved();
     return this.snapshot();
   }

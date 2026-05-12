@@ -30,6 +30,21 @@ export type PreviewResult = {
   height: number;
 };
 
+export type RenamePreviewItem = {
+  taskId: string;
+  stagedPath: string;
+  proposedPath: string;
+  stagedName: string;
+  proposedName: string;
+  missingSlug: boolean;
+};
+
+export type RenamePreview = {
+  templateId: string;
+  items: RenamePreviewItem[];
+  missingSlugCount: number;
+};
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -55,6 +70,7 @@ export type FotoReadyApi = {
     setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
     updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSnapshot>;
     setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
+    setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
     updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
   };
   ops: {
@@ -62,6 +78,10 @@ export type FotoReadyApi = {
   };
   preview: {
     render(taskId: string): Promise<PreviewResult>;
+  };
+  rename: {
+    preview(templateId?: string): Promise<RenamePreview>;
+    run(templateId?: string): Promise<ProjectSnapshot>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

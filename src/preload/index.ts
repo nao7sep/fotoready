@@ -38,6 +38,7 @@ const api: FotoReadyApi = {
     removeOp: (taskId, opIndex) => ipcRenderer.invoke("task.removeOp", taskId, opIndex),
     setOpEnabled: (taskId, opIndex, enabled) => ipcRenderer.invoke("task.setOpEnabled", taskId, opIndex, enabled),
     updateOpParam: (taskId, opIndex, key, value) => ipcRenderer.invoke("task.updateOpParam", taskId, opIndex, key, value),
+    updateOpParams: (taskId, opIndex, patch) => ipcRenderer.invoke("task.updateOpParams", taskId, opIndex, patch),
     undo: (taskId) => ipcRenderer.invoke("task.undo", taskId),
     setAnalyzeContent: (taskId, analyzeContent) => ipcRenderer.invoke("task.setAnalyzeContent", taskId, analyzeContent),
     setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),

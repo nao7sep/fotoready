@@ -5,18 +5,39 @@ export function emptyQueueSnapshot(): QueueSnapshot {
   return {
     done: 0,
     total: 0,
+    pending: 0,
     processing: 0,
     errors: 0,
-    paused: false
+    paused: false,
+    activeTaskId: null,
+    activeTaskLabel: null
   };
 }
 
-export function queueSnapshotFromProject(project: Project): QueueSnapshot {
+export function queueSnapshotFromProject(project: Project, activeTaskId: string | null = firstProcessingTaskId(project)): QueueSnapshot {
   return {
     done: project.tasks.filter((task) => task.status === "done").length,
     total: project.tasks.length,
+    pending: project.tasks.filter((task) => task.status === "pending").length,
     processing: project.tasks.filter((task) => task.status === "processing").length,
     errors: project.tasks.filter((task) => task.status === "error").length,
-    paused: false
+    paused: false,
+    activeTaskId,
+    activeTaskLabel: activeTaskId ? taskLabel(project, activeTaskId) : null
   };
+}
+
+function firstProcessingTaskId(project: Project): string | null {
+  return project.tasks.find((task) => task.status === "processing")?.id ?? null;
+}
+
+function taskLabel(project: Project, taskId: string): string | null {
+  const task = project.tasks.find((candidate) => candidate.id === taskId);
+  if (!task) return null;
+  const original = project.originals.find((candidate) => candidate.id === task.originalId);
+  return original ? basename(original.sourcePath) : task.id;
+}
+
+function basename(sourcePath: string): string {
+  return sourcePath.split(/[\\/]/).at(-1) ?? sourcePath;
 }

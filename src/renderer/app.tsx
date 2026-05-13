@@ -37,7 +37,8 @@ function App(): React.JSX.Element {
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
-  const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, processing: 0, errors: 0, paused: false });
+  const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, pending: 0, processing: 0, errors: 0, paused: false, activeTaskId: null, activeTaskLabel: null });
+  const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
   const project = projectSnapshot?.project;
@@ -134,6 +135,18 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    setSelectedOpIndex(null);
+  }, [activeTask?.id]);
+
+  useEffect(() => {
+    setSelectedOpIndex((current) => {
+      if (current === null) return current;
+      const opCount = activeTask?.pipeline.ops.length ?? 0;
+      return current < opCount ? current : null;
+    });
+  }, [activeTask?.pipeline.ops.length]);
+
+  useEffect(() => {
     if (!activeTask) {
       setPreview(null);
       setPreviewState("idle");
@@ -141,6 +154,7 @@ function App(): React.JSX.Element {
     }
 
     let cancelled = false;
+    setPreview(null);
     setPreviewState("loading");
     void api.preview.render(activeTask.id)
       .then((result) => {
@@ -298,7 +312,9 @@ function App(): React.JSX.Element {
 
   async function addOp(opType: string): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.addOp(activeTask.id, opType));
+    const snapshot = await api.task.addOp(activeTask.id, opType);
+    await refreshProject(snapshot);
+    setSelectedOpIndex(snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.length ? snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)!.pipeline.ops.length - 1 : null);
   }
 
   async function removeOp(opIndex: number): Promise<void> {
@@ -314,6 +330,11 @@ function App(): React.JSX.Element {
   async function updateOpParam(opIndex: number, key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOpParam(activeTask.id, opIndex, key, value));
+  }
+
+  async function updateOpParams(opIndex: number, patch: Record<string, unknown>): Promise<void> {
+    if (!activeTask) return;
+    await refreshProject(await api.task.updateOpParams(activeTask.id, opIndex, patch));
   }
 
   async function setAnalyzeContent(analyzeContent: boolean): Promise<void> {
@@ -448,6 +469,7 @@ function App(): React.JSX.Element {
           <TasksPanel
             activeTaskId={activeTask?.id ?? null}
             originals={project?.originals ?? []}
+            queue={queue}
             selectedRenameTaskIds={selectedRenameTaskIds}
             tasks={project?.tasks ?? []}
             onRename={() => setRenameOpen(true)}
@@ -463,8 +485,10 @@ function App(): React.JSX.Element {
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
               originalDataUrl={activeOriginal ? originalThumbnails[activeOriginal.id] || null : null}
+              onOpParamsChange={(opIndex, patch) => void updateOpParams(opIndex, patch)}
               preview={activePreview}
               previewState={previewState}
+              selectedOpIndex={selectedOpIndex}
               task={activeTask}
             />
           </div>
@@ -511,18 +535,20 @@ function App(): React.JSX.Element {
         {showOps ? <WorkspaceSplitter label="Resize Ops panel" onPointerDown={workspaceLayout.startResize("ops")} /> : null}
 
         {showOps ? (
-          <OpsPanel
-            activeTask={activeTask}
-            luts={lutEntries}
-            opCatalog={opCatalog}
-            onAddOp={(opType) => void addOp(opType)}
-            onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
-            onCustomSlugChange={(value) => void setCustomSlug(value)}
-            onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
-            onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
-            onOutputChange={(key, value) => void updateOutput(key, value)}
-            onRemoveOp={(index) => void removeOp(index)}
-          />
+            <OpsPanel
+              activeTask={activeTask}
+              luts={lutEntries}
+              opCatalog={opCatalog}
+              onSelectOp={setSelectedOpIndex}
+              onAddOp={(opType) => void addOp(opType)}
+              onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
+              onCustomSlugChange={(value) => void setCustomSlug(value)}
+              onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
+              onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
+              onOutputChange={(key, value) => void updateOutput(key, value)}
+              onRemoveOp={(index) => void removeOp(index)}
+              selectedOpIndex={selectedOpIndex}
+            />
         ) : null}
       </section>
 
@@ -621,8 +647,10 @@ function App(): React.JSX.Element {
       <footer className="status-bar">
         <span>
           Queue: {queue.done}/{queue.total} done
+          {queue.pending > 0 ? ` · ${queue.pending} queued` : ""}
           {queue.processing > 0 ? ` · ${queue.processing} processing` : ""}
           {queue.errors > 0 ? ` · ${queue.errors} errors` : ""}
+          {queue.activeTaskLabel ? ` · working on ${queue.activeTaskLabel}` : ""}
           {queue.paused ? " · paused" : ""}
         </span>
         {erroredTasks.length ? (

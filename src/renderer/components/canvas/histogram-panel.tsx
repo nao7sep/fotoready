@@ -50,7 +50,17 @@ export function HistogramPanel({
   return (
     <section className="histogram-panel">
       <div className="histogram-chart">
-        {bins ? <HistogramSvg bins={bins} /> : <span>{previewState === "loading" ? "Rendering histogram..." : "No preview histogram"}</span>}
+        {bins ? (
+          <HistogramSvg bins={bins} />
+        ) : (
+          <span>
+            {previewState === "loading"
+              ? "Rendering histogram..."
+              : previewState === "error"
+                ? "Preview unavailable"
+                : "No preview histogram"}
+          </span>
+        )}
       </div>
       <div className="histogram-readout">
         <span>{summary.primary}</span>

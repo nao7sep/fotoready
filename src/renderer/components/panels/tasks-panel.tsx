@@ -1,10 +1,12 @@
 import React from "react";
 import { Save } from "lucide-react";
+import type { QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 
 export function TasksPanel({
   activeTaskId,
   originals,
+  queue,
   selectedRenameTaskIds,
   tasks,
   onRename,
@@ -14,6 +16,7 @@ export function TasksPanel({
 }: {
   activeTaskId: string | null;
   originals: Original[];
+  queue: QueueSnapshot;
   selectedRenameTaskIds: string[];
   tasks: Task[];
   onRename(): void;
@@ -46,7 +49,7 @@ export function TasksPanel({
               <span className={`status-dot ${task.status}`} aria-hidden="true">{statusIndicator(task)}</span>
               <span className="task-copy">
                 <span className="row-title">{taskLabel(task, originals)}</span>
-                <span className="row-detail">{task.status} · {task.pipeline.ops.length} ops</span>
+                <span className="row-detail">{taskQueueDetail(task, queue)} · {task.pipeline.ops.length} ops</span>
               </span>
             </button>
           ))}
@@ -83,6 +86,16 @@ function statusIndicator(task: Task): string {
 function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string }>): string {
   const original = originals.find((item) => item.id === task.originalId);
   return original ? basename(original.sourcePath) : task.id;
+}
+
+function taskQueueDetail(task: Task, queue: QueueSnapshot): string {
+  if (queue.activeTaskId === task.id) {
+    return queue.paused ? "processing · pause requested" : "processing now";
+  }
+  if (task.status === "pending" && (queue.processing > 0 || queue.paused)) {
+    return queue.paused ? "queued · paused" : "queued";
+  }
+  return task.status;
 }
 
 function basename(sourcePath: string): string {

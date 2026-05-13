@@ -432,6 +432,14 @@ select:disabled {
   display: block;
 }
 
+.editor-canvas.is-actual-zoom {
+  cursor: grab;
+}
+
+.editor-canvas.is-actual-zoom:active {
+  cursor: grabbing;
+}
+
 .canvas-toolbar {
   position: absolute;
   top: 10px;
@@ -659,6 +667,12 @@ select:disabled {
   border: 1px solid #343434;
   border-radius: 8px;
   background: #222;
+  cursor: pointer;
+}
+
+.pipeline-op-card.active {
+  border-color: #46786f;
+  box-shadow: inset 0 0 0 1px #46786f;
 }
 
 .op-card-header {

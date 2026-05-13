@@ -5,9 +5,12 @@ import type { OpDefinition } from "./op";
 export type QueueSnapshot = {
   done: number;
   total: number;
+  pending: number;
   processing: number;
   errors: number;
   paused: boolean;
+  activeTaskId: string | null;
+  activeTaskLabel: string | null;
 };
 
 export type SystemInfo = {
@@ -108,6 +111,7 @@ export type FotoReadyApi = {
     removeOp(taskId: string, opIndex: number): Promise<ProjectSnapshot>;
     setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
     updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSnapshot>;
+    updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): Promise<ProjectSnapshot>;
     undo(taskId: string): Promise<ProjectSnapshot>;
     setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;

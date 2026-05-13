@@ -20,7 +20,7 @@ import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/files/safe-delete";
-import { applyOpParamChange } from "@shared/validation/ops";
+import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOriginalSourcePath } from "./source-resolver";
 
@@ -354,6 +354,20 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
     const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpDefinition);
+    this.recordTaskEdit(task);
+    task.pipeline.ops[opIndex] = nextOp;
+    touchTask(task);
+    await this.persistIfSaved();
+    return this.snapshot();
+  }
+
+  async updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): Promise<ProjectSessionSnapshot> {
+    const task = this.editableTask(taskId);
+    assertOpIndex(task, opIndex);
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+      throw new Error("Op patch must be an object.");
+    }
+    const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpDefinition);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);

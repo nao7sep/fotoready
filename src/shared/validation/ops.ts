@@ -53,6 +53,24 @@ export function applyOpParamChange(
   );
 }
 
+export function applyOpParamPatch(
+  op: OpInstance,
+  patch: Record<string, unknown>,
+  resolveDefinition: OpDefinitionResolver
+): OpInstance {
+  return validateOpInstance(
+    {
+      ...op,
+      params: {
+        ...op.params,
+        ...patch
+      }
+    },
+    resolveDefinition,
+    `op "${op.type}"`
+  );
+}
+
 function validateOpParams(
   type: string,
   value: unknown,

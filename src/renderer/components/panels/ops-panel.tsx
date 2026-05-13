@@ -9,6 +9,7 @@ type OpsPanelProps = {
   activeTask: Task | null;
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
+  selectedOpIndex: number | null;
   onAddOp(opType: string): void;
   onAnalyzeContentChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
@@ -16,19 +17,22 @@ type OpsPanelProps = {
   onOpParamChange(opIndex: number, key: string, value: unknown): void;
   onOutputChange(key: string, value: unknown): void;
   onRemoveOp(opIndex: number): void;
+  onSelectOp(opIndex: number): void;
 };
 
 export function OpsPanel({
   activeTask,
   luts,
   opCatalog,
+  selectedOpIndex,
   onAddOp,
   onAnalyzeContentChange,
   onCustomSlugChange,
   onOpEnabledChange,
   onOpParamChange,
   onOutputChange,
-  onRemoveOp
+  onRemoveOp,
+  onSelectOp
 }: OpsPanelProps): React.JSX.Element {
   return (
     <aside className="panel ops-panel">
@@ -46,6 +50,8 @@ export function OpsPanel({
               onEnabledChange={(enabled) => onOpEnabledChange(index, enabled)}
               onParamChange={(key, value) => onOpParamChange(index, key, value)}
               onRemove={() => onRemoveOp(index)}
+              onSelect={() => onSelectOp(index)}
+              selected={selectedOpIndex === index}
             />
           )) : (
             <div className="ops-empty">No ops in this task</div>
@@ -86,7 +92,9 @@ function PipelineOpCard({
   onEnabledChange,
   luts,
   onParamChange,
-  onRemove
+  onRemove,
+  onSelect,
+  selected
 }: {
   catalogItem: OpCatalogItem | null;
   disabled: boolean;
@@ -96,15 +104,26 @@ function PipelineOpCard({
   onEnabledChange(enabled: boolean): void;
   onParamChange(key: string, value: unknown): void;
   onRemove(): void;
+  onSelect(): void;
+  selected: boolean;
 }): React.JSX.Element {
   return (
-    <section className="pipeline-op-card">
+    <section className={`pipeline-op-card ${selected ? "active" : ""}`} onClick={onSelect}>
       <div className="op-card-header">
         <label className="toggle-row">
-          <input type="checkbox" checked={op.enabled} disabled={disabled} onChange={(event) => onEnabledChange(event.currentTarget.checked)} />
+          <input
+            type="checkbox"
+            checked={op.enabled}
+            disabled={disabled}
+            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+            onClick={(event) => event.stopPropagation()}
+          />
           {index + 1}. {catalogItem?.label ?? op.type}
         </label>
-        <button className="icon-button compact" type="button" title="Remove op" disabled={disabled} onClick={onRemove}>
+        <button className="icon-button compact" type="button" title="Remove op" disabled={disabled} onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}>
           <Trash2 size={14} />
         </button>
       </div>

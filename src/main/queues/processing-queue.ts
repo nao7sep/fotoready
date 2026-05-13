@@ -11,6 +11,7 @@ import { resolveOriginalSourcePath } from "@main/project/source-resolver";
 export class ProcessingQueue {
   #queue: PQueue;
   #onUpdate: (() => void | Promise<void>) | null;
+  #activeTaskIds: string[] = [];
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -28,8 +29,15 @@ export class ProcessingQueue {
 
   async runTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
     await this.#queue.add(async () => {
-      const sourceFacts = await this.sourceFactsForTask(project, taskId, projectPath);
-      await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
+      this.#activeTaskIds.push(taskId);
+      await this.#onUpdate?.();
+      try {
+        const sourceFacts = await this.sourceFactsForTask(project, taskId, projectPath);
+        await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
+      } finally {
+        this.#activeTaskIds = this.#activeTaskIds.filter((activeTaskId) => activeTaskId !== taskId);
+        await this.#onUpdate?.();
+      }
     });
   }
 
@@ -51,10 +59,10 @@ export class ProcessingQueue {
   }
 
   snapshot(project: Project): QueueSnapshot {
-    const base = queueSnapshotFromProject(project);
+    const base = queueSnapshotFromProject(project, this.#activeTaskIds[0] ?? null);
     return {
       ...base,
-      processing: this.#queue.pending + base.processing,
+      processing: Math.max(base.processing, this.#activeTaskIds.length),
       paused: this.#queue.isPaused
     };
   }

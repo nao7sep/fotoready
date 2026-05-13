@@ -15,14 +15,13 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@core/*": ["src/core/*"],
-      "@runtime/*": ["src/runtime/*"],
-      "@adapters/*": ["src/adapters/*"],
-      "@main/*": ["src/main/*"],
-      "@renderer/*": ["src/renderer/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@core/*": ["./src/core/*"],
+      "@runtime/*": ["./src/runtime/*"],
+      "@adapters/*": ["./src/adapters/*"],
+      "@main/*": ["./src/main/*"],
+      "@renderer/*": ["./src/renderer/*"]
     }
   },
   "include": ["electron.vite.config.ts", "src/**/*.ts", "src/**/*.tsx"],

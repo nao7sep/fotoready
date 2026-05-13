@@ -316,9 +316,13 @@ export class ProjectSession {
     }
     this.recordTaskEdit(task);
 
+    const params = structuredClone(definition.defaultParams);
+    if (opType === "watermark-image" && typeof params.pngPath === "string" && !params.pngPath && this.settings.defaultWatermarkImage) {
+      params.pngPath = this.settings.defaultWatermarkImage;
+    }
     task.pipeline.ops.push({
       type: definition.type,
-      params: structuredClone(definition.defaultParams),
+      params,
       enabled: true
     });
     touchTask(task);
@@ -400,9 +404,10 @@ export class ProjectSession {
 
   async updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
-    const nextOutput = applyOutputSettingChange(task.pipeline.output, key, value);
     this.recordTaskEdit(task);
-    task.pipeline.output = nextOutput;
+    task.pipeline.output = nextTaskOutput(task.pipeline.output, key, value, this.settings);
+    task.outputFormatOverride = task.pipeline.output.format;
+    task.outputQualityOverride = task.pipeline.output.quality;
     touchTask(task);
     await this.persistIfSaved();
     return this.snapshot();
@@ -549,18 +554,7 @@ async function buildOriginal(sourcePath: string): Promise<Original> {
 function createTaskForOriginal(originalId: string, settings: GlobalSettings): Task {
   const now = nowIso();
   const pipeline = defaultPipeline();
-  pipeline.output = {
-    ...pipeline.output,
-    format: settings.defaultOutputFormat,
-    quality: settings.defaultOutputFormat === "webp" ? settings.defaultWebpQuality : pipeline.output.quality,
-    jpegProgressive: settings.jpegProgressive,
-    jpegChromaSubsampling: settings.jpegChromaSubsampling,
-    webpMethod: settings.webpMethod,
-    avifEffort: settings.avifEffort,
-    pngPalette: settings.defaultPngPalette,
-    backgroundForTransparency: settings.defaultBackgroundForTransparency,
-    iccOutput: settings.outputIccBehavior
-  };
+  pipeline.output = defaultTaskOutput(settings, pipeline.output);
 
   return {
     id: nanoid(),
@@ -577,6 +571,52 @@ function createTaskForOriginal(originalId: string, settings: GlobalSettings): Ta
     createdAt: now,
     updatedAt: now
   };
+}
+
+function defaultTaskOutput(settings: GlobalSettings, fallback: Task["pipeline"]["output"]): Task["pipeline"]["output"] {
+  const format = settings.defaultOutputFormat;
+  return {
+    ...fallback,
+    format,
+    quality: defaultQualityForFormat(format, settings, fallback.quality),
+    jpegProgressive: settings.jpegProgressive,
+    jpegChromaSubsampling: settings.jpegChromaSubsampling,
+    webpMethod: settings.webpMethod,
+    avifEffort: settings.avifEffort,
+    pngPalette: settings.defaultPngPalette,
+    backgroundForTransparency: settings.defaultBackgroundForTransparency,
+    iccOutput: settings.outputIccBehavior
+  };
+}
+
+function nextTaskOutput(
+  current: Task["pipeline"]["output"],
+  key: string,
+  value: unknown,
+  settings: GlobalSettings
+): Task["pipeline"]["output"] {
+  const nextOutput = applyOutputSettingChange(current, key, value);
+  if (key !== "format") {
+    return nextOutput;
+  }
+
+  return {
+    ...nextOutput,
+    quality: defaultQualityForFormat(nextOutput.format, settings, current.quality)
+  };
+}
+
+function defaultQualityForFormat(
+  format: Task["pipeline"]["output"]["format"],
+  settings: GlobalSettings,
+  fallback: Task["pipeline"]["output"]["quality"]
+): Task["pipeline"]["output"]["quality"] {
+  if (format === "webp") return settings.defaultWebpQuality;
+  if (format === "avif") return settings.defaultAvifQuality;
+  if (format === "png") return typeof fallback === "number" ? fallback : 82;
+  if (settings.jpegStrategy === "match-source-size") return "match-source-size";
+  if (settings.jpegStrategy === "match-source-quality") return "match-source-quality";
+  return settings.jpegFixedQuality;
 }
 
 function isUntouchedTask(task: Task): boolean {

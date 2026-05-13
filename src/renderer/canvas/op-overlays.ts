@@ -15,6 +15,11 @@ export type EditableOverlay = {
   color: string;
 };
 
+export type WhiteBalanceSample = {
+  opIndex: number;
+  point: { x: number; y: number } | null;
+};
+
 const defaultRedactionRect: FractionRect = { x: 0.1, y: 0.1, w: 0.25, h: 0.25 };
 
 export function selectedEditableOverlay(task: Task | null, selectedOpIndex: number | null): EditableOverlay | null {
@@ -41,6 +46,16 @@ export function selectedEditableOverlay(task: Task | null, selectedOpIndex: numb
   }
 
   return null;
+}
+
+export function selectedWhiteBalanceSample(task: Task | null, selectedOpIndex: number | null): WhiteBalanceSample | null {
+  if (!task || selectedOpIndex === null) return null;
+  const op = task.pipeline.ops[selectedOpIndex];
+  if (!op?.enabled || op.type !== "white-balance") return null;
+  return {
+    opIndex: selectedOpIndex,
+    point: whiteBalanceSamplePoint(op)
+  };
 }
 
 export function cropRectFromOp(op: OpInstance): FractionRect {
@@ -94,6 +109,16 @@ export function scaleRect(rect: FractionRect, longEdge: number): { x: number; y:
     y: rect.y * longEdge,
     w: rect.w * longEdge,
     h: rect.h * longEdge
+  };
+}
+
+export function whiteBalanceSamplePoint(op: OpInstance): { x: number; y: number } | null {
+  const samplePoint = op.params.samplePoint;
+  if (!Array.isArray(samplePoint) || samplePoint.length < 2) return null;
+  if (typeof samplePoint[0] !== "number" || typeof samplePoint[1] !== "number") return null;
+  return {
+    x: clamp(samplePoint[0], 0, 1),
+    y: clamp(samplePoint[1], 0, 1)
   };
 }
 

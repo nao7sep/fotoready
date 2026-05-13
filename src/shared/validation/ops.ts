@@ -109,7 +109,8 @@ function validateOpParams(
     case "white-balance":
       return {
         temperature: assertFiniteNumber(record.temperature, `${path}.temperature`, { min: -100, max: 100 }),
-        tint: assertFiniteNumber(record.tint, `${path}.tint`, { min: -100, max: 100 })
+        tint: assertFiniteNumber(record.tint, `${path}.tint`, { min: -100, max: 100 }),
+        samplePoint: validateOptionalSamplePoint(record.samplePoint, `${path}.samplePoint`)
       };
     case "auto-tone":
       return {
@@ -246,6 +247,18 @@ function validateRects(value: unknown, path: string): Array<{ x: number; y: numb
       h: assertFiniteNumber(record.h, `${path}[${index}].h`, { min: 0, max: 1, minExclusive: true })
     };
   });
+}
+
+function validateOptionalSamplePoint(value: unknown, path: string): [number, number] | null {
+  if (value === undefined || value === null) return null;
+  const tuple = assertArray(value, path);
+  if (tuple.length < 2) {
+    throw new Error(`${path} must contain two numeric values.`);
+  }
+  return [
+    assertFiniteNumber(tuple[0], `${path}[0]`, { min: 0, max: 1 }),
+    assertFiniteNumber(tuple[1], `${path}[1]`, { min: 0, max: 1 })
+  ];
 }
 
 function validateMetadataKeep(value: unknown, path: string): Array<typeof metadataFields[number]> {

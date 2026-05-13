@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Task } from "@shared/types/project";
+import type { GlobalSettings } from "@shared/types/settings";
 import { api } from "@renderer/ipc/client";
 
 type OpsPanelProps = {
@@ -11,6 +12,7 @@ type OpsPanelProps = {
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
   onOpenSettings(): void;
+  settings: GlobalSettings | null;
   selectedOpIndex: number | null;
   onAddOp(opType: string): void;
   onAnalyzeContentChange(value: boolean): void;
@@ -28,6 +30,7 @@ export function OpsPanel({
   luts,
   opCatalog,
   onOpenSettings,
+  settings,
   selectedOpIndex,
   onAddOp,
   onAnalyzeContentChange,
@@ -62,7 +65,7 @@ export function OpsPanel({
           )}
         </div>
       ) : null}
-      {["Geometry", "Tone", "Effects", "Redaction", "Metadata", "Output"].map((section) => (
+      {["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata", "Output"].map((section) => (
         <section className="op-section" key={section}>
           <h3>{section}</h3>
           {section === "Output" ? (
@@ -70,6 +73,7 @@ export function OpsPanel({
               disabled={!activeTask || activeTask.status !== "pending"}
               hasGeminiApiKey={hasGeminiApiKey}
               onOpenSettings={onOpenSettings}
+              settings={settings}
               task={activeTask}
               onAnalyzeContentChange={onAnalyzeContentChange}
               onCustomSlugChange={onCustomSlugChange}
@@ -214,16 +218,27 @@ function OpParams({
   }
 
   if (op.type === "white-balance") {
+    const samplePoint = samplePointValue(op.params.samplePoint);
     return (
       <div className="field-grid">
         <label>
           Temperature
-          <input disabled={disabled} max={100} min={-100} type="number" value={numberValue(op.params.temperature, 0)} onChange={(event) => onParamChange("temperature", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled || samplePoint !== null} max={100} min={-100} type="number" value={numberValue(op.params.temperature, 0)} onChange={(event) => onParamChange("temperature", event.currentTarget.valueAsNumber)} />
         </label>
         <label>
           Tint
-          <input disabled={disabled} max={100} min={-100} type="number" value={numberValue(op.params.tint, 0)} onChange={(event) => onParamChange("tint", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled || samplePoint !== null} max={100} min={-100} type="number" value={numberValue(op.params.tint, 0)} onChange={(event) => onParamChange("tint", event.currentTarget.valueAsNumber)} />
         </label>
+        <div className="row-detail span-two">
+          {samplePoint
+            ? `Preview sample active at ${samplePoint[0].toFixed(3)}, ${samplePoint[1].toFixed(3)}.`
+            : "Click the preview while this op is selected to sample a neutral point."}
+        </div>
+        {samplePoint ? (
+          <button className="toolbar-button span-two" disabled={disabled} type="button" onClick={() => onParamChange("samplePoint", null)}>
+            Use temperature/tint sliders
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -497,6 +512,7 @@ function OutputControls({
   disabled,
   hasGeminiApiKey,
   onOpenSettings,
+  settings,
   task,
   onAnalyzeContentChange,
   onCustomSlugChange,
@@ -505,11 +521,15 @@ function OutputControls({
   disabled: boolean;
   hasGeminiApiKey: boolean;
   onOpenSettings(): void;
+  settings: GlobalSettings | null;
   task: Task | null;
   onAnalyzeContentChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
   onOutputChange(key: string, value: unknown): void;
 }): React.JSX.Element {
+  const jpegQualityMode = typeof task?.pipeline.output.quality === "number" ? "fixed" : task?.pipeline.output.quality ?? "fixed";
+  const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
+  const promptPerTask = settings?.jpegStrategy === "prompt-per-task";
   return (
     <div className="output-controls">
       <label className="toggle-row" title="When this task is saved, use AI to generate a description of the image. Used for alt text, slugs, and notes.">
@@ -541,17 +561,24 @@ function OutputControls({
       </label>
       <label className="stacked-field">
         Quality
-        <input disabled={disabled || !task || typeof task?.pipeline.output.quality !== "number"} max={100} min={1} type="number" value={typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82} onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)} />
+        <input
+          disabled={disabled || !task || (task.pipeline.output.format === "jpeg" && typeof task.pipeline.output.quality !== "number")}
+          max={100}
+          min={1}
+          type="number"
+          value={typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82}
+          onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
+        />
       </label>
       {task?.pipeline.output.format === "jpeg" ? (
         <label className="stacked-field">
           JPEG strategy
           <select
             disabled={disabled || !task}
-            value={typeof task.pipeline.output.quality === "number" ? "fixed" : task.pipeline.output.quality}
+            value={jpegQualityMode}
             onChange={(event) => {
               const value = event.currentTarget.value;
-              onOutputChange("quality", value === "fixed" ? 85 : value);
+              onOutputChange("quality", value === "fixed" ? (typeof task.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality) : value);
             }}
           >
             <option value="fixed">fixed</option>
@@ -559,6 +586,9 @@ function OutputControls({
             <option value="match-source-size">match-source-size</option>
           </select>
         </label>
+      ) : null}
+      {task?.pipeline.output.format === "jpeg" && promptPerTask ? (
+        <div className="row-detail">Global JPEG strategy is prompt-per-task, so this task can keep its own fixed JPEG quality.</div>
       ) : null}
     </div>
   );
@@ -609,6 +639,12 @@ function metadataKeepValue(value: unknown): Array<"author" | "copyright" | "orie
 
 function metadataFieldsValue(value: unknown): Record<string, string> {
   return value && typeof value === "object" ? value as Record<string, string> : {};
+}
+
+function samplePointValue(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length < 2) return null;
+  if (typeof value[0] !== "number" || typeof value[1] !== "number") return null;
+  return [value[0], value[1]];
 }
 
 function firstRect(value: unknown): { x: number; y: number; w: number; h: number } {

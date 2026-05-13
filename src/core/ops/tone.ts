@@ -14,8 +14,8 @@ registerOp({
   type: "white-balance",
   label: "White Balance",
   category: "Tone",
-  defaultParams: { temperature: 0, tint: 0 },
-  paramScaling: { temperature: "scale_invariant", tint: "scale_invariant" },
+  defaultParams: { temperature: 0, tint: 0, samplePoint: null },
+  paramScaling: { temperature: "scale_invariant", tint: "scale_invariant", samplePoint: "fraction_of_long_edge" },
   schema: { type: "object", properties: {}, additionalProperties: true },
   visible: true
 });

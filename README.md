@@ -7,9 +7,10 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 - Project/session persistence with recent-project history, saved project naming, and guarded project/settings validation.
 - Main/renderer IPC for import, task editing, previewing, processing, retry/delete flows, queue pause/resume, rename preview/run, and Gemini-powered description generation.
 - Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/redaction/watermark ops, JPEG quality strategies, metadata strip/inject/date writing, and safer unsupported-format handling.
-- Canvas workflow with before/after preview, fit and 100% zoom, panning, histogram feedback, crop editing, and direct editing for the first redaction rectangle.
+- Canvas workflow with before/after preview, fit and 100% zoom, panning, histogram feedback, crop editing, direct editing for the first redaction rectangle, and white-balance neutral-point sampling from the preview.
 - Naming/template workflow with placeholder validation, inline settings errors, rename blocking for unsafe templates, and batch description generation progress.
 - Queue/error UX with active-task reporting, clearer processing/error states, source reveal, retry/dismiss actions, and renderer log forwarding.
+- Watermark creation in the ops panel, default watermark-image seeding from settings, preview debounce wiring, and light/dark/system theme switching.
 - A small Vitest foundation covering template rendering, template validation, and rename validation paths.
 
 ## Current limitations

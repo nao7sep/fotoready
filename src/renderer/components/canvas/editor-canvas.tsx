@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Group, Image as KonvaImage, Layer, Rect, Stage, Text } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text } from "react-konva";
 import type { Task } from "@shared/types/project";
 import { InteractiveOverlayRect } from "./interactive-overlays";
-import { cropRectFromOp, redactionRects, scaleRect as scaleOverlayRect, selectedEditableOverlay, updatePatchForOverlay, type FractionRect } from "@renderer/canvas/op-overlays";
+import { cropRectFromOp, redactionRects, scaleRect as scaleOverlayRect, selectedEditableOverlay, selectedWhiteBalanceSample, updatePatchForOverlay, type FractionRect } from "@renderer/canvas/op-overlays";
 
 export type EditorCanvasPreview = {
   dataUrl: string;
@@ -38,6 +38,7 @@ export function EditorCanvas({
   const placement = useMemo(() => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height, zoom), [frameSize.height, frameSize.width, imageSize.height, imageSize.width, zoom]);
   const longEdge = Math.max(imageSize.width, imageSize.height);
   const editableOverlay = useMemo(() => selectedEditableOverlay(task, selectedOpIndex), [selectedOpIndex, task]);
+  const whiteBalanceSample = useMemo(() => selectedWhiteBalanceSample(task, selectedOpIndex), [selectedOpIndex, task]);
   const [draftOverlayRect, setDraftOverlayRect] = useState<FractionRect | null>(null);
 
   useEffect(() => {
@@ -86,6 +87,22 @@ export function EditorCanvas({
               dragBoundFunc={(position) => clampPan(position, placement, frameSize, zoom)}
               x={clampedPan.x}
               y={clampedPan.y}
+              onClick={(event) => {
+                if (mode !== "after" || !whiteBalanceSample) return;
+                const pointer = event.target.getStage()?.getPointerPosition();
+                if (!pointer) return;
+                const localX = (pointer.x - clampedPan.x - placement.x) / placement.scale;
+                const localY = (pointer.y - clampedPan.y - placement.y) / placement.scale;
+                if (localX < 0 || localY < 0 || localX > imageSize.width || localY > imageSize.height) {
+                  return;
+                }
+                onOpParamsChange(whiteBalanceSample.opIndex, {
+                  samplePoint: [
+                    clamp(localX / longEdge, 0, imageSize.width / longEdge),
+                    clamp(localY / longEdge, 0, imageSize.height / longEdge)
+                  ]
+                });
+              }}
               onDragMove={(event) => setPan({ x: event.target.x(), y: event.target.y() })}
               onDragEnd={(event) => setPan({ x: event.target.x(), y: event.target.y() })}
             >
@@ -101,6 +118,7 @@ export function EditorCanvas({
                     onOpParamsChange(editableOverlay.opIndex, updatePatchForOverlay(task.pipeline.ops[editableOverlay.opIndex], rect));
                   }}
                   placement={placement}
+                  whiteBalanceSamplePoint={whiteBalanceSample?.point ?? null}
                   task={task}
                 />
               ) : null}
@@ -123,6 +141,7 @@ function PipelineOverlays({
   onEditableOverlayChange,
   onEditableOverlayCommit,
   placement,
+  whiteBalanceSamplePoint,
   task
 }: {
   editableOverlay: { kind: "crop" | "redact"; opIndex: number; rect: FractionRect; color: string } | null;
@@ -130,11 +149,23 @@ function PipelineOverlays({
   onEditableOverlayChange(nextRect: FractionRect): void;
   onEditableOverlayCommit(nextRect: FractionRect): void;
   placement: { x: number; y: number; width: number; height: number; scale: number };
+  whiteBalanceSamplePoint: { x: number; y: number } | null;
   task: Task;
 }): React.JSX.Element {
   const longEdge = Math.max(imageSize.width, imageSize.height);
   return (
     <>
+      {whiteBalanceSamplePoint ? (
+        <Circle
+          fill="#60a5fa"
+          opacity={0.9}
+          radius={5}
+          stroke="#ffffff"
+          strokeWidth={2}
+          x={placement.x + whiteBalanceSamplePoint.x * longEdge * placement.scale}
+          y={placement.y + whiteBalanceSamplePoint.y * longEdge * placement.scale}
+        />
+      ) : null}
       {task.pipeline.ops.flatMap((op, opIndex) => {
         if (!op.enabled) return [];
         if (op.type === "crop") {

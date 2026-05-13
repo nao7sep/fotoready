@@ -179,7 +179,30 @@ function applyLevels(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
   return image.linear(multiplier, offset).gamma(gamma);
 }
 
-function applyWhiteBalance(image: sharp.Sharp, op: OpInstance): sharp.Sharp {
+async function applyWhiteBalance(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
+  const samplePoint = samplePointParam(op.params.samplePoint);
+  if (samplePoint) {
+    const metadata = await image.metadata();
+    const width = metadata.width ?? 0;
+    const height = metadata.height ?? 0;
+    if (width > 0 && height > 0) {
+      const longEdge = Math.max(width, height);
+      const sampleX = Math.max(0, Math.min(width - 1, Math.round(samplePoint[0] * longEdge)));
+      const sampleY = Math.max(0, Math.min(height - 1, Math.round(samplePoint[1] * longEdge)));
+      const raw = await image.clone().ensureAlpha().raw().toBuffer();
+      const offset = (sampleY * width + sampleX) * 4;
+      const redSample = raw[offset] ?? 0;
+      const greenSample = raw[offset + 1] ?? 0;
+      const blueSample = raw[offset + 2] ?? 0;
+      const target = Math.max(1, (redSample + greenSample + blueSample) / 3);
+      return image.linear([
+        clamp(target / Math.max(1, redSample), 0.2, 4),
+        clamp(target / Math.max(1, greenSample), 0.2, 4),
+        clamp(target / Math.max(1, blueSample), 0.2, 4)
+      ], [0, 0, 0]);
+    }
+  }
+
   const temperature = Math.max(-100, Math.min(100, numberParam(op, "temperature", 0)));
   const tint = Math.max(-100, Math.min(100, numberParam(op, "tint", 0)));
   const red = 1 + temperature / 500;
@@ -489,6 +512,16 @@ function wrapHue(value: number): number {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function samplePointParam(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length < 2) return null;
+  if (typeof value[0] !== "number" || typeof value[1] !== "number") return null;
+  return [clamp(value[0], 0, 1), clamp(value[1], 0, 1)];
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {

@@ -137,6 +137,19 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
+    if (!settings) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const resolvedTheme = settings.theme === "system" ? (media.matches ? "dark" : "light") : settings.theme;
+      document.documentElement.dataset.theme = resolvedTheme;
+      document.documentElement.style.colorScheme = resolvedTheme;
+    };
+    applyTheme();
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [settings?.theme]);
+
+  useEffect(() => {
     setSelectedOpIndex(null);
   }, [activeTask?.id]);
 
@@ -156,26 +169,30 @@ function App(): React.JSX.Element {
     }
 
     let cancelled = false;
+    let timeoutId: number | null = null;
     setPreview(null);
     setPreviewState("loading");
-    void api.preview.render(activeTask.id)
-      .then((result) => {
-        if (!cancelled) {
-          setPreview(result);
-          setPreviewState("idle");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPreview(null);
-          setPreviewState("error");
-        }
-      });
+    timeoutId = window.setTimeout(() => {
+      void api.preview.render(activeTask.id)
+        .then((result) => {
+          if (!cancelled) {
+            setPreview(result);
+            setPreviewState("idle");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setPreview(null);
+            setPreviewState("error");
+          }
+        });
+    }, settings?.previewDebounceMs ?? 0);
 
     return () => {
       cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeTask?.id, activeTask?.updatedAt, activeTask?.pipeline.ops.length]);
+  }, [activeTask?.id, activeTask?.updatedAt, activeTask?.pipeline.ops.length, settings?.previewDebounceMs]);
 
   useEffect(() => {
     const originals = project?.originals ?? [];
@@ -556,6 +573,7 @@ function App(): React.JSX.Element {
               onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
               onOutputChange={(key, value) => void updateOutput(key, value)}
               onRemoveOp={(index) => void removeOp(index)}
+              settings={settings}
               selectedOpIndex={selectedOpIndex}
             />
         ) : null}

@@ -7,8 +7,10 @@ import { api } from "@renderer/ipc/client";
 
 type OpsPanelProps = {
   activeTask: Task | null;
+  hasGeminiApiKey: boolean;
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
+  onOpenSettings(): void;
   selectedOpIndex: number | null;
   onAddOp(opType: string): void;
   onAnalyzeContentChange(value: boolean): void;
@@ -22,8 +24,10 @@ type OpsPanelProps = {
 
 export function OpsPanel({
   activeTask,
+  hasGeminiApiKey,
   luts,
   opCatalog,
+  onOpenSettings,
   selectedOpIndex,
   onAddOp,
   onAnalyzeContentChange,
@@ -64,6 +68,8 @@ export function OpsPanel({
           {section === "Output" ? (
             <OutputControls
               disabled={!activeTask || activeTask.status !== "pending"}
+              hasGeminiApiKey={hasGeminiApiKey}
+              onOpenSettings={onOpenSettings}
               task={activeTask}
               onAnalyzeContentChange={onAnalyzeContentChange}
               onCustomSlugChange={onCustomSlugChange}
@@ -489,12 +495,16 @@ function OpParams({
 
 function OutputControls({
   disabled,
+  hasGeminiApiKey,
+  onOpenSettings,
   task,
   onAnalyzeContentChange,
   onCustomSlugChange,
   onOutputChange
 }: {
   disabled: boolean;
+  hasGeminiApiKey: boolean;
+  onOpenSettings(): void;
   task: Task | null;
   onAnalyzeContentChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
@@ -506,7 +516,12 @@ function OutputControls({
         <input type="checkbox" disabled={disabled || !task} checked={task?.analyzeContent ?? true} onChange={(event) => onAnalyzeContentChange(event.currentTarget.checked)} />
         Describe contents
       </label>
-      {task?.output?.vision ? (
+      {task?.analyzeContent && !task.output?.vision && !hasGeminiApiKey ? (
+        <div className="modal-warning">
+          Gemini API key required for description generation.
+          <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
+        </div>
+      ) : task?.output?.vision ? (
         <div className="vision-description">
           <span>Generated description</span>
           <p>{task.output.vision.description}</p>

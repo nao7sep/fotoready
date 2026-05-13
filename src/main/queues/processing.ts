@@ -199,10 +199,22 @@ function clampQuality(value: number): number {
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
   const policy = metadataPolicy(task, settings);
   const keep = task.metadataStripOverride ?? policy.keep;
-  await stripMetadata(outputPath, keep);
-  await writeOutputDates(outputPath, sourcePath, settings.preserveSourceDates, savedAt);
+  try {
+    await stripMetadata(outputPath, keep);
+  } catch (error) {
+    throw new Error(`Failed to strip metadata from the output file. ${errorMessage(error)}`);
+  }
+  try {
+    await writeOutputDates(outputPath, sourcePath, settings.preserveSourceDates, savedAt);
+  } catch (error) {
+    throw new Error(`Failed to write output dates. ${errorMessage(error)}`);
+  }
   if (Object.keys(policy.injectFields).length > 0) {
-    await injectMetadata(outputPath, policy.injectFields);
+    try {
+      await injectMetadata(outputPath, policy.injectFields);
+    } catch (error) {
+      throw new Error(`Failed to inject metadata into the output file. ${errorMessage(error)}`);
+    }
   }
   const bytes = await fs.readFile(outputPath);
   return { outputHash: sha256Bytes(bytes) };
@@ -249,4 +261,8 @@ function taskError(error: unknown): TaskError {
     occurredAt: nowIso(),
     retryable: !/unsupported|format/i.test(known.message)
   };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

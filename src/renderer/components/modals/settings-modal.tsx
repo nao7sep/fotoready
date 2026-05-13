@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { CacheSizes, SystemInfo } from "@shared/types/ipc";
 import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
+import { validateFilenameTemplates, type FilenameTemplateValidationIssue } from "@shared/validation/filename-template";
 
 type SettingsTab = "general" | "encoding" | "vision" | "metadata" | "naming" | "paths" | "performance" | "caches";
 
@@ -28,6 +29,10 @@ export function AppSettingsModal({
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>("general");
+  const templateIssues = useMemo(
+    () => settingsDraft ? validateFilenameTemplates(settingsDraft.filenameTemplates, settingsDraft.defaultTemplateId) : [],
+    [settingsDraft]
+  );
 
   function updateTemplate(templateId: string, patch: Partial<FilenameTemplate>): void {
     if (!settingsDraft) return;
@@ -96,6 +101,7 @@ export function AppSettingsModal({
                 deleteTemplate={deleteTemplate}
                 settings={settingsDraft}
                 setSettings={setSettingsDraft}
+                templateIssues={templateIssues}
                 updateTemplate={updateTemplate}
               />
             ) : null}
@@ -105,10 +111,12 @@ export function AppSettingsModal({
           </div>
         ) : null}
 
+        {templateIssues.length > 0 ? <div className="modal-error">Fix filename template issues before saving settings.</div> : null}
+
         <footer className="modal-actions">
           <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-action" type="button" disabled={!apiKeyDraft.trim()} onClick={onSaveApiKey}>Save key</button>
-          <button className="primary-action" type="button" disabled={!settingsDraft} onClick={onSaveSettings}>Save settings</button>
+          <button className="primary-action" type="button" disabled={!settingsDraft || templateIssues.length > 0} onClick={onSaveSettings}>Save settings</button>
         </footer>
       </section>
     </div>
@@ -217,16 +225,28 @@ function MetadataSettings({ settings, setSettings }: SettingsProps): React.JSX.E
   );
 }
 
-function NamingSettings({ addTemplate, deleteTemplate, settings, setSettings, updateTemplate }: SettingsProps & {
+function NamingSettings({ addTemplate, deleteTemplate, settings, setSettings, templateIssues, updateTemplate }: SettingsProps & {
   addTemplate(): void;
   deleteTemplate(templateId: string): void;
+  templateIssues: FilenameTemplateValidationIssue[];
   updateTemplate(templateId: string, patch: Partial<FilenameTemplate>): void;
 }): React.JSX.Element {
+  const generalIssues = templateIssues.filter((issue) => issue.templateId === null);
+  const issuesByTemplateId = templateIssues.reduce<Record<string, string[]>>((result, issue) => {
+    if (!issue.templateId) return result;
+    result[issue.templateId] = [...(result[issue.templateId] ?? []), issue.message];
+    return result;
+  }, {});
+
   return (
     <section className="template-settings">
       <div className="settings-section-header">
         <h3>Filename templates</h3>
         <button className="toolbar-button" type="button" onClick={addTemplate}>Add template</button>
+      </div>
+      <div className="settings-summary">
+        <span>Supported placeholders</span>
+        <code>{"{slug} {w} {h} {ext} {index} {index:03} {hash:8} {date:saved|local|yyyymmdd}"}</code>
       </div>
       <label className="stacked-field">
         Default template
@@ -234,12 +254,20 @@ function NamingSettings({ addTemplate, deleteTemplate, settings, setSettings, up
           {settings.filenameTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
         </select>
       </label>
+      {generalIssues.map((issue, index) => (
+        <div className="modal-error" key={`${issue.message}-${index}`}>{issue.message}</div>
+      ))}
       <div className="template-settings-list">
         {settings.filenameTemplates.map((template) => (
-          <div className="template-settings-row" key={template.id}>
-            <input aria-label="Template name" disabled={template.builtin} type="text" value={template.name} onChange={(event) => updateTemplate(template.id, { name: event.currentTarget.value })} />
-            <input aria-label="Template pattern" disabled={template.builtin} type="text" value={template.pattern} onChange={(event) => updateTemplate(template.id, { pattern: event.currentTarget.value })} />
-            <button className="toolbar-button" disabled={template.builtin} type="button" onClick={() => deleteTemplate(template.id)}>Delete</button>
+          <div className="template-settings-item" key={template.id}>
+            <div className="template-settings-row">
+              <input aria-label="Template name" disabled={template.builtin} type="text" value={template.name} onChange={(event) => updateTemplate(template.id, { name: event.currentTarget.value })} />
+              <input aria-label="Template pattern" disabled={template.builtin} type="text" value={template.pattern} onChange={(event) => updateTemplate(template.id, { pattern: event.currentTarget.value })} />
+              <button className="toolbar-button" disabled={template.builtin} type="button" onClick={() => deleteTemplate(template.id)}>Delete</button>
+            </div>
+            {(issuesByTemplateId[template.id] ?? []).map((message, index) => (
+              <div className="modal-error" key={`${template.id}-${index}`}>{message}</div>
+            ))}
           </div>
         ))}
       </div>

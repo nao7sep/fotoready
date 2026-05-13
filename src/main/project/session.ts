@@ -1,13 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
-import sharp from "sharp";
 import { nowIso } from "@shared/time";
 import { defaultPipeline } from "@shared/defaults";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
-import { detectFormat } from "@runtime/format";
 import { sha256Bytes } from "@runtime/hash";
+import { inspectSourceImage } from "@runtime/decode";
 import { createEmptyProject, loadProject, saveProject } from "@main/persistence/project-io";
 import { processTask } from "@main/queues/processing";
 import { queueSnapshotFromProject } from "@main/queues/snapshot";
@@ -456,6 +455,10 @@ export class ProjectSession {
     await this.visionQueue.setGeminiApiKey(apiKey);
   }
 
+  async hasGeminiApiKey(): Promise<boolean> {
+    return this.visionQueue ? this.visionQueue.hasGeminiApiKey() : false;
+  }
+
   private async persistIfSaved(): Promise<void> {
     if (this.#projectPath) {
       await saveProject(this.#projectPath, this.#project);
@@ -529,14 +532,14 @@ export class ProjectSession {
 
 async function buildOriginal(sourcePath: string): Promise<Original> {
   const bytes = await fs.readFile(sourcePath);
-  const metadata = await sharp(bytes, { limitInputPixels: false }).metadata();
+  const { format, metadata } = await inspectSourceImage(bytes);
 
   return {
     id: nanoid(),
     sourcePath: path.resolve(sourcePath),
     sourceHash: sha256Bytes(bytes),
     size: bytes.byteLength,
-    format: detectFormat(bytes),
+    format,
     width: metadata.width ?? 0,
     height: metadata.height ?? 0,
     addedAt: nowIso()

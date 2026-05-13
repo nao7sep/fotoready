@@ -7,6 +7,15 @@ export function detectFormat(bytes: Buffer): string {
     if (brand.includes("avif")) return "avif";
     if (brand.includes("heic") || brand.includes("heix") || brand.includes("hevc")) return "heic";
   }
+  if (
+    bytes.length >= 4 &&
+    (
+      bytes.subarray(0, 4).equals(Buffer.from([0x49, 0x49, 0x2a, 0x00])) ||
+      bytes.subarray(0, 4).equals(Buffer.from([0x4d, 0x4d, 0x00, 0x2a]))
+    )
+  ) {
+    return "tiff";
+  }
   if (bytes.length >= 4 && bytes.subarray(0, 4).toString("ascii") === "GIF8") return "gif";
   return "unknown";
 }

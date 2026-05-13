@@ -1023,6 +1023,11 @@ select:disabled {
   gap: 8px;
 }
 
+.template-settings-item {
+  display: grid;
+  gap: 6px;
+}
+
 .template-settings-row {
   display: grid;
   grid-template-columns: minmax(120px, 0.7fr) minmax(240px, 1.3fr) auto;

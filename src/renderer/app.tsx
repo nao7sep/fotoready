@@ -37,6 +37,7 @@ function App(): React.JSX.Element {
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
+  const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, pending: 0, processing: 0, errors: 0, paused: false, activeTaskId: null, activeTaskLabel: null });
   const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
@@ -49,10 +50,11 @@ function App(): React.JSX.Element {
   const projectPathLabel = projectSnapshot?.projectPath ?? "Unsaved project";
 
   useEffect(() => {
-    void Promise.all([api.system.getInfo(), api.settings.get(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
-      ([info, loadedSettings, loadedProject, loadedOps, snapshot, loadedLuts]) => {
+    void Promise.all([api.system.getInfo(), api.settings.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
+      ([info, loadedSettings, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts]) => {
         setSystemInfo(info);
         setSettings(loadedSettings);
+        setHasGeminiApiKey(geminiKeyConfigured);
         setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
         setQueue(snapshot);
@@ -348,12 +350,17 @@ function App(): React.JSX.Element {
   }
 
   async function runVision(taskId: string): Promise<void> {
+    if (!hasGeminiApiKey) {
+      await openSettings();
+      return;
+    }
     await refreshProject(await api.vision.runForTask(taskId));
   }
 
   async function saveApiKey(): Promise<void> {
     if (!apiKeyDraft.trim()) return;
     await api.settings.setGeminiApiKey(apiKeyDraft.trim());
+    setHasGeminiApiKey(await api.settings.hasGeminiApiKey());
     setApiKeyDraft("");
     setApiKeyOpen(false);
   }
@@ -516,7 +523,7 @@ function App(): React.JSX.Element {
             ) : null}
             {activeTask?.status === "done" && !activeTask.output?.vision ? (
               <button className="inline-action" type="button" onClick={() => void runVision(activeTask.id)}>
-                Generate description
+                {hasGeminiApiKey ? "Generate description" : "Open settings for Gemini"}
               </button>
             ) : null}
           </div>
@@ -537,12 +544,14 @@ function App(): React.JSX.Element {
         {showOps ? (
             <OpsPanel
               activeTask={activeTask}
+              hasGeminiApiKey={hasGeminiApiKey}
               luts={lutEntries}
               opCatalog={opCatalog}
               onSelectOp={setSelectedOpIndex}
               onAddOp={(opType) => void addOp(opType)}
               onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
               onCustomSlugChange={(value) => void setCustomSlug(value)}
+              onOpenSettings={() => void openSettings()}
               onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
               onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
               onOutputChange={(key, value) => void updateOutput(key, value)}
@@ -560,12 +569,26 @@ function App(): React.JSX.Element {
             label: taskLabel(task, project?.originals ?? []),
             selected: selectedRenameTaskIds.includes(task.id)
           }))}
+          hasGeminiApiKey={hasGeminiApiKey}
           onClose={() => setRenameOpen(false)}
           onGenerateMissing={async (taskIds, onProgress) => {
+            const failures: string[] = [];
             for (const [index, taskId] of taskIds.entries()) {
-              await refreshProject(await api.vision.runForTask(taskId));
+              const snapshot = await api.vision.runForTask(taskId);
+              await refreshProject(snapshot);
+              const task = snapshot.project.tasks.find((candidate) => candidate.id === taskId);
+              if (task?.error?.stage === "vision") {
+                failures.push(`${taskLabel(task, snapshot.project.originals)}: ${task.error.message}`);
+              }
               onProgress(index + 1, taskIds.length);
             }
+            if (failures.length > 0) {
+              throw new Error(failures.join(" "));
+            }
+          }}
+          onOpenSettings={() => {
+            setRenameOpen(false);
+            void openSettings();
           }}
           onPreview={(templateId, taskIds) => api.rename.preview(templateId, taskIds)}
           onRun={async (templateId, taskIds) => {

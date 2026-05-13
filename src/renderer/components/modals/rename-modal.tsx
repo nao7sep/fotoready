@@ -6,7 +6,9 @@ export function RenameModal({
   templates,
   defaultTemplateId,
   doneTasks,
+  hasGeminiApiKey,
   onClose,
+  onOpenSettings,
   onGenerateMissing,
   onPreview,
   onRun,
@@ -16,7 +18,9 @@ export function RenameModal({
   templates: FilenameTemplate[];
   defaultTemplateId: string;
   doneTasks: Array<{ id: string; label: string; selected: boolean }>;
+  hasGeminiApiKey: boolean;
   onClose(): void;
+  onOpenSettings(): void;
   onGenerateMissing(taskIds: string[], onProgress: (done: number, total: number) => void): Promise<void>;
   onPreview(templateId: string, taskIds?: string[]): Promise<RenamePreview>;
   onRun(templateId: string, taskIds?: string[]): Promise<void>;
@@ -74,12 +78,18 @@ export function RenameModal({
     setBusy(true);
     setError(null);
     setGenerationProgress({ done: 0, total: missingTaskIds.length });
+    let nextError: string | null = null;
     try {
       await onGenerateMissing(missingTaskIds, (done, total) => setGenerationProgress({ done, total }));
+    } catch (caught) {
+      nextError = caught instanceof Error ? caught.message : String(caught);
+    }
+    try {
       setPreview(await onPreview(templateId, scopedTaskIds));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      nextError ??= caught instanceof Error ? caught.message : String(caught);
     } finally {
+      setError(nextError);
       setGenerationProgress(null);
       setBusy(false);
     }
@@ -118,8 +128,14 @@ export function RenameModal({
 
         {preview?.missingSlugCount ? (
           <div className="modal-warning">
-            {preview.missingSlugCount} of {preview.items.length} done tasks need a custom slug before rename.
-            <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
+            {hasGeminiApiKey
+              ? `${preview.missingSlugCount} of ${preview.items.length} done tasks need a custom slug before rename.`
+              : "Gemini API key required to generate missing descriptions before rename."}
+            {hasGeminiApiKey ? (
+              <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
+            ) : (
+              <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
+            )}
           </div>
         ) : null}
 

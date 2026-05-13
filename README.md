@@ -2,45 +2,34 @@
 
 FotoReady is a cross-platform desktop photo editor for blogging and publication workflows.
 
-Current implementation status:
+## Status
 
-- Electron/Vite/React shell with the four-column editor layout.
-- Shared domain contracts for projects, originals, tasks, pipelines, settings, ops, and IPC.
-- App data directory at `~/.fotoready`, settings persistence, and session logging.
-- Project session state with original import, active task selection, task forking, and pending-task processing.
-- Basic sharp-backed pipeline runtime for decode, crop, rotate, resize, denoise, sharpen, and output encoding.
-- Editable pending-task pipelines with op add/remove/toggle controls and initial parameter forms.
-- Main-process preview rendering displayed in the editor canvas.
-- Rename preview/run flow for done tasks using filename templates and manual custom slugs.
-- JSON cache IO and an import-time JPEG source-facts queue scaffold.
-- Gemini vision adapter, encrypted API-key storage, vision input preparation, result cache, and Generate description action.
-- ExifTool-backed metadata stripping and optional injection after output encoding.
-- JPEG DQT quality detection cached by source hash and used for source-quality JPEG output.
-- Startup recovery demotes in-flight processing tasks and reloads the last opened/saved project.
-- Compact settings surface for encrypted Gemini key entry, data directory, cache sizes, and cache clearing.
-- Binary-search JPEG `match-source-size` encoding against the original source byte size.
-- Concurrent processing queue using configured worker pool size, plus task retry/delete controls and visible error details.
-- Project and queue snapshot event streaming from main to renderer.
-- Initial keyboard shortcuts, panel toggles, shortcuts modal, New project, and output directory picker.
-- Runtime-backed tone, LUT, redaction, and watermark ops with focused controls and file pickers.
-- Filename template settings with slug, size, extension, hash, padded index, and date placeholders.
-- Rename modal scope selection and inline description generation for missing slug data.
-- Per-task undo history for pending task edits through the Cmd/Ctrl+Z shortcut.
-- Current-task error actions for retry, source reveal, and dismiss.
-- Expanded settings controls for encoding, vision, performance, preview, and path defaults.
-- Runtime-backed curves and HSL tone ops, source date preservation, and post-metadata output hashing.
-- Piscina-backed pipeline worker entry wired into processing and preview rendering.
-- Source-file recovery by content hash across last-seen, project, and output directories.
-- Konva-backed editor canvas with before/after, fit/100% zoom, and authored overlay visualization.
-- Functional app menu, About modal, and IPC-backed queue pause/resume controls.
-- Tabbed settings modal covering general, encoding, vision, metadata, naming, path, performance, and cache settings.
-- Rename workflow with explicit done-task selection, selected-task scope, generation progress, and clearer staged/proposed preview rows.
-- Central error modal with retry/edit/reveal/dismiss actions and renderer warn/error forwarding to session logs.
-- LUT catalog IPC with generated built-in `.cube` files, shallow user LUT scanning, and a saved-LUT selector in the LUT op form.
-- Renderer panel decomposition for Originals and Tasks while keeping App focused on orchestration.
-- Electron-builder release configuration for the generated `out/` bundles and production dependencies.
-- Metadata ops integrated into processing and surfaced with focused parameter controls.
-- Generated macOS app icon assets wired into electron-builder packaging.
+- Project/session persistence with recent-project history, saved project naming, and guarded project/settings validation.
+- Main/renderer IPC for import, task editing, previewing, processing, retry/delete flows, queue pause/resume, rename preview/run, and Gemini-powered description generation.
+- Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/redaction/watermark ops, JPEG quality strategies, metadata strip/inject/date writing, and safer unsupported-format handling.
+- Canvas workflow with before/after preview, fit and 100% zoom, panning, histogram feedback, crop editing, and direct editing for the first redaction rectangle.
+- Naming/template workflow with placeholder validation, inline settings errors, rename blocking for unsafe templates, and batch description generation progress.
+- Queue/error UX with active-task reporting, clearer processing/error states, source reveal, retry/dismiss actions, and renderer log forwarding.
+- A small Vitest foundation covering template rendering, template validation, and rename validation paths.
+
+## Current limitations
+
+- macOS code signing is intentionally disabled, so packaged builds are unsigned.
+- Packaged app creation is verified with `npm run package`, but runtime smoke launching remains environment-limited here and should still be checked manually on a target machine.
+- HEIC/HEIF decode support depends on the bundled Sharp/libvips build. FotoReady now fails with a direct message when that support is unavailable.
+- Animated image workflows are not a target for v1.
+
+## Data locations
+
+| Item | Path |
+| --- | --- |
+| App data root | `~/.fotoready/` |
+| Settings | `~/.fotoready/settings.json` |
+| Encrypted Gemini key store | `~/.fotoready/api-keys.enc` |
+| Logs | `~/.fotoready/logs/` |
+| Source facts cache | `~/.fotoready/cache/source-facts.json` |
+| Vision cache | `~/.fotoready/cache/vision-facts.json` |
+| User LUT directory | `~/.fotoready/luts/` |
 
 ## Development
 
@@ -49,24 +38,14 @@ npm install
 npm run dev
 ```
 
-## Build
+## Commands
 
 ```sh
+npm test
 npm run build
-```
-
-## Package
-
-```sh
 npm run package
+npm run icons
 ```
 
 Packaging uses `electron-builder` and writes unpacked artifacts to `release/`.
-Run `npm run icons` after changing icon artwork to refresh the generated PNG and ICNS assets.
-
-Current release notes:
-
-- `npm run package` has been smoke-tested on macOS arm64.
-- The unpacked app is written to `release/mac-arm64/FotoReady.app`.
-- Code signing is not configured, so macOS builds show the standard unsigned-app warning.
-- The packaged macOS app uses the generated FotoReady icon from `build/icon.icns`.
+The unpacked macOS app is written to `release/mac-arm64/FotoReady.app`.

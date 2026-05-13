@@ -7,6 +7,11 @@ type ApiKeyFile = Record<string, string>;
 export class ApiKeyStore {
   constructor(private readonly filePath: string) {}
 
+  async has(provider: string): Promise<boolean> {
+    const file = await this.readFile();
+    return typeof file[provider] === "string" && file[provider].length > 0;
+  }
+
   async get(provider: string): Promise<string | null> {
     const file = await this.readFile();
     const encrypted = file[provider];

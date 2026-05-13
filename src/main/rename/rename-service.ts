@@ -10,11 +10,13 @@ import type { RenamePreview } from "@shared/types/ipc";
 import { renderFilenameTemplate } from "@core/naming/template-render";
 import { resolveSlugCollisions } from "@core/slug/collision-resolve";
 import { normalizeSlugCandidate } from "@core/slug/rules";
+import { assertSafeRenderedFilename, validateFilenameTemplatePattern } from "@shared/validation/filename-template";
 
 type RenamePlanItem = RenamePreview["items"][number];
 
 export async function previewRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<RenamePreview> {
   const template = findTemplate(project, settings, templateId);
+  assertTemplateUsable(template);
   const scopedTaskIds = taskIds?.length ? new Set(taskIds) : null;
   const doneTasks = project.tasks
     .filter((task): task is Task & { output: NonNullable<Task["output"]> } => task.status === "done" && task.output !== null)
@@ -49,6 +51,7 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
       now: renderNow,
       takenAt: null
     });
+    assertSafeRenderedFilename(proposedName);
     const proposedPath = path.join(path.dirname(stagedPath), proposedName);
     const missingSlug = needsSlug && !task.customSlug && !task.output.vision;
 
@@ -98,6 +101,13 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
 function findTemplate(project: Project, settings: GlobalSettings, templateId?: string): FilenameTemplate {
   const id = templateId ?? project.settings.defaultTemplateId ?? settings.defaultTemplateId ?? BUILTIN_FILENAME_TEMPLATE_ID;
   return settings.filenameTemplates.find((template) => template.id === id) ?? builtinFilenameTemplate;
+}
+
+function assertTemplateUsable(template: FilenameTemplate): void {
+  const issues = validateFilenameTemplatePattern(template.pattern);
+  if (issues.length > 0) {
+    throw new Error(`Template "${template.name}" is invalid: ${issues[0]}`);
+  }
 }
 
 function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): string[] {

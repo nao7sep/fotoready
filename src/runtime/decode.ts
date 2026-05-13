@@ -5,9 +5,7 @@ import type { DecodeFacts, Image } from "./image";
 
 export async function decodeImage(sourcePath: string): Promise<{ image: Image; facts: DecodeFacts }> {
   const bytes = await fs.readFile(sourcePath);
-  const format = detectFormat(bytes);
-  const source = sharp(bytes, { limitInputPixels: false });
-  const metadata = await source.metadata();
+  const { format, metadata } = await inspectSourceImage(bytes);
   const colorSpaceTag = inferColorSpaceTag(metadata.space ?? null);
   const orientation = metadata.orientation ?? 1;
 
@@ -43,9 +41,35 @@ export async function decodeImage(sourcePath: string): Promise<{ image: Image; f
   };
 }
 
+export async function inspectSourceImage(bytes: Buffer): Promise<{ format: string; metadata: sharp.Metadata }> {
+  const format = detectFormat(bytes);
+  if (format === "unknown") {
+    throw new Error("Unsupported image format. Convert the source image to JPEG, PNG, WebP, AVIF, TIFF, GIF, or HEIC and retry.");
+  }
+  if (format === "heic" && !supportsHeicInput()) {
+    throw new Error("HEIC/HEIF decoding is not available in this Sharp build. Convert the image to JPEG, PNG, WebP, AVIF, or TIFF and retry.");
+  }
+
+  try {
+    const source = sharp(bytes, { limitInputPixels: false });
+    return {
+      format,
+      metadata: await source.metadata()
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Couldn't decode this ${format.toUpperCase()} image. ${message}`);
+  }
+}
+
 function inferColorSpaceTag(space: string | null): DecodeFacts["colorSpaceTag"] {
   if (!space) return null;
   if (space.toLowerCase() === "srgb") return "srgb";
   if (space.toLowerCase().includes("rgb16")) return "uncalibrated";
   return null;
+}
+
+function supportsHeicInput(): boolean {
+  const suffixes = sharp.format.heif?.input?.fileSuffix ?? [];
+  return suffixes.includes(".heic") || suffixes.includes(".heif");
 }

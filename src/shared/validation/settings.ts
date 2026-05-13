@@ -2,6 +2,7 @@ import { BUILTIN_FILENAME_TEMPLATE_ID } from "../constants";
 import { builtinFilenameTemplate } from "../defaults";
 import type { FilenameTemplate, GlobalSettings, MetadataField } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertNullableString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
+import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
 const metadataFields = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
 const outputFormats = ["jpeg", "webp", "avif", "png"] as const;
@@ -145,6 +146,8 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
 
   const templates: FilenameTemplate[] = [];
   const seen = new Set<string>();
+  const seenNames = new Set<string>();
+  const seenPatterns = new Set<string>();
 
   for (const [index, entry] of value.entries()) {
     try {
@@ -155,13 +158,29 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
         continue;
       }
       seen.add(normalized.id);
+      const normalizedName = normalized.name.trim().toLowerCase();
+      if (seenNames.has(normalizedName)) {
+        issues.push(`settings.filenameTemplates[${index}].name duplicates "${normalized.name.trim()}".`);
+        continue;
+      }
+      seenNames.add(normalizedName);
+      const normalizedPattern = normalized.pattern.trim();
+      if (seenPatterns.has(normalizedPattern)) {
+        issues.push(`settings.filenameTemplates[${index}].pattern duplicates another template.`);
+        continue;
+      }
+      seenPatterns.add(normalizedPattern);
       templates.push(normalized);
     } catch (error) {
       issues.push(error instanceof Error ? error.message : String(error));
     }
   }
 
-  return ensureBuiltinTemplate(templates);
+  const normalizedTemplates = ensureBuiltinTemplate(templates);
+  for (const issue of validateFilenameTemplates(normalizedTemplates)) {
+    issues.push(issue.templateId ? `settings.filenameTemplates[${issue.templateId}] ${issue.message}` : issue.message);
+  }
+  return normalizedTemplates;
 }
 
 function validateRecentProjectPaths(value: unknown, path: string): string[] {
@@ -171,10 +190,15 @@ function validateRecentProjectPaths(value: unknown, path: string): string[] {
 
 function validateFilenameTemplate(value: unknown, path: string): FilenameTemplate {
   const record = assertRecord(value, path);
+  const pattern = assertNonEmptyString(record.pattern, `${path}.pattern`);
+  const patternIssues = validateFilenameTemplatePattern(pattern);
+  if (patternIssues.length > 0) {
+    throw new Error(`${path}.pattern ${patternIssues[0]}`);
+  }
   return {
     id: assertNonEmptyString(record.id, `${path}.id`),
     name: assertNonEmptyString(record.name, `${path}.name`),
-    pattern: assertNonEmptyString(record.pattern, `${path}.pattern`),
+    pattern,
     builtin: record.builtin === undefined ? undefined : assertBoolean(record.builtin, `${path}.builtin`)
   };
 }

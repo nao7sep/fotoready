@@ -77,6 +77,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     await saveSettings(ctx.paths.settingsPath, ctx.settings);
     return ctx.settings;
   });
+  ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
   ipcMain.handle("project.new", async (_event, name?: string) => publishResult(ctx.projectSession.newProject(name)));

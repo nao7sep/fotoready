@@ -25,6 +25,10 @@ export class VisionQueue {
     await this.#apiKeys.set("gemini", value);
   }
 
+  async hasGeminiApiKey(): Promise<boolean> {
+    return this.#apiKeys.has("gemini");
+  }
+
   async runForTask(project: Project, taskId: string): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
@@ -43,7 +47,7 @@ export class VisionQueue {
 
       const apiKey = await this.#apiKeys.get("gemini");
       if (!apiKey) {
-        throw new Error("Gemini API key is not configured.");
+        throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
 
       const provider = new GeminiVisionProvider(apiKey);
@@ -96,11 +100,68 @@ async function prepareVisionInput(stagedPath: string, longEdge: number): Promise
 
 function visionError(error: unknown): TaskError {
   const known = error instanceof Error ? error : new Error(String(error));
+  const message = classifyVisionMessage(error, known.message);
   return {
     stage: "vision",
-    message: known.message,
+    message,
     detail: known.stack ?? null,
     occurredAt: nowIso(),
-    retryable: /429|rate|timeout|network|5\d\d/i.test(known.message)
+    retryable: isVisionRetryable(error, known.message)
   };
+}
+
+function classifyVisionMessage(error: unknown, fallback: string): string {
+  const raw = `${fallback} ${readErrorPayload(error)}`.toLowerCase();
+  const status = readErrorStatus(error);
+
+  if (raw.includes("api key is missing")) {
+    return "Gemini API key is missing. Open Settings and save a key, then retry.";
+  }
+  if (status === 401 || status === 403 || /\bunauthori[sz]ed\b|\bforbidden\b|\binvalid api key\b|\bauth/i.test(raw)) {
+    return "Gemini authentication failed. Check the saved API key in Settings, then retry.";
+  }
+  if (status === 429 || /\brate limit\b|\bquota\b|\bresource has been exhausted\b/.test(raw)) {
+    return "Gemini rate limit reached. Wait a moment, then retry.";
+  }
+  if (status !== null && status >= 500) {
+    return "Gemini is temporarily unavailable. Retry in a moment.";
+  }
+  if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn/i.test(raw)) {
+    return "Couldn't reach Gemini. Check your network connection and retry.";
+  }
+  if (/\bsafety\b|\bcontent policy\b|\bpolicy\b|\bblocked\b|\bprohibited\b|\bdisallow/i.test(raw)) {
+    return "Gemini refused this image because of a safety or content policy restriction.";
+  }
+  if (/\binvalid describe response\b|\binvalid describe\b|\bstrict json\b|\bjson\b/.test(raw)) {
+    return "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.";
+  }
+  return fallback;
+}
+
+function isVisionRetryable(error: unknown, message: string): boolean {
+  const raw = `${message} ${readErrorPayload(error)}`.toLowerCase();
+  const status = readErrorStatus(error);
+
+  if (raw.includes("api key is missing")) return true;
+  if (status === 401 || status === 403) return true;
+  if (status === 429 || (status !== null && status >= 500)) return true;
+  if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn/i.test(raw)) return true;
+  if (/\binvalid describe response\b|\binvalid describe\b|\bjson\b/.test(raw)) return true;
+  if (/\bsafety\b|\bcontent policy\b|\bpolicy\b|\bblocked\b|\bprohibited\b|\bdisallow/i.test(raw)) return false;
+  return true;
+}
+
+function readErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : null;
+}
+
+function readErrorPayload(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  try {
+    return JSON.stringify((error as { error?: unknown }).error ?? "");
+  } catch {
+    return "";
+  }
 }

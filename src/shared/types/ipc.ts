@@ -24,7 +24,7 @@ export type ProjectSnapshot = {
   activeTaskId: string | null;
 };
 
-export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "category" | "defaultParams">;
+export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "category" | "defaultParams" | "previewBehavior">;
 
 export type PreviewResult = {
   taskId: string;

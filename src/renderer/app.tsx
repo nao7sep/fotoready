@@ -13,7 +13,6 @@ import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
-import { opUsesInputCanvas } from "./canvas/op-overlays";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -65,13 +64,13 @@ function App(): React.JSX.Element {
   const previewRequest = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpIndex !== null ? activeTask.pipeline.ops[selectedOpIndex] : null;
-    // Cards that render canvas overlays (crop handles, redact rects, watermark placeholders,
-    // white-balance sample picker) show their INPUT — the previous card's output — so the
-    // overlays are drawn on the correct base image and aren't doubled.
-    // All other cards (rotate, resize, effects…) include themselves so edits show live.
+    // Cards with previewBehavior "show-input" (crop, redact, watermark, white-balance) display
+    // the image *before* their own op so the overlay rectangle lines up with the unaltered base.
+    // Other cards include themselves so slider edits appear live.
+    const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;
     const truncateOpsAt =
       selectedOpIndex !== null
-        ? selectedOp && opUsesInputCanvas(selectedOp.type)
+        ? selectedDefinition?.previewBehavior === "show-input"
           ? selectedOpIndex
           : selectedOpIndex + 1
         : null;
@@ -84,7 +83,7 @@ function App(): React.JSX.Element {
       output: activeTask.pipeline.output
     });
     return { taskId: activeTask.id, truncateOpsAt, cacheKey };
-  }, [activeTask, selectedOpIndex]);
+  }, [activeTask, opCatalog, selectedOpIndex]);
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(

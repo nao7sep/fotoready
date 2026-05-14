@@ -19,7 +19,10 @@ const aliasRoots = {
 
 const allowedImports = {
   shared: new Set(["shared"]),
-  core: new Set(["shared", "core"]),
+  // `core` includes the op modules; their `apply` functions call into runtime image-pipeline
+  // code (sharp wrappers, LUT sampling). The renderer-facing op metadata is still pure data
+  // via `OpDefinition` in `@shared`, so the renderer-core boundary is unaffected.
+  core: new Set(["shared", "core", "runtime"]),
   runtime: new Set(["shared", "core", "runtime"]),
   adapters: new Set(["shared", "core", "runtime", "adapters"]),
   main: new Set(["shared", "core", "runtime", "adapters", "main"]),

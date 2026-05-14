@@ -18,17 +18,17 @@ FotoReady is a session-only desktop image editor. The app holds an in-memory `Pr
 ```
 src/
   main/         Node-side Electron main process
-  preload/      Context bridge that exposes the typed api to the renderer
-  renderer/     React + Konva UI
+  preload/      Context bridge exposing the typed api to the renderer
+  renderer/     React + Konva UI; per-op cards/overlays live under renderer/ops/
   runtime/      Pure image-pipeline code (used by main and worker)
-  core/         Pure domain logic (op definitions, slug/naming rules)
+  core/ops/     Op modules — one file per op, apply + validate + meta
   adapters/     Outbound integrations (Sharp/libvips wrappers, exiftool, Gemini, .cube LUT loader, secure store)
   shared/       Types, validation, constants, defaults — imported by both main and renderer
 build/          App icons, electron-builder assets
 scripts/        Maintenance scripts (icon generation, import-boundary lint)
 ```
 
-Path aliases are defined in `electron.vite.config.ts` and `tsconfig.json`. Use them in new code:
+Path aliases (defined in `electron.vite.config.ts` and `tsconfig.json`):
 
 | Alias | Resolves to |
 | --- | --- |
@@ -39,27 +39,28 @@ Path aliases are defined in `electron.vite.config.ts` and `tsconfig.json`. Use t
 | `@main` | `src/main` |
 | `@renderer` | `src/renderer` |
 
-Renderer can only import `@shared` and `@renderer` — never `@main`, `@runtime`, `@adapters`, or `@core`. The boundary is enforced loosely by Vite config; the script `scripts/check-import-boundaries.mjs` audits it. Keep it that way.
+Renderer can only import `@shared` and `@renderer` — never `@main`, `@runtime`, `@adapters`, or `@core`. The boundary is checked by `scripts/check-import-boundaries.mjs`. Keep it that way.
 
 ## Process model
 
 - **Main process** (`src/main/index.ts` → `bootstrap.ts`) owns: user-data paths, settings file, all queues, the Sharp worker pool, the `ProjectSession`, all `ipcMain.handle` routes.
-- **Preload** (`src/preload/index.ts`) builds a typed `FotoReadyApi` object and exposes it as `window.api`. Every call is a thin `ipcRenderer.invoke(channel, ...args)`. If you add an IPC handler in `router.ts`, you also add it here.
+- **Preload** (`src/preload/index.ts`) builds a typed `FotoReadyApi` object and exposes it as `window.api`. If you add an IPC handler in `router.ts`, you also add it here.
 - **Renderer** (`src/renderer/app.tsx`) is a single React tree. It calls `window.api.*`, never `ipcRenderer` directly. It listens for `project.snapshot` and `queue.snapshot` events to refresh state.
-- **Worker** (`src/main/workers/pipeline-worker.ts`) runs inside Piscina worker threads. It receives `WorkerJob` objects and returns `WorkerResult`. The pool is created once at bootstrap.
+- **Worker** (`src/main/workers/pipeline-worker.ts`) runs inside Piscina worker threads. The pool is created once at bootstrap; it is required (not optional).
 
 ## Data model (`@shared/types`)
 
-- `Project` — `{ version, name, outputDir, settings, originals[], tasks[] }`. Lives only in `ProjectSession`'s memory. The `version`, `name`, and `settings` fields are vestigial from the removed project-file format; they exist because the rename service and validators still touch them, but they're not user-visible.
+- `Project` — `{ outputDir, originals[], tasks[] }`. `outputDir: string | null` (null means "save next to source").
 - `Original` — content-addressable record of an imported source file: `id`, `sourcePath`, `sourceHash`, dimensions, format.
-- `Task` — `{ id, originalId, pipeline, status, output, error, ... }`. The unit of work.
-- `TaskStatus` — **`pending → queued → processing → done` / `error`**.
+- `Task` — `{ id, originalId, analyzeContent, customSlug, pipeline, status, output, error, createdAt, updatedAt }`.
+- `TaskStatus` — `pending → queued → processing → done` / `error`.
   - `pending`: editable. Ops, output settings, custom slug can all be changed.
   - `queued`: locked. Sitting in the processing queue.
   - `processing`: actively running in the worker.
   - `done`: file written. `task.output.stagedPath` points to it.
   - `error`: failed. `task.error` describes the stage and message; user can retry.
-- `Pipeline` — `{ specVersion, ops[], output, ... }`. `ops` is the ordered list of `OpInstance { type, params, enabled }`.
+- `Pipeline` — `{ ops, output }`. `ops` is the ordered list of `OpInstance { type, params, enabled }`. `output` is the encoding settings; nothing else lives on Pipeline.
+- `OpDefinition` (renderer-safe) — `{ type, label, category, defaultParams, previewBehavior }`. `previewBehavior` is `"show-input"` for ops that paint canvas overlays (crop, redact-*, watermark-*, white-balance) and `"show-output"` for everything else.
 
 ## IPC contract
 
@@ -71,76 +72,89 @@ The full surface is in `src/shared/types/ipc.ts` (`FotoReadyApi`). Every channel
 
 If any of those three are missing, the call will fail silently at runtime in the renderer. There is no auto-generation.
 
-Channel namespaces in use:
-
-| Namespace | What it does |
-| --- | --- |
-| `system.*` | App info, logging, file pickers, OS reveal-in-folder |
-| `settings.*` | Read/write `~/.fotoready/settings.json`, Gemini key storage |
-| `project.*` | Add/remove originals, select original, change output dir |
-| `task.*` | Edit pipeline, save / cancel / fork / delete a task |
-| `preview.*` | Render task preview, original thumbnail |
-| `vision.*` | Run Gemini description for a task (opt-in) |
-| `rename.*` | Preview / run rename templates over done tasks |
-| `ops.list` | Get op catalog (for the ops panel) |
-| `luts.list` | List available `.cube` LUTs |
-| `caches.*` | Inspect / clear `~/.fotoready/cache/` |
-| `queues.snapshot` | Current queue counters |
+Channel namespaces: `system.*`, `settings.*`, `project.*`, `task.*`, `preview.*`, `vision.*`, `rename.*`, `ops.list`, `luts.list`, `caches.*`, `queues.snapshot`.
 
 **Events** (main → renderer, sent via `webContents.send`):
 - `project.snapshot` — fires after any mutation. Carries the full `ProjectSnapshot`.
 - `queue.snapshot` — fires when queue counts change.
 
-The renderer subscribes via `api.events.onProjectSnapshot` / `onQueueSnapshot`.
-
 ## ProjectSession (`src/main/project/session.ts`)
 
-The single source of truth on the main side. It holds the in-memory `Project` plus the `activeTaskId`. It mediates between IPC handlers and the queues. All mutations go through it. Notable methods:
+The single source of truth on the main side. It holds the in-memory `Project` plus the `activeTaskId`. It mediates between IPC handlers and the queues. All mutations go through it.
 
-- `addOriginals` / `selectOriginal` / `removeOriginal` — manage the originals list. `selectOriginal` either reuses a never-touched task or spawns a new one.
-- `addOp` / `updateOpParam` / `setOpEnabled` / `removeOp` — pipeline editing. All require `status === "pending"` (enforced by `editableTask`).
-- `enqueueSave(taskId)` — flips status to `queued` and calls `processingQueue.enqueueTask` without awaiting. The queue worker handles `processing → done/error` and emits snapshots.
-- `enqueueSaveAll` / `cancelTask` / `cancelAll` — bulk and cancel operations.
+- The `ProcessingQueue`, `QualityQueue`, `VisionQueue`, and `PipelineWorkerPool` are constructor-required (never null).
+- `addOriginals` / `selectOriginal` / `removeOriginal` — manage the originals list.
+- `addOp` / `updateOpParam` / `setOpEnabled` / `removeOp` — pipeline editing. All require `status === "pending"` (enforced by `editableTask`). They call into the OpModule registry to validate.
+- `enqueueSave(taskId)` — flips status to `queued` and calls `processingQueue.enqueueTask` without awaiting.
 - `runVision` — explicit Gemini call (never run as a side effect of save).
-- `previewRename` / `runRename` — template-driven file rename for `done` tasks.
-
-`ProjectSession` does **not** touch the filesystem for project data. The only on-disk state owned by main is `~/.fotoready/settings.json`, the Gemini key store, caches, and logs. See `getAppPaths()` in `src/main/paths.ts`.
 
 ## Processing queue (`src/main/queues/processing-queue.ts`)
 
 - Backed by `p-queue`, concurrency = `settings.workerPoolSize`.
-- `enqueueTask(project, taskId)` is fire-and-forget. The Task is reserved synchronously by `ProjectSession` (status flipped to `queued` before the IPC handler returns).
-- Tracks `#queuedTaskIds`, `#activeTaskIds`, `#cancelledTaskIds`. Cancel works by marking the id; when the queue worker dequeues it, it bails before calling `processTask`. Cancel cannot stop a task that is already running in the worker.
+- Cancel works by marking the id; when the queue worker dequeues it, it bails before calling `processTask`. Cancel cannot stop a task that is already running in the worker.
 - Quality-of-source facts (JPEG quality estimate, etc.) are looked up via `QualityQueue` right before processing.
 
 ## Image pipeline (`src/runtime/pipeline-runner.ts`)
 
 Single entry point: `runPipeline(pipeline, ctx)`. Two output modes:
 
-- `ctx.outputPath` set → encode and write the final file. Returns `{ kind: "file", outputPath, outputHash, bytes, appliedPipeline }`.
-- `ctx.outputPath` unset, `ctx.previewLongEdge` set → resize *first* to `previewLongEdge` (long-edge fit), then run ops on the small image, then return raw RGBA. Returns `{ kind: "buffer", bytes, width, height, appliedPipeline }`.
+- `ctx.outputPath` set → encode and write the final file. Returns `{ kind: "file", ... }`.
+- `ctx.outputPath` unset, `ctx.previewLongEdge` set → resize *first* to `previewLongEdge` (long-edge fit), then run ops on the small image, then return raw RGBA. Returns `{ kind: "buffer", ... }`.
 
-**Important invariants:**
-
-- The preview path resizes *before* applying ops. This is what makes editing feel instant. All ops that use fractional coordinates (crop, redact, watermark) are scale-invariant, so the same params produce the same composition at any resolution.
-- After the resize-first proxy, `runPipeline` re-creates a fresh `sharp` instance from raw RGBA so subsequent `sharp.metadata()` calls return the *current* dimensions, not the input file's.
-- At the end of the buffer path, the result uses `toBuffer({ resolveWithObject: true })` to get the post-rotation/post-crop dimensions. Don't rely on `sharp.metadata()` to know the output size — it returns input metadata.
+The runner is a simple loop over `pipeline.ops`. For each enabled op it calls `module.apply(work, op.params, ctx)` from the registry; if the op is `metadataOnly` it is skipped (consumed later in the metadata stage). After ops that change dimensions (`crop`, `resize`, `rotate`) the runner materializes the sharp instance so subsequent ops see accurate width/height.
 
 Save path (`src/main/queues/processing.ts`):
 
 - `stagedOutputPath(project, task, sourcePath)` composes `{outputDir}/{originalName}-{nanoid8}.{ext}`.
 - `resolveOutputDir(outputDir, sourcePath)`:
-  - empty / whitespace → **`path.dirname(sourcePath)`** (save next to the original).
+  - null / empty / whitespace → **`path.dirname(sourcePath)`** (save next to the original).
   - absolute → use as-is.
   - relative → resolved against `process.cwd()`.
 
-## Ops (`src/core/ops`)
+After rendering, `metadataPolicy` walks the pipeline and lets each metadata-only op contribute to the `MetadataDecision` (keep + inject). `strip-metadata` sets `keep`; `inject-metadata` merges `inject`. No more `switch(op.type)` — each op declares `contributeMetadata` on its module.
 
-Op definitions live in `geometry.ts`, `tone.ts`, `effects.ts`, `redaction.ts`, `watermark.ts`, `metadata.ts`. Each calls `registerOp({ type, label, category, defaultParams, paramScaling, schema, visible })`. The catalog is read by `catalog.ts` and exposed to the renderer via `api.ops.list`.
+## Ops — the plug-and-play unit (`src/core/ops/`)
 
-The execution side lives in `src/runtime/pipeline-runner.ts` in the giant `applyOp` switch. **To add a new op you must edit both places**: register in `src/core/ops/`, handle the `case` in `applyOp`, and add validation in `src/shared/validation/ops.ts`. The renderer's per-op param UI in `src/renderer/components/panels/ops-panel.tsx` also needs a branch.
+The single most important architectural choice. **Every op is one file per side**:
 
-The primary geometry workflow now exercises **crop**, **rotate**, and **resize** directly in the renderer. Other registered ops should still be treated as less-proven until smoke-tested.
+- **`src/core/ops/<type>.ts`** — main side. Exports an `OpModule<P>` and calls `registerOp(...)`. Contains:
+  - `type`, `label`, `category`, `defaultParams`, `previewBehavior`
+  - `validate(params)` — runtime params validator
+  - `apply(image, params, ctx)` — pure sharp transformation (omitted for `metadataOnly` ops)
+  - `contributeMetadata?(params, decision)` — for `strip-metadata` and `inject-metadata`
+- **`src/renderer/ops/<type>.tsx`** — renderer side. Exports an `OpRenderer<P>`. Contains:
+  - `Card` — the React component shown inside the op card
+  - `Overlay?` — optional Konva overlay drawn over the canvas
+  - `onImageClick?` + `consumesImageClick?` — for ops like `white-balance` that sample by clicking the preview
+
+The two sides are bridged only by the op-type string. Cards never import other cards. Overlays never import other overlays. The pipeline runner doesn't know which ops exist; it just calls `getOpModule(op.type)?.apply`. Same for the editor canvas: it iterates the pipeline and renders whatever Overlay each op exposes.
+
+### Registries
+
+- `src/core/ops/registry.ts` — main-side registry. `getOpModule(type)`, `listOpDefinitions()`, `requireOpModule(type)`.
+- `src/core/ops/catalog.ts` — imports each `<type>.ts` once (the import side-effect calls `registerOp`).
+- `src/renderer/ops/index.ts` — renderer-side registry. `getOpRenderer(type)`.
+
+### Adding a new op
+
+1. Add `src/core/ops/<name>.ts` exporting an `OpModule` and calling `registerOp`.
+2. Add `"./<name>"` to `src/core/ops/catalog.ts`.
+3. Add `src/renderer/ops/<name>.tsx` exporting an `OpRenderer`.
+4. Add it to `allRenderers` in `src/renderer/ops/index.ts`.
+5. If the op needs a new IPC channel, see "A new IPC channel" below.
+
+That's it — no switches to update, no per-op branches in pipeline-runner, ops-panel, or editor-canvas.
+
+### Shared overlay helpers
+
+- `src/renderer/ops/_overlay-primitives.tsx` — `OverlayRect`, `CropDarkenMask`, `clampFractionRect`, `imageBoundsFromSize`, `anchorCanvasPos`, etc. Anything used by more than one overlay lives here.
+- `src/renderer/ops/_redact-overlay.tsx` — the draggable-first-rect-plus-static-rest pattern shared by the three redact ops.
+- `src/renderer/ops/_anchor-picker.tsx` — the 3×3 anchor grid used by both watermark ops.
+- `src/renderer/components/canvas/interactive-overlays.tsx` — the `InteractiveOverlayRect` (Konva Rect + Transformer) used by crop and redact overlays.
+
+### Execution-order hint
+
+`reorderHintFor(op)` returns `"after-resize"` for `unsharp-mask` with `outputSharpen: true`. The runner moves any such op to immediately after the first enabled resize op. Today this is the only execution-order coupling between ops. If you find yourself adding more, push back — the user can usually just place the op where they want it.
 
 ## Renderer layout
 
@@ -152,16 +166,16 @@ DOM skeleton:
 .app-shell                   (grid: top-bar / workspace / status-bar; height = 100vh)
   .top-bar                   Output-dir button, histogram toggle, settings, menu
   .workspace                 4-pane grid
-    OriginalsPanel           thumbnails list (scrolls) + fixed footer with "Drop or add"
+    OriginalsPanel
     .workspace-splitter
-    TasksPanel               tasks list (scrolls) + fixed footer with Save all / Cancel all / Rename
+    TasksPanel
     .workspace-splitter
     .editor-panel
       .preview-toolbar       image details + Save/Cancel/Fork/Retry/Delete actions
       .canvas-frame          EditorCanvas (Konva), plus HistogramOverlay if toggled on
       .error-strip           shown when active task is errored
     .workspace-splitter
-    OpsPanel                 op cards + add-op buttons + output controls (scrolls)
+    OpsPanel                 op cards (rendered via op renderers) + add-op buttons + output controls
   .status-bar                queue counters, errors button, version
 ```
 
@@ -170,71 +184,65 @@ Key rules:
 - The shell is locked to `height: 100vh; overflow: hidden`. Each scrolling region (originals list, tasks list, ops panel) handles its own overflow. The body never scrolls.
 - Panels use `flex-direction: column` with the list at `flex: 1 1 0` so footers stay fixed.
 - The preview area must never be truncated. Don't add fixed-height sections inside `.editor-panel` that could push the canvas-frame out.
-- Crop / rotate / resize are selected and configured in the ops panel. The preview stays focused on direct-manipulation guides such as the draggable crop box and rotate framing guides.
+- Crop / rotate / resize are selected and configured in the ops panel. The preview hosts direct-manipulation overlays such as the draggable crop box and rotate framing guides.
 - All colors come from CSS custom properties defined on `:root`. The app is light-only by design; the theme picker has been removed.
+
+### Preview pipeline at a glance
+
+1. User edits a task → renderer effect re-runs → `api.preview.render(taskId, options?)`.
+2. Main: `ProjectSession.renderPreview` → `renderTaskPreview` (`src/main/preview/preview-service.ts`).
+3. Worker pool: `renderBuffer({ previewLongEdge })` → `pipeline-worker.ts` → `runPipeline(pipeline, { previewLongEdge })`.
+4. `runPipeline` decodes, resizes long-edge to `previewLongEdge`, applies ops via the registry, returns raw RGBA.
+5. `preview-service` wraps RGBA in a `sharp(raw, { raw: ... }).png()`, returns a base64 data URL.
+6. Renderer's `EditorCanvas` loads the data URL into Konva and fits it to the canvas frame.
+
+### Per-card chain preview
+
+When an op card is selected (`selectedOpIndex = N`), the preview reflects the image *after* applying ops 0…N. The behavior is driven by each op's `previewBehavior`:
+
+- `"show-input"` (crop, redact-*, watermark-*, white-balance): `truncateOpsAt = selectedOpIndex` (preview shows the image *before* the selected op).
+- `"show-output"` (rotate, resize, tone, effects …): `truncateOpsAt = selectedOpIndex + 1` (slider edits appear live).
+
+The renderer reads `previewBehavior` from the IPC op catalog. No hard-coded list in app.tsx.
+
+### Canvas overlays
+
+`EditorCanvas` iterates `task.pipeline.ops` and, for each enabled op, asks `getOpRenderer(op.type)` for an `Overlay` and renders it. Each overlay receives:
+
+- `params`, `opIndex`, `selected` (true if it's the active card)
+- `ctx`: `{ imageSize, longEdge, imageBounds, placement, stageSize, originalAspectRatio }`
+- `onParamsChange(patch)` — commit a partial param update
+
+Overlays own their own drag/draft state internally. The canvas does no per-op switching.
+
+For stage-level clicks (today only `white-balance`), the canvas asks the currently-selected op's renderer for `onImageClick` and forwards the local image coordinates.
 
 ## Settings
 
 - Lives at `~/.fotoready/settings.json`. Loaded on bootstrap, normalized through `normalizeGlobalSettings` (`src/shared/validation/settings.ts`), and written via `saveSettings` after every `settings.update`.
 - Add new fields in: `src/shared/types/settings.ts` (type), `src/shared/defaults.ts` (default), `src/shared/validation/settings.ts` (validator). All three are required.
 - User-facing toggle UI lives in `src/renderer/components/modals/settings-modal.tsx`.
-- The renderer also calls `api.settings.update({ showHistogram: ... })` directly from the top-bar toggle — it's the same channel any settings edit goes through, just with one field at a time.
-
-## Preview pipeline at a glance
-
-1. User edits a task → `task.updatedAt` changes → renderer effect re-runs → `api.preview.render(taskId, options?)`.
-2. Main: `ProjectSession.renderPreview` → `renderTaskPreview` (`src/main/preview/preview-service.ts`).
-3. Worker pool: `renderBuffer({ previewLongEdge })` → `pipeline-worker.ts` → `runPipeline(pipeline, { previewLongEdge })`.
-4. `runPipeline` decodes, resizes long-edge to `previewLongEdge`, applies ops, returns raw RGBA.
-5. `preview-service` wraps RGBA in a `sharp(raw, { raw: ... }).png()`, returns a base64 data URL.
-6. Renderer's `EditorCanvas` loads the data URL into Konva and fits it to the canvas frame.
-
-### Per-card chain preview
-
-When an op card is selected (`selectedOpIndex = N`), the preview reflects the image *after* applying ops 0…N:
-
-- **Ops with canvas overlays** (`crop`, `redact-*`): `truncateOpsAt = selectedOpIndex` (the preview shows the image *before* the selected op, so dragging the crop/redact rectangle on canvas is stable — the selection box is applied visually, not through the pipeline).
-- **All other ops** (`rotate`, `resize`, tone, effects …): `truncateOpsAt = selectedOpIndex + 1` (the op itself is included so parameter changes (e.g. slider) appear in real-time).
-
-When no card is selected, all ops are applied (`truncateOpsAt = null`).
-
-### Canvas overlays and overlay gating
-
-`PipelineOverlays` in `EditorCanvas` renders interactive annotations over the preview. Overlays render **only** for the currently selected op (`opIndex === selectedOpIndex`), so switching away from a card hides its handles.
-
-- **Crop**: darken-mask + `InteractiveOverlayRect` with aspect-ratio lock support.
-- **Redact**: draggable `InteractiveOverlayRect` per redaction region.
-- **White balance**: click anywhere on the preview to sample a neutral point.
-- **Watermark text / image**: draggable label / placeholder rect. Drag end sets `anchor="top-left"` and updates `marginX`/`marginY` as fractions of `longEdge` from the new top-left position.
-- **Rotate**: dashed border + crosshair guide lines (visual only, no interaction).
-
-Default `previewLongEdge` is 256 (set deliberately low so the resize path is visually obvious). Bump it once the team is happy.
+- `visionProjectContext` (replaces the old project-level field) is a global setting; the vision queue reads it and forwards to Gemini.
 
 ## What was removed and won't come back without a redesign
 
-- **Project file format.** `loadProject` / `saveProject` / `createEmptyProject(name, …)` are gone. `createEmptyProject(outputDir)` lives in `src/shared/defaults.ts`.
+- **Project file format.** `loadProject` / `saveProject` are gone. `createEmptyProject(outputDir)` lives in `src/shared/defaults.ts`.
+- **`Project.version`, `Project.name`, `Project.settings`.** All vestigial; deleted.
+- **`Task.outputFormatOverride`, `outputQualityOverride`, `metadataStripOverride`.** Redundant aliases for the values already on `task.pipeline.output` and the `strip-metadata` op. Deleted.
+- **`Pipeline.appliedColorNormalization` / `sourceSnapshot` / `toolVersions` / `specVersion`.** Constructed but never read. Deleted.
+- **`OpDefinition.schema` / `paramScaling` / `visible`.** Pure documentation, no readers. Deleted.
 - **Recent projects list / Open / Save as buttons.** All references to `projectPath`, `lastProjectPath`, `recentProjectPaths` have been deleted.
 - **`source-resolver.ts`** (rehoming source files by hash). Originals now must stay where the user added them from. If a source file is moved during the session, processing of that task will fail with a `processing` error.
 - **Queue pause / resume.** Replaced by per-task cancel and "Cancel all".
-- **Dark theme.** App is light-only.
+- **`runTaskInline` / `queueSnapshotFromProject` fallback.** The processing queue and worker pool are now required.
+- **Dark theme, language picker, camera-timezone, max-concurrent, sidecar-location, strip-gps/thumbnail flags.** Vestigial settings with no readers. Deleted.
 - **Vision auto-trigger on save.** `runVision` is now strictly opt-in.
 
 If a future task wants any of these back, treat it as a fresh design — don't try to revive the deleted code from git.
 
-## Known structural quirks
-
-- The `Project.version`, `Project.name`, and `Project.settings` fields are still set (to constants) so the rename service and op validators can keep their shapes. Consider folding `Project` into a slimmer "session" type the next time the rename service is touched.
-- `Original.sourceHash` is computed but no longer used for path recovery. It's still useful as a deduplication key (we already prevent re-adding the same content).
-- `processTask` accepts a `sourceFacts` param (JPEG quality estimate). The QualityQueue is fire-and-forget; if facts haven't arrived yet by save time, the JPEG strategy "match-source-quality" falls back to `settings.jpegQualityOnDetectionFailure`. That's intentional.
-- `ProcessingQueue` reuses the in-memory `Project` reference. Don't replace the project object wholesale (e.g. with `structuredClone`) — mutate it in place, then emit a snapshot.
-
 ## Adding things — quick recipes
 
-**A new op type.**
-1. Create / edit a file in `src/core/ops/` and call `registerOp`.
-2. Add a `case` in `applyOp` (`src/runtime/pipeline-runner.ts`).
-3. Add validation for the params in `src/shared/validation/ops.ts`.
-4. Add a UI branch in `OpParams` (`src/renderer/components/panels/ops-panel.tsx`).
+**A new op type.** See "Adding a new op" above. Two files, two registry entries; no switch edits anywhere.
 
 **A new IPC channel.**
 1. Add a method on `FotoReadyApi` in `src/shared/types/ipc.ts`.
@@ -255,7 +263,7 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 
 - `npm run dev` — electron-vite hot reload for both main and renderer.
 - `npm run build` — `tsc --noEmit` + production bundle. Run before committing structural changes.
-- `npm test` — vitest. Four tiny test files today; add more when you touch validators or pure utilities.
+- `npm test` — vitest. Add per-op tests under `src/core/ops/<name>.test.ts` when you touch validators or apply logic.
 - `npm run check:imports` — boundary lint.
 - `npm run package` — electron-builder to `release/`. Mac code-signing is intentionally off.
 
@@ -269,8 +277,10 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 | Source-facts cache | `~/.fotoready/cache/source-facts.json` |
 | Vision cache | `~/.fotoready/cache/vision-facts.json` |
 | User LUTs | `~/.fotoready/luts/` |
-| Saved images | `project.outputDir` (empty → next to source; non-empty → that path) |
+| Saved images | `project.outputDir` (null → next to source; non-empty → that path) |
 
 ## When the next AI picks this up
 
 Read this doc first. If something here disagrees with the code, the code is right — fix the doc as part of your change. If you remove a section, leave a line saying *why* so the next reader doesn't try to restore it. If you add a new top-level concept, give it a section here.
+
+**The single biggest invariant**: ops are independent and composable. Any op may follow any other op any number of times. Cards must not know about each other; overlays must not know about each other. If you find yourself reaching for a cross-op coupling, push back and prefer a per-op `executionStage` / `reorderHint` hook instead.

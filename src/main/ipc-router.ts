@@ -4,16 +4,20 @@ import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/session";
 import type { AppLogger } from "@main/logger";
 import type { GlobalSettings } from "@shared/types/settings";
+import type { UiState } from "@shared/types/state";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { saveSettings } from "@main/settings-io";
+import { saveState } from "@main/state-io";
 import { listLuts } from "@main/lut-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
+import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
 
 export type RouterContext = {
   paths: AppPaths;
   settings: GlobalSettings;
+  uiState: UiState;
   projectSession: ProjectSession;
   logger: AppLogger;
   version: string;
@@ -76,6 +80,18 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
+
+  ipcMain.handle("state.get", async () => ctx.uiState);
+  ipcMain.handle("state.update", async (_event, patch: Partial<UiState>) => {
+    const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
+    const { state, issues } = normalizeUiState(candidate, ctx.uiState);
+    Object.assign(ctx.uiState, state);
+    for (const issue of issues) {
+      ctx.logger.warn({ mod: "main.ipc", issue }, "state patch contained invalid data");
+    }
+    await saveState(ctx.paths.statePath, ctx.uiState);
+    return ctx.uiState;
+  });
 
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
   ipcMain.handle("project.setOutputDirFromDialog", async (event) => {

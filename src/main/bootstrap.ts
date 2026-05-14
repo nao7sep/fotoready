@@ -1,9 +1,10 @@
 import { BrowserWindow, app } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { configureUserDataPath, getAppPaths } from "./paths";
+import { getAppPaths } from "./paths";
 import { createLogger } from "./logger";
 import { loadSettings } from "./settings-io";
+import { loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
 import { ProjectSession } from "./session";
 import { VisionQueue } from "./queues/vision";
@@ -14,12 +15,12 @@ import { APP_NAME } from "@shared/constants";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function bootstrap(): Promise<void> {
-  configureUserDataPath();
   await app.whenReady();
 
   const paths = getAppPaths();
   const logger = await createLogger(paths.logsDir);
   const settings = await loadSettings(paths.settingsPath);
+  const uiState = await loadState(paths.statePath);
   const visionQueue = new VisionQueue(paths, settings);
   const pipelineWorkerPool = new PipelineWorkerPool(settings.workerPoolSize);
   const processingQueue = new ProcessingQueue(settings, pipelineWorkerPool);
@@ -29,6 +30,7 @@ export async function bootstrap(): Promise<void> {
   registerIpcHandlers({
     paths,
     settings,
+    uiState,
     projectSession,
     logger,
     version: app.getVersion()

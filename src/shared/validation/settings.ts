@@ -54,8 +54,7 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     hashSuffixLength: readValue(source, "hashSuffixLength", fallback.hashSuffixLength, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 2, max: 16 })),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 32 })),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64 })),
-    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 })),
-    showHistogram: readValue(source, "showHistogram", fallback.showHistogram, issues, assertBoolean)
+    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
   };
 
   if (settings.slugMaxWords < settings.slugMinWords) {

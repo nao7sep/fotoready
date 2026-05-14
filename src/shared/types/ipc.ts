@@ -1,4 +1,5 @@
 import type { GlobalSettings } from "./settings";
+import type { UiState } from "./state";
 import type { Project } from "./project";
 import type { OpDefinition } from "./op";
 
@@ -85,6 +86,10 @@ export type FotoReadyApi = {
     update(patch: Partial<GlobalSettings>): Promise<GlobalSettings>;
     hasGeminiApiKey(): Promise<boolean>;
     setGeminiApiKey(apiKey: string): Promise<void>;
+  };
+  state: {
+    get(): Promise<UiState>;
+    update(patch: Partial<UiState>): Promise<UiState>;
   };
   project: {
     current(): Promise<ProjectSnapshot>;

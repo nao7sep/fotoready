@@ -65,8 +65,7 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     defaultWatermarkImage: "",
     workerPoolSize,
     previewLongEdge: 256,
-    previewDebounceMs: 150,
-    showHistogram: false
+    previewDebounceMs: 150
   };
 }
 

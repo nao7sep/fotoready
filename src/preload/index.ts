@@ -15,6 +15,10 @@ const api: FotoReadyApi = {
     hasGeminiApiKey: () => ipcRenderer.invoke("settings.hasGeminiApiKey"),
     setGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings.setGeminiApiKey", apiKey)
   },
+  state: {
+    get: () => ipcRenderer.invoke("state.get"),
+    update: (patch) => ipcRenderer.invoke("state.update", patch)
+  },
   project: {
     current: () => ipcRenderer.invoke("project.current"),
     setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),

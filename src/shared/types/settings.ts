@@ -47,5 +47,4 @@ export type GlobalSettings = {
   workerPoolSize: number;
   previewLongEdge: number;
   previewDebounceMs: number;
-  showHistogram: boolean;
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { EditorCanvasPreview } from "./editor-canvas";
 
@@ -10,15 +10,120 @@ type HistogramBins = {
   max: number;
 };
 
+type Position = { x: number; y: number };
+
+const DEFAULT_INSET = 16;
+
 export function HistogramOverlay({
   preview,
   previewState,
-  onClose
+  onClose,
+  position,
+  onPositionChange
 }: {
   preview: EditorCanvasPreview | null;
   previewState: "idle" | "loading" | "error";
   onClose(): void;
+  position: Position | null;
+  onPositionChange(next: Position): void;
 }): React.JSX.Element {
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const [resolvedPosition, setResolvedPosition] = useState<Position | null>(null);
+  const dragRef = useRef<{ originX: number; originY: number; baseX: number; baseY: number } | null>(null);
+
+  // Resolve persisted position against the canvas-frame parent's current size. If the
+  // persisted point would leave the overlay outside the visible canvas (window resize,
+  // monitor change, accidental drag), snap back to the default top-right inset.
+  useLayoutEffect(() => {
+    const element = overlayRef.current;
+    if (!element) return;
+    const parent = element.parentElement;
+    if (!parent) return;
+
+    const rect = element.getBoundingClientRect();
+    const parentRect = parent.getBoundingClientRect();
+    const defaultPos: Position = {
+      x: Math.max(0, parentRect.width - rect.width - DEFAULT_INSET),
+      y: DEFAULT_INSET
+    };
+
+    if (!position) {
+      setResolvedPosition(defaultPos);
+      return;
+    }
+
+    const inBounds =
+      position.x >= 0 &&
+      position.y >= 0 &&
+      position.x + rect.width <= parentRect.width &&
+      position.y + rect.height <= parentRect.height;
+    setResolvedPosition(inBounds ? position : defaultPos);
+  }, [position]);
+
+  function onPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (!resolvedPosition) return;
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(".histogram-overlay-close")) return;
+    event.preventDefault();
+    (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
+    dragRef.current = {
+      originX: event.clientX,
+      originY: event.clientY,
+      baseX: resolvedPosition.x,
+      baseY: resolvedPosition.y
+    };
+  }
+
+  function onPointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const element = overlayRef.current;
+    const parent = element?.parentElement;
+    if (!element || !parent) return;
+
+    const parentRect = parent.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    const nextX = clamp(drag.baseX + (event.clientX - drag.originX), 0, Math.max(0, parentRect.width - rect.width));
+    const nextY = clamp(drag.baseY + (event.clientY - drag.originY), 0, Math.max(0, parentRect.height - rect.height));
+    setResolvedPosition({ x: nextX, y: nextY });
+  }
+
+  function onPointerUp(event: React.PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+    (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
+    if (resolvedPosition) onPositionChange(resolvedPosition);
+  }
+
+  const bins = useHistogramBins(preview);
+
+  return (
+    <div
+      className="histogram-overlay"
+      ref={overlayRef}
+      style={resolvedPosition ? { left: resolvedPosition.x, top: resolvedPosition.y, right: "auto" } : undefined}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      <button className="histogram-overlay-close" type="button" onClick={onClose} title="Hide histogram">
+        <X size={12} />
+      </button>
+      {bins ? (
+        <HistogramSvg bins={bins} />
+      ) : (
+        <span className="histogram-overlay-empty">
+          {previewState === "loading" ? "Rendering…" : previewState === "error" ? "Preview failed" : "No preview"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function useHistogramBins(preview: EditorCanvasPreview | null): HistogramBins | null {
   const [bins, setBins] = useState<HistogramBins | null>(null);
 
   useEffect(() => {
@@ -27,11 +132,9 @@ export function HistogramOverlay({
       setBins(null);
       return;
     }
-
     const image = new window.Image();
     image.onload = () => {
-      if (cancelled) return;
-      setBins(readHistogram(image));
+      if (!cancelled) setBins(readHistogram(image));
     };
     image.onerror = () => {
       if (!cancelled) setBins(null);
@@ -45,20 +148,7 @@ export function HistogramOverlay({
     };
   }, [preview]);
 
-  return (
-    <div className="histogram-overlay">
-      <button className="histogram-overlay-close" type="button" onClick={onClose} title="Hide histogram">
-        <X size={12} />
-      </button>
-      {bins ? (
-        <HistogramSvg bins={bins} />
-      ) : (
-        <span className="histogram-overlay-empty">
-          {previewState === "loading" ? "Rendering…" : previewState === "error" ? "Preview failed" : "No preview"}
-        </span>
-      )}
-    </div>
-  );
+  return bins;
 }
 
 function HistogramSvg({ bins }: { bins: HistogramBins }): React.JSX.Element {
@@ -121,4 +211,8 @@ function readHistogram(image: HTMLImageElement): HistogramBins {
 function emptyBins(): HistogramBins {
   const empty = new Array<number>(64).fill(0);
   return { red: empty, green: empty, blue: empty, luminance: empty, max: 1 };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

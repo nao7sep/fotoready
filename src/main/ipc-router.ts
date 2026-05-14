@@ -53,6 +53,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("system.revealInFolder", async (_event, filePath: string) => {
     shell.showItemInFolder(filePath);
   });
+  ipcMain.handle("system.openExternal", async (_event, url: string) => {
+    const target = new URL(url);
+    if (target.protocol !== "https:" && target.protocol !== "http:") {
+      throw new Error(`Unsupported external URL protocol: ${target.protocol}`);
+    }
+    await shell.openExternal(target.toString());
+  });
   ipcMain.handle("system.pickFile", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {

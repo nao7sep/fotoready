@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { FilenameTemplate } from "@shared/types/settings";
 import type { RenamePreview } from "@shared/types/ipc";
+import { ModalShell } from "./modal-shell";
 
 export function RenameModal({
   templates,
@@ -96,73 +97,71 @@ export function RenameModal({
   }
 
   return (
-    <div className="modal-backdrop">
-      <section className="modal">
-        <header className="modal-header">
-          <h2>Rename Outputs</h2>
-          <button className="toolbar-button" type="button" onClick={onClose}>Close</button>
-        </header>
-
-        <label className="stacked-field">
-          Template
-          <select value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value)}>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>{template.name}</option>
-            ))}
-          </select>
-        </label>
-
-        <div className="segmented-control">
-          <button className={scope === "all" ? "active" : ""} type="button" onClick={() => setScope("all")}>All done tasks</button>
-          <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected tasks</button>
-        </div>
-
-        <div className="rename-selection-list">
-          {doneTasks.length ? doneTasks.map((task) => (
-            <label className="rename-selection-row" key={task.id}>
-              <input type="checkbox" checked={task.selected} onChange={(event) => onTaskSelected(task.id, event.currentTarget.checked)} />
-              <span>{task.label}</span>
-            </label>
-          )) : <div className="ops-empty">No done tasks available</div>}
-        </div>
-
-        {preview?.missingSlugCount ? (
-          <div className="modal-warning">
-            {hasGeminiApiKey
-              ? `${preview.missingSlugCount} of ${preview.items.length} done tasks need a custom slug before rename.`
-              : "Gemini API key required to generate missing descriptions before rename."}
-            {hasGeminiApiKey ? (
-              <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
-            ) : (
-              <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
-            )}
-          </div>
-        ) : null}
-
-        {generationProgress ? (
-          <div className="modal-warning">Generating descriptions {generationProgress.done}/{generationProgress.total}</div>
-        ) : null}
-
-        {error ? <div className="modal-error">{error}</div> : null}
-
-        <div className="rename-preview-list">
-          {preview?.items.length ? preview.items.map((item) => (
-            <div className={`rename-preview-row ${item.missingSlug ? "blocked" : ""}`} key={item.taskId}>
-              <span title={item.stagedPath}>{item.stagedName}</span>
-              <span title={item.proposedPath}>{item.missingSlug ? "Needs slug data" : item.proposedName}</span>
-            </div>
-          )) : (
-            <div className="ops-empty">{busy ? "Preparing preview..." : "No done tasks to rename"}</div>
-          )}
-        </div>
-
-        <footer className="modal-actions">
+    <ModalShell
+      title="Rename outputs"
+      size="wide"
+      onClose={onClose}
+      footer={
+        <>
           <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-action" type="button" disabled={busy || !preview?.items.length || preview.missingSlugCount > 0} onClick={() => void confirm()}>
             Confirm rename
           </button>
-        </footer>
-      </section>
-    </div>
+        </>
+      }
+    >
+      <label className="stacked-field">
+        Template
+        <select value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value)}>
+          {templates.map((template) => (
+            <option key={template.id} value={template.id}>{template.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <div className="segmented-control">
+        <button className={scope === "all" ? "active" : ""} type="button" onClick={() => setScope("all")}>All done tasks</button>
+        <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected tasks</button>
+      </div>
+
+      <div className="rename-selection-list">
+        {doneTasks.length ? doneTasks.map((task) => (
+          <label className="rename-selection-row" key={task.id}>
+            <input type="checkbox" checked={task.selected} onChange={(event) => onTaskSelected(task.id, event.currentTarget.checked)} />
+            <span>{task.label}</span>
+          </label>
+        )) : <div className="ops-empty">No done tasks available</div>}
+      </div>
+
+      {preview?.missingSlugCount ? (
+        <div className="modal-warning">
+          {hasGeminiApiKey
+            ? `${preview.missingSlugCount} of ${preview.items.length} done tasks need a custom slug before rename.`
+            : "Gemini API key required to generate missing descriptions before rename."}
+          {hasGeminiApiKey ? (
+            <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
+          ) : (
+            <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
+          )}
+        </div>
+      ) : null}
+
+      {generationProgress ? (
+        <div className="modal-warning">Generating descriptions {generationProgress.done}/{generationProgress.total}</div>
+      ) : null}
+
+      {error ? <div className="modal-error">{error}</div> : null}
+
+      <div className="rename-preview-list">
+        {preview?.items.length ? preview.items.map((item) => (
+          <div className={`rename-preview-row ${item.missingSlug ? "blocked" : ""}`} key={item.taskId}>
+            <span title={item.stagedPath}>{item.stagedName}</span>
+            <span title={item.proposedPath}>{item.missingSlug ? "Needs slug data" : item.proposedName}</span>
+          </div>
+        )) : (
+          <div className="ops-empty">{busy ? "Preparing preview..." : "No done tasks to rename"}</div>
+        )}
+      </div>
+    </ModalShell>
   );
 }

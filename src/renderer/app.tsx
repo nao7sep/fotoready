@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Settings, Trash2, X } from "lucide-react";
+import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
+import type { UiState } from "@shared/types/state";
 import type { LutEntry, OpCatalogItem, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
+import { APP_NAME } from "@shared/constants";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
+import { ModalShell } from "./components/modals/modal-shell";
+import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
@@ -26,9 +30,26 @@ const initialQueueSnapshot: QueueSnapshot = {
   activeTaskLabel: null
 };
 
+const APP_REPOSITORY_URL = "https://github.com/nao7sep/fotoready";
+const APP_ISSUES_URL = `${APP_REPOSITORY_URL}/issues`;
+
+const SHORTCUTS: ReadonlyArray<{ action: string; keys: string }> = [
+  { action: "Save current task", keys: "Cmd/Ctrl+S" },
+  { action: "Save all pending tasks", keys: "Cmd/Ctrl+Shift+S" },
+  { action: "Undo current task edits", keys: "Cmd/Ctrl+Z" },
+  { action: "Rename saved outputs", keys: "Cmd/Ctrl+R" },
+  { action: "Toggle histogram", keys: "Cmd/Ctrl+H" },
+  { action: "Show or hide Originals", keys: "Cmd/Ctrl+1" },
+  { action: "Show or hide Tasks", keys: "Cmd/Ctrl+2" },
+  { action: "Show or hide Ops", keys: "Cmd/Ctrl+3" },
+  { action: "Open Settings", keys: "Cmd/Ctrl+," }
+];
+
 function App(): React.JSX.Element {
+  const confirmer = useConfirmer();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
+  const [uiState, setUiState] = useState<UiState | null>(null);
   const [projectSnapshot, setProjectSnapshot] = useState<ProjectSnapshot | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
@@ -58,8 +79,10 @@ function App(): React.JSX.Element {
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
   const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
-  const showHistogram = settings?.showHistogram ?? false;
+  const showHistogram = uiState?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
+  const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
+  const apiKeyDirty = apiKeyDraft.trim().length > 0;
   const previewRequest = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpIndex !== null ? activeTask.pipeline.ops[selectedOpIndex] : null;
@@ -85,10 +108,11 @@ function App(): React.JSX.Element {
   }, [activeTask, opCatalog, selectedOpIndex]);
 
   useEffect(() => {
-    void Promise.all([api.system.getInfo(), api.settings.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
-      ([info, loadedSettings, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts]) => {
+    void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
+      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts]) => {
         setSystemInfo(info);
         setSettings(loadedSettings);
+        setUiState(loadedState);
         setHasGeminiApiKey(geminiKeyConfigured);
         setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
@@ -151,15 +175,12 @@ function App(): React.JSX.Element {
       } else if (mod && event.key.toLowerCase() === "h") {
         event.preventDefault();
         void toggleHistogram();
-      } else if (event.key === "?" && !mod) {
-        event.preventDefault();
-        setShortcutsOpen(true);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks, settings?.showHistogram]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
@@ -281,7 +302,12 @@ function App(): React.JSX.Element {
   async function removeOriginal(originalId: string): Promise<void> {
     const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
     if (settings?.confirmDeleteOriginalWithTasks && taskCount > 0) {
-      const confirmed = window.confirm(`Remove this original and ${taskCount} task${taskCount === 1 ? "" : "s"} from the project? Source files are not deleted.`);
+      const confirmed = await confirmer.confirm({
+        title: "Remove original?",
+        message: `This will also remove ${taskCount} task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
+        confirmLabel: "Remove",
+        danger: true
+      });
       if (!confirmed) return;
     }
     await refreshProject(await api.project.removeOriginal(originalId));
@@ -302,12 +328,15 @@ function App(): React.JSX.Element {
 
   async function deleteTask(task: Task): Promise<void> {
     try {
-      const deleteOptions = resolveTaskDeleteOptions(task, settings);
+      const deleteOptions = await resolveTaskDeleteOptions(task, settings, confirmer);
       await refreshProject(await api.task.delete(task.id, deleteOptions));
       setSelectedRenameTaskIds((current) => current.filter((id) => id !== task.id));
     } catch (error) {
       console.error(error);
-      window.alert(error instanceof Error ? error.message : String(error));
+      await confirmer.alert({
+        title: "Couldn't delete task",
+        message: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 
@@ -400,14 +429,6 @@ function App(): React.JSX.Element {
     await refreshProject(await api.vision.runForTask(taskId));
   }
 
-  async function saveApiKey(): Promise<void> {
-    if (!apiKeyDraft.trim()) return;
-    await api.settings.setGeminiApiKey(apiKeyDraft.trim());
-    setHasGeminiApiKey(await api.settings.hasGeminiApiKey());
-    setApiKeyDraft("");
-    setApiKeyOpen(false);
-  }
-
   async function openSettings(): Promise<void> {
     setSettingsDraft(settings);
     setApiKeyOpen(true);
@@ -415,15 +436,40 @@ function App(): React.JSX.Element {
 
   async function saveSettingsDraft(): Promise<void> {
     if (!settingsDraft) return;
-    setSettings(await api.settings.update(settingsDraft));
+    if (apiKeyDraft.trim()) {
+      await api.settings.setGeminiApiKey(apiKeyDraft.trim());
+      setHasGeminiApiKey(await api.settings.hasGeminiApiKey());
+      setApiKeyDraft("");
+    }
+    if (settingsDirty) {
+      setSettings(await api.settings.update(settingsDraft));
+    }
+    setApiKeyDraft("");
     setLutEntries(await api.luts.list());
     setApiKeyOpen(false);
   }
 
+  async function requestCloseSettings(): Promise<void> {
+    if (settingsDirty || apiKeyDirty) {
+      const discard = await confirmer.confirm({
+        title: "Discard changes?",
+        message: "You have unsaved settings changes. Discard them and close?",
+        confirmLabel: "Discard",
+        danger: true
+      });
+      if (!discard) return;
+    }
+    setApiKeyDraft("");
+    setApiKeyOpen(false);
+  }
+
   async function toggleHistogram(): Promise<void> {
-    if (!settings) return;
-    const next = await api.settings.update({ showHistogram: !settings.showHistogram });
-    setSettings(next);
+    if (!uiState) return;
+    setUiState(await api.state.update({ showHistogram: !uiState.showHistogram }));
+  }
+
+  async function setHistogramPosition(position: { x: number; y: number } | null): Promise<void> {
+    setUiState(await api.state.update({ histogramPosition: position }));
   }
 
   async function updateOutput(key: string, value: unknown): Promise<void> {
@@ -450,20 +496,21 @@ function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <header className="top-bar">
-        <button className="output-path" type="button" onClick={() => void setOutputDir()} title="Choose output directory">
-          Output: {outputDirLabel}
-        </button>
-        {project?.outputDir ? (
-          <button className="icon-button" type="button" title="Clear output directory (save next to source)" onClick={() => void clearOutputDir()}>
-            <X size={16} />
-          </button>
-        ) : null}
+        <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
+        <div className="output-badge">
+          <span className="output-badge-label" title={project?.outputDir ?? ""}>Output: {outputDirLabel}</span>
+          <button className="output-badge-button" type="button" onClick={() => void setOutputDir()}>
+            {project?.outputDir ? "Change…" : "Choose…"}
+          </button>
+          {project?.outputDir ? (
+            <button className="output-badge-button icon" type="button" title="Clear (save next to source)" onClick={() => void clearOutputDir()}>
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
         <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title="Toggle histogram (Cmd/Ctrl+H)" onClick={() => void toggleHistogram()}>
           <BarChart3 size={18} />
-        </button>
-        <button className="icon-button" type="button" title="Settings" onClick={() => void openSettings()}>
-          <Settings size={18} />
         </button>
         <button className="icon-button" type="button" title="Menu" onClick={() => setMenuOpen((value) => !value)}>
           <Menu size={18} />
@@ -565,7 +612,13 @@ function App(): React.JSX.Element {
               task={activeTask}
             />
             {showHistogram ? (
-              <HistogramOverlay preview={activePreview} previewState={previewState} onClose={() => void toggleHistogram()} />
+              <HistogramOverlay
+                preview={activePreview}
+                previewState={previewState}
+                onClose={() => void toggleHistogram()}
+                position={uiState?.histogramPosition ?? null}
+                onPositionChange={(pos) => void setHistogramPosition(pos)}
+              />
             ) : null}
           </div>
           {activeTask?.error ? (
@@ -648,8 +701,8 @@ function App(): React.JSX.Element {
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}
           onApiKeyDraftChange={setApiKeyDraft}
-          onClose={() => setApiKeyOpen(false)}
-          onSaveApiKey={() => void saveApiKey()}
+          hasChanges={settingsDirty || apiKeyDirty}
+          onClose={() => void requestCloseSettings()}
           onSaveSettings={() => void saveSettingsDraft()}
           settingsDraft={settingsDraft}
           setSettingsDraft={setSettingsDraft}
@@ -658,44 +711,40 @@ function App(): React.JSX.Element {
       ) : null}
 
       {shortcutsOpen ? (
-        <div className="modal-backdrop">
-          <section className="modal small-modal">
-            <header className="modal-header">
-              <h2>Keyboard Shortcuts</h2>
-              <button className="toolbar-button" type="button" onClick={() => setShortcutsOpen(false)}>Close</button>
-            </header>
-            <div className="shortcut-list">
-              {[
-                ["Cmd/Ctrl+1", "Toggle Originals"],
-                ["Cmd/Ctrl+2", "Toggle Tasks"],
-                ["Cmd/Ctrl+3", "Toggle Ops"],
-                ["Cmd/Ctrl+S", "Save current task"],
-                ["Cmd/Ctrl+Shift+S", "Save all"],
-                ["Cmd/Ctrl+H", "Toggle histogram"],
-                ["Cmd/Ctrl+R", "Rename"],
-                ["Cmd/Ctrl+,", "Settings"],
-                ["?", "Keyboard shortcuts"]
-              ].map(([keys, action]) => (
-                <div className="shortcut-row" key={keys}>
-                  <kbd>{keys}</kbd>
-                  <span>{action}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
+        <ModalShell title="Keyboard shortcuts" size="small" onClose={() => setShortcutsOpen(false)}>
+          <div className="shortcut-list">
+            {SHORTCUTS.map(({ action, keys }) => (
+              <div className="shortcut-row" key={action}>
+                <span>{action}</span>
+                <kbd>{keys}</kbd>
+              </div>
+            ))}
+          </div>
+        </ModalShell>
       ) : null}
 
       {aboutOpen ? (
-        <div className="modal-backdrop">
-          <section className="modal small-modal">
-            <header className="modal-header">
-              <h2>About FotoReady</h2>
-              <button className="toolbar-button" type="button" onClick={() => setAboutOpen(false)}>Close</button>
-            </header>
+        <ModalShell title="About FotoReady" size="small" onClose={() => setAboutOpen(false)}>
+          <div className="about-dialog">
+            <div>
+              <h3>FotoReady</h3>
+              <p className="about-version">Version {systemInfo?.version ?? "0.1.0"}</p>
+            </div>
+            <p>
+              A desktop photo editor for blogging and publication workflows, with queued image processing,
+              metadata tools, rename previews, and optional Gemini-assisted descriptions.
+            </p>
+            <div className="about-links">
+              <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_REPOSITORY_URL)}>
+                GitHub
+              </button>
+              <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_ISSUES_URL)}>
+                Issues
+              </button>
+            </div>
             <div className="settings-summary">
-              <span>Application</span>
-              <code>{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</code>
+              <span>Developer</span>
+              <code>Yoshinao Inoguchi</code>
             </div>
             <div className="settings-summary">
               <span>Data directory</span>
@@ -705,50 +754,37 @@ function App(): React.JSX.Element {
               <span>License</span>
               <code>MIT</code>
             </div>
-          </section>
-        </div>
+          </div>
+        </ModalShell>
       ) : null}
 
       <footer className="status-bar">
-        <span>
-          {queue.done}/{queue.total} done
-          {queue.pending > 0 ? ` · ${queue.pending} pending` : ""}
-          {queue.queued > 0 ? ` · ${queue.queued} queued` : ""}
-          {queue.processing > 0 ? ` · ${queue.processing} processing` : ""}
-          {queue.errors > 0 ? ` · ${queue.errors} errors` : ""}
-          {queue.activeTaskLabel ? ` · working on ${queue.activeTaskLabel}` : ""}
-        </span>
+        <span className="queue-summary">{summarizeQueue(queue)}</span>
+        <span className="top-bar-spacer" />
         {erroredTasks.length ? (
           <button className="toolbar-button compact-text" type="button" onClick={() => setErrorsOpen(true)}>
             Errors
           </button>
         ) : null}
-        <span className="version">{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</span>
       </footer>
 
       {errorsOpen ? (
-        <div className="modal-backdrop">
-          <section className="modal">
-            <header className="modal-header">
-              <h2>Errors</h2>
-              <button className="toolbar-button" type="button" onClick={() => setErrorsOpen(false)}>Close</button>
-            </header>
-            <div className="error-center-list">
-              {erroredTasks.length ? erroredTasks.map((task) => (
-                <div className="error-center-row" key={task.id}>
-                  <div>
-                    <strong>{taskLabel(task, project?.originals ?? [])}</strong>
-                    <span>{task.error?.stage}: {task.error?.message}</span>
-                  </div>
-                  <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
-                  <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
-                  <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
-                  <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
+        <ModalShell title="Errors" onClose={() => setErrorsOpen(false)}>
+          <div className="error-center-list">
+            {erroredTasks.length ? erroredTasks.map((task) => (
+              <div className="error-center-row" key={task.id}>
+                <div>
+                  <strong>{taskLabel(task, project?.originals ?? [])}</strong>
+                  <span>{task.error?.stage}: {task.error?.message}</span>
                 </div>
-              )) : <div className="ops-empty">No current task errors</div>}
-            </div>
-          </section>
-        </div>
+                <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
+                <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
+                <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
+                <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
+              </div>
+            )) : <div className="ops-empty">No current task errors</div>}
+          </div>
+        </ModalShell>
       ) : null}
     </main>
   );
@@ -762,6 +798,16 @@ function WorkspaceSplitter({
   onPointerDown(event: React.PointerEvent<HTMLButtonElement>): void;
 }): React.JSX.Element {
   return <button aria-label={label} className="workspace-splitter" type="button" onPointerDown={onPointerDown} />;
+}
+
+/** Build a short, sparse summary for the status bar. Hides zero-count categories. */
+function summarizeQueue(queue: QueueSnapshot): string {
+  const parts = [`${queue.done}/${queue.total}`];
+  if (queue.processing > 0) parts.push(`${queue.processing} running`);
+  if (queue.queued > 0) parts.push(`${queue.queued} queued`);
+  if (queue.errors > 0) parts.push(`${queue.errors} failed`);
+  if (queue.activeTaskLabel && queue.processing > 0) parts.push(queue.activeTaskLabel);
+  return parts.join(" · ");
 }
 
 function basename(sourcePath: string): string {
@@ -785,7 +831,11 @@ function stringifyLogArgs(args: unknown[]): string {
   }).join(" ");
 }
 
-function resolveTaskDeleteOptions(task: Task, settings: GlobalSettings | null): TaskDeleteOptions | undefined {
+async function resolveTaskDeleteOptions(
+  task: Task,
+  settings: GlobalSettings | null,
+  confirmer: { confirm(req: { title: string; message: React.ReactNode; confirmLabel?: string; danger?: boolean }): Promise<boolean> }
+): Promise<TaskDeleteOptions | undefined> {
   if (task.status !== "done" || !task.output) {
     return undefined;
   }
@@ -800,13 +850,24 @@ function resolveTaskDeleteOptions(task: Task, settings: GlobalSettings | null): 
   }
 
   if (hasSeparateFinalOutput && task.output.finalPath) {
+    const finalPath = task.output.finalPath;
     return {
-      deleteFinalOutput: window.confirm(`Delete the renamed output file from disk?\n\n${task.output.finalPath}`)
+      deleteFinalOutput: await confirmer.confirm({
+        title: "Delete renamed output?",
+        message: finalPath,
+        confirmLabel: "Delete",
+        danger: true
+      })
     };
   }
 
   if (task.output.stagedPath) {
-    const shouldDeleteOutput = window.confirm(`Delete the task output file from disk?\n\n${task.output.stagedPath}`);
+    const shouldDeleteOutput = await confirmer.confirm({
+      title: "Delete output file?",
+      message: task.output.stagedPath,
+      confirmLabel: "Delete",
+      danger: true
+    });
     return {
       deleteStagedOutput: shouldDeleteOutput,
       deleteFinalOutput: task.output.finalPath === task.output.stagedPath ? shouldDeleteOutput : false
@@ -816,4 +877,8 @@ function resolveTaskDeleteOptions(task: Task, settings: GlobalSettings | null): 
   return undefined;
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <ConfirmerProvider>
+    <App />
+  </ConfirmerProvider>
+);

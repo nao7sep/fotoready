@@ -53,7 +53,7 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     injectFields: {},
     model: "gemini-3.1-pro",
     visionProjectContext: "",
-    preResizeLongEdge: 768,
+    preResizeLongEdge: 1024,
     customPromptAddendum: "",
     filenameTemplates: [builtinFilenameTemplate],
     defaultTemplateId: BUILTIN_FILENAME_TEMPLATE_ID,
@@ -64,7 +64,7 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     lutFolder: "~/.fotoready/luts/",
     defaultWatermarkImage: "",
     workerPoolSize,
-    previewLongEdge: 256,
+    previewLongEdge: 1024,
     previewDebounceMs: 150
   };
 }

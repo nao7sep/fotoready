@@ -78,6 +78,7 @@ export type FotoReadyApi = {
     getInfo(): Promise<SystemInfo>;
     filePathForFile(file: File): string;
     log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
+    openExternal(url: string): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
   };

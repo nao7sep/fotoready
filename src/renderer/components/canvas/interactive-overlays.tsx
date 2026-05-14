@@ -6,6 +6,10 @@ type RectShape = { x: number; y: number; w: number; h: number };
 type Placement = { x: number; y: number; width: number; height: number; scale: number };
 const MIN_STAGE_SIZE = 12;
 
+/**
+ * Draggable/resizable region in stage pixels. Callers own conversion between
+ * image-space params and stage-space display coordinates.
+ */
 export function InteractiveOverlayRect({
   aspectRatio,
   color,
@@ -23,7 +27,7 @@ export function InteractiveOverlayRect({
 }): React.JSX.Element {
   const rectRef = useRef<Konva.Rect>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
-  const stageRect = useMemo(() => toStageRect(rect, placement), [placement, rect]);
+  const stageRect = useMemo(() => clampStageRect(rect, placement), [placement, rect]);
 
   useEffect(() => {
     if (!rectRef.current || !transformerRef.current) return;
@@ -50,23 +54,21 @@ export function InteractiveOverlayRect({
         }}
         onDragMove={(event) => {
           const node = event.target;
-          const nextRect = fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement);
+          const nextRect = clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement);
           onChange(nextRect);
         }}
         onDragEnd={(event) => {
           const node = event.target;
-          const nextRect = fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement);
+          const nextRect = clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement);
           onCommit(nextRect);
         }}
         onTransform={(event) => {
           const nextRect = transformedStageRect(event.target as Konva.Rect, placement);
-          const imageRect = fromStageRect(nextRect, placement);
-          onChange(imageRect);
+          onChange(nextRect);
         }}
         onTransformEnd={(event) => {
           const nextRect = transformedStageRect(event.target as Konva.Rect, placement);
-          const imageRect = fromStageRect(nextRect, placement);
-          onCommit(imageRect);
+          onCommit(nextRect);
         }}
       />
       <Transformer
@@ -98,24 +100,6 @@ function transformedStageRect(node: Konva.Rect, placement: Placement): RectShape
   node.x(bounded.x);
   node.y(bounded.y);
   return bounded;
-}
-
-function toStageRect(rect: RectShape, placement: Placement): RectShape {
-  return {
-    x: placement.x + rect.x * placement.scale,
-    y: placement.y + rect.y * placement.scale,
-    w: rect.w * placement.scale,
-    h: rect.h * placement.scale
-  };
-}
-
-function fromStageRect(rect: RectShape, placement: Placement): RectShape {
-  return {
-    x: (rect.x - placement.x) / placement.scale,
-    y: (rect.y - placement.y) / placement.scale,
-    w: rect.w / placement.scale,
-    h: rect.h / placement.scale
-  };
 }
 
 function clampStageRect(rect: RectShape, placement: Placement): RectShape {

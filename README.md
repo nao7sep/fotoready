@@ -39,7 +39,7 @@ npm run dev
 ## Commands
 
 ```sh
-npm test
+npm run check:imports
 npm run build
 npm run package
 npm run icons

@@ -7,7 +7,7 @@ import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
 import type { CubeLut } from "./lut-cube";
 
-export type PipelineRunContext = {
+type PipelineRunContext = {
   sourcePath: string;
   sourceHash: string;
   outputPath?: string;
@@ -16,7 +16,7 @@ export type PipelineRunContext = {
   resolveLut?: (cubePath: string) => Promise<CubeLut>;
 };
 
-export type PipelineRunResult =
+type PipelineRunResult =
   | { kind: "buffer"; bytes: Buffer; width: number; height: number; appliedPipeline: Pipeline }
   | { kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline };
 
@@ -85,7 +85,7 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
  * Move ops marked `after-resize` to immediately follow the first enabled resize op.
  * Today only unsharp-mask with `outputSharpen: true` uses this.
  */
-export function orderOpsForExecution(ops: OpInstance[], log?: PipelineRunContext["log"]): OpInstance[] {
+function orderOpsForExecution(ops: OpInstance[], log?: PipelineRunContext["log"]): OpInstance[] {
   const resizeIndex = ops.findIndex((op) => op.enabled && op.type === "resize");
   if (resizeIndex === -1) return ops;
 

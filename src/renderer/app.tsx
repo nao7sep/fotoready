@@ -13,6 +13,7 @@ import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
+import { opUsesInputCanvas } from "./canvas/op-overlays";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -63,15 +64,19 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const previewRequest = useMemo(() => {
     if (!activeTask) return null;
-    // Ops with canvas overlays (crop, redact-*) need the pre-op image as their base.
-    // All other ops (rotate, resize, tone, effects …) must include themselves so
-    // changes are visible in real-time.
     const selectedOp = selectedOpIndex !== null ? activeTask.pipeline.ops[selectedOpIndex] : null;
-    const hasCanvasOverlay =
-      selectedOp?.type === "crop" ||
-      (typeof selectedOp?.type === "string" && selectedOp.type.startsWith("redact-"));
-    const truncateOpsAt = selectedOpIndex !== null ? (hasCanvasOverlay ? selectedOpIndex : selectedOpIndex + 1) : null;
-    const previewOps = truncateOpsAt !== null ? activeTask.pipeline.ops.slice(0, truncateOpsAt) : activeTask.pipeline.ops;
+    // Cards that render canvas overlays (crop handles, redact rects, watermark placeholders,
+    // white-balance sample picker) show their INPUT — the previous card's output — so the
+    // overlays are drawn on the correct base image and aren't doubled.
+    // All other cards (rotate, resize, effects…) include themselves so edits show live.
+    const truncateOpsAt =
+      selectedOpIndex !== null
+        ? selectedOp && opUsesInputCanvas(selectedOp.type)
+          ? selectedOpIndex
+          : selectedOpIndex + 1
+        : null;
+    const previewOps =
+      truncateOpsAt !== null ? activeTask.pipeline.ops.slice(0, truncateOpsAt) : activeTask.pipeline.ops;
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,
       originalId: activeTask.originalId,

@@ -45,6 +45,17 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
   for (const op of executedOps) {
     if (!op.enabled) continue;
     work = await applyOp(work, op, workWidth, workHeight, ctx);
+    // After any op that changes image dimensions, materialize the result so subsequent ops
+    // receive accurate workWidth/workHeight values.  Using an analytical formula for crop
+    // is fragile (any rounding divergence from applyCrop causes a cascade); materializing
+    // is slower but correct for all three dimension-changing op types.
+    if (op.type === "crop" || op.type === "resize" || op.type === "rotate") {
+      const sharpImpl = await import("sharp");
+      const { data, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      work = sharpImpl.default(data, { raw: { width: info.width, height: info.height, channels: 4 } });
+      workWidth = info.width;
+      workHeight = info.height;
+    }
   }
 
   const appliedPipeline: Pipeline = {

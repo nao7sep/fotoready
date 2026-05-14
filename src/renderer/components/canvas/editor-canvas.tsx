@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { Task } from "@shared/types/project";
 import { InteractiveOverlayRect } from "./interactive-overlays";
@@ -39,7 +39,18 @@ export function EditorCanvas({
   onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
 }): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const [frameSize, setFrameSize] = useState({ width: 900, height: 600 });
+  const [frameSize, setFrameSize] = useState({ width: 1, height: 1 });
+
+  // Measure the canvas container synchronously before the first paint so the Stage
+  // never renders at an oversized default that overflows into the ops panel.
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const rect = frame.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      setFrameSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+    }
+  }, []);
   const image = useImage(preview?.dataUrl ?? null);
   const imageSize = image
     ? { width: image.naturalWidth || preview?.width || 1, height: image.naturalHeight || preview?.height || 1 }

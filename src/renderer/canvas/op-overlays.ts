@@ -28,6 +28,21 @@ export type WhiteBalanceSample = {
 const defaultRedactionRect: FractionRect = { x: 0.1, y: 0.1, w: 0.25, h: 0.25 };
 const defaultImageBounds: NormalizedImageBounds = { maxX: 1, maxY: 1 };
 
+/**
+ * Returns true when the selected card must show its INPUT image (the previous card's output)
+ * rather than its own output.  These op types render canvas overlays (drag handles, sample
+ * pickers, watermark placeholders) that would be meaningless or doubled if the op were baked
+ * into the pipeline image first.
+ */
+export function opUsesInputCanvas(type: string): boolean {
+  return (
+    type === "crop" ||
+    type.startsWith("redact-") ||
+    type.startsWith("watermark-") ||
+    type === "white-balance"
+  );
+}
+
 export function selectedEditableOverlay(
   task: Task | null,
   selectedOpIndex: number | null,

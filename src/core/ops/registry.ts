@@ -1,19 +1,45 @@
-import type { OpDefinition } from "@shared/types/op";
+import type { OpDefinition, OpInstance } from "@shared/types/op";
+import type { OpModule } from "./op-module";
 
-const definitions = new Map<string, OpDefinition>();
+const modules = new Map<string, OpModule>();
 
-export function registerOp(definition: OpDefinition): void {
-  if (definitions.has(definition.type)) {
-    throw new Error(`Duplicate op registration: ${definition.type}`);
+export function registerOp<P extends Record<string, unknown>>(module: OpModule<P>): void {
+  if (modules.has(module.type)) {
+    throw new Error(`Duplicate op registration: ${module.type}`);
   }
+  modules.set(module.type, module as OpModule);
+}
 
-  definitions.set(definition.type, definition);
+export function getOpModule(type: string): OpModule | undefined {
+  return modules.get(type);
+}
+
+export function requireOpModule(type: string): OpModule {
+  const module = modules.get(type);
+  if (!module) {
+    throw new Error(`Unknown op type "${type}".`);
+  }
+  return module;
 }
 
 export function getOpDefinition(type: string): OpDefinition | undefined {
-  return definitions.get(type);
+  return modules.get(type);
+}
+
+export function listOpModules(): OpModule[] {
+  return [...modules.values()];
 }
 
 export function listOpDefinitions(): OpDefinition[] {
-  return [...definitions.values()];
+  return [...modules.values()].map(({ type, label, category, defaultParams, previewBehavior }) => ({
+    type,
+    label,
+    category,
+    defaultParams,
+    previewBehavior
+  }));
+}
+
+export function asOpInstance(module: OpModule): OpInstance {
+  return { type: module.type, params: structuredClone(module.defaultParams), enabled: true };
 }

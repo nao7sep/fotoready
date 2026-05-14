@@ -1,8 +1,34 @@
-import "./geometry";
-import "./tone";
-import "./effects";
-import "./redaction";
-import "./watermark";
-import "./metadata";
+/**
+ * Importing the catalog registers every op module exactly once. Add new ops to this list;
+ * the registry will throw if the same op type is registered twice.
+ */
+import "./crop";
+import "./rotate";
+import "./resize";
+import "./levels";
+import "./white-balance";
+import "./auto-tone";
+import "./curves";
+import "./hsl";
+import "./unsharp-mask";
+import "./denoise";
+import "./lut";
+import "./redact-fill";
+import "./redact-blur";
+import "./redact-pixelate";
+import "./watermark-text";
+import "./watermark-image";
+import "./strip-metadata";
+import "./inject-metadata";
 
-export { getOpDefinition, listOpDefinitions } from "./registry";
+export {
+  getOpDefinition,
+  getOpModule,
+  listOpDefinitions,
+  listOpModules,
+  requireOpModule,
+  asOpInstance
+} from "./registry";
+
+export type { OpModule, OpApplyContext, MetadataDecision } from "./op-module";
+export { reorderHintFor } from "./op-module";

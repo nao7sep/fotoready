@@ -7,6 +7,7 @@ import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
+import { getOpModule, type MetadataDecision } from "@core/ops/catalog";
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -205,22 +206,21 @@ async function applyMetadataPolicy(outputPath: string, sourcePath: string, task:
 }
 
 function metadataPolicy(task: Task, settings: GlobalSettings): { keep: MetadataStripMode; injectFields: MetadataFields } {
-  let keep = settings.defaultMetadataStrip;
-  let injectFields = settings.injectAuthorCopyright ? settings.injectFields : {};
+  const decision: MetadataDecision = {
+    keep: null,
+    inject: settings.injectAuthorCopyright ? { ...settings.injectFields } : {}
+  };
 
   for (const op of task.pipeline.ops) {
     if (!op.enabled) continue;
-    if (op.type === "strip-metadata" && Array.isArray(op.params.keep)) {
-      keep = op.params.keep.filter((field): field is MetadataStripMode[number] =>
-        field === "author" || field === "copyright" || field === "orientation" || field === "colorspace"
-      );
-    }
-    if (op.type === "inject-metadata" && op.params.fields && typeof op.params.fields === "object") {
-      injectFields = { ...injectFields, ...(op.params.fields as MetadataFields) };
-    }
+    const module = getOpModule(op.type);
+    module?.contributeMetadata?.(op.params, decision);
   }
 
-  return { keep, injectFields };
+  return {
+    keep: decision.keep ?? settings.defaultMetadataStrip,
+    injectFields: decision.inject
+  };
 }
 
 async function stagedOutputPath(project: Project, task: Task, sourcePath: string): Promise<string> {

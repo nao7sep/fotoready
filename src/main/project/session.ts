@@ -8,7 +8,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
-import { getOpDefinition } from "@core/ops/catalog";
+import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
 import { previewRename, runRename } from "@main/rename/rename-service";
 import type { QualityQueue } from "@main/queues/quality";
@@ -304,7 +304,7 @@ export class ProjectSession {
   updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
-    const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpDefinition);
+    const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpModule);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
@@ -314,7 +314,7 @@ export class ProjectSession {
   updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
-    const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpDefinition);
+    const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);

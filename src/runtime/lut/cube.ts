@@ -68,7 +68,7 @@ export function sampleCubeLut(lut: CubeLut, r: number, g: number, b: number): [n
 }
 
 function at(lut: CubeLut, r: number, g: number, b: number): [number, number, number] {
-  return lut.data[r + g * lut.size + b * lut.size * lut.size];
+  return lut.data[r + g * lut.size + b * lut.size * lut.size] ?? [0, 0, 0];
 }
 
 function lerp3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {

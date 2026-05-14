@@ -204,17 +204,17 @@ function OpParams({
   if (op.type === "levels") {
     return (
       <div className="field-grid">
-        <label>
-          Black
-          <input disabled={disabled} max={254} min={0} type="number" value={numberValue(op.params.blackPoint, 0)} onChange={(event) => onParamChange("blackPoint", event.currentTarget.valueAsNumber)} />
-        </label>
-        <label>
-          White
-          <input disabled={disabled} max={255} min={1} type="number" value={numberValue(op.params.whitePoint, 255)} onChange={(event) => onParamChange("whitePoint", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Black point — <strong>{numberValue(op.params.blackPoint, 0)}</strong>
+          <input disabled={disabled} max={254} min={0} step={1} type="range" value={numberValue(op.params.blackPoint, 0)} onChange={(event) => onParamChange("blackPoint", event.currentTarget.valueAsNumber)} />
         </label>
         <label className="span-two">
-          Gamma
-          <input disabled={disabled} max={5} min={0.1} step={0.05} type="number" value={numberValue(op.params.gamma, 1)} onChange={(event) => onParamChange("gamma", event.currentTarget.valueAsNumber)} />
+          White point — <strong>{numberValue(op.params.whitePoint, 255)}</strong>
+          <input disabled={disabled} max={255} min={1} step={1} type="range" value={numberValue(op.params.whitePoint, 255)} onChange={(event) => onParamChange("whitePoint", event.currentTarget.valueAsNumber)} />
+        </label>
+        <label className="span-two">
+          Gamma — <strong>{numberValue(op.params.gamma, 1).toFixed(2)}</strong>
+          <input disabled={disabled} max={5} min={0.1} step={0.05} type="range" value={numberValue(op.params.gamma, 1)} onChange={(event) => onParamChange("gamma", event.currentTarget.valueAsNumber)} />
         </label>
       </div>
     );
@@ -224,13 +224,13 @@ function OpParams({
     const samplePoint = samplePointValue(op.params.samplePoint);
     return (
       <div className="field-grid">
-        <label>
-          Temperature
-          <input disabled={disabled || samplePoint !== null} max={100} min={-100} type="number" value={numberValue(op.params.temperature, 0)} onChange={(event) => onParamChange("temperature", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Temperature — <strong>{numberValue(op.params.temperature, 0)}</strong>
+          <input disabled={disabled || samplePoint !== null} max={100} min={-100} step={1} type="range" value={numberValue(op.params.temperature, 0)} onChange={(event) => onParamChange("temperature", event.currentTarget.valueAsNumber)} />
         </label>
-        <label>
-          Tint
-          <input disabled={disabled || samplePoint !== null} max={100} min={-100} type="number" value={numberValue(op.params.tint, 0)} onChange={(event) => onParamChange("tint", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Tint — <strong>{numberValue(op.params.tint, 0)}</strong>
+          <input disabled={disabled || samplePoint !== null} max={100} min={-100} step={1} type="range" value={numberValue(op.params.tint, 0)} onChange={(event) => onParamChange("tint", event.currentTarget.valueAsNumber)} />
         </label>
         <div className="row-detail span-two">
           {samplePoint
@@ -263,19 +263,23 @@ function OpParams({
 
   if (op.type === "curves") {
     const points = curvePointsValue(op.params.rgb);
+    const labels = ["Shadows", "Dark", "Midtones", "Light", "Highlights"];
+    const inputValues = [0, 64, 128, 192, 255];
     return (
       <div className="field-grid">
         {points.map((point, index) => (
-          <React.Fragment key={index}>
-            <label>
-              In {index + 1}
-              <input disabled={disabled} max={255} min={0} type="number" value={point[0]} onChange={(event) => onParamChange("rgb", points.map((item, itemIndex) => itemIndex === index ? [event.currentTarget.valueAsNumber, item[1]] : item))} />
-            </label>
-            <label>
-              Out {index + 1}
-              <input disabled={disabled} max={255} min={0} type="number" value={point[1]} onChange={(event) => onParamChange("rgb", points.map((item, itemIndex) => itemIndex === index ? [item[0], event.currentTarget.valueAsNumber] : item))} />
-            </label>
-          </React.Fragment>
+          <label className="span-two" key={index}>
+            {labels[index] ?? `Point ${index + 1}`} — in {inputValues[index] ?? point[0]}, out <strong>{point[1]}</strong>
+            <input
+              disabled={disabled}
+              max={255}
+              min={0}
+              step={1}
+              type="range"
+              value={point[1]}
+              onChange={(event) => onParamChange("rgb", points.map((item, itemIndex) => itemIndex === index ? [item[0], event.currentTarget.valueAsNumber] : item))}
+            />
+          </label>
         ))}
       </div>
     );
@@ -291,13 +295,13 @@ function OpParams({
               <span>{range}</span>
               {(["hue", "sat", "lum"] as const).map((key) => (
                 <label key={key}>
-                  {key}
+                  {key} <strong>{key === "hue" ? Math.round(params[key]) : params[key].toFixed(2)}</strong>
                   <input
                     disabled={disabled}
                     max={key === "hue" ? 180 : 1}
                     min={key === "hue" ? -180 : -1}
-                    step={key === "hue" ? 1 : 0.05}
-                    type="number"
+                    step={key === "hue" ? 1 : 0.01}
+                    type="range"
                     value={params[key]}
                     onChange={(event) => onParamChange(range, { ...params, [key]: event.currentTarget.valueAsNumber })}
                   />
@@ -313,13 +317,13 @@ function OpParams({
   if (op.type === "unsharp-mask") {
     return (
       <div className="field-grid">
-        <label>
-          Radius
-          <input disabled={disabled} min={0.3} step={0.1} type="number" value={numberValue(op.params.radius, 1)} onChange={(event) => onParamChange("radius", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Radius — <strong>{numberValue(op.params.radius, 1).toFixed(1)}</strong>
+          <input disabled={disabled} max={10} min={0.3} step={0.1} type="range" value={numberValue(op.params.radius, 1)} onChange={(event) => onParamChange("radius", event.currentTarget.valueAsNumber)} />
         </label>
-        <label>
-          Amount
-          <input disabled={disabled} min={0} step={0.1} type="number" value={numberValue(op.params.amount, 1)} onChange={(event) => onParamChange("amount", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Amount — <strong>{numberValue(op.params.amount, 1).toFixed(1)}</strong>
+          <input disabled={disabled} max={5} min={0} step={0.1} type="range" value={numberValue(op.params.amount, 1)} onChange={(event) => onParamChange("amount", event.currentTarget.valueAsNumber)} />
         </label>
         <label className="toggle-row span-two">
           <input disabled={disabled} type="checkbox" checked={op.params.outputSharpen === true} onChange={(event) => onParamChange("outputSharpen", event.currentTarget.checked)} />
@@ -365,54 +369,28 @@ function OpParams({
   }
 
   if (op.type === "redact-fill") {
-    const rect = firstRect(op.params.rects);
     return (
-      <div className="field-grid four">
-        {["x", "y", "w", "h"].map((key) => (
-          <label key={key}>
-            {key}
-            <input
-              disabled={disabled}
-              max={1}
-              min={0}
-              step={0.01}
-              type="number"
-              value={numberValue(rect[key as keyof typeof rect], key === "w" || key === "h" ? 0.25 : 0)}
-              onChange={(event) => onParamChange("rects", [{ ...rect, [key]: event.currentTarget.valueAsNumber }])}
-            />
-          </label>
-        ))}
+      <div className="field-grid">
         <label className="span-two">
           Color
           <input disabled={disabled} type="color" value={stringValue(op.params.color, "#000000")} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
         </label>
+        <div className="row-detail span-two">Drag the rectangle on the preview to position and size it.</div>
       </div>
     );
   }
 
   if (op.type === "redact-blur" || op.type === "redact-pixelate") {
-    const rect = firstRect(op.params.rects);
     const sizeKey = op.type === "redact-blur" ? "radius" : "blockSize";
+    const defaultSize = op.type === "redact-blur" ? 0.02 : 0.015;
+    const maxSize = op.type === "redact-blur" ? 0.1 : 0.05;
     return (
-      <div className="field-grid four">
-        {["x", "y", "w", "h"].map((key) => (
-          <label key={key}>
-            {key}
-            <input
-              disabled={disabled}
-              max={1}
-              min={0}
-              step={0.01}
-              type="number"
-              value={numberValue(rect[key as keyof typeof rect], key === "w" || key === "h" ? 0.25 : 0)}
-              onChange={(event) => onParamChange("rects", [{ ...rect, [key]: event.currentTarget.valueAsNumber }])}
-            />
-          </label>
-        ))}
+      <div className="field-grid">
         <label className="span-two">
-          {op.type === "redact-blur" ? "Radius" : "Block size"}
-          <input disabled={disabled} min={0.001} step={0.005} type="number" value={numberValue(op.params[sizeKey], op.type === "redact-blur" ? 0.02 : 0.015)} onChange={(event) => onParamChange(sizeKey, event.currentTarget.valueAsNumber)} />
+          {op.type === "redact-blur" ? "Radius" : "Block size"} — <strong>{numberValue(op.params[sizeKey], defaultSize).toFixed(3)}</strong>
+          <input disabled={disabled} max={maxSize} min={0.005} step={0.005} type="range" value={numberValue(op.params[sizeKey], defaultSize)} onChange={(event) => onParamChange(sizeKey, event.currentTarget.valueAsNumber)} />
         </label>
+        <div className="row-detail span-two">Drag the rectangle on the preview to position and size it.</div>
       </div>
     );
   }
@@ -424,24 +402,22 @@ function OpParams({
           Text
           <input disabled={disabled} type="text" value={stringValue(op.params.text, "")} onChange={(event) => onParamChange("text", event.currentTarget.value)} />
         </label>
-        <label>
-          Anchor
-          <select disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(event) => onParamChange("anchor", event.currentTarget.value)}>
-            {["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"].map((anchor) => <option key={anchor}>{anchor}</option>)}
-          </select>
+        <label className="span-two">
+          Size — <strong>{numberValue(op.params.size, 0.03).toFixed(3)}</strong>
+          <input disabled={disabled} max={0.2} min={0.005} step={0.005} type="range" value={numberValue(op.params.size, 0.03)} onChange={(event) => onParamChange("size", event.currentTarget.valueAsNumber)} />
         </label>
-        <label>
-          Size
-          <input disabled={disabled} max={0.2} min={0.005} step={0.005} type="number" value={numberValue(op.params.size, 0.03)} onChange={(event) => onParamChange("size", event.currentTarget.valueAsNumber)} />
-        </label>
-        <label>
-          Opacity
-          <input disabled={disabled} max={1} min={0} step={0.05} type="number" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Opacity — <strong>{numberValue(op.params.opacity, 0.7).toFixed(2)}</strong>
+          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
         </label>
         <label>
           Color
           <input disabled={disabled} type="color" value={stringValue(op.params.color, "#ffffff")} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
         </label>
+        <div className="stacked-field">
+          Position
+          <AnchorPicker disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(anchor) => onParamChange("anchor", anchor)} />
+        </div>
       </div>
     );
   }
@@ -457,20 +433,18 @@ function OpParams({
           const picked = await api.system.pickFile({ title: "Choose Watermark PNG", extensions: ["png"] });
           if (picked) onParamChange("pngPath", picked);
         }}>Browse PNG...</button>
-        <label>
-          Anchor
-          <select disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(event) => onParamChange("anchor", event.currentTarget.value)}>
-            {["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"].map((anchor) => <option key={anchor}>{anchor}</option>)}
-          </select>
-        </label>
-        <label>
-          Scale
-          <input disabled={disabled} max={1} min={0.01} step={0.01} type="number" value={numberValue(op.params.scale, 0.15)} onChange={(event) => onParamChange("scale", event.currentTarget.valueAsNumber)} />
+        <label className="span-two">
+          Scale — <strong>{numberValue(op.params.scale, 0.15).toFixed(2)}</strong>
+          <input disabled={disabled} max={0.5} min={0.01} step={0.01} type="range" value={numberValue(op.params.scale, 0.15)} onChange={(event) => onParamChange("scale", event.currentTarget.valueAsNumber)} />
         </label>
         <label className="span-two">
-          Opacity
-          <input disabled={disabled} max={1} min={0} step={0.05} type="number" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+          Opacity — <strong>{numberValue(op.params.opacity, 0.7).toFixed(2)}</strong>
+          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={numberValue(op.params.opacity, 0.7)} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
         </label>
+        <div className="stacked-field span-two">
+          Position
+          <AnchorPicker disabled={disabled} value={stringValue(op.params.anchor, "bottom-right")} onChange={(anchor) => onParamChange("anchor", anchor)} />
+        </div>
       </div>
     );
   }
@@ -755,12 +729,13 @@ function OutputControls({
         </select>
       </label>
       <label className="stacked-field">
-        Quality
+        Quality — <strong>{typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82}</strong>
         <input
           disabled={disabled || !task || (task.pipeline.output.format === "jpeg" && typeof task.pipeline.output.quality !== "number")}
           max={100}
           min={1}
-          type="number"
+          step={1}
+          type="range"
           value={typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82}
           onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
         />
@@ -785,6 +760,35 @@ function OutputControls({
       {task?.pipeline.output.format === "jpeg" && promptPerTask ? (
         <div className="row-detail">Global JPEG strategy is prompt-per-task, so this task can keep its own fixed JPEG quality.</div>
       ) : null}
+    </div>
+  );
+}
+
+function AnchorPicker({ disabled, value, onChange }: { disabled: boolean; value: string; onChange(anchor: string): void }): React.JSX.Element {
+  const anchors = [
+    ["top-left", "top", "top-right"],
+    ["left", "center", "right"],
+    ["bottom-left", "bottom", "bottom-right"]
+  ];
+  const symbols: Record<string, string> = {
+    "top-left": "↖", "top": "↑", "top-right": "↗",
+    "left": "←", "center": "·", "right": "→",
+    "bottom-left": "↙", "bottom": "↓", "bottom-right": "↘"
+  };
+  return (
+    <div className="anchor-grid">
+      {anchors.flat().map((anchor) => (
+        <button
+          className={`${value === anchor ? "active" : ""}`}
+          disabled={disabled}
+          key={anchor}
+          title={anchor}
+          type="button"
+          onClick={() => onChange(anchor)}
+        >
+          {symbols[anchor]}
+        </button>
+      ))}
     </div>
   );
 }
@@ -903,17 +907,4 @@ function samplePointValue(value: unknown): [number, number] | null {
   if (!Array.isArray(value) || value.length < 2) return null;
   if (typeof value[0] !== "number" || typeof value[1] !== "number") return null;
   return [value[0], value[1]];
-}
-
-function firstRect(value: unknown): { x: number; y: number; w: number; h: number } {
-  if (Array.isArray(value) && value[0] && typeof value[0] === "object") {
-    const rect = value[0] as Partial<{ x: number; y: number; w: number; h: number }>;
-    return {
-      x: numberValue(rect.x, 0),
-      y: numberValue(rect.y, 0),
-      w: numberValue(rect.w, 0.25),
-      h: numberValue(rect.h, 0.25)
-    };
-  }
-  return { x: 0, y: 0, w: 0.25, h: 0.25 };
 }

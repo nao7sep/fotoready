@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { Task } from "@shared/types/project";
 import { InteractiveOverlayRect } from "./interactive-overlays";
-import { fitImage, zoomToCropRect } from "@renderer/canvas/crop-focus";
+import { fitImage } from "@renderer/canvas/crop-focus";
 import {
   cropRectFromOp,
   imageBoundsFromSize,
@@ -49,7 +49,6 @@ export function EditorCanvas({
   const editableOverlay = useMemo(() => selectedEditableOverlay(task, selectedOpIndex, imageBounds), [imageBounds, selectedOpIndex, task]);
   const whiteBalanceSample = useMemo(() => selectedWhiteBalanceSample(task, selectedOpIndex), [selectedOpIndex, task]);
   const [draftOverlayRect, setDraftOverlayRect] = useState<FractionRect | null>(null);
-  const [committedCropRect, setCommittedCropRect] = useState<FractionRect | null>(null);
   const selectedOp = selectedOpIndex === null ? null : task?.pipeline.ops[selectedOpIndex] ?? null;
   const selectedCropAspectRatio = useMemo(
     () => (selectedOp?.type === "crop" ? resolveCropAspectRatio(selectedOp.params.aspectLock, originalAspectRatio) : null),
@@ -57,21 +56,13 @@ export function EditorCanvas({
   );
   const showRotateGuide = selectedOp?.type === "rotate";
   const activeOverlayRect = draftOverlayRect ?? editableOverlay?.rect ?? null;
-  const cropZoomRect = useMemo(() => {
-    if (selectedOp?.type !== "crop" || !committedCropRect) return null;
-    return scaleOverlayRect(committedCropRect, longEdge);
-  }, [committedCropRect, longEdge, selectedOp?.type]);
   const placement = useMemo(
-    () =>
-      cropZoomRect
-        ? zoomToCropRect(imageSize.width, imageSize.height, frameSize.width, frameSize.height, cropZoomRect)
-        : fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height),
-    [cropZoomRect, frameSize.height, frameSize.width, imageSize.height, imageSize.width]
+    () => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height),
+    [frameSize.height, frameSize.width, imageSize.height, imageSize.width]
   );
 
   useEffect(() => {
     setDraftOverlayRect(null);
-    setCommittedCropRect(null);
   }, [editableOverlay?.kind, editableOverlay?.opIndex, task?.id, task?.updatedAt]);
 
   useEffect(() => {
@@ -119,12 +110,12 @@ export function EditorCanvas({
                   onEditableOverlayChange={(rect) => {
                     setDraftOverlayRect(rect);
                   }}
-                  onEditableOverlayCommit={(rect) => {
+                   onEditableOverlayCommit={(rect) => {
                     if (!editableOverlay) return;
-                    if (editableOverlay.kind === "crop") setCommittedCropRect(rect);
                     setDraftOverlayRect(null);
                     onOpParamsChange(editableOverlay.opIndex, updatePatchForOverlay(task.pipeline.ops[editableOverlay.opIndex], rect, imageBounds));
                   }}
+                  onOpParamsChange={onOpParamsChange}
                   placement={placement}
                   stageSize={frameSize}
                   showRotateGuide={showRotateGuide}
@@ -152,6 +143,7 @@ function PipelineOverlays({
   imageSize,
   onEditableOverlayChange,
   onEditableOverlayCommit,
+  onOpParamsChange,
   placement,
   stageSize,
   showRotateGuide,
@@ -164,6 +156,7 @@ function PipelineOverlays({
   imageSize: { width: number; height: number };
   onEditableOverlayChange(nextRect: FractionRect): void;
   onEditableOverlayCommit(nextRect: FractionRect): void;
+  onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
   placement: { x: number; y: number; width: number; height: number; scale: number };
   stageSize: { width: number; height: number };
   showRotateGuide: boolean;
@@ -251,8 +244,61 @@ function PipelineOverlays({
           ));
         }
         if (op.type === "watermark-text" && typeof op.params.text === "string" && op.params.text.trim()) {
-          const point = anchorPoint(String(op.params.anchor ?? "bottom-right"), placement, Number(op.params.marginX ?? 0.02), Number(op.params.marginY ?? 0.02));
-          return [<Text fill="#ffffff" fontSize={13} key={`${opIndex}-text`} opacity={0.85} text={op.params.text} x={point.x} y={point.y} />];
+          const canvasPos = watermarkCanvasPos(op.params, imageSize, longEdge, placement);
+          return [
+            <Text
+              draggable
+              fill="#ffffff"
+              fontSize={13}
+              key={`${opIndex}-text`}
+              opacity={0.85}
+              stroke="#00000080"
+              strokeWidth={0.5}
+              text={String(op.params.text)}
+              x={canvasPos.x}
+              y={canvasPos.y}
+              onDragEnd={(e) => {
+                const cx = e.target.x();
+                const cy = e.target.y();
+                const imgX = (cx - placement.x) / placement.scale;
+                const imgY = (cy - placement.y) / placement.scale;
+                onOpParamsChange(opIndex, {
+                  anchor: "top-left",
+                  marginX: Math.max(0, imgX) / longEdge,
+                  marginY: Math.max(0, imgY) / longEdge
+                });
+              }}
+            />
+          ];
+        }
+        if (op.type === "watermark-image") {
+          const canvasPos = watermarkCanvasPos(op.params, imageSize, longEdge, placement);
+          const scale = Number(op.params.scale ?? 0.15);
+          const approxW = longEdge * scale * placement.scale;
+          return [
+            <Rect
+              draggable
+              fill="#ffffff30"
+              height={approxW * 0.6}
+              key={`${opIndex}-wm-image`}
+              stroke="#ffffffaa"
+              strokeWidth={1}
+              width={approxW}
+              x={canvasPos.x}
+              y={canvasPos.y}
+              onDragEnd={(e) => {
+                const cx = e.target.x();
+                const cy = e.target.y();
+                const imgX = (cx - placement.x) / placement.scale;
+                const imgY = (cy - placement.y) / placement.scale;
+                onOpParamsChange(opIndex, {
+                  anchor: "top-left",
+                  marginX: Math.max(0, imgX) / longEdge,
+                  marginY: Math.max(0, imgY) / longEdge
+                });
+              }}
+            />
+          ];
         }
         return [];
       })}
@@ -333,11 +379,29 @@ function rectsParam(value: unknown): Array<{ x: number; y: number; w: number; h:
   return redactionRects(value);
 }
 
-function anchorPoint(anchor: string, placement: { x: number; y: number; width: number; height: number }, marginX: number, marginY: number): { x: number; y: number } {
-  const x = anchor.includes("left") ? placement.x + marginX * placement.width : anchor.includes("right") ? placement.x + placement.width - marginX * placement.width - 120 : placement.x + placement.width / 2 - 60;
-  const y = anchor.includes("top") ? placement.y + marginY * placement.height : anchor.includes("bottom") ? placement.y + placement.height - marginY * placement.height - 20 : placement.y + placement.height / 2 - 10;
-  return { x: Math.max(placement.x, x), y: Math.max(placement.y, y) };
+/** Computes canvas-space top-left position for a watermark op, matching backend anchorPosition logic. */
+function watermarkCanvasPos(
+  params: Record<string, unknown>,
+  imageSize: { width: number; height: number },
+  longEdge: number,
+  placement: { x: number; y: number; scale: number }
+): { x: number; y: number } {
+  const anchor = String(params.anchor ?? "bottom-right");
+  const marginXPx = Number(params.marginX ?? 0.02) * longEdge;
+  const marginYPx = Number(params.marginY ?? 0.02) * longEdge;
+  // Approximate text/image element size for positioning (used for right/bottom alignment)
+  const approxW = 120;
+  const approxH = 16;
+  const horizontal = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
+  const vertical = anchor.includes("top") ? "top" : anchor.includes("bottom") ? "bottom" : "center";
+  const imgLeft = horizontal === "left" ? marginXPx : horizontal === "right" ? imageSize.width - approxW - marginXPx : (imageSize.width - approxW) / 2;
+  const imgTop = vertical === "top" ? marginYPx : vertical === "bottom" ? imageSize.height - approxH - marginYPx : (imageSize.height - approxH) / 2;
+  return {
+    x: placement.x + Math.max(0, imgLeft) * placement.scale,
+    y: placement.y + Math.max(0, imgTop) * placement.scale
+  };
 }
+
 
 function scaleDownRect(rect: { x: number; y: number; w: number; h: number }, longEdge: number): FractionRect {
   return {

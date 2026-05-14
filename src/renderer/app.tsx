@@ -63,8 +63,14 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const previewRequest = useMemo(() => {
     if (!activeTask) return null;
-    // Card N shows the result of ops[0..N-1]. null = all ops (no card selected).
-    const truncateOpsAt = selectedOpIndex;
+    // Ops with canvas overlays (crop, redact-*) need the pre-op image as their base.
+    // All other ops (rotate, resize, tone, effects …) must include themselves so
+    // changes are visible in real-time.
+    const selectedOp = selectedOpIndex !== null ? activeTask.pipeline.ops[selectedOpIndex] : null;
+    const hasCanvasOverlay =
+      selectedOp?.type === "crop" ||
+      (typeof selectedOp?.type === "string" && selectedOp.type.startsWith("redact-"));
+    const truncateOpsAt = selectedOpIndex !== null ? (hasCanvasOverlay ? selectedOpIndex : selectedOpIndex + 1) : null;
     const previewOps = truncateOpsAt !== null ? activeTask.pipeline.ops.slice(0, truncateOpsAt) : activeTask.pipeline.ops;
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,

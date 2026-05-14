@@ -224,13 +224,11 @@ async function applyWhiteBalance(image: sharp.Sharp, op: OpInstance): Promise<sh
 }
 
 async function applyCurves(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
-  const metadata = await image.metadata();
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
+  const lut = curveLookup(curvePointsParam(op.params.rgb));
+  const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
   if (width <= 0 || height <= 0) return image;
 
-  const lut = curveLookup(curvePointsParam(op.params.rgb));
-  const raw = await image.ensureAlpha().raw().toBuffer();
   for (let offset = 0; offset < raw.length; offset += 4) {
     raw[offset] = lut[raw[offset]];
     raw[offset + 1] = lut[raw[offset + 1]];
@@ -247,12 +245,10 @@ async function applyCurves(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sh
 }
 
 async function applyHsl(image: sharp.Sharp, op: OpInstance): Promise<sharp.Sharp> {
-  const metadata = await image.metadata();
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
+  const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
   if (width <= 0 || height <= 0) return image;
 
-  const raw = await image.ensureAlpha().raw().toBuffer();
   for (let offset = 0; offset < raw.length; offset += 4) {
     const hsl = rgbToHsl(raw[offset], raw[offset + 1], raw[offset + 2]);
     const adjustment = hslAdjustmentForHue(op, hsl.h);
@@ -393,20 +389,18 @@ async function applyLut(
 
   const lut = await resolveLut(cubePath);
   const strength = Math.max(0, Math.min(1, numberParam(op, "strength", 1)));
-  const metadata = await image.metadata();
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
+  const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = info;
   if (width <= 0 || height <= 0) return image;
 
-  const raw = await image.ensureAlpha().raw().toBuffer();
   for (let offset = 0; offset < raw.length; offset += 4) {
     const r = raw[offset] / 255;
     const g = raw[offset + 1] / 255;
     const b = raw[offset + 2] / 255;
     const sampled = sampleCubeLut(lut, r, g, b);
-    raw[offset] = Math.round((r + (sampled[0] - r) * strength) * 255);
-    raw[offset + 1] = Math.round((g + (sampled[1] - g) * strength) * 255);
-    raw[offset + 2] = Math.round((b + (sampled[2] - b) * strength) * 255);
+    raw[offset] = Math.max(0, Math.min(255, Math.round((r + (sampled[0] - r) * strength) * 255)));
+    raw[offset + 1] = Math.max(0, Math.min(255, Math.round((g + (sampled[1] - g) * strength) * 255)));
+    raw[offset + 2] = Math.max(0, Math.min(255, Math.round((b + (sampled[2] - b) * strength) * 255)));
   }
 
   return (await import("sharp")).default(raw, {

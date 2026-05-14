@@ -187,9 +187,26 @@ Key rules:
 3. Worker pool: `renderBuffer({ previewLongEdge })` → `pipeline-worker.ts` → `runPipeline(pipeline, { previewLongEdge })`.
 4. `runPipeline` decodes, resizes long-edge to `previewLongEdge`, applies ops, returns raw RGBA.
 5. `preview-service` wraps RGBA in a `sharp(raw, { raw: ... }).png()`, returns a base64 data URL.
-6. Renderer's `EditorCanvas` loads the data URL into Konva and fits it to the canvas frame (1:1 scale to fit-or-fill behavior; no zoom UI).
+6. Renderer's `EditorCanvas` loads the data URL into Konva and fits it to the canvas frame.
 
-When the selected op is **crop**, the renderer asks main to render the preview **without that crop op applied**. The canvas then recenters and zooms the pre-crop image around the current crop rectangle so crop resizing stays stable instead of recursively previewing the already-cropped image.
+### Per-card chain preview
+
+When an op card is selected (`selectedOpIndex = N`), the preview reflects the image *after* applying ops 0…N:
+
+- **Ops with canvas overlays** (`crop`, `redact-*`): `truncateOpsAt = selectedOpIndex` (the preview shows the image *before* the selected op, so dragging the crop/redact rectangle on canvas is stable — the selection box is applied visually, not through the pipeline).
+- **All other ops** (`rotate`, `resize`, tone, effects …): `truncateOpsAt = selectedOpIndex + 1` (the op itself is included so parameter changes (e.g. slider) appear in real-time).
+
+When no card is selected, all ops are applied (`truncateOpsAt = null`).
+
+### Canvas overlays and overlay gating
+
+`PipelineOverlays` in `EditorCanvas` renders interactive annotations over the preview. Overlays render **only** for the currently selected op (`opIndex === selectedOpIndex`), so switching away from a card hides its handles.
+
+- **Crop**: darken-mask + `InteractiveOverlayRect` with aspect-ratio lock support.
+- **Redact**: draggable `InteractiveOverlayRect` per redaction region.
+- **White balance**: click anywhere on the preview to sample a neutral point.
+- **Watermark text / image**: draggable label / placeholder rect. Drag end sets `anchor="top-left"` and updates `marginX`/`marginY` as fractions of `longEdge` from the new top-left position.
+- **Rotate**: dashed border + crosshair guide lines (visual only, no interaction).
 
 Default `previewLongEdge` is 256 (set deliberately low so the resize path is visually obvious). Bump it once the team is happy.
 

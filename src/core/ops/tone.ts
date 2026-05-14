@@ -4,40 +4,28 @@ registerOp({
   type: "levels",
   label: "Levels",
   category: "Tone",
-  defaultParams: { blackPoint: 0, whitePoint: 255, gamma: 1 },
-  paramScaling: { blackPoint: "scale_invariant", whitePoint: "scale_invariant", gamma: "scale_invariant" },
-  schema: { type: "object", properties: {}, additionalProperties: true },
-  visible: true
+  defaultParams: { blackPoint: 0, whitePoint: 255, gamma: 1 }
 });
 
 registerOp({
   type: "white-balance",
   label: "White Balance",
   category: "Tone",
-  defaultParams: { temperature: 0, tint: 0, samplePoint: null },
-  paramScaling: { temperature: "scale_invariant", tint: "scale_invariant", samplePoint: "fraction_of_long_edge" },
-  schema: { type: "object", properties: {}, additionalProperties: true },
-  visible: true
+  defaultParams: { temperature: 0, tint: 0, samplePoint: null }
 });
 
 registerOp({
   type: "auto-tone",
   label: "Auto Tone",
   category: "Tone",
-  defaultParams: { enabled: true, strength: 0.7 },
-  paramScaling: { enabled: "scale_invariant", strength: "scale_invariant" },
-  schema: { type: "object", properties: {}, additionalProperties: true },
-  visible: true
+  defaultParams: { enabled: true, strength: 0.7 }
 });
 
 registerOp({
   type: "curves",
   label: "Curves",
   category: "Tone",
-  defaultParams: { rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] },
-  paramScaling: { rgb: "scale_invariant" },
-  schema: { type: "object", properties: {}, additionalProperties: true },
-  visible: true
+  defaultParams: { rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] }
 });
 
 registerOp({
@@ -53,17 +41,5 @@ registerOp({
     blue: { hue: 0, sat: 0, lum: 0 },
     purple: { hue: 0, sat: 0, lum: 0 },
     magenta: { hue: 0, sat: 0, lum: 0 }
-  },
-  paramScaling: {
-    red: "scale_invariant",
-    orange: "scale_invariant",
-    yellow: "scale_invariant",
-    green: "scale_invariant",
-    aqua: "scale_invariant",
-    blue: "scale_invariant",
-    purple: "scale_invariant",
-    magenta: "scale_invariant"
-  },
-  schema: { type: "object", properties: {}, additionalProperties: true },
-  visible: true
+  }
 });

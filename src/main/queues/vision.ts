@@ -55,7 +55,7 @@ export class VisionQueue {
         { imageBytes: input.bytes, mimeType: "image/jpeg" },
         {
           model: this.settings.model,
-          projectContext: project.settings.projectContext ?? null,
+          projectContext: this.settings.visionProjectContext || null,
           customPromptAddendum: this.settings.customPromptAddendum || null
         }
       );

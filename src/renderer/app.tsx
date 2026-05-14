@@ -613,7 +613,7 @@ function App(): React.JSX.Element {
 
       {renameOpen && settings ? (
         <RenameModal
-          defaultTemplateId={project?.settings.defaultTemplateId ?? settings.defaultTemplateId}
+          defaultTemplateId={settings.defaultTemplateId}
           doneTasks={(project?.tasks ?? []).filter((task) => task.status === "done").map((task) => ({
             id: task.id,
             label: taskLabel(task, project?.originals ?? []),

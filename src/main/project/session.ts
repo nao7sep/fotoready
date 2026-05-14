@@ -7,8 +7,6 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
-import { processTask } from "@main/queues/processing";
-import { queueSnapshotFromProject } from "@main/queues/snapshot";
 import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
@@ -34,12 +32,12 @@ export class ProjectSession {
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue | null = null,
-    private readonly visionQueue: VisionQueue | null = null,
-    private readonly processingQueue: ProcessingQueue | null = null,
-    private readonly workerPool: PipelineWorkerPool | null = null
+    private readonly qualityQueue: QualityQueue,
+    private readonly visionQueue: VisionQueue,
+    private readonly processingQueue: ProcessingQueue,
+    private readonly workerPool: PipelineWorkerPool
   ) {
-    this.#project = createEmptyProject(settings.defaultOutputDirectory);
+    this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
   }
 
   snapshot(): ProjectSessionSnapshot {
@@ -57,8 +55,8 @@ export class ProjectSession {
     await this.#snapshotListener?.(this.snapshot(), this.queueSnapshot());
   }
 
-  setOutputDir(outputDir: string): ProjectSessionSnapshot {
-    this.#project.outputDir = outputDir;
+  setOutputDir(outputDir: string | null): ProjectSessionSnapshot {
+    this.#project.outputDir = outputDir && outputDir.trim().length > 0 ? outputDir : null;
     return this.snapshot();
   }
 
@@ -70,7 +68,7 @@ export class ProjectSession {
 
       if (!existing) {
         this.#project.originals.push(original);
-        await this.qualityQueue?.enqueueOriginal(original);
+        await this.qualityQueue.enqueueOriginal(original);
       }
 
       this.selectOriginal(targetOriginal.id);
@@ -144,7 +142,6 @@ export class ProjectSession {
     if (index === -1) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    assertTaskDeleteOptions(options);
 
     const task = this.#project.tasks[index];
     const outputPaths = task.output
@@ -209,13 +206,9 @@ export class ProjectSession {
     task.error = null;
     task.updatedAt = nowIso();
 
-    if (this.processingQueue) {
-      void this.processingQueue.enqueueTask(this.#project, taskId).catch(() => {
-        /* errors are surfaced via task.error in processTask */
-      });
-    } else {
-      void this.runTaskInline(taskId);
-    }
+    void this.processingQueue.enqueueTask(this.#project, taskId).catch(() => {
+      /* errors are surfaced via task.error in processTask */
+    });
 
     return this.snapshot();
   }
@@ -234,7 +227,7 @@ export class ProjectSession {
       throw new Error(`Task not found: ${taskId}`);
     }
     if (task.status === "queued") {
-      this.processingQueue?.cancelTask(taskId);
+      this.processingQueue.cancelTask(taskId);
       task.status = "pending";
       task.updatedAt = nowIso();
     }
@@ -242,7 +235,7 @@ export class ProjectSession {
   }
 
   cancelAll(): ProjectSessionSnapshot {
-    const cancelledIds = this.processingQueue?.cancelAll() ?? [];
+    const cancelledIds = this.processingQueue.cancelAll();
     const cancelledSet = new Set(cancelledIds);
     for (const task of this.#project.tasks) {
       if (task.status === "queued" || cancelledSet.has(task.id)) {
@@ -254,10 +247,7 @@ export class ProjectSession {
   }
 
   queueSnapshot(): QueueSnapshot {
-    if (this.processingQueue) {
-      return this.processingQueue.snapshot(this.#project);
-    }
-    return queueSnapshotFromProject(this.#project);
+    return this.processingQueue.snapshot(this.#project);
   }
 
   async renderPreview(taskId: string, options?: { truncateOpsAt?: number | null }): Promise<PreviewResult> {
@@ -275,8 +265,8 @@ export class ProjectSession {
   addOp(taskId: string, opType: string): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const definition = getOpDefinition(opType);
-    if (!definition || !definition.visible) {
-      throw new Error(`Unknown editable op: ${opType}`);
+    if (!definition) {
+      throw new Error(`Unknown op: ${opType}`);
     }
     this.recordTaskEdit(task);
 
@@ -305,9 +295,6 @@ export class ProjectSession {
   setOpEnabled(taskId: string, opIndex: number, enabled: boolean): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
-    if (typeof enabled !== "boolean") {
-      throw new Error("Op enabled state must be a boolean.");
-    }
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
@@ -327,9 +314,6 @@ export class ProjectSession {
   updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     assertOpIndex(task, opIndex);
-    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-      throw new Error("Op patch must be an object.");
-    }
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpDefinition);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
@@ -339,9 +323,6 @@ export class ProjectSession {
 
   setAnalyzeContent(taskId: string, analyzeContent: boolean): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    if (typeof analyzeContent !== "boolean") {
-      throw new Error("analyzeContent must be a boolean.");
-    }
     this.recordTaskEdit(task);
     task.analyzeContent = analyzeContent;
     touchTask(task);
@@ -350,9 +331,6 @@ export class ProjectSession {
 
   setCustomSlug(taskId: string, customSlug: string | null): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    if (customSlug !== null && typeof customSlug !== "string") {
-      throw new Error("customSlug must be a string or null.");
-    }
     this.recordTaskEdit(task);
     task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
     touchTask(task);
@@ -363,8 +341,6 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     this.recordTaskEdit(task);
     task.pipeline.output = nextTaskOutput(task.pipeline.output, key, value, this.settings);
-    task.outputFormatOverride = task.pipeline.output.format;
-    task.outputQualityOverride = task.pipeline.output.quality;
     touchTask(task);
     return this.snapshot();
   }
@@ -399,22 +375,16 @@ export class ProjectSession {
   }
 
   async runVision(taskId: string): Promise<ProjectSessionSnapshot> {
-    if (!this.visionQueue) {
-      throw new Error("Vision queue is not configured.");
-    }
     await this.visionQueue.runForTask(this.#project, taskId);
     return this.snapshot();
   }
 
   async setGeminiApiKey(apiKey: string): Promise<void> {
-    if (!this.visionQueue) {
-      throw new Error("Vision queue is not configured.");
-    }
     await this.visionQueue.setGeminiApiKey(apiKey);
   }
 
   async hasGeminiApiKey(): Promise<boolean> {
-    return this.visionQueue ? this.visionQueue.hasGeminiApiKey() : false;
+    return this.visionQueue.hasGeminiApiKey();
   }
 
   private editableTask(taskId: string): Task {
@@ -433,17 +403,6 @@ export class ProjectSession {
     history.push(structuredClone(task));
     if (history.length > 50) history.shift();
     this.#taskUndoHistory.set(task.id, history);
-  }
-
-  private async runTaskInline(taskId: string): Promise<void> {
-    const sourceFacts = await this.sourceFactsForTask(taskId);
-    await processTask(this.#project, taskId, this.settings, sourceFacts, () => this.emitSnapshot(), this.workerPool);
-  }
-
-  private async sourceFactsForTask(taskId: string) {
-    const task = this.#project.tasks.find((item) => item.id === taskId);
-    const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
-    return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
   }
 }
 
@@ -472,9 +431,6 @@ function createTaskForOriginal(originalId: string, settings: GlobalSettings): Ta
     id: nanoid(),
     originalId,
     analyzeContent: settings.defaultAnalyzeContent,
-    outputFormatOverride: null,
-    outputQualityOverride: null,
-    metadataStripOverride: null,
     customSlug: null,
     pipeline,
     status: "pending",
@@ -538,15 +494,6 @@ function isUntouchedTask(task: Task): boolean {
 function assertOpIndex(task: Task, opIndex: number): void {
   if (!Number.isInteger(opIndex) || opIndex < 0 || opIndex >= task.pipeline.ops.length) {
     throw new Error(`Op index out of range: ${opIndex}`);
-  }
-}
-
-function assertTaskDeleteOptions(options: TaskDeleteOptions): void {
-  if (options.deleteStagedOutput !== undefined && typeof options.deleteStagedOutput !== "boolean") {
-    throw new Error("deleteStagedOutput must be a boolean when provided.");
-  }
-  if (options.deleteFinalOutput !== undefined && typeof options.deleteFinalOutput !== "boolean") {
-    throw new Error("deleteFinalOutput must be a boolean when provided.");
   }
 }
 

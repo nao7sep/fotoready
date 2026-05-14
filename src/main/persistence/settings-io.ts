@@ -6,7 +6,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 
 function defaults(): GlobalSettings {
-  return defaultGlobalSettings(Intl.DateTimeFormat().resolvedOptions().timeZone, Math.min(8, os.cpus().length));
+  return defaultGlobalSettings(Math.min(8, os.cpus().length));
 }
 
 export async function loadSettings(settingsPath: string): Promise<GlobalSettings> {

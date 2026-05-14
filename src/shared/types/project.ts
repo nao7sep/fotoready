@@ -1,5 +1,4 @@
-import type { OutputFormat, Pipeline } from "./pipeline";
-import type { MetadataStripMode, ProjectSettings } from "./settings";
+import type { Pipeline } from "./pipeline";
 
 export type Original = {
   id: string;
@@ -42,9 +41,6 @@ export type Task = {
   id: string;
   originalId: string;
   analyzeContent: boolean;
-  outputFormatOverride: OutputFormat | null;
-  outputQualityOverride: number | "match-source-size" | "match-source-quality" | null;
-  metadataStripOverride: MetadataStripMode | null;
   customSlug: string | null;
   pipeline: Pipeline;
   status: TaskStatus;
@@ -55,10 +51,7 @@ export type Task = {
 };
 
 export type Project = {
-  version: 1;
-  name: string;
-  outputDir: string;
-  settings: ProjectSettings;
+  outputDir: string | null;
   originals: Original[];
   tasks: Task[];
 };

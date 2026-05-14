@@ -15,7 +15,7 @@ describe("previewRename", () => {
       await sharp({ create: { width: 4, height: 3, channels: 3, background: "#00ff00" } }).png().toFile(sourcePath);
       await fs.copyFile(sourcePath, stagedPath);
 
-      const project = createEmptyProject(tempDir, {});
+      const project = createEmptyProject(tempDir);
       project.originals.push({
         id: "original-1",
         sourcePath,
@@ -30,12 +30,8 @@ describe("previewRename", () => {
         id: "task-1",
         originalId: "original-1",
         analyzeContent: true,
-        outputFormatOverride: null,
-        outputQualityOverride: null,
-        metadataStripOverride: null,
         customSlug: null,
         pipeline: {
-          specVersion: 1,
           ops: [],
           output: {
             format: "png",
@@ -47,10 +43,7 @@ describe("previewRename", () => {
             pngPalette: false,
             backgroundForTransparency: "#ffffff",
             iccOutput: "tag-srgb"
-          },
-          appliedColorNormalization: null,
-          sourceSnapshot: null,
-          toolVersions: null
+          }
         },
         status: "done",
         output: {
@@ -71,7 +64,7 @@ describe("previewRename", () => {
         updatedAt: "2026-05-12T09:10:11.000Z"
       });
 
-      const settings = defaultGlobalSettings("UTC", 1);
+      const settings = defaultGlobalSettings(1);
       settings.filenameTemplates = [
         ...settings.filenameTemplates,
         { id: "bad-template", name: "Bad template", pattern: "{slug}/bad.{ext}" }

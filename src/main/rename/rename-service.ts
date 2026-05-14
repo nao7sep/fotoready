@@ -98,8 +98,8 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
   }
 }
 
-function findTemplate(project: Project, settings: GlobalSettings, templateId?: string): FilenameTemplate {
-  const id = templateId ?? project.settings.defaultTemplateId ?? settings.defaultTemplateId ?? BUILTIN_FILENAME_TEMPLATE_ID;
+function findTemplate(_project: Project, settings: GlobalSettings, templateId?: string): FilenameTemplate {
+  const id = templateId ?? settings.defaultTemplateId ?? BUILTIN_FILENAME_TEMPLATE_ID;
   return settings.filenameTemplates.find((template) => template.id === id) ?? builtinFilenameTemplate;
 }
 

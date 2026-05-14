@@ -16,8 +16,8 @@ export class ProcessingQueue {
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue | null,
-    private readonly workerPool: PipelineWorkerPool | null,
+    private readonly qualityQueue: QualityQueue,
+    private readonly workerPool: PipelineWorkerPool,
     onUpdate: (() => void | Promise<void>) | null = null
   ) {
     this.#onUpdate = onUpdate;
@@ -80,6 +80,6 @@ export class ProcessingQueue {
   private async sourceFactsForTask(project: Project, taskId: string) {
     const task = project.tasks.find((item) => item.id === taskId);
     const original = task ? project.originals.find((item) => item.id === task.originalId) : null;
-    return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
+    return original ? this.qualityQueue.factsForOriginal(original) : null;
   }
 }

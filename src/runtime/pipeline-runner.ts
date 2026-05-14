@@ -21,7 +21,7 @@ export type PipelineRunResult =
   | { kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline };
 
 export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): Promise<PipelineRunResult> {
-  const { image, facts } = await decodeImage(ctx.sourcePath);
+  const { image } = await decodeImage(ctx.sourcePath);
   let work = image.sharp;
   let workWidth = image.width;
   let workHeight = image.height;
@@ -60,26 +60,7 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
 
   const appliedPipeline: Pipeline = {
     ...pipeline,
-    ops: executedOps,
-    appliedColorNormalization: {
-      detectedProfile: facts.iccProfileSummary,
-      detectedColorSpaceTag: facts.colorSpaceTag,
-      assumed: facts.iccProfile ? null : facts.colorSpaceTag === null ? "srgb" : null,
-      iccBakedIntoPixels: facts.iccProfile !== null
-    },
-    sourceSnapshot: {
-      sha256: ctx.sourceHash,
-      width: facts.width,
-      height: facts.height,
-      format: facts.format,
-      jpegQualityEstimate: facts.jpegQualityEstimate
-    },
-    toolVersions: {
-      fotoready: "0.1.0",
-      sharp: "runtime",
-      libvips: "runtime",
-      exiftool: "runtime"
-    }
+    ops: executedOps
   };
 
   if (ctx.outputPath) {

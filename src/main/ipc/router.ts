@@ -138,9 +138,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
 
   ipcMain.handle("ops.list", async () =>
-    listOpDefinitions()
-      .filter((op) => op.visible)
-      .map(({ type, label, category, defaultParams, visible }) => ({ type, label, category, defaultParams, visible }))
+    listOpDefinitions().map(({ type, label, category, defaultParams }) => ({ type, label, category, defaultParams }))
   );
   ipcMain.handle("preview.render", async (_event, taskId: string, options?: { truncateOpsAt?: number | null }) =>
     ctx.projectSession.renderPreview(taskId, options)

@@ -1,19 +1,6 @@
 import type { QueueSnapshot } from "@shared/types/ipc";
 import type { Project } from "@shared/types/project";
 
-export function emptyQueueSnapshot(): QueueSnapshot {
-  return {
-    done: 0,
-    total: 0,
-    pending: 0,
-    queued: 0,
-    processing: 0,
-    errors: 0,
-    activeTaskId: null,
-    activeTaskLabel: null
-  };
-}
-
 export function queueSnapshotFromProject(project: Project, activeTaskId: string | null = firstProcessingTaskId(project)): QueueSnapshot {
   return {
     done: project.tasks.filter((task) => task.status === "done").length,

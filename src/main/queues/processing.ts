@@ -6,9 +6,7 @@ import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
-import { runPipeline } from "@runtime/pipeline-runner";
 import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
-import { loadCubeLut } from "@adapters/lut/cube-loader";
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -17,9 +15,9 @@ export async function processTask(
   project: Project,
   taskId: string,
   settings: GlobalSettings,
-  sourceFacts: SourceJpegFacts | null = null,
-  onUpdate?: () => void | Promise<void>,
-  workerPool?: PipelineWorkerPool | null
+  sourceFacts: SourceJpegFacts | null,
+  onUpdate: (() => void | Promise<void>) | undefined,
+  workerPool: PipelineWorkerPool
 ): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
@@ -78,21 +76,15 @@ async function processOutputPipeline(
   outputPath: string,
   settings: GlobalSettings,
   sourceFacts: SourceJpegFacts | null,
-  workerPool?: PipelineWorkerPool | null
+  workerPool: PipelineWorkerPool
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
   if (pipeline.output.format === "jpeg" && pipeline.output.quality === "match-source-size") {
     return processMatchSourceSize(pipeline, sourcePath, sourceHash, sourceBytes, outputPath, settings, sourceFacts, workerPool);
   }
 
   const resolved = resolveOutputQuality(pipeline, settings, sourceFacts);
-  if (workerPool) {
-    const result = await workerPool.process({ sourcePath, sourceHash, outputPath, pipeline: resolved });
-    return { ...result, kind: "file" };
-  }
-
-  const result = await runPipeline(resolved, { sourcePath, sourceHash, outputPath, resolveLut: loadCubeLut });
-  if (result.kind !== "file") throw new Error("Processing did not produce an output file.");
-  return result;
+  const result = await workerPool.process({ sourcePath, sourceHash, outputPath, pipeline: resolved });
+  return { ...result, kind: "file" };
 }
 
 function resolveOutputQuality(pipeline: Pipeline, settings: GlobalSettings, sourceFacts: SourceJpegFacts | null): Pipeline {
@@ -117,16 +109,11 @@ async function processMatchSourceSize(
   outputPath: string,
   settings: GlobalSettings,
   sourceFacts: SourceJpegFacts | null,
-  workerPool?: PipelineWorkerPool | null
+  workerPool: PipelineWorkerPool
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
-  const rendered = workerPool
-    ? await workerPool.renderBuffer({ sourcePath, sourceHash, pipeline, previewLongEdge: null })
-    : await runPipeline(pipeline, { sourcePath, sourceHash, resolveLut: loadCubeLut });
-  if (rendered.kind !== "buffer" && rendered.kind !== "preview") throw new Error("Match-source-size render did not produce a raw buffer.");
-
+  const rendered = await workerPool.renderBuffer({ sourcePath, sourceHash, pipeline, previewLongEdge: null });
   const startQuality = sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure;
-  const bytes = rendered.kind === "preview" ? Buffer.from(rendered.bitmap) : rendered.bytes;
-  const encoded = await encodeJpegToTargetSize(bytes, rendered.width, rendered.height, pipeline.output, targetBytes, startQuality);
+  const encoded = await encodeJpegToTargetSize(Buffer.from(rendered.bitmap), rendered.width, rendered.height, pipeline.output, targetBytes, startQuality);
   await fs.writeFile(outputPath, encoded.bytes);
 
   return {
@@ -196,9 +183,8 @@ function clampQuality(value: number): number {
 
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
   const policy = metadataPolicy(task, settings);
-  const keep = task.metadataStripOverride ?? policy.keep;
   try {
-    await stripMetadata(outputPath, keep);
+    await stripMetadata(outputPath, policy.keep);
   } catch (error) {
     throw new Error(`Failed to strip metadata from the output file. ${errorMessage(error)}`);
   }
@@ -244,7 +230,7 @@ async function stagedOutputPath(project: Project, task: Task, sourcePath: string
   return path.join(outputDir, `${parsed.name}-${nanoid(8)}.${ext}`);
 }
 
-function resolveOutputDir(outputDir: string, sourcePath: string): string {
+function resolveOutputDir(outputDir: string | null, sourcePath: string): string {
   if (!outputDir || outputDir.trim().length === 0) return path.dirname(sourcePath);
   if (path.isAbsolute(outputDir)) return outputDir;
   return path.resolve(process.cwd(), outputDir);

@@ -131,10 +131,6 @@ function GeneralSettings({ settings, setSettings, systemInfo }: SettingsProps & 
         <code>{systemInfo?.dataDir ?? "~/.fotoready"}</code>
       </div>
       <div className="settings-grid">
-        <label className="stacked-field">
-          Camera timezone
-          <input type="text" value={settings.cameraTimezone} onChange={(event) => setSettings({ ...settings, cameraTimezone: event.currentTarget.value })} />
-        </label>
         <label className="toggle-row">
           <input type="checkbox" checked={settings.confirmDeleteOriginalWithTasks} onChange={(event) => setSettings({ ...settings, confirmDeleteOriginalWithTasks: event.currentTarget.checked })} />
           Confirm original deletes
@@ -180,7 +176,6 @@ function VisionSettings({ apiKeyDraft, onApiKeyDraftChange, settings, setSetting
         <input type="text" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })} />
       </label>
       <NumberField label="Vision long edge" max={4096} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
-      <NumberField label="Max concurrent" max={16} min={1} value={settings.maxConcurrent} onChange={(value) => setSettings({ ...settings, maxConcurrent: value })} />
       <label className="toggle-row">
         <input type="checkbox" checked={settings.defaultAnalyzeContent} onChange={(event) => setSettings({ ...settings, defaultAnalyzeContent: event.currentTarget.checked })} />
         Describe by default
@@ -192,6 +187,10 @@ function VisionSettings({ apiKeyDraft, onApiKeyDraftChange, settings, setSetting
       <label className="stacked-field span-two">
         Prompt addendum
         <input type="text" value={settings.customPromptAddendum} onChange={(event) => setSettings({ ...settings, customPromptAddendum: event.currentTarget.value })} />
+      </label>
+      <label className="stacked-field span-two">
+        Project context
+        <input type="text" placeholder="Optional context shared with every vision request" value={settings.visionProjectContext} onChange={(event) => setSettings({ ...settings, visionProjectContext: event.currentTarget.value })} />
       </label>
     </div>
   );

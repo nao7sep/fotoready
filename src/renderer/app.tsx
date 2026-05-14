@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CopyPlus, Menu, Pause, Play, RotateCcw, Save, Settings, Trash2 } from "lucide-react";
+import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Settings, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
-import { HistogramPanel } from "./components/canvas/histogram-panel";
+import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -14,6 +14,17 @@ import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
 import "./styles/app.css";
+
+const initialQueueSnapshot: QueueSnapshot = {
+  done: 0,
+  total: 0,
+  pending: 0,
+  queued: 0,
+  processing: 0,
+  errors: 0,
+  activeTaskId: null,
+  activeTaskLabel: null
+};
 
 function App(): React.JSX.Element {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -38,7 +49,7 @@ function App(): React.JSX.Element {
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
-  const [queue, setQueue] = useState<QueueSnapshot>({ done: 0, total: 0, pending: 0, processing: 0, errors: 0, paused: false, activeTaskId: null, activeTaskLabel: null });
+  const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
@@ -47,7 +58,8 @@ function App(): React.JSX.Element {
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
   const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
-  const projectPathLabel = projectSnapshot?.projectPath ?? "Unsaved project";
+  const showHistogram = settings?.showHistogram ?? false;
+  const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -113,6 +125,9 @@ function App(): React.JSX.Element {
       } else if (mod && event.key === ",") {
         event.preventDefault();
         void openSettings();
+      } else if (mod && event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        void toggleHistogram();
       } else if (event.key === "?" && !mod) {
         event.preventDefault();
         setShortcutsOpen(true);
@@ -121,7 +136,7 @@ function App(): React.JSX.Element {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, settings?.showHistogram]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
@@ -135,19 +150,6 @@ function App(): React.JSX.Element {
       offQueue();
     };
   }, []);
-
-  useEffect(() => {
-    if (!settings) return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = () => {
-      const resolvedTheme = settings.theme === "system" ? (media.matches ? "dark" : "light") : settings.theme;
-      document.documentElement.dataset.theme = resolvedTheme;
-      document.documentElement.style.colorScheme = resolvedTheme;
-    };
-    applyTheme();
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
-  }, [settings?.theme]);
 
   useEffect(() => {
     setSelectedOpIndex(null);
@@ -228,33 +230,12 @@ function App(): React.JSX.Element {
     await refreshProject(await api.project.addOriginals(sourcePaths));
   }
 
-  async function openProject(): Promise<void> {
-    await refreshProject(await api.project.openFromDialog());
-    setSettings(await api.settings.get());
-  }
-
-  async function newProject(): Promise<void> {
-    await refreshProject(await api.project.newProject());
-  }
-
-  async function saveProjectAs(): Promise<void> {
-    await refreshProject(await api.project.saveAsFromDialog());
-    setSettings(await api.settings.get());
-  }
-
-  async function openRecentProject(projectPath: string): Promise<void> {
-    try {
-      await refreshProject(await api.project.openRecent(projectPath));
-      setSettings(await api.settings.get());
-    } catch (error) {
-      console.error(error);
-      window.alert(error instanceof Error ? error.message : String(error));
-      setSettings(await api.settings.get());
-    }
-  }
-
   async function setOutputDir(): Promise<void> {
     await refreshProject(await api.project.setOutputDirFromDialog());
+  }
+
+  async function clearOutputDir(): Promise<void> {
+    await refreshProject(await api.project.clearOutputDir());
   }
 
   async function selectOriginal(originalId: string): Promise<void> {
@@ -329,11 +310,20 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.saveAll());
   }
 
+  async function cancelTask(taskId: string): Promise<void> {
+    await refreshProject(await api.task.cancel(taskId));
+  }
+
+  async function cancelAll(): Promise<void> {
+    await refreshProject(await api.task.cancelAll());
+  }
+
   async function addOp(opType: string): Promise<void> {
     if (!activeTask) return;
     const snapshot = await api.task.addOp(activeTask.id, opType);
     await refreshProject(snapshot);
-    setSelectedOpIndex(snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.length ? snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)!.pipeline.ops.length - 1 : null);
+    const updatedTask = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId);
+    setSelectedOpIndex(updatedTask && updatedTask.pipeline.ops.length > 0 ? updatedTask.pipeline.ops.length - 1 : null);
   }
 
   async function removeOp(opIndex: number): Promise<void> {
@@ -399,6 +389,12 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
+  async function toggleHistogram(): Promise<void> {
+    if (!settings) return;
+    const next = await api.settings.update({ showHistogram: !settings.showHistogram });
+    setSettings(next);
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -418,25 +414,23 @@ function App(): React.JSX.Element {
     });
   }
 
-  async function pauseQueues(): Promise<void> {
-    setQueue(await api.queues.pause());
-  }
-
-  async function resumeQueues(): Promise<void> {
-    setQueue(await api.queues.resume());
-  }
+  const cancellableActiveTask = activeTask && activeTask.status === "queued";
 
   return (
     <main className="app-shell">
       <header className="top-bar">
-        <div className="project-meta">
-          <strong className="project-name">{project?.name ?? "Untitled Project"}</strong>
-          <span className="project-file" title={projectPathLabel}>{projectPathLabel}</span>
-        </div>
-        <button className="toolbar-button" type="button" onClick={() => void newProject()}>New</button>
-        <button className="toolbar-button" type="button" onClick={() => void openProject()}>Open</button>
-        <button className="toolbar-button" type="button" onClick={() => void saveProjectAs()}>Save as</button>
-        <button className="output-path" type="button" onClick={() => void setOutputDir()}>Output: {project?.outputDir ?? settings?.defaultOutputDirectory ?? "./out"}</button>
+        <button className="output-path" type="button" onClick={() => void setOutputDir()} title="Choose output directory">
+          Output: {outputDirLabel}
+        </button>
+        {project?.outputDir ? (
+          <button className="icon-button" type="button" title="Clear output directory (save next to source)" onClick={() => void clearOutputDir()}>
+            <X size={16} />
+          </button>
+        ) : null}
+        <span className="top-bar-spacer" />
+        <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title="Toggle histogram (Cmd/Ctrl+H)" onClick={() => void toggleHistogram()}>
+          <BarChart3 size={18} />
+        </button>
         <button className="icon-button" type="button" title="Settings" onClick={() => void openSettings()}>
           <Settings size={18} />
         </button>
@@ -445,27 +439,13 @@ function App(): React.JSX.Element {
         </button>
         {menuOpen ? (
           <div className="app-menu">
-             <button type="button" onClick={() => {
-               setMenuOpen(false);
-               void openSettings();
-             }}>Settings</button>
-             {settings?.recentProjectPaths.length ? <div className="app-menu-section">Recent projects</div> : null}
-             {settings?.recentProjectPaths.map((projectPath) => (
-               <button
-                 key={projectPath}
-                 title={projectPath}
-                 type="button"
-                 onClick={() => {
-                   setMenuOpen(false);
-                   void openRecentProject(projectPath);
-                 }}
-               >
-                 {basename(projectPath)}
-               </button>
-             ))}
-             <button type="button" onClick={() => {
-               setMenuOpen(false);
-               setShortcutsOpen(true);
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
+              void openSettings();
+            }}>Settings</button>
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
+              setShortcutsOpen(true);
             }}>Keyboard shortcuts</button>
             <button type="button" onClick={() => {
               setMenuOpen(false);
@@ -498,6 +478,7 @@ function App(): React.JSX.Element {
             tasks={project?.tasks ?? []}
             onRename={() => setRenameOpen(true)}
             onSaveAll={() => void saveAll()}
+            onCancelAll={() => void cancelAll()}
             onSelect={(taskId) => void selectTask(taskId)}
             onToggleRenameSelection={toggleRenameSelection}
           />
@@ -505,27 +486,30 @@ function App(): React.JSX.Element {
         {showTasks ? <WorkspaceSplitter label="Resize Tasks panel" onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
 
         <section className="editor-panel">
-          <div className="canvas-frame">
-            <EditorCanvas
-              fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
-              originalDataUrl={activeOriginal ? originalThumbnails[activeOriginal.id] || null : null}
-              onOpParamsChange={(opIndex, patch) => void updateOpParams(opIndex, patch)}
-              preview={activePreview}
-              previewState={previewState}
-              selectedOpIndex={selectedOpIndex}
-              task={activeTask}
-            />
-          </div>
-          <div className="pipeline-strip">
-            Pipeline: {activeTask?.pipeline.ops.length ? `${activeTask.pipeline.ops.length} ops` : "empty"}
+          <div className="preview-toolbar">
+            <span className="preview-detail" title={activeOriginal?.sourcePath ?? ""}>
+              {activeOriginal ? basename(activeOriginal.sourcePath) : "No image"}
+              {activeOriginal ? (
+                <em>
+                  {activeOriginal.width}×{activeOriginal.height}
+                  {activePreview ? ` · preview ${activePreview.width}×${activePreview.height}` : ""}
+                  {activeTask ? ` · ${activeTask.status}` : ""}
+                </em>
+              ) : null}
+            </span>
             {activeTask?.status === "pending" ? (
               <button className="inline-action" type="button" onClick={() => void saveTask(activeTask.id)}>
-                <Save size={14} /> Save task
+                <Save size={14} /> Save
               </button>
             ) : null}
-            {activeTask && activeTask.status !== "pending" ? (
+            {cancellableActiveTask ? (
+              <button className="inline-action" type="button" onClick={() => void cancelTask(activeTask!.id)}>
+                <X size={14} /> Cancel
+              </button>
+            ) : null}
+            {activeTask && activeTask.status === "done" ? (
               <button className="inline-action" type="button" onClick={() => void forkTask(activeTask.id)}>
-                <CopyPlus size={14} /> Fork as new task
+                <CopyPlus size={14} /> Fork
               </button>
             ) : null}
             {activeTask?.error ? (
@@ -538,10 +522,18 @@ function App(): React.JSX.Element {
                 <Trash2 size={14} /> Delete
               </button>
             ) : null}
-            {activeTask?.status === "done" && !activeTask.output?.vision ? (
-              <button className="inline-action" type="button" onClick={() => void runVision(activeTask.id)}>
-                {hasGeminiApiKey ? "Generate description" : "Open settings for Gemini"}
-              </button>
+          </div>
+          <div className="canvas-frame">
+            <EditorCanvas
+              fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
+              onOpParamsChange={(opIndex, patch) => void updateOpParams(opIndex, patch)}
+              preview={activePreview}
+              previewState={previewState}
+              selectedOpIndex={selectedOpIndex}
+              task={activeTask}
+            />
+            {showHistogram ? (
+              <HistogramOverlay preview={activePreview} previewState={previewState} onClose={() => void toggleHistogram()} />
             ) : null}
           </div>
           {activeTask?.error ? (
@@ -553,29 +545,28 @@ function App(): React.JSX.Element {
               <button className="inline-action" type="button" onClick={() => void dismissError(activeTask.id)}>Dismiss</button>
             </div>
           ) : null}
-          <HistogramPanel preview={activePreview} previewState={previewState} task={activeTask} />
         </section>
 
         {showOps ? <WorkspaceSplitter label="Resize Ops panel" onPointerDown={workspaceLayout.startResize("ops")} /> : null}
 
         {showOps ? (
-            <OpsPanel
-              activeTask={activeTask}
-              hasGeminiApiKey={hasGeminiApiKey}
-              luts={lutEntries}
-              opCatalog={opCatalog}
-              onSelectOp={setSelectedOpIndex}
-              onAddOp={(opType) => void addOp(opType)}
-              onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
-              onCustomSlugChange={(value) => void setCustomSlug(value)}
-              onOpenSettings={() => void openSettings()}
-              onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
-              onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
-              onOutputChange={(key, value) => void updateOutput(key, value)}
-              onRemoveOp={(index) => void removeOp(index)}
-              settings={settings}
-              selectedOpIndex={selectedOpIndex}
-            />
+          <OpsPanel
+            activeTask={activeTask}
+            hasGeminiApiKey={hasGeminiApiKey}
+            luts={lutEntries}
+            opCatalog={opCatalog}
+            onSelectOp={setSelectedOpIndex}
+            onAddOp={(opType) => void addOp(opType)}
+            onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
+            onCustomSlugChange={(value) => void setCustomSlug(value)}
+            onOpenSettings={() => void openSettings()}
+            onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
+            onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
+            onOutputChange={(key, value) => void updateOutput(key, value)}
+            onRemoveOp={(index) => void removeOp(index)}
+            settings={settings}
+            selectedOpIndex={selectedOpIndex}
+          />
         ) : null}
       </section>
 
@@ -648,6 +639,7 @@ function App(): React.JSX.Element {
                 ["Cmd/Ctrl+3", "Toggle Ops"],
                 ["Cmd/Ctrl+S", "Save current task"],
                 ["Cmd/Ctrl+Shift+S", "Save all"],
+                ["Cmd/Ctrl+H", "Toggle histogram"],
                 ["Cmd/Ctrl+R", "Rename"],
                 ["Cmd/Ctrl+,", "Settings"],
                 ["?", "Keyboard shortcuts"]
@@ -687,24 +679,18 @@ function App(): React.JSX.Element {
 
       <footer className="status-bar">
         <span>
-          Queue: {queue.done}/{queue.total} done
-          {queue.pending > 0 ? ` · ${queue.pending} queued` : ""}
+          {queue.done}/{queue.total} done
+          {queue.pending > 0 ? ` · ${queue.pending} pending` : ""}
+          {queue.queued > 0 ? ` · ${queue.queued} queued` : ""}
           {queue.processing > 0 ? ` · ${queue.processing} processing` : ""}
           {queue.errors > 0 ? ` · ${queue.errors} errors` : ""}
           {queue.activeTaskLabel ? ` · working on ${queue.activeTaskLabel}` : ""}
-          {queue.paused ? " · paused" : ""}
         </span>
         {erroredTasks.length ? (
           <button className="toolbar-button compact-text" type="button" onClick={() => setErrorsOpen(true)}>
             Errors
           </button>
         ) : null}
-        <button className="icon-button compact" type="button" title="Pause queues" onClick={() => void pauseQueues()} disabled={queue.paused}>
-          <Pause size={15} />
-        </button>
-        <button className="icon-button compact" type="button" title="Resume queues" onClick={() => void resumeQueues()} disabled={!queue.paused}>
-          <Play size={15} />
-        </button>
         <span className="version">{systemInfo ? `${systemInfo.appName} ${systemInfo.version}` : "FotoReady"}</span>
       </footer>
 

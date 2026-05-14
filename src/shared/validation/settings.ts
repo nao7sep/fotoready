@@ -1,7 +1,7 @@
 import { BUILTIN_FILENAME_TEMPLATE_ID } from "../constants";
 import { builtinFilenameTemplate } from "../defaults";
 import type { FilenameTemplate, GlobalSettings, MetadataField } from "../types/settings";
-import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertNullableString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
+import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
 const metadataFields = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
@@ -41,14 +41,10 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     descriptionSource: readValue(source, "descriptionSource", fallback.descriptionSource, issues, (value, path) => assertOneOf(value, path, ["vision-then-none"])),
     injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateStringMap),
     defaultTemplateId: fallback.defaultTemplateId,
-    defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertNonEmptyString),
+    defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertString),
     sidecarLocation: readValue(source, "sidecarLocation", fallback.sidecarLocation, issues, (value, path) => assertOneOf(value, path, ["in-project-file"])),
     lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertNonEmptyString),
     defaultWatermarkImage: readValue(source, "defaultWatermarkImage", fallback.defaultWatermarkImage, issues, assertString),
-    lastProjectPath: readValue(source, "lastProjectPath", fallback.lastProjectPath, issues, (value, path) => {
-      const normalized = assertNullableString(value, path);
-      return normalized && normalized.trim().length > 0 ? normalized : null;
-    }),
     defaultStripGps: true,
     defaultStripThumbnail: true,
     jpegStrategy: readValue(source, "jpegStrategy", fallback.jpegStrategy, issues, (value, path) => assertOneOf(value, path, jpegStrategies)),
@@ -69,14 +65,14 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     customPromptAddendum: readValue(source, "customPromptAddendum", fallback.customPromptAddendum, issues, assertString),
     cacheResults: readValue(source, "cacheResults", fallback.cacheResults, issues, assertBoolean),
     filenameTemplates: normalizeFilenameTemplates(source.filenameTemplates, fallback.filenameTemplates, issues),
-    recentProjectPaths: readValue(source, "recentProjectPaths", fallback.recentProjectPaths, issues, validateRecentProjectPaths),
     slugMinWords: readValue(source, "slugMinWords", fallback.slugMinWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 12 })),
     slugMaxWords: readValue(source, "slugMaxWords", fallback.slugMaxWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 16 })),
     slugCollisionResolution: readValue(source, "slugCollisionResolution", fallback.slugCollisionResolution, issues, (value, path) => assertOneOf(value, path, ["hash-suffix"])),
     hashSuffixLength: readValue(source, "hashSuffixLength", fallback.hashSuffixLength, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 2, max: 16 })),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 32 })),
-    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 320 })),
-    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
+    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64 })),
+    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 })),
+    showHistogram: readValue(source, "showHistogram", fallback.showHistogram, issues, assertBoolean)
   };
 
   if (settings.slugMaxWords < settings.slugMinWords) {
@@ -181,11 +177,6 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
     issues.push(issue.templateId ? `settings.filenameTemplates[${issue.templateId}] ${issue.message}` : issue.message);
   }
   return normalizedTemplates;
-}
-
-function validateRecentProjectPaths(value: unknown, path: string): string[] {
-  const filePaths = assertArray(value, path).map((entry, index) => assertNonEmptyString(entry, `${path}[${index}]`).trim());
-  return [...new Set(filePaths)].slice(0, 10);
 }
 
 function validateFilenameTemplate(value: unknown, path: string): FilenameTemplate {

@@ -6,9 +6,9 @@ export function emptyQueueSnapshot(): QueueSnapshot {
     done: 0,
     total: 0,
     pending: 0,
+    queued: 0,
     processing: 0,
     errors: 0,
-    paused: false,
     activeTaskId: null,
     activeTaskLabel: null
   };
@@ -19,9 +19,9 @@ export function queueSnapshotFromProject(project: Project, activeTaskId: string 
     done: project.tasks.filter((task) => task.status === "done").length,
     total: project.tasks.length,
     pending: project.tasks.filter((task) => task.status === "pending").length,
+    queued: project.tasks.filter((task) => task.status === "queued").length,
     processing: project.tasks.filter((task) => task.status === "processing").length,
     errors: project.tasks.filter((task) => task.status === "error").length,
-    paused: false,
     activeTaskId,
     activeTaskLabel: activeTaskId ? taskLabel(project, activeTaskId) : null
   };

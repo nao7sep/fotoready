@@ -27,7 +27,6 @@ export async function bootstrap(): Promise<void> {
   const processingQueue = new ProcessingQueue(settings, qualityQueue, pipelineWorkerPool);
   const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue, pipelineWorkerPool);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
-  await projectSession.openLastProjectIfAvailable();
 
   registerIpcHandlers({
     paths,
@@ -39,10 +38,10 @@ export async function bootstrap(): Promise<void> {
 
   const win = new BrowserWindow({
     title: APP_NAME,
-    minWidth: 1440,
-    minHeight: 900,
-    width: 1600,
-    height: 960,
+    minWidth: 1024,
+    minHeight: 640,
+    width: 1280,
+    height: 800,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.mjs"),

@@ -4,7 +4,7 @@ import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/project/session";
 import type { AppLogger } from "@main/logging/logger";
 import type { GlobalSettings } from "@shared/types/settings";
-import { APP_NAME, PROJECT_EXTENSION } from "@shared/constants";
+import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { saveSettings } from "@main/persistence/settings-io";
 import { clearCaches, getCacheSizes } from "@main/persistence/cache-admin";
@@ -20,8 +20,6 @@ export type RouterContext = {
   version: string;
 };
 
-const MAX_RECENT_PROJECTS = 10;
-
 export function registerIpcHandlers(ctx: RouterContext): void {
   const publishSnapshots = () => {
     const project = ctx.projectSession.snapshot();
@@ -31,7 +29,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       win.webContents.send("queue.snapshot", queue);
     }
   };
-  const publishResult = async <T>(work: Promise<T>): Promise<T> => {
+  const publishResult = async <T>(work: Promise<T> | T): Promise<T> => {
     const result = await work;
     publishSnapshots();
     return result;
@@ -79,63 +77,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
+
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
-  ipcMain.handle("project.new", async (_event, name?: string) => publishResult(ctx.projectSession.newProject(name)));
-  const rememberRecentProject = async (projectPath: string) => {
-    const normalizedPath = path.resolve(projectPath);
-    ctx.settings.lastProjectPath = normalizedPath;
-    ctx.settings.recentProjectPaths = [
-      normalizedPath,
-      ...ctx.settings.recentProjectPaths.filter((entry) => entry !== normalizedPath)
-    ].slice(0, MAX_RECENT_PROJECTS);
-    await saveSettings(ctx.paths.settingsPath, ctx.settings);
-  };
-  const openProjectPath = async (projectPath: string) => {
-    const snapshot = await ctx.projectSession.open(projectPath);
-    await rememberRecentProject(projectPath);
-    publishSnapshots();
-    return snapshot;
-  };
-  ipcMain.handle("project.openFromDialog", async (event) => {
-    const owner = BrowserWindow.fromWebContents(event.sender);
-    const options: OpenDialogOptions = {
-      title: "Open FotoReady Project",
-      properties: ["openFile"],
-      filters: [
-        { name: "FotoReady Project", extensions: ["fotoready.json"] },
-        { name: "JSON", extensions: ["json"] },
-        { name: "All Files", extensions: ["*"] }
-      ]
-    };
-    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
-    if (result.canceled || result.filePaths.length === 0) {
-      return ctx.projectSession.snapshot();
-    }
-    return openProjectPath(result.filePaths[0]);
-  });
-  ipcMain.handle("project.openRecent", async (_event, projectPath: string) => openProjectPath(projectPath));
-  ipcMain.handle("project.saveAsFromDialog", async (event) => {
-    const owner = BrowserWindow.fromWebContents(event.sender);
-    const result = owner
-      ? await dialog.showSaveDialog(owner, {
-        title: "Save FotoReady Project",
-        defaultPath: `untitled${PROJECT_EXTENSION}`,
-        filters: [{ name: "FotoReady Project", extensions: ["fotoready.json"] }]
-      })
-      : await dialog.showSaveDialog({
-        title: "Save FotoReady Project",
-        defaultPath: `untitled${PROJECT_EXTENSION}`,
-        filters: [{ name: "FotoReady Project", extensions: ["fotoready.json"] }]
-      });
-    if (result.canceled || !result.filePath) {
-      return ctx.projectSession.snapshot();
-    }
-    const projectPath = result.filePath.endsWith(PROJECT_EXTENSION) ? result.filePath : `${result.filePath}${PROJECT_EXTENSION}`;
-    const snapshot = await ctx.projectSession.saveAs(projectPath);
-    await rememberRecentProject(projectPath);
-    publishSnapshots();
-    return snapshot;
-  });
   ipcMain.handle("project.setOutputDirFromDialog", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
@@ -148,6 +91,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     }
     return publishResult(ctx.projectSession.setOutputDir(result.filePaths[0]));
   });
+  ipcMain.handle("project.clearOutputDir", async () => publishResult(ctx.projectSession.setOutputDir("")));
   ipcMain.handle("project.addOriginalsFromDialog", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
@@ -169,6 +113,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("project.addOriginals", async (_event, sourcePaths: string[]) => publishResult(ctx.projectSession.addOriginals(sourcePaths)));
   ipcMain.handle("project.removeOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.removeOriginal(originalId)));
   ipcMain.handle("project.selectOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.selectOriginal(originalId)));
+
   ipcMain.handle("task.select", async (_event, taskId: string) => publishResult(ctx.projectSession.selectTask(taskId)));
   ipcMain.handle("task.fork", async (_event, taskId: string) => publishResult(ctx.projectSession.forkTask(taskId)));
   ipcMain.handle("task.delete", async (_event, taskId: string, options?: { deleteStagedOutput?: boolean; deleteFinalOutput?: boolean }) =>
@@ -176,8 +121,10 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   );
   ipcMain.handle("task.dismissError", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
   ipcMain.handle("task.retry", async (_event, taskId: string) => publishResult(ctx.projectSession.retryTask(taskId)));
-  ipcMain.handle("task.save", async (_event, taskId: string) => publishResult(ctx.projectSession.saveTask(taskId)));
-  ipcMain.handle("task.saveAll", async () => publishResult(ctx.projectSession.saveAllPending()));
+  ipcMain.handle("task.save", async (_event, taskId: string) => publishResult(ctx.projectSession.enqueueSave(taskId)));
+  ipcMain.handle("task.saveAll", async () => publishResult(ctx.projectSession.enqueueSaveAll()));
+  ipcMain.handle("task.cancel", async (_event, taskId: string) => publishResult(ctx.projectSession.cancelTask(taskId)));
+  ipcMain.handle("task.cancelAll", async () => publishResult(ctx.projectSession.cancelAll()));
   ipcMain.handle("task.addOp", async (_event, taskId: string, opType: string) => publishResult(ctx.projectSession.addOp(taskId, opType)));
   ipcMain.handle("task.removeOp", async (_event, taskId: string, opIndex: number) => publishResult(ctx.projectSession.removeOp(taskId, opIndex)));
   ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opIndex: number, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opIndex, enabled)));
@@ -189,6 +136,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => publishResult(ctx.projectSession.setAnalyzeContent(taskId, analyzeContent)));
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
+
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions()
       .filter((op) => op.visible)
@@ -206,14 +154,4 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return getCacheSizes(ctx.paths);
   });
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
-  ipcMain.handle("queues.pause", async () => {
-    const snapshot = ctx.projectSession.pauseQueues();
-    publishSnapshots();
-    return snapshot;
-  });
-  ipcMain.handle("queues.resume", async () => {
-    const snapshot = ctx.projectSession.resumeQueues();
-    publishSnapshots();
-    return snapshot;
-  });
 }

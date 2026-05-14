@@ -12,7 +12,7 @@ export type Original = {
   addedAt: string;
 };
 
-export type TaskStatus = "draft" | "pending" | "processing" | "done" | "error";
+export type TaskStatus = "pending" | "queued" | "processing" | "done" | "error";
 
 export type VisionResult = {
   description: string;

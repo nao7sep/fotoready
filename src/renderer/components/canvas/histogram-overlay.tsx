@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import type { Task } from "@shared/types/project";
+import React, { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import type { EditorCanvasPreview } from "./editor-canvas";
 
 type HistogramBins = {
@@ -10,14 +10,14 @@ type HistogramBins = {
   max: number;
 };
 
-export function HistogramPanel({
+export function HistogramOverlay({
   preview,
   previewState,
-  task
+  onClose
 }: {
   preview: EditorCanvasPreview | null;
   previewState: "idle" | "loading" | "error";
-  task: Task | null;
+  onClose(): void;
 }): React.JSX.Element {
   const [bins, setBins] = useState<HistogramBins | null>(null);
 
@@ -45,38 +45,29 @@ export function HistogramPanel({
     };
   }, [preview]);
 
-  const summary = useMemo(() => outputSummary(task, preview), [preview, task]);
-
   return (
-    <section className="histogram-panel">
-      <div className="histogram-chart">
-        {bins ? (
-          <HistogramSvg bins={bins} />
-        ) : (
-          <span>
-            {previewState === "loading"
-              ? "Rendering histogram..."
-              : previewState === "error"
-                ? "Preview unavailable"
-                : "No preview histogram"}
-          </span>
-        )}
-      </div>
-      <div className="histogram-readout">
-        <span>{summary.primary}</span>
-        <span>{summary.secondary}</span>
-      </div>
-    </section>
+    <div className="histogram-overlay">
+      <button className="histogram-overlay-close" type="button" onClick={onClose} title="Hide histogram">
+        <X size={12} />
+      </button>
+      {bins ? (
+        <HistogramSvg bins={bins} />
+      ) : (
+        <span className="histogram-overlay-empty">
+          {previewState === "loading" ? "Rendering…" : previewState === "error" ? "Preview failed" : "No preview"}
+        </span>
+      )}
+    </div>
   );
 }
 
 function HistogramSvg({ bins }: { bins: HistogramBins }): React.JSX.Element {
   return (
     <svg aria-label="Preview histogram" preserveAspectRatio="none" viewBox="0 0 256 64">
-      <HistogramPath bins={bins.luminance} color="#d6d3d1" max={bins.max} opacity={0.6} />
-      <HistogramPath bins={bins.red} color="#f87171" max={bins.max} opacity={0.45} />
-      <HistogramPath bins={bins.green} color="#86efac" max={bins.max} opacity={0.45} />
-      <HistogramPath bins={bins.blue} color="#60a5fa" max={bins.max} opacity={0.45} />
+      <HistogramPath bins={bins.luminance} color="#1c1917" max={bins.max} opacity={0.55} />
+      <HistogramPath bins={bins.red} color="#dc2626" max={bins.max} opacity={0.5} />
+      <HistogramPath bins={bins.green} color="#16a34a" max={bins.max} opacity={0.5} />
+      <HistogramPath bins={bins.blue} color="#2563eb" max={bins.max} opacity={0.5} />
     </svg>
   );
 }
@@ -130,18 +121,4 @@ function readHistogram(image: HTMLImageElement): HistogramBins {
 function emptyBins(): HistogramBins {
   const empty = new Array<number>(64).fill(0);
   return { red: empty, green: empty, blue: empty, luminance: empty, max: 1 };
-}
-
-function outputSummary(task: Task | null, preview: EditorCanvasPreview | null): { primary: string; secondary: string } {
-  if (!task) return { primary: "No active task", secondary: "Import an original to inspect output" };
-  const dimensions = preview ? `${preview.width}x${preview.height}` : "Preview pending";
-  const output = task.output ? basename(task.output.finalPath ?? task.output.stagedPath) : "Not saved";
-  return {
-    primary: `${task.status} · ${dimensions}`,
-    secondary: output
-  };
-}
-
-function basename(filePath: string): string {
-  return filePath.split(/[\\/]/).at(-1) ?? filePath;
 }

@@ -1,6 +1,7 @@
-import { BUILTIN_FILENAME_TEMPLATE_ID, PIPELINE_SPEC_VERSION } from "./constants";
-import type { GlobalSettings } from "./types/settings";
+import { BUILTIN_FILENAME_TEMPLATE_ID, PIPELINE_SPEC_VERSION, PROJECT_VERSION } from "./constants";
+import type { GlobalSettings, ProjectSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
+import type { Project } from "./types/project";
 
 export const builtinFilenameTemplate = {
   id: BUILTIN_FILENAME_TEMPLATE_ID,
@@ -39,7 +40,7 @@ export function defaultGlobalSettings(
   workerPoolSize = 4
 ): GlobalSettings {
   return {
-    theme: "system",
+    theme: "light",
     language: "en",
     cameraTimezone,
     confirmDeleteOriginalWithTasks: true,
@@ -77,19 +78,29 @@ export function defaultGlobalSettings(
     customPromptAddendum: "",
     cacheResults: true,
     filenameTemplates: [builtinFilenameTemplate],
-    recentProjectPaths: [],
     defaultTemplateId: BUILTIN_FILENAME_TEMPLATE_ID,
     slugMinWords: 4,
     slugMaxWords: 7,
     slugCollisionResolution: "hash-suffix",
     hashSuffixLength: 4,
-    defaultOutputDirectory: "./out",
+    defaultOutputDirectory: "",
     sidecarLocation: "in-project-file",
     lutFolder: "~/.fotoready/luts/",
     defaultWatermarkImage: "",
-    lastProjectPath: null,
     workerPoolSize,
-    previewLongEdge: 1600,
-    previewDebounceMs: 150
+    previewLongEdge: 256,
+    previewDebounceMs: 150,
+    showHistogram: false
+  };
+}
+
+export function createEmptyProject(outputDir = "", settings: ProjectSettings = {}): Project {
+  return {
+    version: PROJECT_VERSION,
+    name: "Session",
+    outputDir,
+    settings,
+    originals: [],
+    tasks: []
   };
 }

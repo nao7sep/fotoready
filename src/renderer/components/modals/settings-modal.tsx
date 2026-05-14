@@ -132,12 +132,6 @@ function GeneralSettings({ settings, setSettings, systemInfo }: SettingsProps & 
       </div>
       <div className="settings-grid">
         <label className="stacked-field">
-          Theme
-          <select value={settings.theme} onChange={(event) => setSettings({ ...settings, theme: event.currentTarget.value as GlobalSettings["theme"] })}>
-            {["system", "dark", "light"].map((theme) => <option key={theme}>{theme}</option>)}
-          </select>
-        </label>
-        <label className="stacked-field">
           Camera timezone
           <input type="text" value={settings.cameraTimezone} onChange={(event) => setSettings({ ...settings, cameraTimezone: event.currentTarget.value })} />
         </label>

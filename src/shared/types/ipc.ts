@@ -6,9 +6,9 @@ export type QueueSnapshot = {
   done: number;
   total: number;
   pending: number;
+  queued: number;
   processing: number;
   errors: number;
-  paused: boolean;
   activeTaskId: string | null;
   activeTaskLabel: string | null;
 };
@@ -20,7 +20,6 @@ export type SystemInfo = {
 };
 
 export type ProjectSnapshot = {
-  projectPath: string | null;
   project: Project;
   activeTaskId: string | null;
 };
@@ -90,11 +89,8 @@ export type FotoReadyApi = {
   };
   project: {
     current(): Promise<ProjectSnapshot>;
-    newProject(name?: string): Promise<ProjectSnapshot>;
-    openFromDialog(): Promise<ProjectSnapshot>;
-    openRecent(projectPath: string): Promise<ProjectSnapshot>;
-    saveAsFromDialog(): Promise<ProjectSnapshot>;
     setOutputDirFromDialog(): Promise<ProjectSnapshot>;
+    clearOutputDir(): Promise<ProjectSnapshot>;
     addOriginals(sourcePaths: string[]): Promise<ProjectSnapshot>;
     addOriginalsFromDialog(): Promise<ProjectSnapshot>;
     removeOriginal(originalId: string): Promise<ProjectSnapshot>;
@@ -108,6 +104,8 @@ export type FotoReadyApi = {
     retry(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;
     saveAll(): Promise<ProjectSnapshot>;
+    cancel(taskId: string): Promise<ProjectSnapshot>;
+    cancelAll(): Promise<ProjectSnapshot>;
     addOp(taskId: string, opType: string): Promise<ProjectSnapshot>;
     removeOp(taskId: string, opIndex: number): Promise<ProjectSnapshot>;
     setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
@@ -141,8 +139,6 @@ export type FotoReadyApi = {
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;
-    pause(): Promise<QueueSnapshot>;
-    resume(): Promise<QueueSnapshot>;
   };
   events: {
     onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;

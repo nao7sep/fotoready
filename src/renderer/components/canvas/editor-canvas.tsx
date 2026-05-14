@@ -11,7 +11,6 @@ export type EditorCanvasPreview = {
 };
 
 export function EditorCanvas({
-  originalDataUrl,
   preview,
   previewState,
   task,
@@ -19,7 +18,6 @@ export function EditorCanvas({
   selectedOpIndex,
   onOpParamsChange
 }: {
-  originalDataUrl: string | null;
   preview: EditorCanvasPreview | null;
   previewState: "idle" | "loading" | "error";
   task: Task | null;
@@ -29,13 +27,11 @@ export function EditorCanvas({
 }): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 900, height: 600 });
-  const [mode, setMode] = useState<"after" | "before">("after");
-  const [zoom, setZoom] = useState<"fit" | "actual">("fit");
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const activeSource = mode === "before" && originalDataUrl ? { dataUrl: originalDataUrl, width: preview?.width ?? 1, height: preview?.height ?? 1 } : preview;
-  const image = useImage(activeSource?.dataUrl ?? null);
-  const imageSize = image ? { width: image.naturalWidth || activeSource?.width || 1, height: image.naturalHeight || activeSource?.height || 1 } : { width: activeSource?.width ?? 1, height: activeSource?.height ?? 1 };
-  const placement = useMemo(() => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height, zoom), [frameSize.height, frameSize.width, imageSize.height, imageSize.width, zoom]);
+  const image = useImage(preview?.dataUrl ?? null);
+  const imageSize = image
+    ? { width: image.naturalWidth || preview?.width || 1, height: image.naturalHeight || preview?.height || 1 }
+    : { width: preview?.width ?? 1, height: preview?.height ?? 1 };
+  const placement = useMemo(() => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height), [frameSize.height, frameSize.width, imageSize.height, imageSize.width]);
   const longEdge = Math.max(imageSize.width, imageSize.height);
   const editableOverlay = useMemo(() => selectedEditableOverlay(task, selectedOpIndex), [selectedOpIndex, task]);
   const whiteBalanceSample = useMemo(() => selectedWhiteBalanceSample(task, selectedOpIndex), [selectedOpIndex, task]);
@@ -46,7 +42,6 @@ export function EditorCanvas({
   }, [editableOverlay?.kind, editableOverlay?.opIndex, task?.id, task?.updatedAt]);
 
   const activeOverlayRect = draftOverlayRect ?? editableOverlay?.rect ?? null;
-  const clampedPan = useMemo(() => clampPan(pan, placement, frameSize, zoom), [frameSize, pan, placement, zoom]);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -61,38 +56,18 @@ export function EditorCanvas({
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    setPan({ x: 0, y: 0 });
-  }, [task?.id, zoom]);
-
-  useEffect(() => {
-    if (clampedPan.x !== pan.x || clampedPan.y !== pan.y) {
-      setPan(clampedPan);
-    }
-  }, [clampedPan, pan.x, pan.y]);
-
   return (
-    <div className={`editor-canvas ${zoom === "actual" ? "is-actual-zoom" : ""}`} ref={frameRef}>
-      <div className="canvas-toolbar">
-        <button className={mode === "after" ? "active" : ""} type="button" onClick={() => setMode("after")}>After</button>
-        <button className={mode === "before" ? "active" : ""} disabled={!originalDataUrl} type="button" onClick={() => setMode("before")}>Before</button>
-        <button className={zoom === "fit" ? "active" : ""} type="button" onClick={() => setZoom("fit")}>Fit</button>
-        <button className={zoom === "actual" ? "active" : ""} type="button" onClick={() => setZoom("actual")}>100%</button>
-      </div>
+    <div className="editor-canvas" ref={frameRef}>
       {image ? (
         <Stage height={frameSize.height} width={frameSize.width}>
           <Layer>
             <Group
-              draggable={zoom === "actual"}
-              dragBoundFunc={(position) => clampPan(position, placement, frameSize, zoom)}
-              x={clampedPan.x}
-              y={clampedPan.y}
               onClick={(event) => {
-                if (mode !== "after" || !whiteBalanceSample) return;
+                if (!whiteBalanceSample) return;
                 const pointer = event.target.getStage()?.getPointerPosition();
                 if (!pointer) return;
-                const localX = (pointer.x - clampedPan.x - placement.x) / placement.scale;
-                const localY = (pointer.y - clampedPan.y - placement.y) / placement.scale;
+                const localX = (pointer.x - placement.x) / placement.scale;
+                const localY = (pointer.y - placement.y) / placement.scale;
                 if (localX < 0 || localY < 0 || localX > imageSize.width || localY > imageSize.height) {
                   return;
                 }
@@ -103,11 +78,9 @@ export function EditorCanvas({
                   ]
                 });
               }}
-              onDragMove={(event) => setPan({ x: event.target.x(), y: event.target.y() })}
-              onDragEnd={(event) => setPan({ x: event.target.x(), y: event.target.y() })}
             >
               <KonvaImage image={image} x={placement.x} y={placement.y} width={placement.width} height={placement.height} />
-              {mode === "after" && task ? (
+              {task ? (
                 <PipelineOverlays
                   editableOverlay={editableOverlay && activeOverlayRect ? { ...editableOverlay, rect: activeOverlayRect } : null}
                   imageSize={imageSize}
@@ -245,8 +218,8 @@ function useImage(dataUrl: string | null): HTMLImageElement | null {
   return image;
 }
 
-function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number, zoom: "fit" | "actual"): { x: number; y: number; width: number; height: number; scale: number } {
-  const scale = zoom === "actual" ? 1 : Math.min(frameWidth / imageWidth, frameHeight / imageHeight, 1);
+function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number): { x: number; y: number; width: number; height: number; scale: number } {
+  const scale = Math.min(frameWidth / imageWidth, frameHeight / imageHeight);
   const width = imageWidth * scale;
   const height = imageHeight * scale;
   return {
@@ -287,28 +260,6 @@ function scaleDownRect(rect: { x: number; y: number; w: number; h: number }, lon
     y: rect.y / longEdge,
     w: rect.w / longEdge,
     h: rect.h / longEdge
-  };
-}
-
-function clampPan(
-  pan: { x: number; y: number },
-  placement: { x: number; y: number; width: number; height: number },
-  frameSize: { width: number; height: number },
-  zoom: "fit" | "actual"
-): { x: number; y: number } {
-  if (zoom !== "actual") {
-    return { x: 0, y: 0 };
-  }
-
-  const minTotalX = placement.width > frameSize.width ? frameSize.width - placement.width : placement.x;
-  const maxTotalX = placement.width > frameSize.width ? 0 : placement.x;
-  const minTotalY = placement.height > frameSize.height ? frameSize.height - placement.height : placement.y;
-  const maxTotalY = placement.height > frameSize.height ? 0 : placement.y;
-  const totalX = clamp(placement.x + pan.x, minTotalX, maxTotalX);
-  const totalY = clamp(placement.y + pan.y, minTotalY, maxTotalY);
-  return {
-    x: totalX - placement.x,
-    y: totalY - placement.y
   };
 }
 

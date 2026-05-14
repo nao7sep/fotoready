@@ -30,7 +30,6 @@ export type ProjectSettings = {
   lutFolder?: string;
   defaultWatermarkImage?: string;
   projectContext?: string;
-  lastProjectPath?: string | null;
 };
 
 export type GlobalSettings = Required<Omit<ProjectSettings, "projectContext">> & {
@@ -61,7 +60,6 @@ export type GlobalSettings = Required<Omit<ProjectSettings, "projectContext">> &
   customPromptAddendum: string;
   cacheResults: boolean;
   filenameTemplates: FilenameTemplate[];
-  recentProjectPaths: string[];
   slugMinWords: number;
   slugMaxWords: number;
   slugCollisionResolution: "hash-suffix";
@@ -69,4 +67,5 @@ export type GlobalSettings = Required<Omit<ProjectSettings, "projectContext">> &
   workerPoolSize: number;
   previewLongEdge: number;
   previewDebounceMs: number;
+  showHistogram: boolean;
 };

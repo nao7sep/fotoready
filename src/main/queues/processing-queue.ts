@@ -6,12 +6,13 @@ import type { QualityQueue } from "./quality";
 import { processTask } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
-import { resolveOriginalSourcePath } from "@main/project/source-resolver";
 
 export class ProcessingQueue {
   #queue: PQueue;
   #onUpdate: (() => void | Promise<void>) | null;
-  #activeTaskIds: string[] = [];
+  #activeTaskIds: Set<string> = new Set();
+  #queuedTaskIds: Set<string> = new Set();
+  #cancelledTaskIds: Set<string> = new Set();
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -27,50 +28,58 @@ export class ProcessingQueue {
     this.#onUpdate = listener;
   }
 
-  async runTask(project: Project, taskId: string, projectPath: string | null): Promise<void> {
+  async enqueueTask(project: Project, taskId: string): Promise<void> {
+    if (this.#queuedTaskIds.has(taskId) || this.#activeTaskIds.has(taskId)) {
+      return;
+    }
+    this.#queuedTaskIds.add(taskId);
+
     await this.#queue.add(async () => {
-      this.#activeTaskIds.push(taskId);
+      this.#queuedTaskIds.delete(taskId);
+      if (this.#cancelledTaskIds.delete(taskId)) {
+        await this.#onUpdate?.();
+        return;
+      }
+      this.#activeTaskIds.add(taskId);
       await this.#onUpdate?.();
       try {
-        const sourceFacts = await this.sourceFactsForTask(project, taskId, projectPath);
-        await processTask(project, taskId, projectPath, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
+        const sourceFacts = await this.sourceFactsForTask(project, taskId);
+        await processTask(project, taskId, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
       } finally {
-        this.#activeTaskIds = this.#activeTaskIds.filter((activeTaskId) => activeTaskId !== taskId);
+        this.#activeTaskIds.delete(taskId);
         await this.#onUpdate?.();
       }
     });
   }
 
-  async runPending(project: Project, projectPath: string | null): Promise<void> {
-    const pendingTaskIds = project.tasks
-      .filter((task) => task.status === "pending")
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .map((task) => task.id);
-
-    await Promise.all(pendingTaskIds.map((taskId) => this.runTask(project, taskId, projectPath)));
+  cancelTask(taskId: string): boolean {
+    if (this.#queuedTaskIds.has(taskId)) {
+      this.#cancelledTaskIds.add(taskId);
+      return true;
+    }
+    return false;
   }
 
-  pause(): void {
-    this.#queue.pause();
-  }
-
-  resume(): void {
-    this.#queue.start();
+  cancelAll(): string[] {
+    const cancelled = Array.from(this.#queuedTaskIds);
+    for (const taskId of cancelled) {
+      this.#cancelledTaskIds.add(taskId);
+    }
+    return cancelled;
   }
 
   snapshot(project: Project): QueueSnapshot {
-    const base = queueSnapshotFromProject(project, this.#activeTaskIds[0] ?? null);
+    const active = Array.from(this.#activeTaskIds);
+    const base = queueSnapshotFromProject(project, active[0] ?? null);
     return {
       ...base,
-      processing: Math.max(base.processing, this.#activeTaskIds.length),
-      paused: this.#queue.isPaused
+      processing: Math.max(base.processing, active.length)
     };
   }
 
-  private async sourceFactsForTask(project: Project, taskId: string, projectPath: string | null) {
+  private async sourceFactsForTask(project: Project, taskId: string) {
     const task = project.tasks.find((item) => item.id === taskId);
     const original = task ? project.originals.find((item) => item.id === task.originalId) : null;
-    if (original) await resolveOriginalSourcePath(original, { projectPath, outputDir: project.outputDir });
     return original ? await this.qualityQueue?.factsForOriginal(original) ?? null : null;
   }
 }

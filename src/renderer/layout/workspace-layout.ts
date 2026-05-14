@@ -6,11 +6,11 @@ type PaneKey = "originals" | "tasks" | "ops";
 type WorkspaceWidths = Record<PaneKey, number>;
 
 const storageKey = "fotoready.workspace.widths";
-const defaults: WorkspaceWidths = { originals: 200, tasks: 240, ops: 340 };
+const defaults: WorkspaceWidths = { originals: 180, tasks: 220, ops: 300 };
 const limits: Record<PaneKey, { min: number; max: number }> = {
-  originals: { min: 160, max: 360 },
-  tasks: { min: 190, max: 420 },
-  ops: { min: 280, max: 520 }
+  originals: { min: 140, max: 360 },
+  tasks: { min: 170, max: 420 },
+  ops: { min: 260, max: 520 }
 };
 
 export function useWorkspaceLayout({
@@ -31,7 +31,7 @@ export function useWorkspaceLayout({
     const columns: string[] = [];
     if (showOriginals) columns.push(`${widths.originals}px`, "6px");
     if (showTasks) columns.push(`${widths.tasks}px`, "6px");
-    columns.push("minmax(520px, 1fr)");
+    columns.push("minmax(360px, 1fr)");
     if (showOps) columns.push("6px", `${widths.ops}px`);
     return columns.join(" ");
   }, [showOps, showOriginals, showTasks, widths]);

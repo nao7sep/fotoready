@@ -23,18 +23,30 @@ export type PipelineRunResult =
 export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): Promise<PipelineRunResult> {
   const { image, facts } = await decodeImage(ctx.sourcePath);
   let work = image.sharp;
+  let workWidth = image.width;
+  let workHeight = image.height;
+
+  if (ctx.previewLongEdge) {
+    const longest = Math.max(workWidth, workHeight);
+    if (longest > 0) {
+      const { data, info } = await work
+        .resize({ width: ctx.previewLongEdge, height: ctx.previewLongEdge, fit: "inside" })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      work = (await import("sharp")).default(data, { raw: { width: info.width, height: info.height, channels: 4 } });
+      workWidth = info.width;
+      workHeight = info.height;
+    }
+  }
+
   const executedOps = orderOpsForExecution(pipeline.ops, ctx.log);
 
   for (const op of executedOps) {
     if (!op.enabled) continue;
-    work = await applyOp(work, op, image.width, image.height, ctx);
+    work = await applyOp(work, op, workWidth, workHeight, ctx);
   }
 
-  if (ctx.previewLongEdge) {
-    work = resizeLongEdge(work, ctx.previewLongEdge);
-  }
-
-  const metadata = await work.metadata();
   const appliedPipeline: Pipeline = {
     ...pipeline,
     ops: executedOps,
@@ -71,12 +83,12 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     };
   }
 
-  const raw = await work.ensureAlpha().raw().toBuffer();
+  const { data: raw, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return {
     kind: "buffer",
     bytes: raw,
-    width: metadata.width ?? facts.width,
-    height: metadata.height ?? facts.height,
+    width: info.width,
+    height: info.height,
     appliedPipeline
   };
 }

@@ -17,11 +17,8 @@ const api: FotoReadyApi = {
   },
   project: {
     current: () => ipcRenderer.invoke("project.current"),
-    newProject: (name?: string) => ipcRenderer.invoke("project.new", name),
-    openFromDialog: () => ipcRenderer.invoke("project.openFromDialog"),
-    openRecent: (projectPath) => ipcRenderer.invoke("project.openRecent", projectPath),
-    saveAsFromDialog: () => ipcRenderer.invoke("project.saveAsFromDialog"),
     setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
+    clearOutputDir: () => ipcRenderer.invoke("project.clearOutputDir"),
     addOriginals: (sourcePaths) => ipcRenderer.invoke("project.addOriginals", sourcePaths),
     addOriginalsFromDialog: () => ipcRenderer.invoke("project.addOriginalsFromDialog"),
     removeOriginal: (originalId) => ipcRenderer.invoke("project.removeOriginal", originalId),
@@ -35,6 +32,8 @@ const api: FotoReadyApi = {
     retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),
     save: (taskId) => ipcRenderer.invoke("task.save", taskId),
     saveAll: () => ipcRenderer.invoke("task.saveAll"),
+    cancel: (taskId) => ipcRenderer.invoke("task.cancel", taskId),
+    cancelAll: () => ipcRenderer.invoke("task.cancelAll"),
     addOp: (taskId, opType) => ipcRenderer.invoke("task.addOp", taskId, opType),
     removeOp: (taskId, opIndex) => ipcRenderer.invoke("task.removeOp", taskId, opIndex),
     setOpEnabled: (taskId, opIndex, enabled) => ipcRenderer.invoke("task.setOpEnabled", taskId, opIndex, enabled),
@@ -67,9 +66,7 @@ const api: FotoReadyApi = {
     clear: () => ipcRenderer.invoke("caches.clear")
   },
   queues: {
-    snapshot: () => ipcRenderer.invoke("queues.snapshot"),
-    pause: () => ipcRenderer.invoke("queues.pause"),
-    resume: () => ipcRenderer.invoke("queues.resume")
+    snapshot: () => ipcRenderer.invoke("queues.snapshot")
   },
   events: {
     onProjectSnapshot: (callback) => {

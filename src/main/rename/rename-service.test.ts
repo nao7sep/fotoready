@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { defaultGlobalSettings } from "@shared/defaults";
-import { createEmptyProject } from "@main/persistence/project-io";
+import { createEmptyProject, defaultGlobalSettings } from "@shared/defaults";
 import { previewRename } from "./rename-service";
 
 describe("previewRename", () => {
@@ -16,7 +15,7 @@ describe("previewRename", () => {
       await sharp({ create: { width: 4, height: 3, channels: 3, background: "#00ff00" } }).png().toFile(sourcePath);
       await fs.copyFile(sourcePath, stagedPath);
 
-      const project = createEmptyProject("Test Project", tempDir, {});
+      const project = createEmptyProject(tempDir, {});
       project.originals.push({
         id: "original-1",
         sourcePath,

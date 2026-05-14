@@ -39,12 +39,10 @@ export function OriginalsPanel({
   return (
     <aside className={`panel originals-panel ${dragActive ? "drag-active" : ""}`} onDragLeave={() => setDragActive(false)} onDragOver={onDragOver} onDrop={onDrop}>
       <PanelHeader title="Originals" />
-      <button className="drop-target" type="button" onClick={onAdd}>
-        <ImagePlus size={18} />
-        Drop or add originals
-      </button>
       <div className="list">
-        {originals.map((original) => (
+        {originals.length === 0 ? (
+          <div className="empty-state">No originals</div>
+        ) : originals.map((original) => (
           <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`} key={original.id}>
             <button className="row-main-action" type="button" onClick={() => onSelect(original.id)}>
               <span className="thumb">
@@ -60,6 +58,12 @@ export function OriginalsPanel({
             </button>
           </div>
         ))}
+      </div>
+      <div className="panel-footer">
+        <button className="drop-target" type="button" onClick={onAdd}>
+          <ImagePlus size={14} />
+          Drop or add
+        </button>
       </div>
     </aside>
   );

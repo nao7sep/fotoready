@@ -12,12 +12,10 @@ import { loadCubeLut } from "@adapters/lut/cube-loader";
 import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
-import { resolveOriginalSourcePath } from "@main/project/source-resolver";
 
 export async function processTask(
   project: Project,
   taskId: string,
-  projectPath: string | null,
   settings: GlobalSettings,
   sourceFacts: SourceJpegFacts | null = null,
   onUpdate?: () => void | Promise<void>,
@@ -39,8 +37,8 @@ export async function processTask(
   await onUpdate?.();
 
   try {
-    const sourcePath = await resolveOriginalSourcePath(original, { projectPath, outputDir: project.outputDir });
-    const outputPath = await stagedOutputPath(project, task, sourcePath, projectPath);
+    const sourcePath = original.sourcePath;
+    const outputPath = await stagedOutputPath(project, task, sourcePath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
     const result = await processOutputPipeline(task.pipeline, sourcePath, original.sourceHash, original.size, outputPath, settings, sourceFacts, workerPool);
@@ -239,17 +237,17 @@ function metadataPolicy(task: Task, settings: GlobalSettings): { keep: MetadataS
   return { keep, injectFields };
 }
 
-async function stagedOutputPath(project: Project, task: Task, sourcePath: string, projectPath: string | null): Promise<string> {
-  const outputDir = resolveOutputDir(project.outputDir, projectPath);
+async function stagedOutputPath(project: Project, task: Task, sourcePath: string): Promise<string> {
+  const outputDir = resolveOutputDir(project.outputDir, sourcePath);
   const parsed = path.parse(sourcePath);
   const ext = task.pipeline.output.format === "jpeg" ? "jpg" : task.pipeline.output.format;
   return path.join(outputDir, `${parsed.name}-${nanoid(8)}.${ext}`);
 }
 
-function resolveOutputDir(outputDir: string, projectPath: string | null): string {
+function resolveOutputDir(outputDir: string, sourcePath: string): string {
+  if (!outputDir || outputDir.trim().length === 0) return path.dirname(sourcePath);
   if (path.isAbsolute(outputDir)) return outputDir;
-  const baseDir = projectPath ? path.dirname(projectPath) : process.cwd();
-  return path.resolve(baseDir, outputDir);
+  return path.resolve(process.cwd(), outputDir);
 }
 
 function taskError(error: unknown): TaskError {

@@ -8,7 +8,6 @@ const metadataFields = ["author", "copyright", "orientation", "colorspace"] as c
 const outputFormats = ["jpeg", "webp", "avif", "png"] as const;
 const jpegStrategies = ["match-source-size", "match-source-quality", "fixed", "prompt-per-task"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
-const iccBehaviors = ["tag-srgb", "embed-srgb", "untagged"] as const;
 
 export type SettingsNormalizationResult = {
   settings: GlobalSettings;
@@ -45,12 +44,10 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
-    outputIccBehavior: readValue(source, "outputIccBehavior", fallback.outputIccBehavior, issues, (value, path) => assertOneOf(value, path, iccBehaviors)),
     model: readValue(source, "model", fallback.model, issues, assertNonEmptyString),
     visionProjectContext: readValue(source, "visionProjectContext", fallback.visionProjectContext, issues, assertString),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128 })),
     customPromptAddendum: readValue(source, "customPromptAddendum", fallback.customPromptAddendum, issues, assertString),
-    cacheResults: readValue(source, "cacheResults", fallback.cacheResults, issues, assertBoolean),
     filenameTemplates: normalizeFilenameTemplates(source.filenameTemplates, fallback.filenameTemplates, issues),
     slugMinWords: readValue(source, "slugMinWords", fallback.slugMinWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 12 })),
     slugMaxWords: readValue(source, "slugMaxWords", fallback.slugMaxWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 16 })),

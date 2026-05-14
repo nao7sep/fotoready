@@ -2,6 +2,20 @@ import React from "react";
 import { Rect } from "react-konva";
 import type { OverlayContext, OverlayPlacement } from "./op-renderer";
 
+/** Fit an image of (imageWidth, imageHeight) into (frameWidth, frameHeight) while preserving aspect. */
+export function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number): OverlayPlacement {
+  const scale = Math.min(frameWidth / imageWidth, frameHeight / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return {
+    x: (frameWidth - width) / 2,
+    y: (frameHeight - height) / 2,
+    width,
+    height,
+    scale
+  };
+}
+
 export type FractionRect = { x: number; y: number; w: number; h: number };
 
 /** A solid dashed-outline rect drawn in image space and projected onto the stage. Used by every overlay that draws a region (crop preview, redact rect, etc.). */

@@ -4,7 +4,6 @@ import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, a
 const outputFormats = ["jpeg", "webp", "avif", "png"] as const;
 const qualityKeywords = ["match-source-size", "match-source-quality"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
-const iccOutputModes = ["tag-srgb", "embed-srgb", "untagged"] as const;
 
 export function validateOutputSettings(value: unknown, path = "output"): OutputSettings {
   const record = assertRecord(value, path);
@@ -16,8 +15,7 @@ export function validateOutputSettings(value: unknown, path = "output"): OutputS
     webpMethod: assertFiniteNumber(record.webpMethod, `${path}.webpMethod`, { integer: true, min: 0, max: 6 }),
     avifEffort: assertFiniteNumber(record.avifEffort, `${path}.avifEffort`, { integer: true, min: 0, max: 9 }),
     pngPalette: assertBoolean(record.pngPalette, `${path}.pngPalette`),
-    backgroundForTransparency: assertNonEmptyString(record.backgroundForTransparency, `${path}.backgroundForTransparency`),
-    iccOutput: assertOneOf(record.iccOutput, `${path}.iccOutput`, iccOutputModes)
+    backgroundForTransparency: assertNonEmptyString(record.backgroundForTransparency, `${path}.backgroundForTransparency`)
   };
 }
 
@@ -43,6 +41,5 @@ function isOutputSettingKey(key: string): key is keyof OutputSettings {
     || key === "webpMethod"
     || key === "avifEffort"
     || key === "pngPalette"
-    || key === "backgroundForTransparency"
-    || key === "iccOutput";
+    || key === "backgroundForTransparency";
 }

@@ -52,7 +52,7 @@ Renderer can only import `@shared` and `@renderer` — never `@main`, `@runtime`
 
 - `Project` — `{ outputDir, originals[], tasks[] }`. `outputDir: string | null` (null means "save next to source").
 - `Original` — content-addressable record of an imported source file: `id`, `sourcePath`, `sourceHash`, dimensions, format.
-- `Task` — `{ id, originalId, analyzeContent, customSlug, pipeline, status, output, error, createdAt, updatedAt }`.
+- `Task` — `{ id, originalId, analyzeContent, customSlug, pipeline, status, output, error, everEdited, createdAt, updatedAt }`. `everEdited` is flipped to `true` on the first mutation; it's what `selectOriginal` checks to decide whether to reuse the active task slot or spawn a new one.
 - `TaskStatus` — `pending → queued → processing → done` / `error`.
   - `pending`: editable. Ops, output settings, custom slug can all be changed.
   - `queued`: locked. Sitting in the processing queue.
@@ -72,7 +72,7 @@ The full surface is in `src/shared/types/ipc.ts` (`FotoReadyApi`). Every channel
 
 If any of those three are missing, the call will fail silently at runtime in the renderer. There is no auto-generation.
 
-Channel namespaces: `system.*`, `settings.*`, `project.*`, `task.*`, `preview.*`, `vision.*`, `rename.*`, `ops.list`, `luts.list`, `caches.*`, `queues.snapshot`.
+Channel namespaces: `system.*`, `settings.*`, `project.*`, `task.*`, `preview.*`, `vision.*`, `rename.*`, `ops.list`, `luts.list`, `queues.snapshot`.
 
 **Events** (main → renderer, sent via `webContents.send`):
 - `project.snapshot` — fires after any mutation. Carries the full `ProjectSnapshot`.
@@ -92,7 +92,7 @@ The single source of truth on the main side. It holds the in-memory `Project` pl
 
 - Backed by `p-queue`, concurrency = `settings.workerPoolSize`.
 - Cancel works by marking the id; when the queue worker dequeues it, it bails before calling `processTask`. Cancel cannot stop a task that is already running in the worker.
-- Quality-of-source facts (JPEG quality estimate, etc.) are looked up via `QualityQueue` right before processing.
+- JPEG quality detection (used by `match-source-quality` and `match-source-size`) runs inline in `processing.ts` at save time. There is no persistent quality cache.
 
 ## Image pipeline (`src/runtime/pipeline-runner.ts`)
 
@@ -235,7 +235,12 @@ For stage-level clicks (today only `white-balance`), the canvas asks the current
 - **`source-resolver.ts`** (rehoming source files by hash). Originals now must stay where the user added them from. If a source file is moved during the session, processing of that task will fail with a `processing` error.
 - **Queue pause / resume.** Replaced by per-task cancel and "Cancel all".
 - **`runTaskInline` / `queueSnapshotFromProject` fallback.** The processing queue and worker pool are now required.
-- **Dark theme, language picker, camera-timezone, max-concurrent, sidecar-location, strip-gps/thumbnail flags.** Vestigial settings with no readers. Deleted.
+- **Dark theme, language picker, camera-timezone, max-concurrent, sidecar-location, strip-gps/thumbnail flags, cache-results.** Vestigial settings with no readers. Deleted.
+- **`Pipeline.output.iccOutput` / `settings.outputIccBehavior`.** Validated and persisted but encode.ts never read them. Deleted.
+- **`vision-prepare` worker kind, `metadataInjection` worker field.** Declared on `WorkerJob`/`WorkerResult` but never invoked — vision has its own prep path in vision.ts.
+- **`DecodeFacts` / `ExifSubset` / `inferColorSpaceTag`.** Computed by `decodeImage` but no consumer after the Pipeline-metadata cleanup. `decodeImage` now returns just `{ image }`.
+- **Cache infrastructure** (`~/.fotoready/cache/`, `QualityQueue`, vision cache, `caches.*` IPC, the cache settings tab). Detection runs inline at save time; vision calls always hit the API. Re-add only if a real perf bottleneck shows up.
+- **Test infrastructure** (`vitest`, `vitest.config.ts`, `npm test`). Early-stage product; the spec drifts faster than tests would survive.
 - **Vision auto-trigger on save.** `runVision` is now strictly opt-in.
 
 If a future task wants any of these back, treat it as a fresh design — don't try to revive the deleted code from git.
@@ -259,13 +264,14 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 1. Add the binding in the `onKeyDown` effect in `src/renderer/app.tsx`.
 2. Add a row to the "Keyboard shortcuts" modal in the same file.
 
-## Build / dev / test
+## Build / dev
 
 - `npm run dev` — electron-vite hot reload for both main and renderer.
 - `npm run build` — `tsc --noEmit` + production bundle. Run before committing structural changes.
-- `npm test` — vitest. Add per-op tests under `src/core/ops/<name>.test.ts` when you touch validators or apply logic.
 - `npm run check:imports` — boundary lint.
 - `npm run package` — electron-builder to `release/`. Mac code-signing is intentionally off.
+
+There is no automated test suite yet (the previous one was deleted alongside the cache layer because the spec moves faster than the tests would survive). Reintroduce per-op tests once an op's behavior stops changing.
 
 ## Data locations on disk
 
@@ -274,8 +280,6 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 | Settings | `~/.fotoready/settings.json` |
 | Logs | `~/.fotoready/logs/` |
 | Encrypted Gemini key | `~/.fotoready/api-keys.enc` |
-| Source-facts cache | `~/.fotoready/cache/source-facts.json` |
-| Vision cache | `~/.fotoready/cache/vision-facts.json` |
 | User LUTs | `~/.fotoready/luts/` |
 | Saved images | `project.outputDir` (null → next to source; non-empty → that path) |
 

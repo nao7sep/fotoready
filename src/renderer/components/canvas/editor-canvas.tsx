@@ -1,9 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Group, Image as KonvaImage, Layer, Stage } from "react-konva";
 import type { Task } from "@shared/types/project";
-import { fitImage } from "@renderer/canvas/crop-focus";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
-import { imageBoundsFromSize } from "@renderer/ops/_overlay-primitives";
+import { fitImage, imageBoundsFromSize } from "@renderer/ops/_overlay-primitives";
 
 export type EditorCanvasPreview = {
   dataUrl: string;

@@ -1,13 +1,11 @@
 import fs from "node:fs/promises";
 import sharp from "sharp";
 import { detectFormat } from "./format";
-import type { DecodeFacts, Image } from "./image";
+import type { Image } from "./image";
 
-export async function decodeImage(sourcePath: string): Promise<{ image: Image; facts: DecodeFacts }> {
+export async function decodeImage(sourcePath: string): Promise<{ image: Image }> {
   const bytes = await fs.readFile(sourcePath);
   const { format, metadata } = await inspectSourceImage(bytes);
-  const colorSpaceTag = inferColorSpaceTag(metadata.space ?? null);
-  const orientation = metadata.orientation ?? 1;
 
   const normalized = sharp(bytes, { limitInputPixels: false }).rotate().toColorspace("srgb");
   const normalizedMetadata = await normalized.metadata();
@@ -15,29 +13,7 @@ export async function decodeImage(sourcePath: string): Promise<{ image: Image; f
   const height = normalizedMetadata.height ?? metadata.height ?? 0;
 
   return {
-    image: {
-      sharp: normalized,
-      width,
-      height,
-      format
-    },
-    facts: {
-      format,
-      width,
-      height,
-      orientation,
-      iccProfile: metadata.icc ?? null,
-      iccProfileSummary: metadata.icc ? "embedded" : null,
-      colorSpaceTag,
-      exif: {
-        colorSpace: null,
-        interopIndex: null,
-        dateTimeOriginal: null,
-        createDate: null,
-        offsetTimeOriginal: null
-      },
-      jpegQualityEstimate: null
-    }
+    image: { sharp: normalized, width, height, format }
   };
 }
 
@@ -60,13 +36,6 @@ export async function inspectSourceImage(bytes: Buffer): Promise<{ format: strin
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Couldn't decode this ${format.toUpperCase()} image. ${message}`);
   }
-}
-
-function inferColorSpaceTag(space: string | null): DecodeFacts["colorSpaceTag"] {
-  if (!space) return null;
-  if (space.toLowerCase() === "srgb") return "srgb";
-  if (space.toLowerCase().includes("rgb16")) return "uncalibrated";
-  return null;
 }
 
 function supportsHeicInput(): boolean {

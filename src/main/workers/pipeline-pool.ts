@@ -30,8 +30,7 @@ export class PipelineWorkerPool {
       sourceHash: input.sourceHash,
       pipeline: input.pipeline,
       outputPath: input.outputPath,
-      previewLongEdge: null,
-      metadataInjection: null
+      previewLongEdge: null
     });
     if (result.kind !== "process") throw new Error("Worker returned a non-process result.");
     return result;
@@ -50,8 +49,7 @@ export class PipelineWorkerPool {
       sourceHash: input.sourceHash,
       pipeline: input.pipeline,
       outputPath: null,
-      previewLongEdge: input.previewLongEdge,
-      metadataInjection: null
+      previewLongEdge: input.previewLongEdge
     });
     if (result.kind !== "preview") throw new Error("Worker returned a non-preview result.");
     return result;

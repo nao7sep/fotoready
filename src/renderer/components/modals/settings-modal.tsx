@@ -1,15 +1,13 @@
 import React, { useMemo, useState } from "react";
-import type { CacheSizes, SystemInfo } from "@shared/types/ipc";
+import type { SystemInfo } from "@shared/types/ipc";
 import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
 import { validateFilenameTemplates, type FilenameTemplateValidationIssue } from "@shared/validation/filename-template";
 
-type SettingsTab = "general" | "encoding" | "vision" | "metadata" | "naming" | "paths" | "performance" | "caches";
+type SettingsTab = "general" | "encoding" | "vision" | "metadata" | "naming" | "paths" | "performance";
 
 export function AppSettingsModal({
   apiKeyDraft,
-  cacheSizes,
   onApiKeyDraftChange,
-  onClearCaches,
   onClose,
   onSaveApiKey,
   onSaveSettings,
@@ -18,9 +16,7 @@ export function AppSettingsModal({
   systemInfo
 }: {
   apiKeyDraft: string;
-  cacheSizes: CacheSizes | null;
   onApiKeyDraftChange(value: string): void;
-  onClearCaches(): void;
   onClose(): void;
   onSaveApiKey(): void;
   onSaveSettings(): void;
@@ -77,7 +73,7 @@ export function AppSettingsModal({
         </header>
 
         <div className="settings-tabs">
-          {(["general", "encoding", "vision", "metadata", "naming", "paths", "performance", "caches"] as const).map((item) => (
+          {(["general", "encoding", "vision", "metadata", "naming", "paths", "performance"] as const).map((item) => (
             <button className={tab === item ? "active" : ""} key={item} type="button" onClick={() => setTab(item)}>{tabLabel(item)}</button>
           ))}
         </div>
@@ -107,7 +103,6 @@ export function AppSettingsModal({
             ) : null}
             {tab === "paths" ? <PathSettings settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
             {tab === "performance" ? <PerformanceSettings settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
-            {tab === "caches" ? <CacheSettings cacheSizes={cacheSizes} onClearCaches={onClearCaches} /> : null}
           </div>
         ) : null}
 
@@ -179,10 +174,6 @@ function VisionSettings({ apiKeyDraft, onApiKeyDraftChange, settings, setSetting
       <label className="toggle-row">
         <input type="checkbox" checked={settings.defaultAnalyzeContent} onChange={(event) => setSettings({ ...settings, defaultAnalyzeContent: event.currentTarget.checked })} />
         Describe by default
-      </label>
-      <label className="toggle-row">
-        <input type="checkbox" checked={settings.cacheResults} onChange={(event) => setSettings({ ...settings, cacheResults: event.currentTarget.checked })} />
-        Cache vision
       </label>
       <label className="stacked-field span-two">
         Prompt addendum
@@ -302,18 +293,6 @@ function PerformanceSettings({ settings, setSettings }: SettingsProps): React.JS
   );
 }
 
-function CacheSettings({ cacheSizes, onClearCaches }: { cacheSizes: CacheSizes | null; onClearCaches(): void }): React.JSX.Element {
-  return (
-    <>
-      <div className="settings-summary">
-        <span>Caches</span>
-        <code>source {formatBytes(cacheSizes?.sourceFactsBytes ?? 0)} · vision {formatBytes(cacheSizes?.visionFactsBytes ?? 0)}</code>
-      </div>
-      <button className="toolbar-button fit-content" type="button" onClick={onClearCaches}>Clear caches</button>
-    </>
-  );
-}
-
 type SettingsProps = {
   settings: GlobalSettings;
   setSettings(settings: GlobalSettings): void;
@@ -347,8 +326,3 @@ function fieldLabel(field: string): string {
   return field.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`).replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}

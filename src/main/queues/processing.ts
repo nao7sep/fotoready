@@ -8,7 +8,7 @@ import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
 import { getOpModule, type MetadataDecision } from "@core/ops/catalog";
-import type { SourceJpegFacts } from "@runtime/jpeg-quality/detect";
+import { detectJpegQuality } from "@runtime/jpeg-quality/detect";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
@@ -16,7 +16,6 @@ export async function processTask(
   project: Project,
   taskId: string,
   settings: GlobalSettings,
-  sourceFacts: SourceJpegFacts | null,
   onUpdate: (() => void | Promise<void>) | undefined,
   workerPool: PipelineWorkerPool
 ): Promise<void> {
@@ -40,7 +39,7 @@ export async function processTask(
     const outputPath = await stagedOutputPath(project, task, sourcePath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    const result = await processOutputPipeline(task.pipeline, sourcePath, original.sourceHash, original.size, outputPath, settings, sourceFacts, workerPool);
+    const result = await processOutputPipeline(task.pipeline, sourcePath, original, outputPath, settings, workerPool);
 
     if (result.kind !== "file") {
       throw new Error("Processing did not produce an output file.");
@@ -72,49 +71,40 @@ export async function processTask(
 async function processOutputPipeline(
   pipeline: Pipeline,
   sourcePath: string,
-  sourceHash: string,
-  sourceBytes: number,
+  original: { sourceHash: string; size: number; format: string },
   outputPath: string,
   settings: GlobalSettings,
-  sourceFacts: SourceJpegFacts | null,
   workerPool: PipelineWorkerPool
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
   if (pipeline.output.format === "jpeg" && pipeline.output.quality === "match-source-size") {
-    return processMatchSourceSize(pipeline, sourcePath, sourceHash, sourceBytes, outputPath, settings, sourceFacts, workerPool);
+    return processMatchSourceSize(pipeline, sourcePath, original, outputPath, settings, workerPool);
   }
 
-  const resolved = resolveOutputQuality(pipeline, settings, sourceFacts);
-  const result = await workerPool.process({ sourcePath, sourceHash, outputPath, pipeline: resolved });
+  const resolved = pipeline.output.format === "jpeg" && pipeline.output.quality === "match-source-quality"
+    ? { ...pipeline, output: { ...pipeline.output, quality: await sourceJpegQuality(sourcePath, original.format, settings) } }
+    : pipeline;
+  const result = await workerPool.process({ sourcePath, sourceHash: original.sourceHash, outputPath, pipeline: resolved });
   return { ...result, kind: "file" };
 }
 
-function resolveOutputQuality(pipeline: Pipeline, settings: GlobalSettings, sourceFacts: SourceJpegFacts | null): Pipeline {
-  if (pipeline.output.format !== "jpeg") return pipeline;
-  if (pipeline.output.quality === "match-source-quality") {
-    return {
-      ...pipeline,
-      output: {
-        ...pipeline.output,
-        quality: sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure
-      }
-    };
-  }
-  return pipeline;
+/** Estimate the source JPEG quality at save time. Returns the fallback for non-JPEG sources or detection failures. */
+async function sourceJpegQuality(sourcePath: string, format: string, settings: GlobalSettings): Promise<number> {
+  if (format !== "jpeg") return settings.jpegQualityOnDetectionFailure;
+  const bytes = await fs.readFile(sourcePath);
+  return detectJpegQuality(bytes).jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure;
 }
 
 async function processMatchSourceSize(
   pipeline: Pipeline,
   sourcePath: string,
-  sourceHash: string,
-  targetBytes: number,
+  original: { sourceHash: string; size: number; format: string },
   outputPath: string,
   settings: GlobalSettings,
-  sourceFacts: SourceJpegFacts | null,
   workerPool: PipelineWorkerPool
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
-  const rendered = await workerPool.renderBuffer({ sourcePath, sourceHash, pipeline, previewLongEdge: null });
-  const startQuality = sourceFacts?.jpegQualityEstimate?.value ?? settings.jpegQualityOnDetectionFailure;
-  const encoded = await encodeJpegToTargetSize(Buffer.from(rendered.bitmap), rendered.width, rendered.height, pipeline.output, targetBytes, startQuality);
+  const rendered = await workerPool.renderBuffer({ sourcePath, sourceHash: original.sourceHash, pipeline, previewLongEdge: null });
+  const startQuality = await sourceJpegQuality(sourcePath, original.format, settings);
+  const encoded = await encodeJpegToTargetSize(Buffer.from(rendered.bitmap), rendered.width, rendered.height, pipeline.output, original.size, startQuality);
   await fs.writeFile(outputPath, encoded.bytes);
 
   return {

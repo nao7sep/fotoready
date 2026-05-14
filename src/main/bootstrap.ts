@@ -6,7 +6,6 @@ import { createLogger } from "./logging/logger";
 import { loadSettings } from "./persistence/settings-io";
 import { registerIpcHandlers } from "./ipc/router";
 import { ProjectSession } from "./project/session";
-import { QualityQueue } from "./queues/quality";
 import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
@@ -21,11 +20,10 @@ export async function bootstrap(): Promise<void> {
   const paths = getAppPaths();
   const logger = await createLogger(paths.logsDir);
   const settings = await loadSettings(paths.settingsPath);
-  const qualityQueue = new QualityQueue(paths);
   const visionQueue = new VisionQueue(paths, settings);
   const pipelineWorkerPool = new PipelineWorkerPool(settings.workerPoolSize);
-  const processingQueue = new ProcessingQueue(settings, qualityQueue, pipelineWorkerPool);
-  const projectSession = new ProjectSession(settings, qualityQueue, visionQueue, processingQueue, pipelineWorkerPool);
+  const processingQueue = new ProcessingQueue(settings, pipelineWorkerPool);
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
 
   registerIpcHandlers({

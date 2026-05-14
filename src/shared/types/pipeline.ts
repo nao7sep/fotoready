@@ -11,7 +11,6 @@ export type OutputSettings = {
   avifEffort: number;
   pngPalette: boolean;
   backgroundForTransparency: string;
-  iccOutput: "tag-srgb" | "embed-srgb" | "untagged";
 };
 
 export type Pipeline = {

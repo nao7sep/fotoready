@@ -11,7 +11,6 @@ import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/ty
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
 import { previewRename, runRename } from "@main/rename/rename-service";
-import type { QualityQueue } from "@main/queues/quality";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -32,7 +31,6 @@ export class ProjectSession {
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue,
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
     private readonly workerPool: PipelineWorkerPool
@@ -68,7 +66,6 @@ export class ProjectSession {
 
       if (!existing) {
         this.#project.originals.push(original);
-        await this.qualityQueue.enqueueOriginal(original);
       }
 
       this.selectOriginal(targetOriginal.id);
@@ -84,7 +81,7 @@ export class ProjectSession {
     }
 
     const activeTask = this.#activeTaskId ? this.#project.tasks.find((task) => task.id === this.#activeTaskId) : null;
-    if (activeTask && isUntouchedTask(activeTask)) {
+    if (activeTask && activeTask.status === "pending" && !activeTask.everEdited) {
       activeTask.originalId = original.id;
       activeTask.updatedAt = nowIso();
       return this.snapshot();
@@ -132,6 +129,7 @@ export class ProjectSession {
 
     const fork = createTaskForOriginal(task.originalId, this.settings);
     fork.pipeline = structuredClone(task.pipeline);
+    fork.everEdited = true;
     this.#project.tasks.push(fork);
     this.#activeTaskId = fork.id;
     return this.snapshot();
@@ -436,6 +434,7 @@ function createTaskForOriginal(originalId: string, settings: GlobalSettings): Ta
     status: "pending",
     output: null,
     error: null,
+    everEdited: false,
     createdAt: now,
     updatedAt: now
   };
@@ -452,8 +451,7 @@ function defaultTaskOutput(settings: GlobalSettings, fallback: Task["pipeline"][
     webpMethod: settings.webpMethod,
     avifEffort: settings.avifEffort,
     pngPalette: settings.defaultPngPalette,
-    backgroundForTransparency: settings.defaultBackgroundForTransparency,
-    iccOutput: settings.outputIccBehavior
+    backgroundForTransparency: settings.defaultBackgroundForTransparency
   };
 }
 
@@ -487,10 +485,6 @@ function defaultQualityForFormat(
   return settings.jpegFixedQuality;
 }
 
-function isUntouchedTask(task: Task): boolean {
-  return task.status === "pending" && task.pipeline.ops.length === 0 && task.output === null && task.error === null;
-}
-
 function assertOpIndex(task: Task, opIndex: number): void {
   if (!Number.isInteger(opIndex) || opIndex < 0 || opIndex >= task.pipeline.ops.length) {
     throw new Error(`Op index out of range: ${opIndex}`);
@@ -498,6 +492,7 @@ function assertOpIndex(task: Task, opIndex: number): void {
 }
 
 function touchTask(task: Task): void {
+  task.everEdited = true;
   task.updatedAt = nowIso();
   task.output = null;
   task.error = null;

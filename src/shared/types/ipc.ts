@@ -59,11 +59,6 @@ export type RenamePreview = {
   missingSlugCount: number;
 };
 
-export type CacheSizes = {
-  sourceFactsBytes: number;
-  visionFactsBytes: number;
-};
-
 export type LutEntry = {
   name: string;
   path: string;
@@ -136,10 +131,6 @@ export type FotoReadyApi = {
   };
   luts: {
     list(): Promise<LutEntry[]>;
-  };
-  caches: {
-    sizes(): Promise<CacheSizes>;
-    clear(): Promise<CacheSizes>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

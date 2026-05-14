@@ -36,12 +36,10 @@ export type GlobalSettings = {
   jpegProgressive: boolean;
   webpMethod: number;
   avifEffort: number;
-  outputIccBehavior: "tag-srgb" | "embed-srgb" | "untagged";
   model: string;
   visionProjectContext: string;
   preResizeLongEdge: number;
   customPromptAddendum: string;
-  cacheResults: boolean;
   filenameTemplates: FilenameTemplate[];
   slugMinWords: number;
   slugMaxWords: number;

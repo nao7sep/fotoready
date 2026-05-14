@@ -7,7 +7,6 @@ import type { GlobalSettings } from "@shared/types/settings";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { saveSettings } from "@main/persistence/settings-io";
-import { clearCaches, getCacheSizes } from "@main/persistence/cache-admin";
 import { listLuts } from "@main/luts/lut-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
@@ -148,10 +147,5 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("caches.sizes", async () => getCacheSizes(ctx.paths));
-  ipcMain.handle("caches.clear", async () => {
-    await clearCaches(ctx.paths);
-    return getCacheSizes(ctx.paths);
-  });
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

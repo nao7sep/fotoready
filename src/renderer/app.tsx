@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Settings, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
-import type { CacheSizes, LutEntry, OpCatalogItem, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
@@ -47,7 +47,6 @@ function App(): React.JSX.Element {
   const [selectedRenameTaskIds, setSelectedRenameTaskIds] = useState<string[]>([]);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
-  const [cacheSizes, setCacheSizes] = useState<CacheSizes | null>(null);
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
@@ -410,13 +409,8 @@ function App(): React.JSX.Element {
   }
 
   async function openSettings(): Promise<void> {
-    setCacheSizes(await api.caches.sizes());
     setSettingsDraft(settings);
     setApiKeyOpen(true);
-  }
-
-  async function clearCaches(): Promise<void> {
-    setCacheSizes(await api.caches.clear());
   }
 
   async function saveSettingsDraft(): Promise<void> {
@@ -653,9 +647,7 @@ function App(): React.JSX.Element {
       {apiKeyOpen ? (
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}
-          cacheSizes={cacheSizes}
           onApiKeyDraftChange={setApiKeyDraft}
-          onClearCaches={() => void clearCaches()}
           onClose={() => setApiKeyOpen(false)}
           onSaveApiKey={() => void saveApiKey()}
           onSaveSettings={() => void saveSettingsDraft()}

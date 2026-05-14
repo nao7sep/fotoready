@@ -61,10 +61,6 @@ const api: FotoReadyApi = {
   luts: {
     list: () => ipcRenderer.invoke("luts.list")
   },
-  caches: {
-    sizes: () => ipcRenderer.invoke("caches.sizes"),
-    clear: () => ipcRenderer.invoke("caches.clear")
-  },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
   },

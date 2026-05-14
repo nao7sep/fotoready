@@ -2,7 +2,6 @@ import PQueue from "p-queue";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { Project } from "@shared/types/project";
 import type { QueueSnapshot } from "@shared/types/ipc";
-import type { QualityQueue } from "./quality";
 import { processTask } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -16,7 +15,6 @@ export class ProcessingQueue {
 
   constructor(
     private readonly settings: GlobalSettings,
-    private readonly qualityQueue: QualityQueue,
     private readonly workerPool: PipelineWorkerPool,
     onUpdate: (() => void | Promise<void>) | null = null
   ) {
@@ -43,8 +41,7 @@ export class ProcessingQueue {
       this.#activeTaskIds.add(taskId);
       await this.#onUpdate?.();
       try {
-        const sourceFacts = await this.sourceFactsForTask(project, taskId);
-        await processTask(project, taskId, this.settings, sourceFacts, this.#onUpdate ?? undefined, this.workerPool);
+        await processTask(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool);
       } finally {
         this.#activeTaskIds.delete(taskId);
         await this.#onUpdate?.();
@@ -75,11 +72,5 @@ export class ProcessingQueue {
       ...base,
       processing: Math.max(base.processing, active.length)
     };
-  }
-
-  private async sourceFactsForTask(project: Project, taskId: string) {
-    const task = project.tasks.find((item) => item.id === taskId);
-    const original = task ? project.originals.find((item) => item.id === task.originalId) : null;
-    return original ? this.qualityQueue.factsForOriginal(original) : null;
   }
 }

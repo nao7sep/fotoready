@@ -19,8 +19,7 @@ export function defaultOutputSettings(): OutputSettings {
     webpMethod: 4,
     avifEffort: 4,
     pngPalette: false,
-    backgroundForTransparency: "#ffffff",
-    iccOutput: "tag-srgb"
+    backgroundForTransparency: "#ffffff"
   };
 }
 
@@ -49,7 +48,6 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     jpegProgressive: true,
     webpMethod: 4,
     avifEffort: 4,
-    outputIccBehavior: "tag-srgb",
     injectAuthorCopyright: false,
     preserveSourceDates: true,
     injectFields: {},
@@ -57,7 +55,6 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     visionProjectContext: "",
     preResizeLongEdge: 768,
     customPromptAddendum: "",
-    cacheResults: true,
     filenameTemplates: [builtinFilenameTemplate],
     defaultTemplateId: BUILTIN_FILENAME_TEMPLATE_ID,
     slugMinWords: 4,

@@ -46,6 +46,8 @@ export type Task = {
   status: TaskStatus;
   output: TaskOutput | null;
   error: TaskError | null;
+  /** Flipped to true the first time the user mutates the task (op, slug, output, analyzeContent). Used to decide whether `selectOriginal` reuses the active task slot or spawns a new one. */
+  everEdited: boolean;
   createdAt: string;
   updatedAt: string;
 };

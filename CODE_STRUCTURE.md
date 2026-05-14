@@ -44,7 +44,7 @@ Renderer can only import `@shared` and `@renderer` — never `@main`, `@runtime`
 ## Process model
 
 - **Main process** (`src/main/index.ts` → `bootstrap.ts`) owns: user-data paths, settings file, all queues, the Sharp worker pool, the `ProjectSession`, all `ipcMain.handle` routes.
-- **Preload** (`src/preload/index.ts`) builds a typed `FotoReadyApi` object and exposes it as `window.api`. If you add an IPC handler in `router.ts`, you also add it here.
+- **Preload** (`src/preload/index.ts`) builds a typed `FotoReadyApi` object and exposes it as `window.api`. If you add an IPC handler in `ipc-router.ts`, you also add it here.
 - **Renderer** (`src/renderer/app.tsx`) is a single React tree. It calls `window.api.*`, never `ipcRenderer` directly. It listens for `project.snapshot` and `queue.snapshot` events to refresh state.
 - **Worker** (`src/main/workers/pipeline-worker.ts`) runs inside Piscina worker threads. The pool is created once at bootstrap; it is required (not optional).
 
@@ -66,7 +66,7 @@ Renderer can only import `@shared` and `@renderer` — never `@main`, `@runtime`
 
 The full surface is in `src/shared/types/ipc.ts` (`FotoReadyApi`). Every channel must have:
 
-1. An `ipcMain.handle("namespace.action", ...)` in `src/main/ipc/router.ts`.
+1. An `ipcMain.handle("namespace.action", ...)` in `src/main/ipc-router.ts`.
 2. A method on `FotoReadyApi` in `src/shared/types/ipc.ts`.
 3. A wrapper in `src/preload/index.ts` that just forwards arguments.
 
@@ -78,11 +78,11 @@ Channel namespaces: `system.*`, `settings.*`, `project.*`, `task.*`, `preview.*`
 - `project.snapshot` — fires after any mutation. Carries the full `ProjectSnapshot`.
 - `queue.snapshot` — fires when queue counts change.
 
-## ProjectSession (`src/main/project/session.ts`)
+## ProjectSession (`src/main/session.ts`)
 
 The single source of truth on the main side. It holds the in-memory `Project` plus the `activeTaskId`. It mediates between IPC handlers and the queues. All mutations go through it.
 
-- The `ProcessingQueue`, `QualityQueue`, `VisionQueue`, and `PipelineWorkerPool` are constructor-required (never null).
+- The `ProcessingQueue`, `VisionQueue`, and `PipelineWorkerPool` are constructor-required (never null).
 - `addOriginals` / `selectOriginal` / `removeOriginal` — manage the originals list.
 - `addOp` / `updateOpParam` / `setOpEnabled` / `removeOp` — pipeline editing. All require `status === "pending"` (enforced by `editableTask`). They call into the OpModule registry to validate.
 - `enqueueSave(taskId)` — flips status to `queued` and calls `processingQueue.enqueueTask` without awaiting.
@@ -190,7 +190,7 @@ Key rules:
 ### Preview pipeline at a glance
 
 1. User edits a task → renderer effect re-runs → `api.preview.render(taskId, options?)`.
-2. Main: `ProjectSession.renderPreview` → `renderTaskPreview` (`src/main/preview/preview-service.ts`).
+2. Main: `ProjectSession.renderPreview` → `renderTaskPreview` (`src/main/preview-service.ts`).
 3. Worker pool: `renderBuffer({ previewLongEdge })` → `pipeline-worker.ts` → `runPipeline(pipeline, { previewLongEdge })`.
 4. `runPipeline` decodes, resizes long-edge to `previewLongEdge`, applies ops via the registry, returns raw RGBA.
 5. `preview-service` wraps RGBA in a `sharp(raw, { raw: ... }).png()`, returns a base64 data URL.
@@ -252,7 +252,7 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 **A new IPC channel.**
 1. Add a method on `FotoReadyApi` in `src/shared/types/ipc.ts`.
 2. Add a thin wrapper in `src/preload/index.ts`.
-3. Add the handler in `src/main/ipc/router.ts`, routing to `projectSession.*` (preferred) or another main-side module.
+3. Add the handler in `src/main/ipc-router.ts`, routing to `projectSession.*` (preferred) or another main-side module.
 
 **A new settings field.**
 1. Type it in `src/shared/types/settings.ts`.

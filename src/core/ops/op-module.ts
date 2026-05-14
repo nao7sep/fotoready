@@ -1,5 +1,5 @@
 import type sharp from "sharp";
-import type { CubeLut } from "@runtime/lut/cube";
+import type { CubeLut } from "@runtime/lut-cube";
 import type { OpDefinition, OpInstance } from "@shared/types/op";
 import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 

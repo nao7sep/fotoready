@@ -6,9 +6,9 @@ import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
-import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/metadata/exiftool";
+import { injectMetadata, stripMetadata, writeOutputDates } from "@adapters/exiftool";
 import { getOpModule, type MetadataDecision } from "@core/ops/catalog";
-import { detectJpegQuality } from "@runtime/jpeg-quality/detect";
+import { detectJpegQuality } from "@runtime/jpeg-quality";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 

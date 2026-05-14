@@ -3,7 +3,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
-import { loadCubeLut } from "@adapters/lut/cube-loader";
+import { loadCubeLut } from "@adapters/cube-loader";
 
 export type PreviewResult = {
   taskId: string;

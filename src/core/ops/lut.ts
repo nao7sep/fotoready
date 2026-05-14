@@ -1,5 +1,5 @@
 import type { OpModule } from "./op-module";
-import { sampleCubeLut } from "@runtime/lut/cube";
+import { sampleCubeLut } from "@runtime/lut-cube";
 import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
 

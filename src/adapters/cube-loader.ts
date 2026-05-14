@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
-import { parseCubeLut, sampleCubeLut, type CubeLut } from "@runtime/lut/cube";
+import { parseCubeLut, type CubeLut } from "@runtime/lut-cube";
 
 export async function loadCubeLut(cubePath: string): Promise<CubeLut> {
   return parseCubeLut(await fs.readFile(cubePath, "utf8"));
 }
-
-export { parseCubeLut, sampleCubeLut };

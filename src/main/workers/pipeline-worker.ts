@@ -1,5 +1,5 @@
 import { parentPort } from "node:worker_threads";
-import { loadCubeLut } from "@adapters/lut/cube-loader";
+import { loadCubeLut } from "@adapters/cube-loader";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
 import { runPipeline } from "@runtime/pipeline-runner";
 

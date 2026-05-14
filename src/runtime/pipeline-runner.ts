@@ -5,7 +5,7 @@ import { getOpModule, reorderHintFor } from "@core/ops/catalog";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
-import type { CubeLut } from "./lut/cube";
+import type { CubeLut } from "./lut-cube";
 
 export type PipelineRunContext = {
   sourcePath: string;

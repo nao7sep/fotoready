@@ -9,12 +9,12 @@ import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
-import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview/preview-service";
-import { previewRename, runRename } from "@main/rename/rename-service";
+import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview-service";
+import { previewRename, runRename } from "@main/rename-service";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
-import { deleteSelectedFiles } from "@main/files/safe-delete";
+import { deleteSelectedFiles } from "@main/safe-delete";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
 

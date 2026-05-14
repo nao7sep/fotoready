@@ -7,7 +7,7 @@ import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
 import type { RenamePreview } from "@shared/types/ipc";
-import { renderFilenameTemplate } from "@core/naming/template-render";
+import { renderFilenameTemplate } from "@core/template-render";
 import { resolveSlugCollisions } from "@core/slug/collision-resolve";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { assertSafeRenderedFilename, validateFilenameTemplatePattern } from "@shared/validation/filename-template";

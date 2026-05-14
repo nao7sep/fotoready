@@ -1,13 +1,13 @@
 import path from "node:path";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
-import type { ProjectSession } from "@main/project/session";
-import type { AppLogger } from "@main/logging/logger";
+import type { ProjectSession } from "@main/session";
+import type { AppLogger } from "@main/logger";
 import type { GlobalSettings } from "@shared/types/settings";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
-import { saveSettings } from "@main/persistence/settings-io";
-import { listLuts } from "@main/luts/lut-catalog";
+import { saveSettings } from "@main/settings-io";
+import { listLuts } from "@main/lut-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
 

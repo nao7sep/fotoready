@@ -3,8 +3,8 @@ import { nowIso } from "@shared/time";
 import type { Project, TaskError, VisionResult } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
-import { ApiKeyStore } from "@adapters/secure-store/api-keys";
-import { GeminiVisionProvider } from "@adapters/vision/gemini";
+import { ApiKeyStore } from "@adapters/api-keys";
+import { GeminiVisionProvider } from "@adapters/gemini";
 
 export class VisionQueue {
   #apiKeys: ApiKeyStore;

@@ -6,6 +6,8 @@ import type { Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import { getOpRenderer } from "@renderer/ops";
 
+const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata"] as const;
+
 type OpsPanelProps = {
   activeTask: Task | null;
   hasGeminiApiKey: boolean;
@@ -30,33 +32,35 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   const { activeTask, opCatalog, selectedOpIndex } = props;
 
   return (
-    <aside className="panel ops-panel">
-      <div className="panel-header"><h2>Ops</h2></div>
-      {activeTask ? (
-        <div className="current-ops">
-          {activeTask.pipeline.ops.length ? activeTask.pipeline.ops.map((op, index) => (
-            <PipelineOpCard
-              catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
-              disabled={activeTask.status !== "pending"}
-              index={index}
-              key={`${op.type}-${index}`}
-              luts={props.luts}
-              op={op}
-              onEnabledChange={(enabled) => props.onOpEnabledChange(index, enabled)}
-              onParamChange={(key, value) => props.onOpParamChange(index, key, value)}
-              onParamsChange={(patch) => props.onOpParamsChange(index, patch)}
-              onRemove={() => props.onRemoveOp(index)}
-              onSelect={() => props.onSelectOp(index)}
-              originalSize={props.originalSize}
-              selected={selectedOpIndex === index}
-            />
-          )) : <div className="ops-empty">No ops in this task</div>}
-        </div>
-      ) : null}
-      {["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata", "Output"].map((section) => (
-        <section className="op-section" key={section}>
-          <h3>{section}</h3>
-          {section === "Output" ? (
+    <>
+      <aside className="panel ops-panel ops-edit-pane">
+        <section className="op-section current-ops-section">
+          <h3>Ops</h3>
+          <div className="current-ops">
+            {activeTask ? (
+              activeTask.pipeline.ops.length ? activeTask.pipeline.ops.map((op, index) => (
+                <PipelineOpCard
+                  catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
+                  disabled={activeTask.status !== "pending"}
+                  index={index}
+                  key={`${op.type}-${index}`}
+                  luts={props.luts}
+                  op={op}
+                  onEnabledChange={(enabled) => props.onOpEnabledChange(index, enabled)}
+                  onParamChange={(key, value) => props.onOpParamChange(index, key, value)}
+                  onParamsChange={(patch) => props.onOpParamsChange(index, patch)}
+                  onRemove={() => props.onRemoveOp(index)}
+                  onSelect={() => props.onSelectOp(index)}
+                  originalSize={props.originalSize}
+                  selected={selectedOpIndex === index}
+                />
+              )) : <div className="ops-empty">No ops in this task</div>
+            ) : <div className="ops-empty">No task selected</div>}
+          </div>
+        </section>
+        <section className="op-section output-section">
+          <h3>Output</h3>
+          <div className="output-fixed">
             <OutputControls
               disabled={!activeTask || activeTask.status !== "pending"}
               hasGeminiApiKey={props.hasGeminiApiKey}
@@ -67,7 +71,13 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               onCustomSlugChange={props.onCustomSlugChange}
               onOutputChange={props.onOutputChange}
             />
-          ) : (
+          </div>
+        </section>
+      </aside>
+      <aside className="panel ops-panel ops-add-pane">
+        {ADD_OP_SECTIONS.map((section) => (
+          <section className="op-section" key={section}>
+            <h3>{section}</h3>
             <div className="op-buttons">
               {opCatalog.filter((op) => op.category === section).map((op) => (
                 <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "pending"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
@@ -75,10 +85,10 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                 </button>
               ))}
             </div>
-          )}
-        </section>
-      ))}
-    </aside>
+          </section>
+        ))}
+      </aside>
+    </>
   );
 }
 

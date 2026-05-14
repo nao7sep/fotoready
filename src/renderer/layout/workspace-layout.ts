@@ -1,16 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-type PaneKey = "originals" | "tasks" | "ops";
+type PaneKey = "originals" | "tasks" | "ops" | "addOps";
 
 type WorkspaceWidths = Record<PaneKey, number>;
 
 const storageKey = "fotoready.workspace.widths";
-const defaults: WorkspaceWidths = { originals: 180, tasks: 220, ops: 300 };
+const defaults: WorkspaceWidths = { originals: 160, tasks: 200, ops: 260, addOps: 220 };
 const limits: Record<PaneKey, { min: number; max: number }> = {
   originals: { min: 140, max: 360 },
   tasks: { min: 170, max: 420 },
-  ops: { min: 260, max: 520 }
+  ops: { min: 230, max: 520 },
+  addOps: { min: 180, max: 360 }
 };
 
 export function useWorkspaceLayout({
@@ -32,7 +33,7 @@ export function useWorkspaceLayout({
     if (showOriginals) columns.push(`${widths.originals}px`, "6px");
     if (showTasks) columns.push(`${widths.tasks}px`, "6px");
     columns.push("minmax(360px, 1fr)");
-    if (showOps) columns.push("6px", `${widths.ops}px`);
+    if (showOps) columns.push("6px", `${widths.ops}px`, `${widths.addOps}px`);
     return columns.join(" ");
   }, [showOps, showOriginals, showTasks, widths]);
 
@@ -40,7 +41,7 @@ export function useWorkspaceLayout({
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = widths[pane];
-    const direction = pane === "ops" ? -1 : 1;
+    const direction = pane === "ops" || pane === "addOps" ? -1 : 1;
 
     function onMove(moveEvent: PointerEvent): void {
       const next = clamp(startWidth + (moveEvent.clientX - startX) * direction, limits[pane].min, limits[pane].max);
@@ -68,10 +69,12 @@ export function useWorkspaceLayout({
 function readStoredWidths(): WorkspaceWidths {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}") as Partial<WorkspaceWidths>;
+    if (typeof parsed.addOps !== "number") return defaults;
     return {
       originals: clamp(Number(parsed.originals ?? defaults.originals), limits.originals.min, limits.originals.max),
       tasks: clamp(Number(parsed.tasks ?? defaults.tasks), limits.tasks.min, limits.tasks.max),
-      ops: clamp(Number(parsed.ops ?? defaults.ops), limits.ops.min, limits.ops.max)
+      ops: clamp(Number(parsed.ops ?? defaults.ops), limits.ops.min, limits.ops.max),
+      addOps: clamp(Number(parsed.addOps ?? defaults.addOps), limits.addOps.min, limits.addOps.max)
     };
   } catch {
     return defaults;

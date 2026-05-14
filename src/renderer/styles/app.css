@@ -249,7 +249,7 @@ select:disabled {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 180px 6px 220px 6px minmax(360px, 1fr) 6px 300px;
+  grid-template-columns: 160px 6px 200px 6px minmax(360px, 1fr) 6px 260px 220px;
 }
 
 .workspace-splitter {
@@ -804,8 +804,35 @@ select:disabled {
   min-width: 0;
   border-right: 0;
   border-left: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.ops-edit-pane,
+.ops-add-pane {
+  min-width: 0;
+  min-height: 0;
+}
+
+.ops-edit-pane {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.ops-add-pane {
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.current-ops-section {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.output-section {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 0;
 }
 
 .op-section {
@@ -818,8 +845,9 @@ select:disabled {
 .current-ops {
   display: grid;
   gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .ops-empty {

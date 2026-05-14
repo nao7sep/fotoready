@@ -13,8 +13,7 @@
     "icons": "node scripts/generate-icons.mjs && iconutil -c icns build/icon.iconset -o build/icon.icns",
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
-    "test": "vitest run"
+    "dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@google/genai": "^2.2.0",
@@ -43,8 +42,7 @@
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "typescript": "^6.0.3",
-    "vite": "^7.2.7",
-    "vitest": "^4.1.6"
+    "vite": "^7.2.7"
   },
   "build": {
     "appId": "com.fotoready.desktop",

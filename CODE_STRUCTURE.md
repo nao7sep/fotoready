@@ -140,7 +140,7 @@ Op definitions live in `geometry.ts`, `tone.ts`, `effects.ts`, `redaction.ts`, `
 
 The execution side lives in `src/runtime/pipeline-runner.ts` in the giant `applyOp` switch. **To add a new op you must edit both places**: register in `src/core/ops/`, handle the `case` in `applyOp`, and add validation in `src/shared/validation/ops.ts`. The renderer's per-op param UI in `src/renderer/components/panels/ops-panel.tsx` also needs a branch.
 
-The only op currently exercised by users is **rotate**. Other ops are registered and should work, but treat them as unverified until smoke-tested.
+The primary geometry workflow now exercises **crop**, **rotate**, and **resize** directly in the renderer. Other registered ops should still be treated as less-proven until smoke-tested.
 
 ## Renderer layout
 
@@ -170,6 +170,7 @@ Key rules:
 - The shell is locked to `height: 100vh; overflow: hidden`. Each scrolling region (originals list, tasks list, ops panel) handles its own overflow. The body never scrolls.
 - Panels use `flex-direction: column` with the list at `flex: 1 1 0` so footers stay fixed.
 - The preview area must never be truncated. Don't add fixed-height sections inside `.editor-panel` that could push the canvas-frame out.
+- Crop / rotate / resize are selected and configured in the ops panel. The preview stays focused on direct-manipulation guides such as the draggable crop box and rotate framing guides.
 - All colors come from CSS custom properties defined on `:root`. The app is light-only by design; the theme picker has been removed.
 
 ## Settings
@@ -181,12 +182,14 @@ Key rules:
 
 ## Preview pipeline at a glance
 
-1. User edits a task → `task.updatedAt` changes → renderer effect re-runs → `api.preview.render(taskId)`.
+1. User edits a task → `task.updatedAt` changes → renderer effect re-runs → `api.preview.render(taskId, options?)`.
 2. Main: `ProjectSession.renderPreview` → `renderTaskPreview` (`src/main/preview/preview-service.ts`).
 3. Worker pool: `renderBuffer({ previewLongEdge })` → `pipeline-worker.ts` → `runPipeline(pipeline, { previewLongEdge })`.
 4. `runPipeline` decodes, resizes long-edge to `previewLongEdge`, applies ops, returns raw RGBA.
 5. `preview-service` wraps RGBA in a `sharp(raw, { raw: ... }).png()`, returns a base64 data URL.
 6. Renderer's `EditorCanvas` loads the data URL into Konva and fits it to the canvas frame (1:1 scale to fit-or-fill behavior; no zoom UI).
+
+When the selected op is **crop**, the renderer asks main to render the preview **without that crop op applied**. The canvas then recenters and zooms the pre-crop image around the current crop rectangle so crop resizing stays stable instead of recursively previewing the already-cropped image.
 
 Default `previewLongEdge` is 256 (set deliberately low so the resize path is visually obvious). Bump it once the team is happy.
 
@@ -235,7 +238,7 @@ If a future task wants any of these back, treat it as a fresh design — don't t
 
 - `npm run dev` — electron-vite hot reload for both main and renderer.
 - `npm run build` — `tsc --noEmit` + production bundle. Run before committing structural changes.
-- `npm test` — vitest. Three tiny test files today; add more when you touch validators or pure utilities.
+- `npm test` — vitest. Four tiny test files today; add more when you touch validators or pure utilities.
 - `npm run check:imports` — boundary lint.
 - `npm run package` — electron-builder to `release/`. Mac code-signing is intentionally off.
 

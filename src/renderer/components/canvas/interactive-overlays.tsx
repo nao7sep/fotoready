@@ -4,16 +4,17 @@ import { Rect, Transformer } from "react-konva";
 
 type RectShape = { x: number; y: number; w: number; h: number };
 type Placement = { x: number; y: number; width: number; height: number; scale: number };
-
 const MIN_STAGE_SIZE = 12;
 
 export function InteractiveOverlayRect({
+  aspectRatio,
   color,
   placement,
   rect,
   onChange,
   onCommit
 }: {
+  aspectRatio?: number | null;
   color: string;
   placement: Placement;
   rect: RectShape;
@@ -49,31 +50,36 @@ export function InteractiveOverlayRect({
         }}
         onDragMove={(event) => {
           const node = event.target;
-          onChange(fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement));
+          const nextRect = fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement);
+          onChange(nextRect);
         }}
         onDragEnd={(event) => {
           const node = event.target;
-          onCommit(fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement));
+          const nextRect = fromStageRect(clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement), placement);
+          onCommit(nextRect);
         }}
         onTransform={(event) => {
           const nextRect = transformedStageRect(event.target as Konva.Rect, placement);
-          onChange(fromStageRect(nextRect, placement));
+          const imageRect = fromStageRect(nextRect, placement);
+          onChange(imageRect);
         }}
         onTransformEnd={(event) => {
           const nextRect = transformedStageRect(event.target as Konva.Rect, placement);
-          onCommit(fromStageRect(nextRect, placement));
+          const imageRect = fromStageRect(nextRect, placement);
+          onCommit(imageRect);
         }}
       />
       <Transformer
         ref={transformerRef}
-        anchorFill="#171717"
-        anchorSize={9}
+        anchorFill="#ffffff"
+        anchorSize={7}
         anchorStroke={color}
         anchorStrokeWidth={1.5}
         borderDash={[6, 4]}
         borderStroke={color}
-        enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+        enabledAnchors={["top-left", "top-center", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-center", "bottom-right"]}
         flipEnabled={false}
+        keepRatio={Boolean(aspectRatio)}
         rotateEnabled={false}
         boundBoxFunc={(oldBox, newBox) => toKonvaBox(clampStageRect(fromKonvaBox(newBox), placement), oldBox.rotation)}
       />

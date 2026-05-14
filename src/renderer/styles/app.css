@@ -479,6 +479,101 @@ select:disabled {
   color: var(--text-muted-color);
 }
 
+.geometry-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.geometry-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.geometry-chip-group,
+.geometry-swatch-group,
+.geometry-stepper-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.geometry-chip {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong-color);
+  border-radius: 999px;
+  color: var(--text-strong-color);
+  background: var(--button-bg);
+  font-size: 12px;
+}
+
+.geometry-chip.active {
+  color: var(--accent-soft-text);
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+}
+
+.geometry-status {
+  color: var(--text-muted-color);
+  font-size: 12px;
+}
+
+.geometry-status strong {
+  color: var(--text-strong-color);
+}
+
+.geometry-help {
+  color: var(--text-muted-color);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.geometry-range-field {
+  min-width: 0;
+}
+
+.geometry-range-field input[type="range"] {
+  width: 100%;
+}
+
+.geometry-number-field {
+  min-width: 132px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-strong-color);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 50%);
+}
+
+.color-swatch.active,
+.color-picker-button:has(input:focus-visible) {
+  outline: 2px solid var(--accent-soft-border);
+  outline-offset: 1px;
+}
+
+.color-picker-button {
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong-color);
+  border-radius: 999px;
+  background: var(--button-bg);
+}
+
+.color-picker-button input[type="color"] {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .canvas-frame {
   position: relative;
   min-height: 0;
@@ -698,6 +793,7 @@ select:disabled {
   border-color: var(--accent-border);
   box-shadow: inset 0 0 0 1px var(--accent-border);
 }
+
 
 .op-card-header {
   display: flex;

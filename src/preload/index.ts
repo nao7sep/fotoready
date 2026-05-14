@@ -48,7 +48,7 @@ const api: FotoReadyApi = {
     list: () => ipcRenderer.invoke("ops.list")
   },
   preview: {
-    render: (taskId) => ipcRenderer.invoke("preview.render", taskId),
+    render: (taskId, options) => ipcRenderer.invoke("preview.render", taskId, options),
     originalThumbnail: (originalId) => ipcRenderer.invoke("preview.originalThumbnail", originalId)
   },
   vision: {

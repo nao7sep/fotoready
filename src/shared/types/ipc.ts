@@ -33,6 +33,10 @@ export type PreviewResult = {
   height: number;
 };
 
+export type PreviewRenderOptions = {
+  truncateOpsAt?: number | null;
+};
+
 export type OriginalThumbnail = {
   originalId: string;
   dataUrl: string;
@@ -120,7 +124,7 @@ export type FotoReadyApi = {
     list(): Promise<OpCatalogItem[]>;
   };
   preview: {
-    render(taskId: string): Promise<PreviewResult>;
+    render(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult>;
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {

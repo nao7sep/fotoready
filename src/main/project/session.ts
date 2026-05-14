@@ -260,8 +260,8 @@ export class ProjectSession {
     return queueSnapshotFromProject(this.#project);
   }
 
-  async renderPreview(taskId: string): Promise<PreviewResult> {
-    return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool);
+  async renderPreview(taskId: string, options?: { truncateOpsAt?: number | null }): Promise<PreviewResult> {
+    return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool, options);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {

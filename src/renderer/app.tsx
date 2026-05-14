@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Settings, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
-import type { CacheSizes, LutEntry, OpCatalogItem, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
+import type { CacheSizes, LutEntry, OpCatalogItem, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
@@ -51,6 +51,7 @@ function App(): React.JSX.Element {
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
+  const opPreviewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
   const project = projectSnapshot?.project;
@@ -60,6 +61,19 @@ function App(): React.JSX.Element {
   const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
   const showHistogram = settings?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
+  const previewRequest = useMemo(() => {
+    if (!activeTask) return null;
+    // Card N shows the result of ops[0..N-1]. null = all ops (no card selected).
+    const truncateOpsAt = selectedOpIndex;
+    const previewOps = truncateOpsAt !== null ? activeTask.pipeline.ops.slice(0, truncateOpsAt) : activeTask.pipeline.ops;
+    const cacheKey = JSON.stringify({
+      taskId: activeTask.id,
+      originalId: activeTask.originalId,
+      ops: previewOps,
+      output: activeTask.pipeline.output
+    });
+    return { taskId: activeTask.id, truncateOpsAt, cacheKey };
+  }, [activeTask, selectedOpIndex]);
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -164,8 +178,19 @@ function App(): React.JSX.Element {
   }, [activeTask?.pipeline.ops.length]);
 
   useEffect(() => {
-    if (!activeTask) {
+    opPreviewCacheRef.current.clear();
+  }, [activeTask?.id]);
+
+  useEffect(() => {
+    if (!previewRequest) {
       setPreview(null);
+      setPreviewState("idle");
+      return;
+    }
+
+    const cached = opPreviewCacheRef.current.get(previewRequest.cacheKey);
+    if (cached) {
+      setPreview(cached);
       setPreviewState("idle");
       return;
     }
@@ -175,9 +200,11 @@ function App(): React.JSX.Element {
     setPreview(null);
     setPreviewState("loading");
     timeoutId = window.setTimeout(() => {
-      void api.preview.render(activeTask.id)
+      const renderOptions = previewRequest.truncateOpsAt !== null ? { truncateOpsAt: previewRequest.truncateOpsAt } : undefined;
+      void api.preview.render(previewRequest.taskId, renderOptions)
         .then((result) => {
           if (!cancelled) {
+            opPreviewCacheRef.current.set(previewRequest.cacheKey, result);
             setPreview(result);
             setPreviewState("idle");
           }
@@ -194,7 +221,7 @@ function App(): React.JSX.Element {
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [activeTask?.id, activeTask?.updatedAt, activeTask?.pipeline.ops.length, settings?.previewDebounceMs]);
+  }, [previewRequest, settings?.previewDebounceMs]);
 
   useEffect(() => {
     const originals = project?.originals ?? [];
@@ -527,6 +554,7 @@ function App(): React.JSX.Element {
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
               onOpParamsChange={(opIndex, patch) => void updateOpParams(opIndex, patch)}
+              originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
               previewState={previewState}
               selectedOpIndex={selectedOpIndex}
@@ -555,6 +583,7 @@ function App(): React.JSX.Element {
             hasGeminiApiKey={hasGeminiApiKey}
             luts={lutEntries}
             opCatalog={opCatalog}
+            originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
             onSelectOp={setSelectedOpIndex}
             onAddOp={(opType) => void addOp(opType)}
             onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
@@ -562,6 +591,7 @@ function App(): React.JSX.Element {
             onOpenSettings={() => void openSettings()}
             onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
             onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
+            onOpParamsChange={(index, patch) => void updateOpParams(index, patch)}
             onOutputChange={(key, value) => void updateOutput(key, value)}
             onRemoveOp={(index) => void removeOp(index)}
             settings={settings}

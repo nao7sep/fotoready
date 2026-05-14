@@ -1,8 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Image as KonvaImage, Layer, Rect, Stage, Text } from "react-konva";
+import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { Task } from "@shared/types/project";
 import { InteractiveOverlayRect } from "./interactive-overlays";
-import { cropRectFromOp, redactionRects, scaleRect as scaleOverlayRect, selectedEditableOverlay, selectedWhiteBalanceSample, updatePatchForOverlay, type FractionRect } from "@renderer/canvas/op-overlays";
+import { fitImage, zoomToCropRect } from "@renderer/canvas/crop-focus";
+import {
+  cropRectFromOp,
+  imageBoundsFromSize,
+  redactionRects,
+  resolveCropAspectRatio,
+  scaleRect as scaleOverlayRect,
+  selectedEditableOverlay,
+  selectedWhiteBalanceSample,
+  updatePatchForOverlay,
+  type FractionRect
+} from "@renderer/canvas/op-overlays";
 
 export type EditorCanvasPreview = {
   dataUrl: string;
@@ -15,6 +26,7 @@ export function EditorCanvas({
   previewState,
   task,
   fallbackLabel,
+  originalAspectRatio,
   selectedOpIndex,
   onOpParamsChange
 }: {
@@ -22,6 +34,7 @@ export function EditorCanvas({
   previewState: "idle" | "loading" | "error";
   task: Task | null;
   fallbackLabel: string;
+  originalAspectRatio: number | null;
   selectedOpIndex: number | null;
   onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
 }): React.JSX.Element {
@@ -31,17 +44,35 @@ export function EditorCanvas({
   const imageSize = image
     ? { width: image.naturalWidth || preview?.width || 1, height: image.naturalHeight || preview?.height || 1 }
     : { width: preview?.width ?? 1, height: preview?.height ?? 1 };
-  const placement = useMemo(() => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height), [frameSize.height, frameSize.width, imageSize.height, imageSize.width]);
   const longEdge = Math.max(imageSize.width, imageSize.height);
-  const editableOverlay = useMemo(() => selectedEditableOverlay(task, selectedOpIndex), [selectedOpIndex, task]);
+  const imageBounds = useMemo(() => imageBoundsFromSize(imageSize), [imageSize]);
+  const editableOverlay = useMemo(() => selectedEditableOverlay(task, selectedOpIndex, imageBounds), [imageBounds, selectedOpIndex, task]);
   const whiteBalanceSample = useMemo(() => selectedWhiteBalanceSample(task, selectedOpIndex), [selectedOpIndex, task]);
   const [draftOverlayRect, setDraftOverlayRect] = useState<FractionRect | null>(null);
+  const [committedCropRect, setCommittedCropRect] = useState<FractionRect | null>(null);
+  const selectedOp = selectedOpIndex === null ? null : task?.pipeline.ops[selectedOpIndex] ?? null;
+  const selectedCropAspectRatio = useMemo(
+    () => (selectedOp?.type === "crop" ? resolveCropAspectRatio(selectedOp.params.aspectLock, originalAspectRatio) : null),
+    [originalAspectRatio, selectedOp]
+  );
+  const showRotateGuide = selectedOp?.type === "rotate";
+  const activeOverlayRect = draftOverlayRect ?? editableOverlay?.rect ?? null;
+  const cropZoomRect = useMemo(() => {
+    if (selectedOp?.type !== "crop" || !committedCropRect) return null;
+    return scaleOverlayRect(committedCropRect, longEdge);
+  }, [committedCropRect, longEdge, selectedOp?.type]);
+  const placement = useMemo(
+    () =>
+      cropZoomRect
+        ? zoomToCropRect(imageSize.width, imageSize.height, frameSize.width, frameSize.height, cropZoomRect)
+        : fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height),
+    [cropZoomRect, frameSize.height, frameSize.width, imageSize.height, imageSize.width]
+  );
 
   useEffect(() => {
     setDraftOverlayRect(null);
+    setCommittedCropRect(null);
   }, [editableOverlay?.kind, editableOverlay?.opIndex, task?.id, task?.updatedAt]);
-
-  const activeOverlayRect = draftOverlayRect ?? editableOverlay?.rect ?? null;
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -83,16 +114,23 @@ export function EditorCanvas({
               {task ? (
                 <PipelineOverlays
                   editableOverlay={editableOverlay && activeOverlayRect ? { ...editableOverlay, rect: activeOverlayRect } : null}
+                  cropAspectRatio={selectedCropAspectRatio}
                   imageSize={imageSize}
-                  onEditableOverlayChange={setDraftOverlayRect}
+                  onEditableOverlayChange={(rect) => {
+                    setDraftOverlayRect(rect);
+                  }}
                   onEditableOverlayCommit={(rect) => {
                     if (!editableOverlay) return;
+                    if (editableOverlay.kind === "crop") setCommittedCropRect(rect);
                     setDraftOverlayRect(null);
-                    onOpParamsChange(editableOverlay.opIndex, updatePatchForOverlay(task.pipeline.ops[editableOverlay.opIndex], rect));
+                    onOpParamsChange(editableOverlay.opIndex, updatePatchForOverlay(task.pipeline.ops[editableOverlay.opIndex], rect, imageBounds));
                   }}
                   placement={placement}
+                  stageSize={frameSize}
+                  showRotateGuide={showRotateGuide}
                   whiteBalanceSamplePoint={whiteBalanceSample?.point ?? null}
                   task={task}
+                  selectedOpIndex={selectedOpIndex}
                 />
               ) : null}
             </Group>
@@ -110,24 +148,56 @@ export function EditorCanvas({
 
 function PipelineOverlays({
   editableOverlay,
+  cropAspectRatio,
   imageSize,
   onEditableOverlayChange,
   onEditableOverlayCommit,
   placement,
+  stageSize,
+  showRotateGuide,
   whiteBalanceSamplePoint,
-  task
+  task,
+  selectedOpIndex
 }: {
   editableOverlay: { kind: "crop" | "redact"; opIndex: number; rect: FractionRect; color: string } | null;
+  cropAspectRatio: number | null;
   imageSize: { width: number; height: number };
   onEditableOverlayChange(nextRect: FractionRect): void;
   onEditableOverlayCommit(nextRect: FractionRect): void;
   placement: { x: number; y: number; width: number; height: number; scale: number };
+  stageSize: { width: number; height: number };
+  showRotateGuide: boolean;
   whiteBalanceSamplePoint: { x: number; y: number } | null;
   task: Task;
+  selectedOpIndex: number | null;
 }): React.JSX.Element {
   const longEdge = Math.max(imageSize.width, imageSize.height);
   return (
     <>
+      {showRotateGuide ? (
+        <>
+          <Rect
+            height={placement.height}
+            stroke="#ffffffaa"
+            strokeWidth={1}
+            width={placement.width}
+            x={placement.x}
+            y={placement.y}
+          />
+          <Line
+            dash={[8, 8]}
+            points={[placement.x + placement.width / 2, placement.y, placement.x + placement.width / 2, placement.y + placement.height]}
+            stroke="#ffffffaa"
+            strokeWidth={1}
+          />
+          <Line
+            dash={[8, 8]}
+            points={[placement.x, placement.y + placement.height / 2, placement.x + placement.width, placement.y + placement.height / 2]}
+            stroke="#ffffffaa"
+            strokeWidth={1}
+          />
+        </>
+      ) : null}
       {whiteBalanceSamplePoint ? (
         <Circle
           fill="#60a5fa"
@@ -140,15 +210,18 @@ function PipelineOverlays({
         />
       ) : null}
       {task.pipeline.ops.flatMap((op, opIndex) => {
-        if (!op.enabled) return [];
+        if (!op.enabled || opIndex !== selectedOpIndex) return [];
         if (op.type === "crop") {
           if (editableOverlay?.kind === "crop" && editableOverlay.opIndex === opIndex) {
+            const stageRect = scaleOverlayRect(editableOverlay.rect, longEdge);
             return [
+              <CropMask key={`${opIndex}-crop-mask`} placement={placement} rect={stageRect} stageSize={stageSize} />,
               <InteractiveOverlayRect
+                aspectRatio={cropAspectRatio}
                 color={editableOverlay.color}
                 key={`${opIndex}-crop-edit`}
                 placement={placement}
-                rect={scaleOverlayRect(editableOverlay.rect, longEdge)}
+                rect={stageRect}
                 onChange={(nextRect) => onEditableOverlayChange(scaleDownRect(nextRect, longEdge))}
                 onCommit={(nextRect) => onEditableOverlayCommit(scaleDownRect(nextRect, longEdge))}
               />
@@ -187,6 +260,31 @@ function PipelineOverlays({
   );
 }
 
+function CropMask({
+  placement,
+  rect,
+  stageSize
+}: {
+  placement: { x: number; y: number; width: number; height: number; scale: number };
+  rect: { x: number; y: number; w: number; h: number };
+  stageSize: { width: number; height: number };
+}): React.JSX.Element {
+  const cropLeft = placement.x + rect.x * placement.scale;
+  const cropTop = placement.y + rect.y * placement.scale;
+  const cropRight = cropLeft + rect.w * placement.scale;
+  const cropBottom = cropTop + rect.h * placement.scale;
+  const maskProps = { fill: "#0f172a", listening: false, opacity: 0.46 };
+
+  return (
+    <>
+      <Rect {...maskProps} height={Math.max(0, cropTop)} width={stageSize.width} x={0} y={0} />
+      <Rect {...maskProps} height={Math.max(0, stageSize.height - cropBottom)} width={stageSize.width} x={0} y={cropBottom} />
+      <Rect {...maskProps} height={Math.max(0, cropBottom - cropTop)} width={Math.max(0, cropLeft)} x={0} y={cropTop} />
+      <Rect {...maskProps} height={Math.max(0, cropBottom - cropTop)} width={Math.max(0, stageSize.width - cropRight)} x={cropRight} y={cropTop} />
+    </>
+  );
+}
+
 function OverlayRect({ color, placement, rect }: { color: string; placement: { x: number; y: number; scale: number }; rect: { x: number; y: number; w: number; h: number } }): React.JSX.Element {
   return (
     <Rect
@@ -216,19 +314,6 @@ function useImage(dataUrl: string | null): HTMLImageElement | null {
     };
   }, [dataUrl]);
   return image;
-}
-
-function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number): { x: number; y: number; width: number; height: number; scale: number } {
-  const scale = Math.min(frameWidth / imageWidth, frameHeight / imageHeight);
-  const width = imageWidth * scale;
-  const height = imageHeight * scale;
-  return {
-    x: Math.round((frameWidth - width) / 2),
-    y: Math.round((frameHeight - height) / 2),
-    width,
-    height,
-    scale
-  };
 }
 
 function rectFromParams(params: Record<string, unknown>, longEdge: number): { x: number; y: number; w: number; h: number } {

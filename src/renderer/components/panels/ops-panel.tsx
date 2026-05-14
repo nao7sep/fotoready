@@ -4,6 +4,7 @@ import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
+import { applyCropAspect, cropAspectOptionId, cropRectFromOp, fullCropRect, imageBoundsFromSize, resolveCropAspectRatio } from "@renderer/canvas/op-overlays";
 import { api } from "@renderer/ipc/client";
 
 type OpsPanelProps = {
@@ -11,6 +12,7 @@ type OpsPanelProps = {
   hasGeminiApiKey: boolean;
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
+  originalSize: { width: number; height: number } | null;
   onOpenSettings(): void;
   settings: GlobalSettings | null;
   selectedOpIndex: number | null;
@@ -19,6 +21,7 @@ type OpsPanelProps = {
   onCustomSlugChange(value: string | null): void;
   onOpEnabledChange(opIndex: number, enabled: boolean): void;
   onOpParamChange(opIndex: number, key: string, value: unknown): void;
+  onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
   onOutputChange(key: string, value: unknown): void;
   onRemoveOp(opIndex: number): void;
   onSelectOp(opIndex: number): void;
@@ -29,6 +32,7 @@ export function OpsPanel({
   hasGeminiApiKey,
   luts,
   opCatalog,
+  originalSize,
   onOpenSettings,
   settings,
   selectedOpIndex,
@@ -37,6 +41,7 @@ export function OpsPanel({
   onCustomSlugChange,
   onOpEnabledChange,
   onOpParamChange,
+  onOpParamsChange,
   onOutputChange,
   onRemoveOp,
   onSelectOp
@@ -56,8 +61,10 @@ export function OpsPanel({
               op={op}
               onEnabledChange={(enabled) => onOpEnabledChange(index, enabled)}
               onParamChange={(key, value) => onOpParamChange(index, key, value)}
+              onParamsChange={(patch) => onOpParamsChange(index, patch)}
               onRemove={() => onRemoveOp(index)}
               onSelect={() => onSelectOp(index)}
+              originalSize={originalSize}
               selected={selectedOpIndex === index}
             />
           )) : (
@@ -102,8 +109,10 @@ function PipelineOpCard({
   onEnabledChange,
   luts,
   onParamChange,
+  onParamsChange,
   onRemove,
   onSelect,
+  originalSize,
   selected
 }: {
   catalogItem: OpCatalogItem | null;
@@ -113,8 +122,10 @@ function PipelineOpCard({
   op: OpInstance;
   onEnabledChange(enabled: boolean): void;
   onParamChange(key: string, value: unknown): void;
+  onParamsChange(patch: Record<string, unknown>): void;
   onRemove(): void;
   onSelect(): void;
+  originalSize: { width: number; height: number } | null;
   selected: boolean;
 }): React.JSX.Element {
   return (
@@ -137,7 +148,7 @@ function PipelineOpCard({
           <Trash2 size={14} />
         </button>
       </div>
-      <OpParams op={op} disabled={disabled} luts={luts} onParamChange={onParamChange} />
+      <OpParams disabled={disabled} luts={luts} onParamChange={onParamChange} onParamsChange={onParamsChange} op={op} originalSize={originalSize} />
     </section>
   );
 }
@@ -146,55 +157,47 @@ function OpParams({
   disabled,
   luts,
   op,
-  onParamChange
+  onParamChange,
+  onParamsChange,
+  originalSize
 }: {
   disabled: boolean;
   luts: LutEntry[];
   op: OpInstance;
   onParamChange(key: string, value: unknown): void;
+  onParamsChange(patch: Record<string, unknown>): void;
+  originalSize: { width: number; height: number } | null;
 }): React.JSX.Element {
   if (op.type === "resize") {
     return (
-      <div className="field-grid">
-        <label>
-          Mode
-          <select disabled={disabled} value={stringValue(op.params.mode, "long-edge")} onChange={(event) => onParamChange("mode", event.currentTarget.value)}>
-            {["fit", "fill", "width", "height", "long-edge", "short-edge"].map((mode) => <option key={mode}>{mode}</option>)}
-          </select>
-        </label>
-        <label>
-          Pixels
-          <input disabled={disabled} min={1} type="number" value={numberValue(op.params.value, 1920)} onChange={(event) => onParamChange("value", event.currentTarget.valueAsNumber)} />
-        </label>
-      </div>
+      <ResizeControls disabled={disabled} mode={resizeModeValue(op.params.mode)} onParamChange={onParamChange} value={numberValue(op.params.value, 1920)} />
     );
   }
 
   if (op.type === "rotate") {
     return (
-      <div className="field-grid">
-        <label>
-          Degrees
-          <input disabled={disabled} max={180} min={-180} type="number" value={numberValue(op.params.degrees, 0)} onChange={(event) => onParamChange("degrees", event.currentTarget.valueAsNumber)} />
-        </label>
-        <label>
-          Fill
-          <input disabled={disabled} type="color" value={stringValue(op.params.fillColor, "#ffffff")} onChange={(event) => onParamChange("fillColor", event.currentTarget.value)} />
-        </label>
-      </div>
+      <RotateControls
+        degrees={numberValue(op.params.degrees, 0)}
+        disabled={disabled}
+        fillColor={stringValue(op.params.fillColor, "#ffffff")}
+        onParamChange={onParamChange}
+      />
     );
   }
 
   if (op.type === "crop") {
+    const originalAspectRatio = originalSize ? originalSize.width / Math.max(1, originalSize.height) : null;
+    const imageBounds = originalSize ? imageBoundsFromSize(originalSize) : { maxX: 1, maxY: 1 };
     return (
-      <div className="field-grid four">
-        {["x", "y", "w", "h"].map((key) => (
-          <label key={key}>
-            {key}
-            <input disabled={disabled} max={1} min={0} step={0.01} type="number" value={numberValue(op.params[key], key === "w" || key === "h" ? 1 : 0)} onChange={(event) => onParamChange(key, event.currentTarget.valueAsNumber)} />
-          </label>
-        ))}
-      </div>
+      <CropControls
+        aspectLock={op.params.aspectLock}
+        currentRect={cropRectFromOp(op, imageBounds)}
+        disabled={disabled}
+        imageBounds={imageBounds}
+        onParamChange={onParamChange}
+        onParamsChange={onParamsChange}
+        originalAspectRatio={originalAspectRatio}
+      />
     );
   }
 
@@ -508,6 +511,198 @@ function OpParams({
   return <div className="row-detail">No editable parameters.</div>;
 }
 
+function CropControls({
+  aspectLock,
+  currentRect,
+  disabled,
+  imageBounds,
+  onParamChange,
+  onParamsChange,
+  originalAspectRatio
+}: {
+  aspectLock: unknown;
+  currentRect: { x: number; y: number; w: number; h: number };
+  disabled: boolean;
+  imageBounds: { maxX: number; maxY: number };
+  onParamChange(key: string, value: unknown): void;
+  onParamsChange(patch: Record<string, unknown>): void;
+  originalAspectRatio: number | null;
+}): React.JSX.Element {
+  const activeAspectId = cropAspectOptionId(aspectLock, originalAspectRatio);
+
+  function handleAspectChange(nextAspectId: CropAspectOptionId): void {
+    if (nextAspectId === "free") {
+      onParamChange("aspectLock", null);
+      return;
+    }
+
+    const aspectRatio = resolveCropAspectRatio(nextAspectId, originalAspectRatio);
+    if (!aspectRatio) return;
+    const nextRect = applyCropAspect(currentRect, aspectRatio, imageBounds);
+    onParamsChange({
+      ...nextRect,
+      aspectLock: nextAspectId
+    });
+  }
+
+  return (
+    <div className="geometry-controls">
+      <div className="geometry-toolbar-row">
+        <span className="geometry-status">
+          Aspect: <strong>{cropAspectLabel(activeAspectId, currentRect)}</strong>
+        </span>
+        <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamsChange({ ...fullCropRect(imageBounds), aspectLock: null })}>
+          Reset crop
+        </button>
+      </div>
+      <div className="geometry-chip-group" role="group" aria-label="Crop aspect ratio">
+        {cropAspectOptions.map((option) => (
+          <button
+            className={`geometry-chip ${activeAspectId === option.id ? "active" : ""}`}
+            disabled={disabled}
+            key={option.id}
+            type="button"
+            onClick={() => handleAspectChange(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <div className="geometry-help">Drag the crop lines on the preview. Use these chips here to keep or change the aspect ratio.</div>
+    </div>
+  );
+}
+
+function RotateControls({
+  degrees,
+  disabled,
+  fillColor,
+  onParamChange
+}: {
+  degrees: number;
+  disabled: boolean;
+  fillColor: string;
+  onParamChange(key: string, value: unknown): void;
+}): React.JSX.Element {
+  return (
+    <div className="geometry-controls">
+      <div className="geometry-toolbar-row">
+        <div className="geometry-stepper-group">
+          <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(degrees - 90))}>
+            -90°
+          </button>
+          <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(degrees + 90))}>
+            +90°
+          </button>
+          <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", 0)}>
+            Reset
+          </button>
+        </div>
+        <span className="geometry-status">
+          Angle: <strong>{formatDegrees(degrees)}</strong>
+        </span>
+      </div>
+      <label className="stacked-field geometry-range-field">
+        Rotate left / right
+        <input
+          disabled={disabled}
+          max={180}
+          min={-180}
+          step={1}
+          type="range"
+          value={degrees}
+          onChange={(event) => onParamChange("degrees", event.currentTarget.valueAsNumber)}
+        />
+      </label>
+      <div className="geometry-toolbar-row">
+        <span className="geometry-status">Fill</span>
+        <div className="geometry-swatch-group" role="group" aria-label="Rotate fill color">
+          {rotateFillSwatches.map((swatch) => (
+            <button
+              aria-label={`Use fill color ${swatch}`}
+              className={`color-swatch ${fillColor.toLowerCase() === swatch ? "active" : ""}`}
+              disabled={disabled}
+              key={swatch}
+              style={{ background: swatch }}
+              type="button"
+              onClick={() => onParamChange("fillColor", swatch)}
+            />
+          ))}
+          <label className="color-picker-button">
+            <input disabled={disabled} type="color" value={fillColor} onChange={(event) => onParamChange("fillColor", event.currentTarget.value)} />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResizeControls({
+  disabled,
+  mode,
+  onParamChange,
+  value
+}: {
+  disabled: boolean;
+  mode: ResizeMode;
+  onParamChange(key: string, value: unknown): void;
+  value: number;
+}): React.JSX.Element {
+  const sliderMax = Math.max(7680, Math.ceil(value / 320) * 320);
+
+  function setValue(nextValue: number): void {
+    onParamChange("value", Math.max(1, Math.round(nextValue)));
+  }
+
+  return (
+    <div className="geometry-controls">
+      <div className="geometry-toolbar-row">
+        <span className="geometry-status">
+          Target: <strong>{value}px</strong>
+        </span>
+        <div className="geometry-stepper-group">
+          {[-100, -10, 10, 100].map((delta) => (
+            <button className="inline-action" disabled={disabled} key={delta} type="button" onClick={() => setValue(value + delta)}>
+              {delta > 0 ? `+${delta}` : delta}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="geometry-chip-group" role="group" aria-label="Resize mode">
+        {resizeModeOptions.map((option) => (
+          <button
+            className={`geometry-chip ${mode === option.id ? "active" : ""}`}
+            disabled={disabled}
+            key={option.id}
+            type="button"
+            onClick={() => onParamChange("mode", option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <label className="stacked-field geometry-range-field">
+        Size
+        <input disabled={disabled} max={sliderMax} min={64} step={16} type="range" value={value} onChange={(event) => setValue(event.currentTarget.valueAsNumber)} />
+      </label>
+      <div className="geometry-chip-group" role="group" aria-label="Common resize presets">
+        {resizePresets.map((preset) => (
+          <button className="geometry-chip" disabled={disabled} key={preset} type="button" onClick={() => setValue(preset)}>
+            {preset}
+          </button>
+        ))}
+      </div>
+      <div className="geometry-toolbar-row">
+        <label className="stacked-field geometry-number-field">
+          Custom size
+          <input disabled={disabled} min={1} type="number" value={value} onChange={(event) => setValue(event.currentTarget.valueAsNumber)} />
+        </label>
+        <div className="geometry-help">{resizeModeDescription(mode, value)}</div>
+      </div>
+    </div>
+  );
+}
+
 function OutputControls({
   disabled,
   hasGeminiApiKey,
@@ -602,12 +797,75 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
   );
 }
 
+const cropAspectOptions = [
+  { id: "free", label: "Free" },
+  { id: "original", label: "Original" },
+  { id: "1:1", label: "1:1" },
+  { id: "4:5", label: "4:5" },
+  { id: "3:2", label: "3:2" },
+  { id: "16:9", label: "16:9" }
+] as const;
+
+const resizeModeOptions = [
+  { id: "long-edge", label: "Long edge" },
+  { id: "short-edge", label: "Short edge" },
+  { id: "width", label: "Width" },
+  { id: "height", label: "Height" },
+  { id: "fit", label: "Fit" },
+  { id: "fill", label: "Fill" }
+] as const;
+
+const resizePresets = [640, 1200, 1600, 1920, 2560, 3840] as const;
+const rotateFillSwatches = ["#ffffff", "#000000", "#f5f5f5", "#e5e7eb", "#dbeafe"] as const;
+
+type CropAspectOptionId = (typeof cropAspectOptions)[number]["id"];
+type ResizeMode = (typeof resizeModeOptions)[number]["id"];
+
 function numberValue(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function cropAspectLabel(aspectId: CropAspectOptionId | "custom", rect: { w: number; h: number }): string {
+  if (aspectId === "custom") {
+    return `${(rect.w / Math.max(rect.h, 0.001)).toFixed(2)}:1`;
+  }
+  return cropAspectOptions.find((option) => option.id === aspectId)?.label ?? "Free";
+}
+
+function normalizeDegrees(value: number): number {
+  let next = Math.round(value);
+  while (next > 180) next -= 360;
+  while (next < -180) next += 360;
+  return next;
+}
+
+function formatDegrees(value: number): string {
+  return `${value > 0 ? "+" : ""}${Math.round(value)}°`;
+}
+
+function resizeModeValue(value: unknown): ResizeMode {
+  return typeof value === "string" && resizeModeOptions.some((option) => option.id === value) ? (value as ResizeMode) : "long-edge";
+}
+
+function resizeModeDescription(mode: ResizeMode, value: number): string {
+  switch (mode) {
+    case "long-edge":
+      return `Set the long edge to ${value}px and preserve aspect ratio.`;
+    case "short-edge":
+      return `Set the short edge to ${value}px and preserve aspect ratio.`;
+    case "width":
+      return `Force width to ${value}px and derive height automatically.`;
+    case "height":
+      return `Force height to ${value}px and derive width automatically.`;
+    case "fit":
+      return `Fit the image inside a ${value}px square.`;
+    case "fill":
+      return `Fill a ${value}px square and crop to cover.`;
+  }
 }
 
 const hslRanges = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;

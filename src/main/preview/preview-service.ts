@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import type { Original, Project, Task } from "@shared/types/project";
+import type { Pipeline } from "@shared/types/pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { loadCubeLut } from "@adapters/lut/cube-loader";
@@ -34,7 +35,13 @@ export async function renderOriginalThumbnail(original: Original, longEdge = 160
   };
 }
 
-export async function renderTaskPreview(project: Project, taskId: string, previewLongEdge: number, workerPool?: PipelineWorkerPool | null): Promise<PreviewResult> {
+export async function renderTaskPreview(
+  project: Project,
+  taskId: string,
+  previewLongEdge: number,
+  workerPool?: PipelineWorkerPool | null,
+  options?: { truncateOpsAt?: number | null }
+): Promise<PreviewResult> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
     throw new Error(`Task not found: ${taskId}`);
@@ -45,14 +52,16 @@ export async function renderTaskPreview(project: Project, taskId: string, previe
     throw new Error(`Original not found for task: ${taskId}`);
   }
 
+  const previewPipeline = pipelineForPreview(task, options);
+
   const result = workerPool
     ? await workerPool.renderBuffer({
       sourcePath: original.sourcePath,
       sourceHash: original.sourceHash,
-      pipeline: task.pipeline,
+      pipeline: previewPipeline,
       previewLongEdge
     })
-    : await runPipeline(task.pipeline, {
+    : await runPipeline(previewPipeline, {
       sourcePath: original.sourcePath,
       sourceHash: original.sourceHash,
       previewLongEdge,
@@ -77,5 +86,16 @@ export async function renderTaskPreview(project: Project, taskId: string, previe
     dataUrl: `data:image/png;base64,${png.toString("base64")}`,
     width: result.width,
     height: result.height
+  };
+}
+
+function pipelineForPreview(task: Task, options?: { truncateOpsAt?: number | null }): Pipeline {
+  const truncateOpsAt = options?.truncateOpsAt;
+  if (truncateOpsAt === null || truncateOpsAt === undefined) {
+    return task.pipeline;
+  }
+  return {
+    ...task.pipeline,
+    ops: task.pipeline.ops.slice(0, truncateOpsAt)
   };
 }

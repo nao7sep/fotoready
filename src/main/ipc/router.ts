@@ -142,7 +142,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       .filter((op) => op.visible)
       .map(({ type, label, category, defaultParams, visible }) => ({ type, label, category, defaultParams, visible }))
   );
-  ipcMain.handle("preview.render", async (_event, taskId: string) => ctx.projectSession.renderPreview(taskId));
+  ipcMain.handle("preview.render", async (_event, taskId: string, options?: { truncateOpsAt?: number | null }) =>
+    ctx.projectSession.renderPreview(taskId, options)
+  );
   ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
   ipcMain.handle("vision.runForTask", async (_event, taskId: string) => publishResult(ctx.projectSession.runVision(taskId)));
   ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));

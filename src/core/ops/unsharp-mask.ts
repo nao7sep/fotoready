@@ -15,7 +15,7 @@ const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
   previewBehavior: "show-output",
   defaultParams: { radius: 1, amount: 1, threshold: 0 },
   validate(value) {
-    const record = assertParamsShape(value, ["radius", "amount", "threshold", "outputSharpen"], "unsharp-mask.params");
+    const record = assertParamsShape(value, ["radius", "amount", "threshold"], "unsharp-mask.params");
     return {
       radius: assertFiniteNumber(record.radius, "unsharp-mask.params.radius", { min: 0, minExclusive: true }),
       amount: assertFiniteNumber(record.amount, "unsharp-mask.params.amount", { min: 0 }),

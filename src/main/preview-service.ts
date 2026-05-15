@@ -93,13 +93,17 @@ export async function renderTaskPreview(
 function pipelineForPreview(task: Task, options?: PreviewRenderOptions): Pipeline {
   const mode = options?.mode ?? "full";
   const targetOpId = options?.targetOpId ?? null;
-  if (mode === "full" || !targetOpId) {
+  if (mode === "full") {
     return task.pipeline;
+  }
+
+  if (!targetOpId) {
+    throw new Error(`Preview mode "${mode}" requires a target op id.`);
   }
 
   const opIndex = task.pipeline.ops.findIndex((op) => op.id === targetOpId);
   if (opIndex === -1) {
-    return task.pipeline;
+    throw new Error(`Preview target op not found: ${targetOpId}`);
   }
 
   return {

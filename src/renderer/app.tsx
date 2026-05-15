@@ -105,16 +105,12 @@ function App(): React.JSX.Element {
     // Other cards include themselves so slider edits appear live.
     const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;
     const mode: PreviewRenderMode = selectedOp ? selectedDefinition?.previewBehavior === "show-input" ? "input" : "output" : "full";
-    const selectedOpPosition = selectedOp ? activeTask.pipeline.ops.findIndex((op) => op.id === selectedOp.id) : -1;
-    const previewOps = mode === "full" || selectedOpPosition === -1
-      ? activeTask.pipeline.ops
-      : activeTask.pipeline.ops.slice(0, mode === "input" ? selectedOpPosition : selectedOpPosition + 1);
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,
       originalId: activeTask.originalId,
       mode,
       targetOpId: selectedOp?.id ?? null,
-      ops: previewOps,
+      ops: activeTask.pipeline.ops,
       output: activeTask.pipeline.output
     });
     return { taskId: activeTask.id, options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode }, cacheKey };

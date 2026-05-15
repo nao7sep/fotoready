@@ -249,7 +249,7 @@ select:disabled {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 160px 6px 200px 6px minmax(360px, 1fr) 6px 260px 220px;
+  grid-template-columns: 160px 6px 200px 6px minmax(0, 1fr) 6px 260px 220px;
 }
 
 .workspace-splitter {
@@ -489,6 +489,7 @@ select:disabled {
 }
 
 .preview-toolbar {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -617,6 +618,7 @@ select:disabled {
 .canvas-frame {
   position: relative;
   min-height: 0;
+  min-width: 0;
   display: grid;
   place-items: center;
   padding: 8px;

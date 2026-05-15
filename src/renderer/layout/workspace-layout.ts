@@ -32,7 +32,7 @@ export function useWorkspaceLayout({
     const columns: string[] = [];
     if (showOriginals) columns.push(`${widths.originals}px`, "6px");
     if (showTasks) columns.push(`${widths.tasks}px`, "6px");
-    columns.push("minmax(360px, 1fr)");
+    columns.push("minmax(0, 1fr)");
     if (showOps) columns.push("6px", `${widths.ops}px`, `${widths.addOps}px`);
     return columns.join(" ");
   }, [showOps, showOriginals, showTasks, widths]);

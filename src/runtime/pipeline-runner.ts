@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
-import type { OpInstance } from "@shared/types/op";
 import type { Pipeline } from "@shared/types/pipeline";
-import { getOpModule, reorderHintFor } from "@core/ops/catalog";
+import { getOpModule } from "@core/ops/catalog";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
 import type { CubeLut } from "./lut-cube";
+import type sharp from "sharp";
 
 type PipelineRunContext = {
   sourcePath: string;
@@ -41,25 +41,24 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     }
   }
 
-  const executedOps = orderOpsForExecution(pipeline.ops, ctx.log);
+  const executedOps = pipeline.ops;
   for (const op of executedOps) {
     if (!op.enabled) continue;
     const module = getOpModule(op.type);
     if (!module || module.metadataOnly || !module.apply) continue;
 
-    work = await module.apply(work, op.params, {
+    const result = await module.apply(work, op.params, {
       sourceWidth: workWidth,
       sourceHeight: workHeight,
       resolveLut: ctx.resolveLut
     });
 
-    // Crop/resize/rotate change dimensions; materialize so subsequent ops see accurate width/height.
-    if (op.type === "crop" || op.type === "resize" || op.type === "rotate") {
-      const sharpImpl = (await import("sharp")).default;
-      const { data, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      work = sharpImpl(data, { raw: { width: info.width, height: info.height, channels: 4 } });
-      workWidth = info.width;
-      workHeight = info.height;
+    if (isImageFrame(result)) {
+      work = result.image;
+      workWidth = result.width;
+      workHeight = result.height;
+    } else {
+      work = result;
     }
   }
 
@@ -81,20 +80,10 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
   return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline };
 }
 
-/**
- * Move ops marked `after-resize` to immediately follow the first enabled resize op.
- * Today only unsharp-mask with `outputSharpen: true` uses this.
- */
-function orderOpsForExecution(ops: OpInstance[], log?: PipelineRunContext["log"]): OpInstance[] {
-  const resizeIndex = ops.findIndex((op) => op.enabled && op.type === "resize");
-  if (resizeIndex === -1) return ops;
-
-  const moveable = ops.filter((op, index) => index < resizeIndex && op.enabled && reorderHintFor(op) === "after-resize");
-  if (moveable.length === 0) return ops;
-
-  log?.("reordered output sharpening after resize", { count: moveable.length });
-  const remaining = ops.filter((op) => !moveable.includes(op));
-  const afterResize = remaining.findIndex((op) => op.enabled && op.type === "resize") + 1;
-  return [...remaining.slice(0, afterResize), ...moveable, ...remaining.slice(afterResize)];
+function isImageFrame(value: sharp.Sharp | { image: sharp.Sharp; width: number; height: number }): value is { image: sharp.Sharp; width: number; height: number } {
+  return typeof value === "object"
+    && value !== null
+    && "image" in value
+    && "width" in value
+    && "height" in value;
 }
-

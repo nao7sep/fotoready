@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import type { Original, Project, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
+import type { PreviewRenderOptions } from "@shared/types/ipc";
 import { runPipeline } from "@runtime/pipeline-runner";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { loadCubeLut } from "@adapters/cube-loader";
@@ -40,7 +41,7 @@ export async function renderTaskPreview(
   taskId: string,
   previewLongEdge: number,
   workerPool?: PipelineWorkerPool | null,
-  options?: { truncateOpsAt?: number | null }
+  options?: PreviewRenderOptions
 ): Promise<PreviewResult> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
@@ -89,13 +90,20 @@ export async function renderTaskPreview(
   };
 }
 
-function pipelineForPreview(task: Task, options?: { truncateOpsAt?: number | null }): Pipeline {
-  const truncateOpsAt = options?.truncateOpsAt;
-  if (truncateOpsAt === null || truncateOpsAt === undefined) {
+function pipelineForPreview(task: Task, options?: PreviewRenderOptions): Pipeline {
+  const mode = options?.mode ?? "full";
+  const targetOpId = options?.targetOpId ?? null;
+  if (mode === "full" || !targetOpId) {
     return task.pipeline;
   }
+
+  const opIndex = task.pipeline.ops.findIndex((op) => op.id === targetOpId);
+  if (opIndex === -1) {
+    return task.pipeline;
+  }
+
   return {
     ...task.pipeline,
-    ops: task.pipeline.ops.slice(0, truncateOpsAt)
+    ops: task.pipeline.ops.slice(0, mode === "input" ? opIndex : opIndex + 1)
   };
 }

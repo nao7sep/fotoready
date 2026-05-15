@@ -1,7 +1,7 @@
 import React from "react";
 import type { OpRenderer } from "./op-renderer";
 
-type UnsharpMaskParams = { radius: number; amount: number; threshold: number; outputSharpen: boolean };
+type UnsharpMaskParams = { radius: number; amount: number; threshold: number };
 
 export const unsharpMaskRenderer: OpRenderer<UnsharpMaskParams> = {
   type: "unsharp-mask",
@@ -16,10 +16,7 @@ export const unsharpMaskRenderer: OpRenderer<UnsharpMaskParams> = {
           Amount — <strong>{params.amount.toFixed(1)}</strong>
           <input disabled={disabled} max={5} min={0} step={0.1} type="range" value={params.amount} onChange={(e) => onParamChange("amount", e.currentTarget.valueAsNumber)} />
         </label>
-        <label className="toggle-row span-two">
-          <input disabled={disabled} type="checkbox" checked={params.outputSharpen} onChange={(e) => onParamChange("outputSharpen", e.currentTarget.checked)} />
-          Output sharpen
-        </label>
+        <div className="row-detail span-two">For output sharpening, place this card after Resize.</div>
       </div>
     );
   }

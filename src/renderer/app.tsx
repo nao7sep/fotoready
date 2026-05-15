@@ -4,7 +4,7 @@ import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Trash2, X } from "lucide-re
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
@@ -17,6 +17,7 @@ import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
+import { useEditorStore } from "./state/editor-store";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -50,27 +51,40 @@ function App(): React.JSX.Element {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [uiState, setUiState] = useState<UiState | null>(null);
-  const [projectSnapshot, setProjectSnapshot] = useState<ProjectSnapshot | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
-  const [preview, setPreview] = useState<{ taskId: string; dataUrl: string; width: number; height: number } | null>(null);
   const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
-  const [previewState, setPreviewState] = useState<"idle" | "loading" | "error">("idle");
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [apiKeyOpen, setApiKeyOpen] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  const [errorsOpen, setErrorsOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showOriginals, setShowOriginals] = useState(true);
-  const [showTasks, setShowTasks] = useState(true);
-  const [showOps, setShowOps] = useState(true);
   const [selectedRenameTaskIds, setSelectedRenameTaskIds] = useState<string[]>([]);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
-  const [selectedOpIndex, setSelectedOpIndex] = useState<number | null>(null);
+  const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
+  const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
+  const preview = useEditorStore((state) => state.preview);
+  const setPreview = useEditorStore((state) => state.setPreview);
+  const previewState = useEditorStore((state) => state.previewState);
+  const setPreviewState = useEditorStore((state) => state.setPreviewState);
+  const selectedOpId = useEditorStore((state) => state.selectedOpId);
+  const selectOp = useEditorStore((state) => state.selectOp);
+  const renameOpen = useEditorStore((state) => state.renameOpen);
+  const setRenameOpen = useEditorStore((state) => state.setRenameOpen);
+  const apiKeyOpen = useEditorStore((state) => state.apiKeyOpen);
+  const setApiKeyOpen = useEditorStore((state) => state.setApiKeyOpen);
+  const shortcutsOpen = useEditorStore((state) => state.shortcutsOpen);
+  const setShortcutsOpen = useEditorStore((state) => state.setShortcutsOpen);
+  const aboutOpen = useEditorStore((state) => state.aboutOpen);
+  const setAboutOpen = useEditorStore((state) => state.setAboutOpen);
+  const errorsOpen = useEditorStore((state) => state.errorsOpen);
+  const setErrorsOpen = useEditorStore((state) => state.setErrorsOpen);
+  const menuOpen = useEditorStore((state) => state.menuOpen);
+  const setMenuOpen = useEditorStore((state) => state.setMenuOpen);
+  const showOriginals = useEditorStore((state) => state.showOriginals);
+  const showTasks = useEditorStore((state) => state.showTasks);
+  const showOps = useEditorStore((state) => state.showOps);
+  const toggleOriginals = useEditorStore((state) => state.toggleOriginals);
+  const toggleTasks = useEditorStore((state) => state.toggleTasks);
+  const toggleOps = useEditorStore((state) => state.toggleOps);
   const opPreviewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
@@ -85,27 +99,26 @@ function App(): React.JSX.Element {
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
   const previewRequest = useMemo(() => {
     if (!activeTask) return null;
-    const selectedOp = selectedOpIndex !== null ? activeTask.pipeline.ops[selectedOpIndex] : null;
+    const selectedOp = selectedOpId ? activeTask.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
     // Cards with previewBehavior "show-input" (crop, redact, watermark, white-balance) display
     // the image *before* their own op so the overlay rectangle lines up with the unaltered base.
     // Other cards include themselves so slider edits appear live.
     const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;
-    const truncateOpsAt =
-      selectedOpIndex !== null
-        ? selectedDefinition?.previewBehavior === "show-input"
-          ? selectedOpIndex
-          : selectedOpIndex + 1
-        : null;
-    const previewOps =
-      truncateOpsAt !== null ? activeTask.pipeline.ops.slice(0, truncateOpsAt) : activeTask.pipeline.ops;
+    const mode: PreviewRenderMode = selectedOp ? selectedDefinition?.previewBehavior === "show-input" ? "input" : "output" : "full";
+    const selectedOpPosition = selectedOp ? activeTask.pipeline.ops.findIndex((op) => op.id === selectedOp.id) : -1;
+    const previewOps = mode === "full" || selectedOpPosition === -1
+      ? activeTask.pipeline.ops
+      : activeTask.pipeline.ops.slice(0, mode === "input" ? selectedOpPosition : selectedOpPosition + 1);
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,
       originalId: activeTask.originalId,
+      mode,
+      targetOpId: selectedOp?.id ?? null,
       ops: previewOps,
       output: activeTask.pipeline.output
     });
-    return { taskId: activeTask.id, truncateOpsAt, cacheKey };
-  }, [activeTask, opCatalog, selectedOpIndex]);
+    return { taskId: activeTask.id, options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode }, cacheKey };
+  }, [activeTask, opCatalog, selectedOpId]);
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -150,13 +163,13 @@ function App(): React.JSX.Element {
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key === "1") {
         event.preventDefault();
-        setShowOriginals((value) => !value);
+        toggleOriginals();
       } else if (mod && event.key === "2") {
         event.preventDefault();
-        setShowTasks((value) => !value);
+        toggleTasks();
       } else if (mod && event.key === "3") {
         event.preventDefault();
-        setShowOps((value) => !value);
+        toggleOps();
       } else if (mod && event.key.toLowerCase() === "s" && event.shiftKey) {
         event.preventDefault();
         void saveAll();
@@ -180,7 +193,7 @@ function App(): React.JSX.Element {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, toggleOps, toggleOriginals, toggleTasks, uiState?.showHistogram]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
@@ -194,18 +207,6 @@ function App(): React.JSX.Element {
       offQueue();
     };
   }, []);
-
-  useEffect(() => {
-    setSelectedOpIndex(null);
-  }, [activeTask?.id]);
-
-  useEffect(() => {
-    setSelectedOpIndex((current) => {
-      if (current === null) return current;
-      const opCount = activeTask?.pipeline.ops.length ?? 0;
-      return current < opCount ? current : null;
-    });
-  }, [activeTask?.pipeline.ops.length]);
 
   useEffect(() => {
     opPreviewCacheRef.current.clear();
@@ -230,8 +231,7 @@ function App(): React.JSX.Element {
     setPreview(null);
     setPreviewState("loading");
     timeoutId = window.setTimeout(() => {
-      const renderOptions = previewRequest.truncateOpsAt !== null ? { truncateOpsAt: previewRequest.truncateOpsAt } : undefined;
-      void api.preview.render(previewRequest.taskId, renderOptions)
+      void api.preview.render(previewRequest.taskId, previewRequest.options)
         .then((result) => {
           if (!cancelled) {
             opPreviewCacheRef.current.set(previewRequest.cacheKey, result);
@@ -388,27 +388,32 @@ function App(): React.JSX.Element {
     const snapshot = await api.task.addOp(activeTask.id, opType);
     await refreshProject(snapshot);
     const updatedTask = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId);
-    setSelectedOpIndex(updatedTask && updatedTask.pipeline.ops.length > 0 ? updatedTask.pipeline.ops.length - 1 : null);
+    selectOp(updatedTask?.pipeline.ops.at(-1)?.id ?? null);
   }
 
-  async function removeOp(opIndex: number): Promise<void> {
+  async function removeOp(opId: string): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.removeOp(activeTask.id, opIndex));
+    await refreshProject(await api.task.removeOp(activeTask.id, opId));
   }
 
-  async function setOpEnabled(opIndex: number, enabled: boolean): Promise<void> {
+  async function moveOp(opId: string, toIndex: number): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.setOpEnabled(activeTask.id, opIndex, enabled));
+    await refreshProject(await api.task.moveOp(activeTask.id, opId, toIndex));
   }
 
-  async function updateOpParam(opIndex: number, key: string, value: unknown): Promise<void> {
+  async function setOpEnabled(opId: string, enabled: boolean): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParam(activeTask.id, opIndex, key, value));
+    await refreshProject(await api.task.setOpEnabled(activeTask.id, opId, enabled));
   }
 
-  async function updateOpParams(opIndex: number, patch: Record<string, unknown>): Promise<void> {
+  async function updateOpParam(opId: string, key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParams(activeTask.id, opIndex, patch));
+    await refreshProject(await api.task.updateOpParam(activeTask.id, opId, key, value));
+  }
+
+  async function updateOpParams(opId: string, patch: Record<string, unknown>): Promise<void> {
+    if (!activeTask) return;
+    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch));
   }
 
   async function setAnalyzeContent(analyzeContent: boolean): Promise<void> {
@@ -512,7 +517,7 @@ function App(): React.JSX.Element {
         <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title="Toggle histogram (Cmd/Ctrl+H)" onClick={() => void toggleHistogram()}>
           <BarChart3 size={18} />
         </button>
-        <button className="icon-button" type="button" title="Menu" onClick={() => setMenuOpen((value) => !value)}>
+        <button className="icon-button" type="button" title="Menu" onClick={() => setMenuOpen(!menuOpen)}>
           <Menu size={18} />
         </button>
         {menuOpen ? (
@@ -604,11 +609,11 @@ function App(): React.JSX.Element {
           <div className="canvas-frame">
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
-              onOpParamsChange={(opIndex, patch) => void updateOpParams(opIndex, patch)}
+              onOpParamsChange={(opId, patch) => void updateOpParams(opId, patch)}
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
               previewState={previewState}
-              selectedOpIndex={selectedOpIndex}
+              selectedOpId={selectedOpId}
               task={activeTask}
             />
             {showHistogram ? (
@@ -641,18 +646,19 @@ function App(): React.JSX.Element {
             luts={lutEntries}
             opCatalog={opCatalog}
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
-            onSelectOp={setSelectedOpIndex}
+            onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
             onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
-            onOpEnabledChange={(index, enabled) => void setOpEnabled(index, enabled)}
-            onOpParamChange={(index, key, value) => void updateOpParam(index, key, value)}
-            onOpParamsChange={(index, patch) => void updateOpParams(index, patch)}
+            onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
+            onOpEnabledChange={(opId, enabled) => void setOpEnabled(opId, enabled)}
+            onOpParamChange={(opId, key, value) => void updateOpParam(opId, key, value)}
+            onOpParamsChange={(opId, patch) => void updateOpParams(opId, patch)}
             onOutputChange={(key, value) => void updateOutput(key, value)}
-            onRemoveOp={(index) => void removeOp(index)}
+            onRemoveOp={(opId) => void removeOp(opId)}
             settings={settings}
-            selectedOpIndex={selectedOpIndex}
+            selectedOpId={selectedOpId}
           />
         ) : null}
       </section>

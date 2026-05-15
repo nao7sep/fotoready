@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
+import { assertFiniteNumber, assertNonEmptyString, assertParamsShape, materialize } from "./_shared";
 
 type RotateParams = {
   degrees: number;
@@ -20,8 +20,8 @@ const rotateModule: OpModule<RotateParams> = {
       fillColor: assertNonEmptyString(record.fillColor, "rotate.params.fillColor")
     };
   },
-  apply(image, params) {
-    return image.rotate(params.degrees, { background: params.fillColor });
+  async apply(image, params) {
+    return materialize(image.rotate(params.degrees, { background: params.fillColor }));
   }
 };
 

@@ -33,7 +33,7 @@ export type OpCardProps<P extends Record<string, unknown>> = {
 
 export type OpOverlayProps<P extends Record<string, unknown>> = {
   params: P;
-  opIndex: number;
+  opId: string;
   selected: boolean;
   ctx: OverlayContext;
   onParamsChange(patch: Partial<P>): void;

@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape } from "./_shared";
+import { assertFiniteNumber, assertParamsShape, materialize } from "./_shared";
 
 export type CropAspectLock = number | string | null;
 
@@ -28,18 +28,18 @@ const cropModule: OpModule<CropParams> = {
       aspectLock: validateAspectLock(record.aspectLock)
     };
   },
-  apply(image, params, ctx) {
+  async apply(image, params, ctx) {
     const longEdge = Math.max(ctx.sourceWidth, ctx.sourceHeight);
     const left = Math.max(0, Math.round(params.x * longEdge));
     const top = Math.max(0, Math.round(params.y * longEdge));
     const width = Math.max(1, Math.round(params.w * longEdge));
     const height = Math.max(1, Math.round(params.h * longEdge));
-    return image.extract({
+    return materialize(image.extract({
       left,
       top,
       width: Math.min(width, ctx.sourceWidth - left),
       height: Math.min(height, ctx.sourceHeight - top)
-    });
+    }));
   }
 };
 

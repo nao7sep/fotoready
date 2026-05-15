@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Task } from "@shared/types/project";
@@ -16,20 +16,21 @@ type OpsPanelProps = {
   originalSize: { width: number; height: number } | null;
   onOpenSettings(): void;
   settings: GlobalSettings | null;
-  selectedOpIndex: number | null;
+  selectedOpId: string | null;
   onAddOp(opType: string): void;
   onAnalyzeContentChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
-  onOpEnabledChange(opIndex: number, enabled: boolean): void;
-  onOpParamChange(opIndex: number, key: string, value: unknown): void;
-  onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
+  onMoveOp(opId: string, toIndex: number): void;
+  onOpEnabledChange(opId: string, enabled: boolean): void;
+  onOpParamChange(opId: string, key: string, value: unknown): void;
+  onOpParamsChange(opId: string, patch: Record<string, unknown>): void;
   onOutputChange(key: string, value: unknown): void;
-  onRemoveOp(opIndex: number): void;
-  onSelectOp(opIndex: number): void;
+  onRemoveOp(opId: string): void;
+  onSelectOp(opId: string): void;
 };
 
 export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
-  const { activeTask, opCatalog, selectedOpIndex } = props;
+  const { activeTask, opCatalog, selectedOpId } = props;
 
   return (
     <>
@@ -43,16 +44,18 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={activeTask.status !== "pending"}
                   index={index}
-                  key={`${op.type}-${index}`}
+                  key={op.id}
                   luts={props.luts}
                   op={op}
-                  onEnabledChange={(enabled) => props.onOpEnabledChange(index, enabled)}
-                  onParamChange={(key, value) => props.onOpParamChange(index, key, value)}
-                  onParamsChange={(patch) => props.onOpParamsChange(index, patch)}
-                  onRemove={() => props.onRemoveOp(index)}
-                  onSelect={() => props.onSelectOp(index)}
+                  opCount={activeTask.pipeline.ops.length}
+                  onEnabledChange={(enabled) => props.onOpEnabledChange(op.id, enabled)}
+                  onMove={(toIndex) => props.onMoveOp(op.id, toIndex)}
+                  onParamChange={(key, value) => props.onOpParamChange(op.id, key, value)}
+                  onParamsChange={(patch) => props.onOpParamsChange(op.id, patch)}
+                  onRemove={() => props.onRemoveOp(op.id)}
+                  onSelect={() => props.onSelectOp(op.id)}
                   originalSize={props.originalSize}
-                  selected={selectedOpIndex === index}
+                  selected={selectedOpId === op.id}
                 />
               )) : <div className="ops-empty">No ops in this task</div>
             ) : <div className="ops-empty">No task selected</div>}
@@ -97,8 +100,10 @@ function PipelineOpCard({
   disabled,
   index,
   op,
+  opCount,
   onEnabledChange,
   luts,
+  onMove,
   onParamChange,
   onParamsChange,
   onRemove,
@@ -111,7 +116,9 @@ function PipelineOpCard({
   index: number;
   luts: LutEntry[];
   op: OpInstance;
+  opCount: number;
   onEnabledChange(enabled: boolean): void;
+  onMove(toIndex: number): void;
   onParamChange(key: string, value: unknown): void;
   onParamsChange(patch: Record<string, unknown>): void;
   onRemove(): void;
@@ -135,12 +142,26 @@ function PipelineOpCard({
           />
           {index + 1}. {catalogItem?.label ?? op.type}
         </label>
-        <button className="icon-button compact" type="button" title="Remove op" disabled={disabled} onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}>
-          <Trash2 size={14} />
-        </button>
+        <div className="op-card-actions">
+          <button className="icon-button compact" type="button" title="Move op up" disabled={disabled || index === 0} onClick={(event) => {
+            event.stopPropagation();
+            onMove(index - 1);
+          }}>
+            <ArrowUp size={14} />
+          </button>
+          <button className="icon-button compact" type="button" title="Move op down" disabled={disabled || index >= opCount - 1} onClick={(event) => {
+            event.stopPropagation();
+            onMove(index + 1);
+          }}>
+            <ArrowDown size={14} />
+          </button>
+          <button className="icon-button compact" type="button" title="Remove op" disabled={disabled} onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
       {Card ? (
         <Card

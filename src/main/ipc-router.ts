@@ -7,6 +7,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
+import type { PreviewRenderOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { listLuts } from "@main/lut-catalog";
@@ -148,11 +149,12 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.cancel", async (_event, taskId: string) => publishResult(ctx.projectSession.cancelTask(taskId)));
   ipcMain.handle("task.cancelAll", async () => publishResult(ctx.projectSession.cancelAll()));
   ipcMain.handle("task.addOp", async (_event, taskId: string, opType: string) => publishResult(ctx.projectSession.addOp(taskId, opType)));
-  ipcMain.handle("task.removeOp", async (_event, taskId: string, opIndex: number) => publishResult(ctx.projectSession.removeOp(taskId, opIndex)));
-  ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opIndex: number, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opIndex, enabled)));
-  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opIndex: number, key: string, value: unknown) => publishResult(ctx.projectSession.updateOpParam(taskId, opIndex, key, value)));
-  ipcMain.handle("task.updateOpParams", async (_event, taskId: string, opIndex: number, patch: Record<string, unknown>) =>
-    publishResult(ctx.projectSession.updateOpParams(taskId, opIndex, patch))
+  ipcMain.handle("task.removeOp", async (_event, taskId: string, opId: string) => publishResult(ctx.projectSession.removeOp(taskId, opId)));
+  ipcMain.handle("task.moveOp", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
+  ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));
+  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOpParam(taskId, opId, key, value)));
+  ipcMain.handle("task.updateOpParams", async (_event, taskId: string, opId: string, patch: Record<string, unknown>) =>
+    publishResult(ctx.projectSession.updateOpParams(taskId, opId, patch))
   );
   ipcMain.handle("task.undo", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
   ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => publishResult(ctx.projectSession.setAnalyzeContent(taskId, analyzeContent)));
@@ -162,7 +164,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions().map(({ type, label, category, defaultParams, previewBehavior }) => ({ type, label, category, defaultParams, previewBehavior }))
   );
-  ipcMain.handle("preview.render", async (_event, taskId: string, options?: { truncateOpsAt?: number | null }) =>
+  ipcMain.handle("preview.render", async (_event, taskId: string, options?: PreviewRenderOptions) =>
     ctx.projectSession.renderPreview(taskId, options)
   );
   ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));

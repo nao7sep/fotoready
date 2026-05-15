@@ -7,7 +7,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
-import type { QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview-service";
 import { previewRename, runRename } from "@main/rename-service";
@@ -248,7 +248,7 @@ export class ProjectSession {
     return this.processingQueue.snapshot(this.#project);
   }
 
-  async renderPreview(taskId: string, options?: { truncateOpsAt?: number | null }): Promise<PreviewResult> {
+  async renderPreview(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult> {
     return renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, this.workerPool, options);
   }
 
@@ -273,6 +273,7 @@ export class ProjectSession {
       params.pngPath = this.settings.defaultWatermarkImage;
     }
     task.pipeline.ops.push({
+      id: nanoid(),
       type: definition.type,
       params,
       enabled: true
@@ -281,27 +282,44 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  removeOp(taskId: string, opIndex: number): ProjectSessionSnapshot {
+  removeOp(taskId: string, opId: string): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    assertOpIndex(task, opIndex);
+    const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
     task.pipeline.ops.splice(opIndex, 1);
     touchTask(task);
     return this.snapshot();
   }
 
-  setOpEnabled(taskId: string, opIndex: number, enabled: boolean): ProjectSessionSnapshot {
+  moveOp(taskId: string, opId: string, toIndex: number): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    assertOpIndex(task, opIndex);
+    const fromIndex = findOpIndex(task, opId);
+    assertOpTargetIndex(task, toIndex);
+    if (fromIndex === toIndex) {
+      return this.snapshot();
+    }
+    this.recordTaskEdit(task);
+    const [op] = task.pipeline.ops.splice(fromIndex, 1);
+    if (!op) {
+      throw new Error(`Op not found: ${opId}`);
+    }
+    task.pipeline.ops.splice(toIndex, 0, op);
+    touchTask(task);
+    return this.snapshot();
+  }
+
+  setOpEnabled(taskId: string, opId: string, enabled: boolean): ProjectSessionSnapshot {
+    const task = this.editableTask(taskId);
+    const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
     return this.snapshot();
   }
 
-  updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): ProjectSessionSnapshot {
+  updateOpParam(taskId: string, opId: string, key: string, value: unknown): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    assertOpIndex(task, opIndex);
+    const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpModule);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
@@ -309,9 +327,9 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): ProjectSessionSnapshot {
+  updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
-    assertOpIndex(task, opIndex);
+    const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
     this.recordTaskEdit(task);
     task.pipeline.ops[opIndex] = nextOp;
@@ -485,9 +503,20 @@ function defaultQualityForFormat(
   return settings.jpegFixedQuality;
 }
 
-function assertOpIndex(task: Task, opIndex: number): void {
+function findOpIndex(task: Task, opId: string): number {
+  if (typeof opId !== "string" || opId.trim().length === 0) {
+    throw new Error("Op id must be a non-empty string.");
+  }
+  const opIndex = task.pipeline.ops.findIndex((op) => op.id === opId);
+  if (opIndex === -1) {
+    throw new Error(`Op not found: ${opId}`);
+  }
+  return opIndex;
+}
+
+function assertOpTargetIndex(task: Task, opIndex: number): void {
   if (!Number.isInteger(opIndex) || opIndex < 0 || opIndex >= task.pipeline.ops.length) {
-    throw new Error(`Op index out of range: ${opIndex}`);
+    throw new Error(`Op target index out of range: ${opIndex}`);
   }
 }
 

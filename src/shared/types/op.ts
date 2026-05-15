@@ -1,4 +1,5 @@
 export type OpInstance = {
+  id: string;
   type: string;
   params: Record<string, unknown>;
   enabled: boolean;

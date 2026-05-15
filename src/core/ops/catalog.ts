@@ -26,9 +26,7 @@ export {
   getOpModule,
   listOpDefinitions,
   listOpModules,
-  requireOpModule,
-  asOpInstance
+  requireOpModule
 } from "./registry";
 
-export type { OpModule, OpApplyContext, MetadataDecision } from "./op-module";
-export { reorderHintFor } from "./op-module";
+export type { OpModule, OpApplyContext, MetadataDecision, ImageFrame } from "./op-module";

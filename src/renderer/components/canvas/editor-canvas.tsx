@@ -16,7 +16,7 @@ export function EditorCanvas({
   task,
   fallbackLabel,
   originalAspectRatio,
-  selectedOpIndex,
+  selectedOpId,
   onOpParamsChange
 }: {
   preview: EditorCanvasPreview | null;
@@ -24,8 +24,8 @@ export function EditorCanvas({
   task: Task | null;
   fallbackLabel: string;
   originalAspectRatio: number | null;
-  selectedOpIndex: number | null;
-  onOpParamsChange(opIndex: number, patch: Record<string, unknown>): void;
+  selectedOpId: string | null;
+  onOpParamsChange(opId: string, patch: Record<string, unknown>): void;
 }): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 1, height: 1 });
@@ -69,8 +69,9 @@ export function EditorCanvas({
   );
 
   function handleStageClick(event: { target: { getStage: () => { getPointerPosition: () => { x: number; y: number } | null } | null } }): void {
-    if (!task || selectedOpIndex === null) return;
-    const op = task.pipeline.ops[selectedOpIndex];
+    if (!task || !selectedOpId) return;
+    const op = task.pipeline.ops.find((item) => item.id === selectedOpId);
+    if (!op) return;
     if (!op?.enabled) return;
     const renderer = getOpRenderer(op.type);
     if (!renderer?.onImageClick) return;
@@ -81,8 +82,11 @@ export function EditorCanvas({
     const localY = (pointer.y - placement.y) / placement.scale;
     if (localX < 0 || localY < 0 || localX > imageSize.width || localY > imageSize.height) return;
 
-    renderer.onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(selectedOpIndex, patch as Record<string, unknown>));
+    renderer.onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(op.id, patch as Record<string, unknown>));
   }
+
+  const selectedOp = task && selectedOpId ? task.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
+  const SelectedOverlay = selectedOp?.enabled ? getOpRenderer(selectedOp.type)?.Overlay : null;
 
   return (
     <div className="editor-canvas" ref={frameRef}>
@@ -91,22 +95,16 @@ export function EditorCanvas({
           <Layer>
             <Group onClick={handleStageClick}>
               <KonvaImage image={image} x={placement.x} y={placement.y} width={placement.width} height={placement.height} />
-              {task ? task.pipeline.ops.map((op, opIndex) => {
-                if (!op.enabled) return null;
-                const renderer = getOpRenderer(op.type);
-                const Overlay = renderer?.Overlay;
-                if (!Overlay) return null;
-                return (
-                  <Overlay
-                    key={`overlay-${opIndex}-${op.type}`}
-                    params={op.params}
-                    opIndex={opIndex}
-                    selected={selectedOpIndex === opIndex}
-                    ctx={overlayCtx}
-                    onParamsChange={(patch) => onOpParamsChange(opIndex, patch as Record<string, unknown>)}
-                  />
-                );
-              }) : null}
+              {selectedOp && SelectedOverlay ? (
+                <SelectedOverlay
+                  key={`overlay-${selectedOp.id}`}
+                  params={selectedOp.params}
+                  opId={selectedOp.id}
+                  selected
+                  ctx={overlayCtx}
+                  onParamsChange={(patch) => onOpParamsChange(selectedOp.id, patch as Record<string, unknown>)}
+                />
+              ) : null}
             </Group>
           </Layer>
         </Stage>

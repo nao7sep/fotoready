@@ -34,8 +34,11 @@ export type PreviewResult = {
   height: number;
 };
 
+export type PreviewRenderMode = "input" | "output" | "full";
+
 export type PreviewRenderOptions = {
-  truncateOpsAt?: number | null;
+  targetOpId?: string | null;
+  mode?: PreviewRenderMode;
 };
 
 export type OriginalThumbnail = {
@@ -112,10 +115,11 @@ export type FotoReadyApi = {
     cancel(taskId: string): Promise<ProjectSnapshot>;
     cancelAll(): Promise<ProjectSnapshot>;
     addOp(taskId: string, opType: string): Promise<ProjectSnapshot>;
-    removeOp(taskId: string, opIndex: number): Promise<ProjectSnapshot>;
-    setOpEnabled(taskId: string, opIndex: number, enabled: boolean): Promise<ProjectSnapshot>;
-    updateOpParam(taskId: string, opIndex: number, key: string, value: unknown): Promise<ProjectSnapshot>;
-    updateOpParams(taskId: string, opIndex: number, patch: Record<string, unknown>): Promise<ProjectSnapshot>;
+    removeOp(taskId: string, opId: string): Promise<ProjectSnapshot>;
+    moveOp(taskId: string, opId: string, toIndex: number): Promise<ProjectSnapshot>;
+    setOpEnabled(taskId: string, opId: string, enabled: boolean): Promise<ProjectSnapshot>;
+    updateOpParam(taskId: string, opId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
+    updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>): Promise<ProjectSnapshot>;
     undo(taskId: string): Promise<ProjectSnapshot>;
     setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;

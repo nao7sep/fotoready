@@ -21,6 +21,7 @@ export function validateOpInstance(value: unknown, lookup: OpValidatorLookup, pa
     throw new Error(`${path}.type must reference a registered op. Received "${type}".`);
   }
   return {
+    id: assertNonEmptyString(record.id, `${path}.id`),
     type,
     enabled: assertBoolean(record.enabled, `${path}.enabled`),
     params: validator.validate(record.params)

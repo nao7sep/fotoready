@@ -1,4 +1,4 @@
-import type { OpDefinition, OpInstance } from "@shared/types/op";
+import type { OpDefinition } from "@shared/types/op";
 import type { OpModule } from "./op-module";
 
 const modules = new Map<string, OpModule>();
@@ -38,8 +38,4 @@ export function listOpDefinitions(): OpDefinition[] {
     defaultParams,
     previewBehavior
   }));
-}
-
-export function asOpInstance(module: OpModule): OpInstance {
-  return { type: module.type, params: structuredClone(module.defaultParams), enabled: true };
 }

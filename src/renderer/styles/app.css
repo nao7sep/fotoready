@@ -884,6 +884,12 @@ select:disabled {
   flex: 1;
 }
 
+.op-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .op-buttons,
 .output-controls {
   display: grid;

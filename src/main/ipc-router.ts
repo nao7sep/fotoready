@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/session";
@@ -46,7 +47,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("system.getInfo", async () => ({
     appName: APP_NAME,
     version: ctx.version,
-    dataDir: ctx.paths.dataDir
+    dataDir: ctx.paths.dataDir,
+    cpuCount: os.cpus().length
   }));
   ipcMain.handle("system.log", async (_event, level: "warn" | "error", message: string, detail?: string | null) => {
     ctx.logger[level]({ mod: "renderer", detail: detail ?? null }, message);
@@ -70,6 +72,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
         { name: "Supported files", extensions: options.extensions },
         { name: "All Files", extensions: ["*"] }
       ]
+    };
+    const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("system.pickDirectory", async (event, options: { title: string }) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const dialogOptions: OpenDialogOptions = {
+      title: options.title,
+      properties: ["openDirectory", "createDirectory"]
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -121,7 +132,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       title: "Add Originals",
       properties: ["openFile", "multiSelections"],
       filters: [
-        { name: "Images", extensions: ["jpg", "jpeg", "png", "webp", "avif", "heic", "gif", "tif", "tiff"] },
+        { name: "Images and FotoReady parameters", extensions: ["jpg", "jpeg", "png", "webp", "avif", "heic", "gif", "tif", "tiff", "json"] },
         { name: "All Files", extensions: ["*"] }
       ]
     };
@@ -142,6 +153,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.delete", async (_event, taskId: string, options?: { deleteStagedOutput?: boolean; deleteFinalOutput?: boolean }) =>
     publishResult(ctx.projectSession.deleteTask(taskId, options))
   );
+  ipcMain.handle("task.deleteSavedOutput", async (_event, taskId: string) => publishResult(ctx.projectSession.deleteSavedOutput(taskId)));
   ipcMain.handle("task.dismissError", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
   ipcMain.handle("task.retry", async (_event, taskId: string) => publishResult(ctx.projectSession.retryTask(taskId)));
   ipcMain.handle("task.save", async (_event, taskId: string) => publishResult(ctx.projectSession.enqueueSave(taskId)));
@@ -157,7 +169,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     publishResult(ctx.projectSession.updateOpParams(taskId, opId, patch))
   );
   ipcMain.handle("task.undo", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
-  ipcMain.handle("task.setAnalyzeContent", async (_event, taskId: string, analyzeContent: boolean) => publishResult(ctx.projectSession.setAnalyzeContent(taskId, analyzeContent)));
+  ipcMain.handle("task.setGenerateDescription", async (_event, taskId: string, generateDescription: boolean) => publishResult(ctx.projectSession.setGenerateDescription(taskId, generateDescription)));
+  ipcMain.handle("task.setGenerateSlug", async (_event, taskId: string, generateSlug: boolean) => publishResult(ctx.projectSession.setGenerateSlug(taskId, generateSlug)));
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
 
@@ -168,7 +181,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     ctx.projectSession.renderPreview(taskId, options)
   );
   ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
-  ipcMain.handle("vision.runForTask", async (_event, taskId: string) => publishResult(ctx.projectSession.runVision(taskId)));
+  ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: { forceGenerateSlug?: boolean }) => publishResult(ctx.projectSession.runVision(taskId, options)));
   ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));

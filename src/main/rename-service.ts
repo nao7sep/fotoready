@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { BUILTIN_FILENAME_TEMPLATE_ID } from "@shared/constants";
-import { builtinFilenameTemplate } from "@shared/defaults";
+import { DEFAULT_FILENAME_TEMPLATE_ID, TASK_SIDECAR_SUFFIX } from "@shared/constants";
+import { builtinFilenameTemplates } from "@shared/defaults";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
@@ -31,25 +31,18 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   })));
 
   const items: RenamePlanItem[] = [];
-  const renderNow = new Date();
   for (const [index, task] of doneTasks.entries()) {
     const stagedPath = task.output.stagedPath;
     const metadata = await sharp(stagedPath).metadata();
     const ext = outputExtension(stagedPath);
     const slug = slugMap.get(task.id) ?? "untitled-output";
     const original = project.originals.find((candidate) => candidate.id === task.originalId);
-    const sourceFileMtime = await sourceMtime(original?.sourcePath, stagedPath);
     const proposedName = renderFilenameTemplate(template.pattern, {
       slug,
+      original: original ? path.parse(original.sourcePath).name : `original-${index + 1}`,
       w: metadata.width ?? 0,
       h: metadata.height ?? 0,
-      ext,
-      outputHash: task.output.outputHash,
-      index: index + 1,
-      savedAt: task.output.stagedAt,
-      sourceFileMtime,
-      now: renderNow,
-      takenAt: null
+      ext
     });
     assertSafeRenderedFilename(proposedName);
     const proposedPath = path.join(path.dirname(stagedPath), proposedName);
@@ -88,10 +81,23 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
     await fs.copyFile(item.stagedPath, tempPath, fs.constants.COPYFILE_EXCL);
     await fs.rename(tempPath, item.proposedPath);
     await fs.rm(item.stagedPath, { force: true });
+    const stagedParamsPath = sidecarPathForOutput(item.stagedPath);
+    const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
+    if (stagedParamsPath !== proposedParamsPath) {
+      try {
+        await ensureNoCollision(proposedParamsPath);
+        await fs.rename(stagedParamsPath, proposedParamsPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
 
     const task = project.tasks.find((candidate) => candidate.id === item.taskId);
     if (task?.output) {
       task.output.finalPath = item.proposedPath;
+      task.output.finalParamsPath = proposedParamsPath;
       task.output.renamedAt = nowIso();
       task.updatedAt = nowIso();
     }
@@ -99,8 +105,8 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
 }
 
 function findTemplate(_project: Project, settings: GlobalSettings, templateId?: string): FilenameTemplate {
-  const id = templateId ?? settings.defaultTemplateId ?? BUILTIN_FILENAME_TEMPLATE_ID;
-  return settings.filenameTemplates.find((template) => template.id === id) ?? builtinFilenameTemplate;
+  const id = templateId ?? settings.defaultTemplateId ?? DEFAULT_FILENAME_TEMPLATE_ID;
+  return settings.filenameTemplates.find((template) => template.id === id) ?? builtinFilenameTemplates[0];
 }
 
 function assertTemplateUsable(template: FilenameTemplate): void {
@@ -120,16 +126,9 @@ function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
 }
 
-async function sourceMtime(sourcePath: string | undefined, stagedPath: string): Promise<Date> {
-  for (const candidate of [sourcePath, stagedPath]) {
-    if (!candidate) continue;
-    try {
-      return (await fs.stat(candidate)).mtime;
-    } catch {
-      // Fall through to the next available file path.
-    }
-  }
-  return new Date();
+function sidecarPathForOutput(outputPath: string): string {
+  const parsed = path.parse(outputPath);
+  return path.join(parsed.dir, `${parsed.name}${TASK_SIDECAR_SUFFIX}`);
 }
 
 async function ensureNoCollision(filePath: string): Promise<void> {

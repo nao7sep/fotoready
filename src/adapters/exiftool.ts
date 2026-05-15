@@ -48,12 +48,10 @@ export async function writeOutputDates(outputPath: string, sourcePath: string, p
 
 function metadataFieldsToTags(fields: MetadataFields): WriteTags {
   const tags: Record<string, string | string[] | boolean> = {};
-  assign(tags, ["EXIF:Artist", "IPTC:By-line", "XMP-dc:Creator"], fields.author ?? fields.creator);
-  assign(tags, ["IPTC:By-lineTitle", "XMP-photoshop:AuthorsPosition"], fields.authorRole);
+  assign(tags, ["EXIF:Artist", "IPTC:By-line", "XMP-dc:Creator"], fields.author);
   assign(tags, ["EXIF:Copyright", "IPTC:CopyrightNotice", "XMP-dc:Rights"], fields.copyright);
   assign(tags, ["XMP-xmpRights:WebStatement"], fields.webStatement);
   assign(tags, ["XMP-xmpRights:UsageTerms"], fields.usageTerms);
-  if (fields.rightsMarked) tags["XMP-xmpRights:Marked"] = fields.rightsMarked === "true";
   assign(tags, ["IPTC:Credit", "XMP-photoshop:Credit"], fields.credit);
   assign(tags, ["IPTC:Source", "XMP-photoshop:Source"], fields.source);
   assign(tags, ["XMP-iptcCore:CiEmailWork"], fields.contactEmail);

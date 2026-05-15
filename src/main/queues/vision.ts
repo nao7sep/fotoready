@@ -24,10 +24,13 @@ export class VisionQueue {
     return this.#apiKeys.has("gemini");
   }
 
-  async runForTask(project: Project, taskId: string): Promise<void> {
+  async runForTask(project: Project, taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (!task.output) throw new Error("Task must be saved before vision can run.");
+    const shouldGenerateSlug = options?.forceGenerateSlug === true || task.generateSlug;
+    const shouldGenerateDescription = shouldGenerateSlug || task.generateDescription;
+    if (!shouldGenerateDescription) return;
 
     try {
       const apiKey = await this.#apiKeys.get("gemini");
@@ -41,8 +44,9 @@ export class VisionQueue {
         { imageBytes, mimeType: "image/jpeg" },
         {
           model: this.settings.model,
-          projectContext: this.settings.visionProjectContext || null,
-          customPromptAddendum: this.settings.customPromptAddendum || null
+          descriptionPrompt: this.settings.visionDescriptionPrompt,
+          slugPrompt: this.settings.visionSlugPrompt,
+          generateSlug: shouldGenerateSlug
         }
       );
       task.output.vision = {

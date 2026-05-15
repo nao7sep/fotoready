@@ -10,7 +10,19 @@ export type FilenameTemplate = {
   builtin?: boolean;
 };
 
-export type MetadataFields = Record<string, string>;
+export type MetadataFields = {
+  description?: string;
+  author?: string;
+  credit?: string;
+  source?: string;
+  copyright?: string;
+  usageTerms?: string;
+  webStatement?: string;
+  contactEmail?: string;
+  contactUrl?: string;
+};
+
+export type JpegQualityMode = "auto" | "fixed";
 
 export type GlobalSettings = {
   defaultOutputFormat: OutputFormat;
@@ -18,7 +30,10 @@ export type GlobalSettings = {
   defaultAvifQuality: number;
   defaultPngPalette: boolean;
   defaultMetadataStrip: MetadataStripMode;
-  defaultAnalyzeContent: boolean;
+  defaultGenerateDescription: boolean;
+  defaultGenerateSlug: boolean;
+  enableJpegQualityEstimate: boolean;
+  defaultFlattenTransparency: boolean;
   defaultBackgroundForTransparency: string;
   injectAuthorCopyright: boolean;
   preserveSourceDates: boolean;
@@ -27,24 +42,21 @@ export type GlobalSettings = {
   defaultOutputDirectory: string;
   lutFolder: string;
   defaultWatermarkImage: string;
-  confirmDeleteOriginalWithTasks: boolean;
+  confirmDeleteOriginals: boolean;
+  confirmDeleteTasks: boolean;
   confirmDeleteOutputFiles: boolean;
-  jpegStrategy: "match-source-size" | "match-source-quality" | "fixed" | "prompt-per-task";
-  jpegQualityOnDetectionFailure: number;
+  jpegQualityMode: JpegQualityMode;
   jpegFixedQuality: number;
   jpegChromaSubsampling: "4:4:4" | "4:2:2" | "4:2:0";
   jpegProgressive: boolean;
   webpMethod: number;
   avifEffort: number;
   model: string;
-  visionProjectContext: string;
   preResizeLongEdge: number;
-  customPromptAddendum: string;
+  visionDescriptionPrompt: string;
+  visionSlugPrompt: string;
   filenameTemplates: FilenameTemplate[];
-  slugMinWords: number;
-  slugMaxWords: number;
-  hashSuffixLength: number;
-  workerPoolSize: number;
+  workerPoolSize: number | null;
   previewLongEdge: number;
   previewDebounceMs: number;
 };

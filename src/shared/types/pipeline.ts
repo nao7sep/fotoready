@@ -1,10 +1,12 @@
 import type { OpInstance } from "./op";
 
-export type OutputFormat = "jpeg" | "webp" | "avif" | "png";
+export type EncodedOutputFormat = "jpeg" | "webp" | "avif" | "png";
+export type OutputFormat = "original" | EncodedOutputFormat;
 
 export type OutputSettings = {
   format: OutputFormat;
-  quality: number | "match-source-size" | "match-source-quality";
+  quality: number | "auto";
+  flattenTransparency: boolean;
   jpegProgressive: boolean;
   jpegChromaSubsampling: "4:4:4" | "4:2:2" | "4:2:0";
   webpMethod: number;

@@ -1,8 +1,8 @@
 import type { OutputSettings } from "../types/pipeline";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord } from "./common";
 
-const outputFormats = ["jpeg", "webp", "avif", "png"] as const;
-const qualityKeywords = ["match-source-size", "match-source-quality"] as const;
+const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
+const qualityKeywords = ["auto"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
 
 export function validateOutputSettings(value: unknown, path = "output"): OutputSettings {
@@ -10,6 +10,7 @@ export function validateOutputSettings(value: unknown, path = "output"): OutputS
   return {
     format: assertOneOf(record.format, `${path}.format`, outputFormats),
     quality: validateOutputQuality(record.quality, `${path}.quality`),
+    flattenTransparency: record.flattenTransparency === undefined ? false : assertBoolean(record.flattenTransparency, `${path}.flattenTransparency`),
     jpegProgressive: assertBoolean(record.jpegProgressive, `${path}.jpegProgressive`),
     jpegChromaSubsampling: assertOneOf(record.jpegChromaSubsampling, `${path}.jpegChromaSubsampling`, chromaSubsamplingModes),
     webpMethod: assertFiniteNumber(record.webpMethod, `${path}.webpMethod`, { integer: true, min: 0, max: 6 }),
@@ -36,6 +37,7 @@ function validateOutputQuality(value: unknown, path: string): OutputSettings["qu
 function isOutputSettingKey(key: string): key is keyof OutputSettings {
   return key === "format"
     || key === "quality"
+    || key === "flattenTransparency"
     || key === "jpegProgressive"
     || key === "jpegChromaSubsampling"
     || key === "webpMethod"

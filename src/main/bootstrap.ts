@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger } from "./logger";
-import { loadSettings } from "./settings-io";
+import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
 import { ProjectSession } from "./session";
@@ -22,10 +22,12 @@ export async function bootstrap(): Promise<void> {
   const settings = await loadSettings(paths.settingsPath);
   const uiState = await loadState(paths.statePath);
   const visionQueue = new VisionQueue(paths, settings);
-  const pipelineWorkerPool = new PipelineWorkerPool(settings.workerPoolSize);
-  const processingQueue = new ProcessingQueue(settings, pipelineWorkerPool);
+  const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
+  const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
+  const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool);
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
+  processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
 
   registerIpcHandlers({
     paths,

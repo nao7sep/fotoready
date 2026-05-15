@@ -18,6 +18,7 @@ export type SystemInfo = {
   appName: "FotoReady";
   version: string;
   dataDir: string;
+  cpuCount: number;
 };
 
 export type ProjectSnapshot = {
@@ -83,6 +84,7 @@ export type FotoReadyApi = {
     log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
     openExternal(url: string): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
+    pickDirectory(options: { title: string }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
   };
   settings: {
@@ -108,6 +110,7 @@ export type FotoReadyApi = {
     select(taskId: string): Promise<ProjectSnapshot>;
     fork(taskId: string): Promise<ProjectSnapshot>;
     delete(taskId: string, options?: TaskDeleteOptions): Promise<ProjectSnapshot>;
+    deleteSavedOutput(taskId: string): Promise<ProjectSnapshot>;
     dismissError(taskId: string): Promise<ProjectSnapshot>;
     retry(taskId: string): Promise<ProjectSnapshot>;
     save(taskId: string): Promise<ProjectSnapshot>;
@@ -121,7 +124,8 @@ export type FotoReadyApi = {
     updateOpParam(taskId: string, opId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
     updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>): Promise<ProjectSnapshot>;
     undo(taskId: string): Promise<ProjectSnapshot>;
-    setAnalyzeContent(taskId: string, analyzeContent: boolean): Promise<ProjectSnapshot>;
+    setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSnapshot>;
+    setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
     updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
   };
@@ -133,7 +137,7 @@ export type FotoReadyApi = {
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {
-    runForTask(taskId: string): Promise<ProjectSnapshot>;
+    runForTask(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<ProjectSnapshot>;
   };
   rename: {
     preview(templateId?: string, taskIds?: string[]): Promise<RenamePreview>;

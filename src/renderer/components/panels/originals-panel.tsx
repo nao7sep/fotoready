@@ -1,6 +1,7 @@
 import React from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import type { Original } from "@shared/types/project";
+import { formatLabel } from "@shared/output-format";
 
 export function OriginalsPanel({
   activeOriginalId,
@@ -50,7 +51,7 @@ export function OriginalsPanel({
               </span>
               <span className="row-copy">
                 <span className="row-title">{basename(original.sourcePath)}</span>
-                <span className="row-detail">{original.width}x{original.height} · {original.format}</span>
+                <span className="row-detail">{original.width}x{original.height} · {formatLabel(original.format)}</span>
               </span>
             </button>
             <button className="icon-button compact row-remove-button" title="Remove original" type="button" onClick={() => onRemove(original.id)}>

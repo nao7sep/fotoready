@@ -8,6 +8,7 @@ const api: FotoReadyApi = {
     log: (level, message, detail) => ipcRenderer.invoke("system.log", level, message, detail),
     openExternal: (url) => ipcRenderer.invoke("system.openExternal", url),
     pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
+    pickDirectory: (options) => ipcRenderer.invoke("system.pickDirectory", options),
     revealInFolder: (filePath) => ipcRenderer.invoke("system.revealInFolder", filePath)
   },
   settings: {
@@ -33,6 +34,7 @@ const api: FotoReadyApi = {
     select: (taskId) => ipcRenderer.invoke("task.select", taskId),
     fork: (taskId) => ipcRenderer.invoke("task.fork", taskId),
     delete: (taskId, options) => ipcRenderer.invoke("task.delete", taskId, options),
+    deleteSavedOutput: (taskId) => ipcRenderer.invoke("task.deleteSavedOutput", taskId),
     dismissError: (taskId) => ipcRenderer.invoke("task.dismissError", taskId),
     retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),
     save: (taskId) => ipcRenderer.invoke("task.save", taskId),
@@ -46,7 +48,8 @@ const api: FotoReadyApi = {
     updateOpParam: (taskId, opId, key, value) => ipcRenderer.invoke("task.updateOpParam", taskId, opId, key, value),
     updateOpParams: (taskId, opId, patch) => ipcRenderer.invoke("task.updateOpParams", taskId, opId, patch),
     undo: (taskId) => ipcRenderer.invoke("task.undo", taskId),
-    setAnalyzeContent: (taskId, analyzeContent) => ipcRenderer.invoke("task.setAnalyzeContent", taskId, analyzeContent),
+    setGenerateDescription: (taskId, generateDescription) => ipcRenderer.invoke("task.setGenerateDescription", taskId, generateDescription),
+    setGenerateSlug: (taskId, generateSlug) => ipcRenderer.invoke("task.setGenerateSlug", taskId, generateSlug),
     setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),
     updateOutput: (taskId, key, value) => ipcRenderer.invoke("task.updateOutput", taskId, key, value)
   },
@@ -58,7 +61,7 @@ const api: FotoReadyApi = {
     originalThumbnail: (originalId) => ipcRenderer.invoke("preview.originalThumbnail", originalId)
   },
   vision: {
-    runForTask: (taskId) => ipcRenderer.invoke("vision.runForTask", taskId)
+    runForTask: (taskId, options) => ipcRenderer.invoke("vision.runForTask", taskId, options)
   },
   rename: {
     preview: (templateId, taskIds) => ipcRenderer.invoke("rename.preview", templateId, taskIds),

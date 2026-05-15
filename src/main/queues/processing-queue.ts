@@ -9,21 +9,27 @@ import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 export class ProcessingQueue {
   #queue: PQueue;
   #onUpdate: (() => void | Promise<void>) | null;
+  #afterTaskProcessed: ((taskId: string) => void | Promise<void>) | null = null;
   #activeTaskIds: Set<string> = new Set();
   #queuedTaskIds: Set<string> = new Set();
   #cancelledTaskIds: Set<string> = new Set();
 
   constructor(
+    workerPoolSize: number,
     private readonly settings: GlobalSettings,
     private readonly workerPool: PipelineWorkerPool,
     onUpdate: (() => void | Promise<void>) | null = null
   ) {
     this.#onUpdate = onUpdate;
-    this.#queue = new PQueue({ concurrency: Math.max(1, settings.workerPoolSize) });
+    this.#queue = new PQueue({ concurrency: Math.max(1, workerPoolSize) });
   }
 
   setUpdateListener(listener: () => void | Promise<void>): void {
     this.#onUpdate = listener;
+  }
+
+  setAfterTaskProcessed(listener: (taskId: string) => void | Promise<void>): void {
+    this.#afterTaskProcessed = listener;
   }
 
   async enqueueTask(project: Project, taskId: string): Promise<void> {
@@ -42,6 +48,7 @@ export class ProcessingQueue {
       await this.#onUpdate?.();
       try {
         await processTask(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool);
+        await this.#afterTaskProcessed?.(taskId);
       } finally {
         this.#activeTaskIds.delete(taskId);
         await this.#onUpdate?.();

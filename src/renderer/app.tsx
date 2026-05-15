@@ -4,9 +4,10 @@ import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Trash2, X } from "lucide-re
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo, TaskDeleteOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
+import { formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal } from "./components/modals/rename-modal";
@@ -58,6 +59,7 @@ function App(): React.JSX.Element {
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
+  const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
@@ -86,6 +88,7 @@ function App(): React.JSX.Element {
   const toggleTasks = useEditorStore((state) => state.toggleTasks);
   const toggleOps = useEditorStore((state) => state.toggleOps);
   const opPreviewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
+  const globalDragDepthRef = useRef(0);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
   const project = projectSnapshot?.project;
@@ -297,12 +300,12 @@ function App(): React.JSX.Element {
 
   async function removeOriginal(originalId: string): Promise<void> {
     const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
-    if (settings?.confirmDeleteOriginalWithTasks && taskCount > 0) {
+    if (settings?.confirmDeleteOriginals) {
       const confirmed = await confirmer.confirm({
         title: "Remove original?",
-        message: `This will also remove ${taskCount} task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
+        message: `This removes the original from the app and also removes ${taskCount} related task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
         confirmLabel: "Remove",
-        danger: true
+        danger: false
       });
       if (!confirmed) return;
     }
@@ -324,8 +327,15 @@ function App(): React.JSX.Element {
 
   async function deleteTask(task: Task): Promise<void> {
     try {
-      const deleteOptions = await resolveTaskDeleteOptions(task, settings, confirmer);
-      await refreshProject(await api.task.delete(task.id, deleteOptions));
+      if (settings?.confirmDeleteTasks) {
+        const confirmed = await confirmer.confirm({
+          title: "Delete task?",
+          message: "This removes the task from the app. Saved files on disk are kept.",
+          confirmLabel: "Delete"
+        });
+        if (!confirmed) return;
+      }
+      await refreshProject(await api.task.delete(task.id));
       setSelectedRenameTaskIds((current) => current.filter((id) => id !== task.id));
     } catch (error) {
       console.error(error);
@@ -334,6 +344,20 @@ function App(): React.JSX.Element {
         message: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  async function deleteSavedOutput(task: Task): Promise<void> {
+    if (!task.output) return;
+    if (settings?.confirmDeleteOutputFiles) {
+      const confirmed = await confirmer.confirm({
+        title: "Delete saved files?",
+        message: task.output.finalPath ?? task.output.stagedPath,
+        confirmLabel: "Delete",
+        danger: true
+      });
+      if (!confirmed) return;
+    }
+    await refreshProject(await api.task.deleteSavedOutput(task.id));
   }
 
   async function retryTask(taskId: string): Promise<void> {
@@ -412,9 +436,14 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch));
   }
 
-  async function setAnalyzeContent(analyzeContent: boolean): Promise<void> {
+  async function setGenerateDescription(generateDescription: boolean): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.setAnalyzeContent(activeTask.id, analyzeContent));
+    await refreshProject(await api.task.setGenerateDescription(activeTask.id, generateDescription));
+  }
+
+  async function setGenerateSlug(generateSlug: boolean): Promise<void> {
+    if (!activeTask) return;
+    await refreshProject(await api.task.setGenerateSlug(activeTask.id, generateSlug));
   }
 
   async function setCustomSlug(customSlug: string | null): Promise<void> {
@@ -422,12 +451,12 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
   }
 
-  async function runVision(taskId: string): Promise<void> {
-    if (!hasGeminiApiKey) {
-      await openSettings();
-      return;
-    }
-    await refreshProject(await api.vision.runForTask(taskId));
+  async function addDroppedFiles(files: FileList | File[]): Promise<void> {
+    const sourcePaths = Array.from(files)
+      .map((file) => window.api.system.filePathForFile(file))
+      .filter((filePath) => filePath.length > 0);
+    if (sourcePaths.length === 0) return;
+    await addOriginalPaths(sourcePaths);
   }
 
   async function openSettings(): Promise<void> {
@@ -493,9 +522,38 @@ function App(): React.JSX.Element {
   }
 
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
+  const hasJpegEstimate = settings?.enableJpegQualityEstimate && activeOriginal?.jpegQualityEstimate !== null;
 
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell ${globalDropActive ? "global-drop-active" : ""}`}
+      onDragEnterCapture={(event) => {
+        if (!hasFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        globalDragDepthRef.current += 1;
+        setGlobalDropActive(true);
+      }}
+      onDragOverCapture={(event) => {
+        if (!hasFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeaveCapture={(event) => {
+        if (!hasFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        globalDragDepthRef.current = Math.max(0, globalDragDepthRef.current - 1);
+        if (globalDragDepthRef.current === 0) setGlobalDropActive(false);
+      }}
+      onDropCapture={(event) => {
+        if (!hasFileDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        globalDragDepthRef.current = 0;
+        setGlobalDropActive(false);
+        void addDroppedFiles(event.dataTransfer.files);
+      }}
+    >
+      {globalDropActive ? <div className="global-drop-overlay">Drop image files anywhere to import them</div> : null}
       <header className="top-bar">
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
@@ -570,8 +628,10 @@ function App(): React.JSX.Element {
               {activeOriginal ? basename(activeOriginal.sourcePath) : "No image"}
               {activeOriginal ? (
                 <em>
-                  {activeOriginal.width}×{activeOriginal.height}
+                  {activeOriginal.width}×{activeOriginal.height} · {formatLabel(activeOriginal.format)}
+                  {hasJpegEstimate ? ` · assumed JPEG quality ${activeOriginal.jpegQualityEstimate}` : ""}
                   {activePreview ? ` · preview ${activePreview.width}×${activePreview.height}` : ""}
+                  {activeTask ? ` · output ${formatLabel(resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format))}` : ""}
                   {activeTask ? ` · ${activeTask.status}` : ""}
                 </em>
               ) : null}
@@ -599,6 +659,11 @@ function App(): React.JSX.Element {
             {activeTask ? (
               <button className="inline-action danger" type="button" onClick={() => void deleteTask(activeTask)}>
                 <Trash2 size={14} /> Delete
+              </button>
+            ) : null}
+            {activeTask?.output ? (
+              <button className="inline-action danger" type="button" onClick={() => void deleteSavedOutput(activeTask)}>
+                <Trash2 size={14} /> Delete saved file
               </button>
             ) : null}
           </div>
@@ -638,13 +703,15 @@ function App(): React.JSX.Element {
         {showOps ? (
           <OpsPanel
             activeTask={activeTask}
+            activeOriginal={activeOriginal}
             hasGeminiApiKey={hasGeminiApiKey}
             luts={lutEntries}
             opCatalog={opCatalog}
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
             onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
-            onAnalyzeContentChange={(value) => void setAnalyzeContent(value)}
+            onGenerateDescriptionChange={(value) => void setGenerateDescription(value)}
+            onGenerateSlugChange={(value) => void setGenerateSlug(value)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
             onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
@@ -672,7 +739,7 @@ function App(): React.JSX.Element {
           onGenerateMissing={async (taskIds, onProgress) => {
             const failures: string[] = [];
             for (const [index, taskId] of taskIds.entries()) {
-              const snapshot = await api.vision.runForTask(taskId);
+              const snapshot = await api.vision.runForTask(taskId, { forceGenerateSlug: true });
               await refreshProject(snapshot);
               const task = snapshot.project.tasks.find((candidate) => candidate.id === taskId);
               if (task?.error?.stage === "vision") {
@@ -734,7 +801,7 @@ function App(): React.JSX.Element {
             </div>
             <p>
               A desktop photo editor for blogging and publication workflows, with queued image processing,
-              metadata tools, rename previews, and optional Gemini-assisted descriptions.
+              metadata tools, rename previews, and optional Gemini-assisted descriptions and slugs.
             </p>
             <div className="about-links">
               <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_REPOSITORY_URL)}>
@@ -821,6 +888,11 @@ function taskLabel(task: Task, originals: { id: string; sourcePath: string }[]):
   return original ? basename(original.sourcePath) : task.id;
 }
 
+function hasFileDrag(dataTransfer: DataTransfer | null): boolean {
+  if (!dataTransfer) return false;
+  return Array.from(dataTransfer.types).includes("Files");
+}
+
 function stringifyLogArgs(args: unknown[]): string {
   return args.map((arg) => {
     if (arg instanceof Error) return arg.stack ?? arg.message;
@@ -831,52 +903,6 @@ function stringifyLogArgs(args: unknown[]): string {
       return String(arg);
     }
   }).join(" ");
-}
-
-async function resolveTaskDeleteOptions(
-  task: Task,
-  settings: GlobalSettings | null,
-  confirmer: { confirm(req: { title: string; message: React.ReactNode; confirmLabel?: string; danger?: boolean }): Promise<boolean> }
-): Promise<TaskDeleteOptions | undefined> {
-  if (task.status !== "done" || !task.output) {
-    return undefined;
-  }
-
-  const hasSeparateFinalOutput = Boolean(task.output.finalPath && task.output.finalPath !== task.output.stagedPath);
-  if (!settings?.confirmDeleteOutputFiles) {
-    return hasSeparateFinalOutput
-      ? { deleteFinalOutput: true }
-      : task.output.stagedPath
-        ? { deleteStagedOutput: true }
-        : undefined;
-  }
-
-  if (hasSeparateFinalOutput && task.output.finalPath) {
-    const finalPath = task.output.finalPath;
-    return {
-      deleteFinalOutput: await confirmer.confirm({
-        title: "Delete renamed output?",
-        message: finalPath,
-        confirmLabel: "Delete",
-        danger: true
-      })
-    };
-  }
-
-  if (task.output.stagedPath) {
-    const shouldDeleteOutput = await confirmer.confirm({
-      title: "Delete output file?",
-      message: task.output.stagedPath,
-      confirmLabel: "Delete",
-      danger: true
-    });
-    return {
-      deleteStagedOutput: shouldDeleteOutput,
-      deleteFinalOutput: task.output.finalPath === task.output.stagedPath ? shouldDeleteOutput : false
-    };
-  }
-
-  return undefined;
 }
 
 createRoot(document.getElementById("root")!).render(

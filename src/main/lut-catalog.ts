@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { DEFAULT_LUT_FOLDER } from "@shared/constants";
 import type { LutEntry } from "@shared/types/ipc";
 
 const BUILT_INS = [
@@ -11,7 +12,7 @@ const BUILT_INS = [
 ] as const;
 
 export async function listLuts(lutFolder: string, homeDir: string): Promise<LutEntry[]> {
-  const dir = expandHome(lutFolder, homeDir);
+  const dir = expandHome(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
   await ensureBuiltInLuts(dir);
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
   return entries

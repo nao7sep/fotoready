@@ -2,14 +2,16 @@ import React from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
-import type { Task } from "@shared/types/project";
+import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
+import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { getOpRenderer } from "@renderer/ops";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata"] as const;
 
 type OpsPanelProps = {
   activeTask: Task | null;
+  activeOriginal: Original | null;
   hasGeminiApiKey: boolean;
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
@@ -18,7 +20,8 @@ type OpsPanelProps = {
   settings: GlobalSettings | null;
   selectedOpId: string | null;
   onAddOp(opType: string): void;
-  onAnalyzeContentChange(value: boolean): void;
+  onGenerateDescriptionChange(value: boolean): void;
+  onGenerateSlugChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
   onMoveOp(opId: string, toIndex: number): void;
   onOpEnabledChange(opId: string, enabled: boolean): void;
@@ -68,9 +71,11 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               disabled={!activeTask || activeTask.status !== "pending"}
               hasGeminiApiKey={props.hasGeminiApiKey}
               onOpenSettings={props.onOpenSettings}
+              original={props.activeOriginal}
               settings={props.settings}
               task={activeTask}
-              onAnalyzeContentChange={props.onAnalyzeContentChange}
+              onGenerateDescriptionChange={props.onGenerateDescriptionChange}
+              onGenerateSlugChange={props.onGenerateSlugChange}
               onCustomSlugChange={props.onCustomSlugChange}
               onOutputChange={props.onOutputChange}
             />
@@ -182,38 +187,56 @@ function OutputControls({
   disabled,
   hasGeminiApiKey,
   onOpenSettings,
+  original,
   settings,
   task,
-  onAnalyzeContentChange,
+  onGenerateDescriptionChange,
+  onGenerateSlugChange,
   onCustomSlugChange,
   onOutputChange
 }: {
   disabled: boolean;
   hasGeminiApiKey: boolean;
   onOpenSettings(): void;
+  original: Original | null;
   settings: GlobalSettings | null;
   task: Task | null;
-  onAnalyzeContentChange(value: boolean): void;
+  onGenerateDescriptionChange(value: boolean): void;
+  onGenerateSlugChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
   onOutputChange(key: string, value: unknown): void;
 }): React.JSX.Element {
-  const jpegQualityMode = typeof task?.pipeline.output.quality === "number" ? "fixed" : task?.pipeline.output.quality ?? "fixed";
+  const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
-  const promptPerTask = settings?.jpegStrategy === "prompt-per-task";
+  const jpegEstimateEnabled = settings?.enableJpegQualityEstimate ?? false;
+  const canAutoEstimateJpeg = jpegEstimateEnabled && original?.format === "jpeg" && original.jpegQualityEstimate !== null;
+  const jpegQualityMode = task?.pipeline.output.quality === "auto" && canAutoEstimateJpeg ? "auto" : "fixed";
+  const flattenableFormat = resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif";
+  const outputFormatOptions = availableOutputFormats();
+  const fixedQuality = task && typeof task.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality;
   return (
     <div className="output-controls">
-      <label className="toggle-row" title="When this task is saved, use AI to generate a description of the image. Used for alt text, slugs, and notes.">
-        <input type="checkbox" disabled={disabled || !task} checked={task?.analyzeContent ?? true} onChange={(event) => onAnalyzeContentChange(event.currentTarget.checked)} />
-        Describe contents
+      <label className="toggle-row" title="Generate a reusable image description after save.">
+        <input
+          type="checkbox"
+          disabled={disabled || !task || Boolean(task?.generateSlug)}
+          checked={(task?.generateDescription ?? true) || Boolean(task?.generateSlug)}
+          onChange={(event) => onGenerateDescriptionChange(event.currentTarget.checked)}
+        />
+        Generate description
       </label>
-      {task?.analyzeContent && !task.output?.vision && !hasGeminiApiKey ? (
+      <label className="toggle-row" title="Generate slug suggestions after save. Slug generation always needs a description first.">
+        <input type="checkbox" disabled={disabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
+        Generate slug
+      </label>
+      {(task?.generateDescription || task?.generateSlug) && !task.output?.vision && !hasGeminiApiKey ? (
         <div className="modal-warning">
-          Gemini API key required for description generation.
+          Gemini API key required for description and slug generation.
           <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
       ) : task?.output?.vision ? (
         <div className="vision-description">
-          <span>Generated description</span>
+          <span>{task.generateSlug ? "Generated description and slug source" : "Generated description"}</span>
           <p>{task.output.vision.description}</p>
         </div>
       ) : task?.error?.stage === "vision" ? (
@@ -225,41 +248,80 @@ function OutputControls({
       </label>
       <label className="stacked-field">
         Format
-        <select disabled={disabled || !task} value={task?.pipeline.output.format ?? "webp"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
-          {["jpeg", "webp", "avif", "png"].map((format) => <option key={format}>{format}</option>)}
+        <select disabled={disabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
+          {outputFormatOptions.map((format) => <option key={format} value={format}>{formatLabel(format)}</option>)}
         </select>
       </label>
-      <label className="stacked-field">
-        Quality — <strong>{typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82}</strong>
-        <input
-          disabled={disabled || !task || (task.pipeline.output.format === "jpeg" && typeof task.pipeline.output.quality !== "number")}
-          max={100}
-          min={1}
-          step={1}
-          type="range"
-          value={typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : 82}
-          onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
-        />
-      </label>
-      {task?.pipeline.output.format === "jpeg" ? (
+      {task && original ? (
+        <div className="row-detail">
+          Saving as <strong>{formatLabel(resolvedFormat ?? task.pipeline.output.format)}</strong>
+          {task.pipeline.output.format === "original" && resolvedFormat !== original.format ? ` for this ${formatLabel(original.format)} source` : ""}
+        </div>
+      ) : null}
+      {resolvedFormat === "jpeg" ? (
+        <div className="row-detail">JPEG always flattens transparency using the selected background color.</div>
+      ) : flattenableFormat ? (
+        <>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              disabled={disabled || !task}
+              checked={task?.pipeline.output.flattenTransparency ?? false}
+              onChange={(event) => onOutputChange("flattenTransparency", event.currentTarget.checked)}
+            />
+            Flatten transparency
+          </label>
+          <label className="stacked-field">
+            Flatten background
+            <input
+              disabled={disabled || !task || !task.pipeline.output.flattenTransparency}
+              type="color"
+              value={task?.pipeline.output.backgroundForTransparency ?? settings?.defaultBackgroundForTransparency ?? "#ffffff"}
+              onChange={(event) => onOutputChange("backgroundForTransparency", event.currentTarget.value)}
+            />
+          </label>
+        </>
+      ) : null}
+      {resolvedFormat && resolvedFormat !== "png" ? (
         <label className="stacked-field">
-          JPEG strategy
+          Quality — <strong>{typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality}</strong>
+          <input
+            disabled={disabled || !task || (resolvedFormat === "jpeg" && jpegQualityMode === "auto")}
+            max={100}
+            min={1}
+            step={1}
+            type="range"
+            value={fixedQuality}
+            onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
+          />
+        </label>
+      ) : null}
+      {resolvedFormat === "jpeg" ? (
+        <label className="stacked-field">
+          JPEG quality mode
           <select
             disabled={disabled || !task}
             value={jpegQualityMode}
             onChange={(event) => {
               const value = event.currentTarget.value;
-              onOutputChange("quality", value === "fixed" ? (typeof task.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality) : value);
+              onOutputChange("quality", value === "fixed" ? fixedQuality : "auto");
             }}
           >
-            <option value="fixed">fixed</option>
-            <option value="match-source-quality">match-source-quality</option>
-            <option value="match-source-size">match-source-size</option>
+            <option value="fixed">Fixed</option>
+            <option disabled={!canAutoEstimateJpeg} value="auto">Assume source JPEG quality</option>
           </select>
         </label>
       ) : null}
-      {task?.pipeline.output.format === "jpeg" && promptPerTask ? (
-        <div className="row-detail">Global JPEG strategy is prompt-per-task, so this task can keep its own fixed JPEG quality.</div>
+      {resolvedFormat === "jpeg" ? (
+        <div className="row-detail">
+          {!jpegEstimateEnabled
+            ? "JPEG quality estimation is off in Settings."
+            : canAutoEstimateJpeg
+              ? `Assumed source JPEG quality: ${original?.jpegQualityEstimate ?? defaultFixedQuality}`
+              : original?.format === "jpeg"
+                ? "This JPEG was loaded without a usable in-memory estimate. Reload it after enabling estimation if needed."
+                : "Source-quality mode is available only for confirmed JPEG inputs."}
+        </div>
       ) : null}
     </div>
   );

@@ -7,6 +7,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
+import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { renderOriginalThumbnail, renderTaskPreview, type OriginalThumbnail, type PreviewResult } from "@main/preview-service";
@@ -15,8 +16,10 @@ import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
+import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
+import { resolveOutputFormat } from "@shared/output-format";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -59,13 +62,23 @@ export class ProjectSession {
   }
 
   async addOriginals(sourcePaths: string[]): Promise<ProjectSessionSnapshot> {
+    const sidecars = await loadTaskSidecars(sourcePaths);
     for (const sourcePath of sourcePaths) {
-      const original = await buildOriginal(sourcePath);
+      if (isTaskSidecarPath(sourcePath)) continue;
+      const original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate);
       const existing = this.#project.originals.find((item) => item.sourceHash === original.sourceHash);
       const targetOriginal = existing ?? original;
 
       if (!existing) {
         this.#project.originals.push(original);
+      }
+
+      const matchedSidecar = matchingTaskSidecar(targetOriginal, sidecars);
+      if (matchedSidecar) {
+        const task = createTaskFromSidecar(targetOriginal, this.settings, matchedSidecar.sidecar);
+        this.#project.tasks.push(task);
+        this.#activeTaskId = task.id;
+        continue;
       }
 
       this.selectOriginal(targetOriginal.id);
@@ -87,7 +100,7 @@ export class ProjectSession {
       return this.snapshot();
     }
 
-    const task = createTaskForOriginal(original.id, this.settings);
+    const task = createTaskForOriginal(original, this.settings);
     this.#project.tasks.push(task);
     this.#activeTaskId = task.id;
     return this.snapshot();
@@ -126,8 +139,12 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
+    const original = this.#project.originals.find((item) => item.id === task.originalId);
+    if (!original) {
+      throw new Error(`Original not found for task: ${taskId}`);
+    }
 
-    const fork = createTaskForOriginal(task.originalId, this.settings);
+    const fork = createTaskForOriginal(original, this.settings);
     fork.pipeline = structuredClone(task.pipeline);
     fork.everEdited = true;
     this.#project.tasks.push(fork);
@@ -145,7 +162,10 @@ export class ProjectSession {
     const outputPaths = task.output
       ? [
           options.deleteStagedOutput ? task.output.stagedPath : null,
+          options.deleteStagedOutput ? task.output.stagedParamsPath : null,
           options.deleteFinalOutput ? task.output.finalPath : null
+          ,
+          options.deleteFinalOutput ? task.output.finalParamsPath : null
         ].filter((filePath): filePath is string => typeof filePath === "string")
       : [];
     await deleteSelectedFiles(outputPaths);
@@ -155,6 +175,29 @@ export class ProjectSession {
     if (this.#activeTaskId === taskId) {
       this.#activeTaskId = this.#project.tasks[index]?.id ?? this.#project.tasks[index - 1]?.id ?? null;
     }
+    return this.snapshot();
+  }
+
+  async deleteSavedOutput(taskId: string): Promise<ProjectSessionSnapshot> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (!task.output) {
+      return this.snapshot();
+    }
+
+    await deleteSelectedFiles([
+      task.output.finalPath,
+      task.output.finalParamsPath,
+      task.output.stagedPath,
+      task.output.stagedParamsPath
+    ].filter((filePath): filePath is string => typeof filePath === "string"));
+
+    task.status = "pending";
+    task.output = null;
+    task.error = null;
+    task.updatedAt = nowIso();
     return this.snapshot();
   }
 
@@ -260,6 +303,17 @@ export class ProjectSession {
     return renderOriginalThumbnail(original);
   }
 
+  async afterTaskProcessed(taskId: string): Promise<void> {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task || task.status !== "done" || !task.output || (!task.generateDescription && !task.generateSlug)) {
+      return;
+    }
+    if (!(await this.visionQueue.hasGeminiApiKey())) {
+      return;
+    }
+    await this.runVision(taskId);
+  }
+
   addOp(taskId: string, opType: string): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const definition = getOpDefinition(opType);
@@ -337,10 +391,19 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  setAnalyzeContent(taskId: string, analyzeContent: boolean): ProjectSessionSnapshot {
+  setGenerateDescription(taskId: string, generateDescription: boolean): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     this.recordTaskEdit(task);
-    task.analyzeContent = analyzeContent;
+    task.generateDescription = generateDescription || task.generateSlug;
+    touchTask(task);
+    return this.snapshot();
+  }
+
+  setGenerateSlug(taskId: string, generateSlug: boolean): ProjectSessionSnapshot {
+    const task = this.editableTask(taskId);
+    this.recordTaskEdit(task);
+    task.generateSlug = generateSlug;
+    task.generateDescription = generateSlug ? true : task.generateDescription;
     touchTask(task);
     return this.snapshot();
   }
@@ -355,8 +418,12 @@ export class ProjectSession {
 
   updateOutput(taskId: string, key: string, value: unknown): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
+    const original = this.#project.originals.find((item) => item.id === task.originalId);
+    if (!original) {
+      throw new Error(`Original not found for task: ${task.id}`);
+    }
     this.recordTaskEdit(task);
-    task.pipeline.output = nextTaskOutput(task.pipeline.output, key, value, this.settings);
+    task.pipeline.output = nextTaskOutput(task.pipeline.output, key, value, this.settings, original.format);
     touchTask(task);
     return this.snapshot();
   }
@@ -390,8 +457,16 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async runVision(taskId: string): Promise<ProjectSessionSnapshot> {
-    await this.visionQueue.runForTask(this.#project, taskId);
+  async runVision(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<ProjectSessionSnapshot> {
+    await this.visionQueue.runForTask(this.#project, taskId, options);
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
+    if (task?.output && original) {
+      task.output.stagedParamsPath = await writeTaskSidecarFile(task.output.stagedPath, original, task, task.pipeline);
+      if (task.output.finalPath) {
+        task.output.finalParamsPath = await writeTaskSidecarFile(task.output.finalPath, original, task, task.pipeline);
+      }
+    }
     return this.snapshot();
   }
 
@@ -422,9 +497,10 @@ export class ProjectSession {
   }
 }
 
-async function buildOriginal(sourcePath: string): Promise<Original> {
+async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: boolean): Promise<Original> {
   const bytes = await fs.readFile(sourcePath);
   const { format, metadata } = await inspectSourceImage(bytes);
+  const jpegQualityEstimate = enableJpegQualityEstimate && format === "jpeg" ? detectJpegQuality(bytes).jpegQualityEstimate?.value ?? null : null;
 
   return {
     id: nanoid(),
@@ -432,21 +508,23 @@ async function buildOriginal(sourcePath: string): Promise<Original> {
     sourceHash: sha256Bytes(bytes),
     size: bytes.byteLength,
     format,
+    jpegQualityEstimate,
     width: metadata.width ?? 0,
     height: metadata.height ?? 0,
     addedAt: nowIso()
   };
 }
 
-function createTaskForOriginal(originalId: string, settings: GlobalSettings): Task {
+function createTaskForOriginal(original: Original, settings: GlobalSettings): Task {
   const now = nowIso();
   const pipeline = defaultPipeline();
-  pipeline.output = defaultTaskOutput(settings, pipeline.output);
+  pipeline.output = defaultTaskOutput(settings, original.format, pipeline.output);
 
   return {
     id: nanoid(),
-    originalId,
-    analyzeContent: settings.defaultAnalyzeContent,
+    originalId: original.id,
+    generateDescription: settings.defaultGenerateDescription || settings.defaultGenerateSlug,
+    generateSlug: settings.defaultGenerateSlug,
     customSlug: null,
     pipeline,
     status: "pending",
@@ -458,12 +536,23 @@ function createTaskForOriginal(originalId: string, settings: GlobalSettings): Ta
   };
 }
 
-function defaultTaskOutput(settings: GlobalSettings, fallback: Task["pipeline"]["output"]): Task["pipeline"]["output"] {
+function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: Awaited<ReturnType<typeof loadTaskSidecars>>[number]["sidecar"]): Task {
+  const task = createTaskForOriginal(original, settings);
+  task.pipeline = structuredClone(sidecar.task.pipeline);
+  task.generateDescription = sidecar.task.generateDescription || sidecar.task.generateSlug;
+  task.generateSlug = sidecar.task.generateSlug;
+  task.customSlug = sidecar.task.customSlug;
+  task.everEdited = true;
+  return task;
+}
+
+function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fallback: Task["pipeline"]["output"]): Task["pipeline"]["output"] {
   const format = settings.defaultOutputFormat;
   return {
     ...fallback,
     format,
-    quality: defaultQualityForFormat(format, settings, fallback.quality),
+    quality: defaultQualityForFormat(format, settings, originalFormat, fallback.quality),
+    flattenTransparency: settings.defaultFlattenTransparency,
     jpegProgressive: settings.jpegProgressive,
     jpegChromaSubsampling: settings.jpegChromaSubsampling,
     webpMethod: settings.webpMethod,
@@ -477,29 +566,42 @@ function nextTaskOutput(
   current: Task["pipeline"]["output"],
   key: string,
   value: unknown,
-  settings: GlobalSettings
+  settings: GlobalSettings,
+  originalFormat: string
 ): Task["pipeline"]["output"] {
   const nextOutput = applyOutputSettingChange(current, key, value);
-  if (key !== "format") {
-    return nextOutput;
+  const resolvedFormat = resolveOutputFormat(nextOutput.format, originalFormat);
+  if (key === "format") {
+    return {
+      ...nextOutput,
+      quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),
+      flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
+    };
   }
-
+  if (resolvedFormat !== "jpeg" || (nextOutput.quality === "auto" && originalFormat !== "jpeg")) {
+    return {
+      ...nextOutput,
+      quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),
+      flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
+    };
+  }
   return {
     ...nextOutput,
-    quality: defaultQualityForFormat(nextOutput.format, settings, current.quality)
+    flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
   };
 }
 
 function defaultQualityForFormat(
   format: Task["pipeline"]["output"]["format"],
   settings: GlobalSettings,
+  originalFormat: string,
   fallback: Task["pipeline"]["output"]["quality"]
 ): Task["pipeline"]["output"]["quality"] {
-  if (format === "webp") return settings.defaultWebpQuality;
-  if (format === "avif") return settings.defaultAvifQuality;
-  if (format === "png") return typeof fallback === "number" ? fallback : 82;
-  if (settings.jpegStrategy === "match-source-size") return "match-source-size";
-  if (settings.jpegStrategy === "match-source-quality") return "match-source-quality";
+  const resolvedFormat = resolveOutputFormat(format, originalFormat);
+  if (resolvedFormat === "webp") return settings.defaultWebpQuality;
+  if (resolvedFormat === "avif") return settings.defaultAvifQuality;
+  if (resolvedFormat === "png") return typeof fallback === "number" ? fallback : 82;
+  if (settings.enableJpegQualityEstimate && settings.jpegQualityMode === "auto" && originalFormat === "jpeg") return "auto";
   return settings.jpegFixedQuality;
 }
 

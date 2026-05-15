@@ -1,5 +1,5 @@
-import { BUILTIN_FILENAME_TEMPLATE_ID } from "../constants";
-import { builtinFilenameTemplate } from "../defaults";
+import { DEFAULT_FILENAME_TEMPLATE_ID } from "../constants";
+import { builtinFilenameTemplates } from "../defaults";
 import type { FilenameTemplate } from "../types/settings";
 
 export type FilenameTemplateValidationIssue = {
@@ -7,9 +7,7 @@ export type FilenameTemplateValidationIssue = {
   message: string;
 };
 
-const simplePlaceholders = new Set(["slug", "w", "h", "ext", "index"]);
-const dateSources = new Set(["saved", "now", "taken", "source"]);
-const dateFormats = new Set(["yyyymmdd", "yyyymmdd-hhmmss", "iso", "unix"]);
+const simplePlaceholders = new Set(["slug", "original", "w", "h", "ext"]);
 const placeholderPattern = /\{([^{}]+)\}/g;
 
 export function validateFilenameTemplatePattern(pattern: string): string[] {
@@ -37,10 +35,7 @@ export function validateFilenameTemplatePattern(pattern: string): string[] {
   return issues;
 }
 
-export function validateFilenameTemplates(
-  templates: FilenameTemplate[],
-  defaultTemplateId?: string | null
-): FilenameTemplateValidationIssue[] {
+export function validateFilenameTemplates(templates: FilenameTemplate[], defaultTemplateId?: string | null): FilenameTemplateValidationIssue[] {
   const issues: FilenameTemplateValidationIssue[] = [];
   const seenIds = new Set<string>();
   const seenNames = new Map<string, string>();
@@ -73,15 +68,18 @@ export function validateFilenameTemplates(
       issues.push({ templateId: template.id, message: `Pattern ${message}` });
     }
 
-    if (template.id === BUILTIN_FILENAME_TEMPLATE_ID) {
-      if (template.pattern !== builtinFilenameTemplate.pattern || template.name !== builtinFilenameTemplate.name || template.builtin !== true) {
+    const builtin = builtinFilenameTemplates.find((item) => item.id === template.id);
+    if (builtin) {
+      if (template.pattern !== builtin.pattern || template.name !== builtin.name || template.builtin !== true) {
         issues.push({ templateId: template.id, message: "Built-in template must keep its original name, pattern, and builtin flag." });
       }
     }
   }
 
-  if (!templates.some((template) => template.id === BUILTIN_FILENAME_TEMPLATE_ID)) {
-    issues.push({ templateId: null, message: "Built-in filename template must be present." });
+  for (const builtin of builtinFilenameTemplates) {
+    if (!templates.some((template) => template.id === builtin.id)) {
+      issues.push({ templateId: null, message: `Built-in filename template "${builtin.name}" must be present.` });
+    }
   }
 
   if (defaultTemplateId && !templates.some((template) => template.id === defaultTemplateId)) {
@@ -107,25 +105,5 @@ export function assertSafeRenderedFilename(fileName: string): void {
 }
 
 function isAllowedPlaceholder(token: string): boolean {
-  if (simplePlaceholders.has(token)) return true;
-
-  if (/^index:0\d+$/.test(token)) {
-    const width = Number(token.slice("index:".length));
-    return Number.isInteger(width) && width > 0 && width <= 20;
-  }
-
-  if (/^hash:\d+$/.test(token)) {
-    const length = Number(token.slice("hash:".length));
-    return Number.isInteger(length) && length >= 1 && length <= 64;
-  }
-
-  if (/^date:[^|]+\|[^|]+\|[^|]+$/.test(token)) {
-    const rest = token.slice("date:".length);
-    const [source, timezone, format] = rest.split("|");
-    return dateSources.has(source.trim().toLowerCase()) &&
-      timezone.trim().length > 0 &&
-      dateFormats.has(format.trim().toLowerCase());
-  }
-
-  return false;
+  return simplePlaceholders.has(token);
 }

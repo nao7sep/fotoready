@@ -1,19 +1,43 @@
-import { BUILTIN_FILENAME_TEMPLATE_ID } from "./constants";
+import { BUILTIN_FILENAME_TEMPLATE_IDS, DEFAULT_FILENAME_TEMPLATE_ID } from "./constants";
 import type { GlobalSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
 
-export const builtinFilenameTemplate = {
-  id: BUILTIN_FILENAME_TEMPLATE_ID,
-  name: "Slug with size",
-  pattern: "{slug}-{w}x{h}.{ext}",
-  builtin: true
-} as const;
+export const builtinFilenameTemplates = [
+  {
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.slugSize,
+    name: "Slug + size",
+    pattern: "{slug}-{w}x{h}.{ext}",
+    builtin: true
+  },
+  {
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.slug,
+    name: "Slug only",
+    pattern: "{slug}.{ext}",
+    builtin: true
+  },
+  {
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.originalSize,
+    name: "Original + size",
+    pattern: "{original}-{w}x{h}.{ext}",
+    builtin: true
+  },
+  {
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.original,
+    name: "Original only",
+    pattern: "{original}.{ext}",
+    builtin: true
+  }
+] as const;
+
+export const defaultVisionDescriptionPrompt = "Write one factual sentence describing the image for publication use. Mention the subject, setting, and the most useful distinguishing detail. Avoid marketing language and avoid guessing details that are not visible.";
+export const defaultVisionSlugPrompt = "Generate 3 to 5 lowercase English slug candidates from the description. Prefer concrete nouns and verbs, keep them concise, avoid filler words like photo, image, shot, and view, and use only letters, numbers, and hyphens.";
 
 export function defaultOutputSettings(): OutputSettings {
   return {
-    format: "webp",
-    quality: 82,
+    format: "original",
+    quality: "auto",
+    flattenTransparency: false,
     jpegProgressive: true,
     jpegChromaSubsampling: "4:2:0",
     webpMethod: 4,
@@ -30,19 +54,22 @@ export function defaultPipeline(): Pipeline {
   };
 }
 
-export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
+export function defaultGlobalSettings(workerPoolSize: number | null = null): GlobalSettings {
   return {
-    confirmDeleteOriginalWithTasks: true,
+    confirmDeleteOriginals: false,
+    confirmDeleteTasks: false,
     confirmDeleteOutputFiles: true,
-    defaultOutputFormat: "webp",
+    defaultOutputFormat: "original",
     defaultWebpQuality: 82,
     defaultAvifQuality: 60,
     defaultPngPalette: false,
     defaultMetadataStrip: ["author", "copyright", "orientation", "colorspace"],
-    defaultAnalyzeContent: true,
+    defaultGenerateDescription: true,
+    defaultGenerateSlug: true,
+    enableJpegQualityEstimate: true,
+    defaultFlattenTransparency: false,
     defaultBackgroundForTransparency: "#ffffff",
-    jpegStrategy: "match-source-size",
-    jpegQualityOnDetectionFailure: 85,
+    jpegQualityMode: "auto",
     jpegFixedQuality: 85,
     jpegChromaSubsampling: "4:2:0",
     jpegProgressive: true,
@@ -52,16 +79,13 @@ export function defaultGlobalSettings(workerPoolSize = 4): GlobalSettings {
     preserveSourceDates: true,
     injectFields: {},
     model: "gemini-3.1-pro",
-    visionProjectContext: "",
     preResizeLongEdge: 1024,
-    customPromptAddendum: "",
-    filenameTemplates: [builtinFilenameTemplate],
-    defaultTemplateId: BUILTIN_FILENAME_TEMPLATE_ID,
-    slugMinWords: 4,
-    slugMaxWords: 7,
-    hashSuffixLength: 4,
+    visionDescriptionPrompt: defaultVisionDescriptionPrompt,
+    visionSlugPrompt: defaultVisionSlugPrompt,
+    filenameTemplates: [...builtinFilenameTemplates],
+    defaultTemplateId: DEFAULT_FILENAME_TEMPLATE_ID,
     defaultOutputDirectory: "",
-    lutFolder: "~/.fotoready/luts/",
+    lutFolder: "",
     defaultWatermarkImage: "",
     workerPoolSize,
     previewLongEdge: 1024,

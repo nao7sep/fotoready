@@ -1,5 +1,5 @@
 export type SourceJpegFacts = {
-  jpegQualityEstimate: { value: number; method: "metadata" | "dqt-match" } | null;
+  jpegQualityEstimate: { value: number; method: "dqt-estimate" } | null;
 };
 
 const STD_LUMA = [
@@ -40,7 +40,7 @@ export function detectJpegQuality(bytes: Buffer): SourceJpegFacts {
   const estimate = estimateQualityFromTables(tables);
 
   return {
-    jpegQualityEstimate: estimate ? { value: estimate, method: "dqt-match" } : null
+    jpegQualityEstimate: estimate ? { value: estimate, method: "dqt-estimate" } : null
   };
 }
 
@@ -113,7 +113,7 @@ function estimateQualityFromTables(tables: Map<number, number[]>): number | null
     }
   }
 
-  return bestRms <= 1.0 ? bestQuality : null;
+  return bestQuality;
 }
 
 function combinedRms(observed: Array<{ table: number[]; standard: number[] }>, quality: number): number {

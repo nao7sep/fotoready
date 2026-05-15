@@ -6,6 +6,7 @@ export type Original = {
   sourceHash: string;
   size: number;
   format: string;
+  jpegQualityEstimate: number | null;
   width: number;
   height: number;
   addedAt: string;
@@ -22,10 +23,12 @@ export type VisionResult = {
 
 export type TaskOutput = {
   stagedPath: string;
+  stagedParamsPath: string;
   stagedAt: string;
   outputHash: string;
   vision: VisionResult | null;
   finalPath: string | null;
+  finalParamsPath: string | null;
   renamedAt: string | null;
 };
 
@@ -40,13 +43,14 @@ export type TaskError = {
 export type Task = {
   id: string;
   originalId: string;
-  analyzeContent: boolean;
+  generateDescription: boolean;
+  generateSlug: boolean;
   customSlug: string | null;
   pipeline: Pipeline;
   status: TaskStatus;
   output: TaskOutput | null;
   error: TaskError | null;
-  /** Flipped to true the first time the user mutates the task (op, slug, output, analyzeContent). Used to decide whether `selectOriginal` reuses the active task slot or spawns a new one. */
+  /** Flipped to true the first time the user mutates the task (op, slug, output, generation flags). Used to decide whether `selectOriginal` reuses the active task slot or spawns a new one. */
   everEdited: boolean;
   createdAt: string;
   updatedAt: string;

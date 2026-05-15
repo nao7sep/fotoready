@@ -1,13 +1,14 @@
-import { BUILTIN_FILENAME_TEMPLATE_ID } from "../constants";
-import { builtinFilenameTemplate } from "../defaults";
-import type { FilenameTemplate, GlobalSettings, MetadataField } from "../types/settings";
+import { DEFAULT_FILENAME_TEMPLATE_ID } from "../constants";
+import { builtinFilenameTemplates } from "../defaults";
+import type { FilenameTemplate, GlobalSettings, MetadataField, MetadataFields } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
 const metadataFields = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
-const outputFormats = ["jpeg", "webp", "avif", "png"] as const;
-const jpegStrategies = ["match-source-size", "match-source-quality", "fixed", "prompt-per-task"] as const;
+const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
+const jpegQualityModes = ["auto", "fixed"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
+const editableMetadataFields = ["description", "author", "credit", "source", "copyright", "usageTerms", "webStatement", "contactEmail", "contactUrl"] as const satisfies readonly (keyof MetadataFields)[];
 
 export type SettingsNormalizationResult = {
   settings: GlobalSettings;
@@ -21,46 +22,41 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     : (issues.push("settings must be a JSON object."), {});
 
   const settings: GlobalSettings = {
-    confirmDeleteOriginalWithTasks: readValue(source, "confirmDeleteOriginalWithTasks", fallback.confirmDeleteOriginalWithTasks, issues, assertBoolean),
+    confirmDeleteOriginals: readValue(source, "confirmDeleteOriginals", fallback.confirmDeleteOriginals, issues, assertBoolean),
+    confirmDeleteTasks: readValue(source, "confirmDeleteTasks", fallback.confirmDeleteTasks, issues, assertBoolean),
     confirmDeleteOutputFiles: readValue(source, "confirmDeleteOutputFiles", fallback.confirmDeleteOutputFiles, issues, assertBoolean),
     defaultOutputFormat: readValue(source, "defaultOutputFormat", fallback.defaultOutputFormat, issues, (value, path) => assertOneOf(value, path, outputFormats)),
     defaultWebpQuality: readValue(source, "defaultWebpQuality", fallback.defaultWebpQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     defaultAvifQuality: readValue(source, "defaultAvifQuality", fallback.defaultAvifQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     defaultPngPalette: readValue(source, "defaultPngPalette", fallback.defaultPngPalette, issues, assertBoolean),
     defaultMetadataStrip: readValue(source, "defaultMetadataStrip", fallback.defaultMetadataStrip, issues, validateMetadataStrip),
-    defaultAnalyzeContent: readValue(source, "defaultAnalyzeContent", fallback.defaultAnalyzeContent, issues, assertBoolean),
+    defaultGenerateDescription: readLegacyBooleanPair(source, "defaultGenerateDescription", "defaultAnalyzeContent", fallback.defaultGenerateDescription, issues),
+    defaultGenerateSlug: readLegacyBooleanPair(source, "defaultGenerateSlug", "defaultAnalyzeContent", fallback.defaultGenerateSlug, issues),
+    enableJpegQualityEstimate: readValue(source, "enableJpegQualityEstimate", fallback.enableJpegQualityEstimate, issues, assertBoolean),
+    defaultFlattenTransparency: readValue(source, "defaultFlattenTransparency", fallback.defaultFlattenTransparency, issues, assertBoolean),
     defaultBackgroundForTransparency: readValue(source, "defaultBackgroundForTransparency", fallback.defaultBackgroundForTransparency, issues, assertNonEmptyString),
     injectAuthorCopyright: readValue(source, "injectAuthorCopyright", fallback.injectAuthorCopyright, issues, assertBoolean),
     preserveSourceDates: readValue(source, "preserveSourceDates", fallback.preserveSourceDates, issues, assertBoolean),
-    injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateStringMap),
+    injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateMetadataFields),
     defaultTemplateId: fallback.defaultTemplateId,
     defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertString),
-    lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertNonEmptyString),
+    lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertString),
     defaultWatermarkImage: readValue(source, "defaultWatermarkImage", fallback.defaultWatermarkImage, issues, assertString),
-    jpegStrategy: readValue(source, "jpegStrategy", fallback.jpegStrategy, issues, (value, path) => assertOneOf(value, path, jpegStrategies)),
-    jpegQualityOnDetectionFailure: readValue(source, "jpegQualityOnDetectionFailure", fallback.jpegQualityOnDetectionFailure, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
+    jpegQualityMode: readValue(source, "jpegQualityMode", fallback.jpegQualityMode, issues, (value, path) => assertOneOf(value, path, jpegQualityModes)),
     jpegFixedQuality: readValue(source, "jpegFixedQuality", fallback.jpegFixedQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     jpegChromaSubsampling: readValue(source, "jpegChromaSubsampling", fallback.jpegChromaSubsampling, issues, (value, path) => assertOneOf(value, path, chromaSubsamplingModes)),
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
     model: readValue(source, "model", fallback.model, issues, assertNonEmptyString),
-    visionProjectContext: readValue(source, "visionProjectContext", fallback.visionProjectContext, issues, assertString),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128 })),
-    customPromptAddendum: readValue(source, "customPromptAddendum", fallback.customPromptAddendum, issues, assertString),
+    visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
+    visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
     filenameTemplates: normalizeFilenameTemplates(source.filenameTemplates, fallback.filenameTemplates, issues),
-    slugMinWords: readValue(source, "slugMinWords", fallback.slugMinWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 12 })),
-    slugMaxWords: readValue(source, "slugMaxWords", fallback.slugMaxWords, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 16 })),
-    hashSuffixLength: readValue(source, "hashSuffixLength", fallback.hashSuffixLength, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 2, max: 16 })),
-    workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 32 })),
+    workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64 })),
     previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
   };
-
-  if (settings.slugMaxWords < settings.slugMinWords) {
-    issues.push("settings.slugMaxWords must be greater than or equal to settings.slugMinWords.");
-    settings.slugMaxWords = Math.max(settings.slugMinWords, fallback.slugMaxWords);
-  }
 
   const requestedTemplateId = source.defaultTemplateId;
   settings.defaultTemplateId = normalizeDefaultTemplateId(
@@ -69,6 +65,12 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     fallback.defaultTemplateId,
     issues
   );
+  if (settings.defaultGenerateSlug) {
+    settings.defaultGenerateDescription = true;
+  }
+  if (!settings.enableJpegQualityEstimate && settings.jpegQualityMode === "auto") {
+    settings.jpegQualityMode = "fixed";
+  }
 
   return { settings, issues };
 }
@@ -105,21 +107,51 @@ function validateMetadataStrip(value: unknown, path: string): MetadataField[] {
   return [...new Set(fields)];
 }
 
-function validateStringMap(value: unknown, path: string): Record<string, string> {
+function validateMetadataFields(value: unknown, path: string): MetadataFields {
   const record = assertRecord(value, path);
-  return Object.fromEntries(
-    Object.entries(record).map(([key, entry]) => [key, assertString(entry, `${path}.${key}`)])
-  );
+  const fields: MetadataFields = {};
+  for (const key of editableMetadataFields) {
+    if (record[key] === undefined) continue;
+    fields[key] = assertString(record[key], `${path}.${key}`);
+  }
+  return fields;
+}
+
+function validateWorkerPoolSize(value: unknown, path: string): number | null {
+  if (value === null) return null;
+  return assertFiniteNumber(value, path, { integer: true, min: 1, max: 512 });
+}
+
+function readLegacyBooleanPair(source: Record<string, unknown>, primaryKey: string, legacyKey: string, fallback: boolean, issues: string[]): boolean {
+  const primary = source[primaryKey];
+  if (primary !== undefined) {
+    try {
+      return assertBoolean(primary, `settings.${primaryKey}`);
+    } catch (error) {
+      issues.push(error instanceof Error ? error.message : String(error));
+      return fallback;
+    }
+  }
+  const legacy = source[legacyKey];
+  if (legacy !== undefined) {
+    try {
+      return assertBoolean(legacy, `settings.${legacyKey}`);
+    } catch (error) {
+      issues.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return fallback;
 }
 
 function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[], issues: string[]): FilenameTemplate[] {
+  const builtins = [...builtinFilenameTemplates];
   if (value === undefined) {
-    return ensureBuiltinTemplate(cloneValue(fallback));
+    return ensureBuiltinTemplates(cloneValue(fallback.length ? fallback : builtins));
   }
 
   if (!Array.isArray(value)) {
     issues.push("settings.filenameTemplates must be an array.");
-    return ensureBuiltinTemplate(cloneValue(fallback));
+    return ensureBuiltinTemplates(cloneValue(fallback.length ? fallback : builtins));
   }
 
   const templates: FilenameTemplate[] = [];
@@ -130,7 +162,7 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
   for (const [index, entry] of value.entries()) {
     try {
       const template = validateFilenameTemplate(entry, `settings.filenameTemplates[${index}]`);
-      const normalized = template.id === BUILTIN_FILENAME_TEMPLATE_ID ? builtinFilenameTemplate : template;
+      const normalized = builtinFilenameTemplates.find((item) => item.id === template.id) ?? template;
       if (seen.has(normalized.id)) {
         issues.push(`settings.filenameTemplates[${index}].id duplicates "${normalized.id}".`);
         continue;
@@ -154,7 +186,7 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
     }
   }
 
-  const normalizedTemplates = ensureBuiltinTemplate(templates);
+  const normalizedTemplates = ensureBuiltinTemplates(templates);
   for (const issue of validateFilenameTemplates(normalizedTemplates)) {
     issues.push(issue.templateId ? `settings.filenameTemplates[${issue.templateId}] ${issue.message}` : issue.message);
   }
@@ -176,9 +208,9 @@ function validateFilenameTemplate(value: unknown, path: string): FilenameTemplat
   };
 }
 
-function ensureBuiltinTemplate(templates: FilenameTemplate[]): FilenameTemplate[] {
-  const filtered = templates.filter((template) => template.id !== BUILTIN_FILENAME_TEMPLATE_ID);
-  return [builtinFilenameTemplate, ...filtered];
+function ensureBuiltinTemplates(templates: FilenameTemplate[]): FilenameTemplate[] {
+  const filtered = templates.filter((template) => !builtinFilenameTemplates.some((builtin) => builtin.id === template.id));
+  return [...builtinFilenameTemplates, ...filtered];
 }
 
 function normalizeDefaultTemplateId(value: unknown, templates: FilenameTemplate[], fallback: string, issues: string[]): string {
@@ -197,5 +229,5 @@ function normalizeDefaultTemplateId(value: unknown, templates: FilenameTemplate[
   if (templates.some((template) => template.id === fallback)) {
     return fallback;
   }
-  return templates[0]?.id ?? BUILTIN_FILENAME_TEMPLATE_ID;
+  return templates[0]?.id ?? DEFAULT_FILENAME_TEMPLATE_ID;
 }

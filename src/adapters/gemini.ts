@@ -8,8 +8,9 @@ export type VisionDescribeRequest = {
 
 export type VisionDescribeOptions = {
   model: string;
-  projectContext: string | null;
-  customPromptAddendum: string | null;
+  descriptionPrompt: string;
+  slugPrompt: string;
+  generateSlug: boolean;
 };
 
 export type VisionDescribeResult = {
@@ -22,40 +23,53 @@ export class GeminiVisionProvider {
 
   async describe(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<VisionDescribeResult> {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
-    const response = await ai.models.generateContent({
+    const descriptionResponse = await ai.models.generateContent({
       model: opts.model,
       contents: [
         { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
-        { text: describePrompt(opts) }
-      ],
+        { text: descriptionPrompt(opts.descriptionPrompt) }
+      ]
+    });
+    const description = parseDescription(descriptionResponse.text ?? "");
+    if (!opts.generateSlug) {
+      return {
+        description,
+        slugCandidates: []
+      };
+    }
+    const slugResponse = await ai.models.generateContent({
+      model: opts.model,
+      contents: [{ text: slugPrompt(description, opts.slugPrompt) }],
       config: { responseMimeType: "application/json" }
     });
-    return parseDescribe(response.text ?? "");
+    return {
+      description,
+      slugCandidates: parseSlugs(slugResponse.text ?? "")
+    };
   }
 }
 
-function describePrompt(opts: VisionDescribeOptions): string {
-  const context = opts.projectContext ? `Project context: ${opts.projectContext}\n` : "";
-  const addendum = opts.customPromptAddendum ? `Additional instruction: ${opts.customPromptAddendum}\n` : "";
-  return `${context}${addendum}Describe this publication image. Return strict JSON only: {"description":"...","slugs":["..."]}.
-
-Rules:
-- description is one factual sentence naming subject, setting, and notable detail.
-- slugs has 3 to 5 candidates ordered short to longer/specific.
-- each slug is 4 to 7 lowercase English words joined by hyphens.
-- use concrete nouns and verbs only.
-- avoid filler words such as photo, image, view, and shot.
-- allowed slug characters are a-z, 0-9, and hyphen.`;
+function descriptionPrompt(prompt: string): string {
+  return `${prompt.trim()}\n\nReturn one sentence only. Do not use bullet points or JSON.`;
 }
 
-function parseDescribe(raw: string): VisionDescribeResult {
-  const parsed = JSON.parse(raw) as { description?: unknown; slugs?: unknown; slugCandidates?: unknown };
+function slugPrompt(description: string, prompt: string): string {
+  return `${prompt.trim()}\n\nDescription: ${description}\n\nReturn strict JSON only: {"slugs":["..."]}.`;
+}
+
+function parseDescription(raw: string): string {
+  const normalized = raw.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    throw new Error("Vision provider returned an empty description response.");
+  }
+  return normalized;
+}
+
+function parseSlugs(raw: string): string[] {
+  const parsed = JSON.parse(raw) as { slugs?: unknown; slugCandidates?: unknown };
   const slugs = Array.isArray(parsed.slugs) ? parsed.slugs : parsed.slugCandidates;
-  if (typeof parsed.description !== "string" || !Array.isArray(slugs)) {
-    throw new Error("Vision provider returned an invalid describe response.");
+  if (!Array.isArray(slugs)) {
+    throw new Error("Vision provider returned an invalid slug response.");
   }
-  return {
-    description: parsed.description.trim(),
-    slugCandidates: slugs.map((slug) => normalizeSlugCandidate(String(slug))).filter(Boolean).slice(0, 5)
-  };
+  return slugs.map((slug) => normalizeSlugCandidate(String(slug))).filter(Boolean).slice(0, 5);
 }

@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape, regionFromRect, validateRectList } from "./_shared";
+import { assertFiniteNumber, assertParamsShape, compositeOverlayFromRegion, regionFromRect, validateRectList } from "./_shared";
 
 type RedactBlurParams = {
   rects: Array<{ x: number; y: number; w: number; h: number }>;
@@ -11,7 +11,7 @@ const redactBlurModule: OpModule<RedactBlurParams> = {
   type: "redact-blur",
   label: "Blur Redaction",
   category: "Redaction",
-  previewBehavior: "show-input",
+  previewBehavior: "show-output",
   defaultParams: { rects: [], radius: 20 },
   validate(value) {
     const record = assertParamsShape(value, ["rects", "radius"], "redact-blur.params");
@@ -24,12 +24,7 @@ const redactBlurModule: OpModule<RedactBlurParams> = {
     if (params.rects.length === 0) return image;
     const overlays = await Promise.all(params.rects.map(async (rect) => {
       const region = regionFromRect(rect, ctx.sourceWidth, ctx.sourceHeight);
-      const input = await image
-        .clone()
-        .extract(region)
-        .blur(Math.max(0.3, params.radius))
-        .toBuffer();
-      return { input, left: region.left, top: region.top };
+      return compositeOverlayFromRegion(image, region, (regionImage) => regionImage.blur(Math.max(0.3, params.radius)));
     }));
     return image.composite(overlays);
   }

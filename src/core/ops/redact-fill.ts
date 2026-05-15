@@ -11,7 +11,7 @@ const redactFillModule: OpModule<RedactFillParams> = {
   type: "redact-fill",
   label: "Fill Redaction",
   category: "Redaction",
-  previewBehavior: "show-input",
+  previewBehavior: "show-output",
   defaultParams: { rects: [], color: "#000000" },
   validate(value) {
     const record = assertParamsShape(value, ["rects", "color"], "redact-fill.params");

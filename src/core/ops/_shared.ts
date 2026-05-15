@@ -33,6 +33,20 @@ export async function materialize(image: sharp.Sharp): Promise<{ image: sharp.Sh
   return { image: next, width: info.width, height: info.height };
 }
 
+export async function compositeOverlayFromRegion(
+  image: sharp.Sharp,
+  region: { left: number; top: number; width: number; height: number },
+  transform: (regionImage: sharp.Sharp) => sharp.Sharp
+): Promise<sharp.OverlayOptions> {
+  const { data, info } = await transform(image.clone().extract(region)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return {
+    input: data,
+    raw: { width: info.width, height: info.height, channels: info.channels },
+    left: region.left,
+    top: region.top
+  };
+}
+
 export function rectsToList(value: unknown): Rect[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is Rect =>

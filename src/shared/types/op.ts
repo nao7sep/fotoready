@@ -16,7 +16,7 @@ export type OpDefinition<TParams extends Record<string, unknown> = Record<string
   /**
    * "show-input" if the op exposes a canvas overlay that the user drags directly. The
    * preview shows the image *before* this op so the overlay rect lines up. Used today by
-   * crop, redact-*, watermark-*, white-balance.
+   * crop, watermark-*, white-balance.
    *
    * "show-output" includes the op in the preview so slider changes appear live.
    */

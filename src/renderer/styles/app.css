@@ -658,6 +658,13 @@ select:disabled {
   overflow: hidden;
 }
 
+.editor-canvas-static {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
 .editor-canvas canvas {
   display: block;
 }

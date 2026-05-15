@@ -43,16 +43,18 @@ export function EditorCanvas({
     const frame = frameRef.current;
     if (!frame) return;
     const observer = new ResizeObserver(([entry]) => {
-      setFrameSize({
-        width: Math.max(1, Math.round(entry.contentRect.width)),
-        height: Math.max(1, Math.round(entry.contentRect.height))
-      });
+      const width = Math.max(1, Math.round(entry.contentRect.width));
+      const height = Math.max(1, Math.round(entry.contentRect.height));
+      setFrameSize((current) => current.width === width && current.height === height ? current : { width, height });
     });
     observer.observe(frame);
     return () => observer.disconnect();
   }, []);
-
-  const image = useImage(preview?.dataUrl ?? null);
+  const selectedOp = task && selectedOpId ? task.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
+  const selectedRenderer = selectedOp?.enabled ? getOpRenderer(selectedOp.type) : null;
+  const SelectedOverlay = selectedRenderer?.Overlay ?? null;
+  const needsInteractiveCanvas = Boolean(preview && selectedRenderer && (SelectedOverlay || selectedRenderer.onImageClick));
+  const image = useImage(needsInteractiveCanvas ? preview?.dataUrl ?? null : null);
   const imageSize = image
     ? { width: image.naturalWidth || preview?.width || 1, height: image.naturalHeight || preview?.height || 1 }
     : { width: preview?.width ?? 1, height: preview?.height ?? 1 };
@@ -73,8 +75,7 @@ export function EditorCanvas({
     const op = task.pipeline.ops.find((item) => item.id === selectedOpId);
     if (!op) return;
     if (!op?.enabled) return;
-    const renderer = getOpRenderer(op.type);
-    if (!renderer?.onImageClick) return;
+    if (!selectedRenderer?.onImageClick) return;
 
     const pointer = event.target.getStage()?.getPointerPosition();
     if (!pointer) return;
@@ -82,18 +83,19 @@ export function EditorCanvas({
     const localY = (pointer.y - placement.y) / placement.scale;
     if (localX < 0 || localY < 0 || localX > imageSize.width || localY > imageSize.height) return;
 
-    renderer.onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(op.id, patch as Record<string, unknown>));
+    selectedRenderer.onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(op.id, patch as Record<string, unknown>));
   }
-
-  const selectedOp = task && selectedOpId ? task.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
-  const SelectedOverlay = selectedOp?.enabled ? getOpRenderer(selectedOp.type)?.Overlay : null;
 
   return (
     <div className="editor-canvas" ref={frameRef}>
-      {image ? (
+      {preview && !needsInteractiveCanvas ? (
+        <div className="editor-canvas-static">
+          <img alt="" className="preview-image" src={preview.dataUrl} />
+        </div>
+      ) : image ? (
         <Stage height={frameSize.height} width={frameSize.width}>
           <Layer>
-            <Group onClick={handleStageClick}>
+            <Group onClick={selectedRenderer?.onImageClick ? handleStageClick : undefined}>
               <KonvaImage image={image} x={placement.x} y={placement.y} width={placement.width} height={placement.height} />
               {selectedOp && SelectedOverlay ? (
                 <SelectedOverlay

@@ -118,6 +118,7 @@ function App(): React.JSX.Element {
     });
     return { taskId: activeTask.id, options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode }, cacheKey };
   }, [activeTask, opCatalog, selectedOpId]);
+  const previewRequestKey = previewRequest?.cacheKey ?? null;
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -250,7 +251,7 @@ function App(): React.JSX.Element {
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [previewRequest, settings?.previewDebounceMs]);
+  }, [previewRequestKey, settings?.previewDebounceMs]);
 
   useEffect(() => {
     const originals = project?.originals ?? [];

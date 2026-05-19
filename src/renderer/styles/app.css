@@ -1292,6 +1292,7 @@ select:disabled {
   color: var(--text-color);
   background: var(--button-bg);
   font: inherit;
+  font-size: 12px;
 }
 
 .segmented-control button:last-child {

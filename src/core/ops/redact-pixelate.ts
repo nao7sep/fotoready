@@ -1,9 +1,11 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape, compositeOverlayFromRegion, regionFromRect, validateRectList } from "./_shared";
+import { DEFAULT_REDACTION_REGION, type RedactionRegion } from "@shared/types/redaction";
+import { assertFiniteNumber, assertParamsShape } from "./_shared";
+import { compositeMaskedOverlayFromRedactionRegion, validateRedactionRegionList } from "./_redaction-shapes";
 
 type RedactPixelateParams = {
-  rects: Array<{ x: number; y: number; w: number; h: number }>;
+  rects: RedactionRegion[];
   blockSize: number;
 };
 
@@ -12,11 +14,11 @@ const redactPixelateModule: OpModule<RedactPixelateParams> = {
   label: "Pixelate Redaction",
   category: "Redaction",
   previewBehavior: "show-output",
-  defaultParams: { rects: [], blockSize: 0.016 },
+  defaultParams: { rects: [DEFAULT_REDACTION_REGION], blockSize: 0.016 },
   validate(value) {
     const record = assertParamsShape(value, ["rects", "blockSize"], "redact-pixelate.params");
     return {
-      rects: validateRectList(record.rects, "redact-pixelate.params.rects"),
+      rects: validateRedactionRegionList(record.rects, "redact-pixelate.params.rects"),
       blockSize: normalizeBlockSize(assertFiniteNumber(record.blockSize, "redact-pixelate.params.blockSize", { min: 0, minExclusive: true }))
     };
   },
@@ -25,15 +27,18 @@ const redactPixelateModule: OpModule<RedactPixelateParams> = {
     const longEdge = Math.max(ctx.sourceWidth, ctx.sourceHeight);
     const blockSize = Math.max(2, Math.round(params.blockSize * longEdge));
     const overlays = await Promise.all(params.rects.map(async (rect) => {
-      const region = regionFromRect(rect, ctx.sourceWidth, ctx.sourceHeight);
-      const tinyWidth = Math.max(1, Math.ceil(region.width / blockSize));
-      const tinyHeight = Math.max(1, Math.ceil(region.height / blockSize));
-      return compositeOverlayFromRegion(
+      return compositeMaskedOverlayFromRedactionRegion(
         image,
-        region,
-        (regionImage) => regionImage
-          .resize(tinyWidth, tinyHeight, { kernel: "nearest" })
-          .resize(region.width, region.height, { kernel: "nearest" })
+        rect,
+        ctx.sourceWidth,
+        ctx.sourceHeight,
+        (regionImage, size) => {
+          const tinyWidth = Math.max(1, Math.ceil(size.width / blockSize));
+          const tinyHeight = Math.max(1, Math.ceil(size.height / blockSize));
+          return regionImage
+            .resize(tinyWidth, tinyHeight, { kernel: "nearest" })
+            .resize(size.width, size.height, { kernel: "nearest" });
+        }
       );
     }));
     return image.composite(overlays);

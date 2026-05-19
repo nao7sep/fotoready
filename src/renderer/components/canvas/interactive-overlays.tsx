@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import type Konva from "konva";
-import { Rect, Transformer } from "react-konva";
+import { Ellipse, Rect, Transformer } from "react-konva";
+import type { RedactionShape } from "@shared/types/redaction";
 
-type RectShape = { x: number; y: number; w: number; h: number };
+type RectShape = { x: number; y: number; w: number; h: number; rotation?: number };
 type Placement = { x: number; y: number; width: number; height: number; scale: number };
 const MIN_STAGE_SIZE = 12;
 
@@ -15,6 +16,8 @@ export function InteractiveOverlayRect({
   color,
   placement,
   rect,
+  rotateEnabled = false,
+  shape = "rectangle",
   onChange,
   onCommit
 }: {
@@ -22,12 +25,16 @@ export function InteractiveOverlayRect({
   color: string;
   placement: Placement;
   rect: RectShape;
+  rotateEnabled?: boolean;
+  shape?: RedactionShape;
   onChange(nextRect: RectShape): void;
   onCommit(nextRect: RectShape): void;
 }): React.JSX.Element {
   const rectRef = useRef<Konva.Rect>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const stageRect = useMemo(() => clampStageRect(rect, placement), [placement, rect]);
+  const centerX = stageRect.x + stageRect.w / 2;
+  const centerY = stageRect.y + stageRect.h / 2;
 
   useEffect(() => {
     if (!rectRef.current || !transformerRef.current) return;
@@ -39,27 +46,44 @@ export function InteractiveOverlayRect({
     <>
       <Rect
         ref={rectRef}
-        dash={[6, 4]}
-        fill={`${color}22`}
+        fill="rgba(255,255,255,0.001)"
         height={stageRect.h}
-        stroke={color}
-        strokeWidth={2}
+        offsetX={stageRect.w / 2}
+        offsetY={stageRect.h / 2}
+        rotation={stageRect.rotation ?? 0}
+        strokeEnabled={false}
         width={stageRect.w}
-        x={stageRect.x}
-        y={stageRect.y}
+        x={centerX}
+        y={centerY}
         draggable
         dragBoundFunc={(position) => {
-          const bounded = clampStageRect({ ...stageRect, x: position.x, y: position.y }, placement);
-          return { x: bounded.x, y: bounded.y };
+          const bounded = clampStageRect({
+            ...stageRect,
+            x: position.x - stageRect.w / 2,
+            y: position.y - stageRect.h / 2
+          }, placement);
+          return { x: bounded.x + bounded.w / 2, y: bounded.y + bounded.h / 2 };
         }}
         onDragMove={(event) => {
           const node = event.target;
-          const nextRect = clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement);
+          const nextRect = clampStageRect({
+            x: node.x() - stageRect.w / 2,
+            y: node.y() - stageRect.h / 2,
+            w: stageRect.w,
+            h: stageRect.h,
+            rotation: node.rotation()
+          }, placement);
           onChange(nextRect);
         }}
         onDragEnd={(event) => {
           const node = event.target;
-          const nextRect = clampStageRect({ x: node.x(), y: node.y(), w: stageRect.w, h: stageRect.h }, placement);
+          const nextRect = clampStageRect({
+            x: node.x() - stageRect.w / 2,
+            y: node.y() - stageRect.h / 2,
+            w: stageRect.w,
+            h: stageRect.h,
+            rotation: node.rotation()
+          }, placement);
           onCommit(nextRect);
         }}
         onTransform={(event) => {
@@ -71,6 +95,35 @@ export function InteractiveOverlayRect({
           onCommit(nextRect);
         }}
       />
+      {shape === "ellipse" ? (
+        <Ellipse
+          dash={[6, 4]}
+          fillEnabled={false}
+          listening={false}
+          radiusX={stageRect.w / 2}
+          radiusY={stageRect.h / 2}
+          rotation={stageRect.rotation ?? 0}
+          stroke={color}
+          strokeWidth={2}
+          x={centerX}
+          y={centerY}
+        />
+      ) : (
+        <Rect
+          dash={[6, 4]}
+          fillEnabled={false}
+          height={stageRect.h}
+          listening={false}
+          offsetX={stageRect.w / 2}
+          offsetY={stageRect.h / 2}
+          rotation={stageRect.rotation ?? 0}
+          stroke={color}
+          strokeWidth={2}
+          width={stageRect.w}
+          x={centerX}
+          y={centerY}
+        />
+      )}
       <Transformer
         ref={transformerRef}
         anchorFill="#ffffff"
@@ -82,8 +135,7 @@ export function InteractiveOverlayRect({
         enabledAnchors={["top-left", "top-center", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-center", "bottom-right"]}
         flipEnabled={false}
         keepRatio={Boolean(aspectRatio)}
-        rotateEnabled={false}
-        boundBoxFunc={(oldBox, newBox) => toKonvaBox(clampStageRect(fromKonvaBox(newBox), placement), oldBox.rotation)}
+        rotateEnabled={rotateEnabled}
       />
     </>
   );
@@ -92,32 +144,68 @@ export function InteractiveOverlayRect({
 function transformedStageRect(node: Konva.Rect, placement: Placement): RectShape {
   const width = Math.max(MIN_STAGE_SIZE, node.width() * node.scaleX());
   const height = Math.max(MIN_STAGE_SIZE, node.height() * node.scaleY());
-  const bounded = clampStageRect({ x: node.x(), y: node.y(), w: width, h: height }, placement);
+  const bounded = clampStageRect({
+    x: node.x() - width / 2,
+    y: node.y() - height / 2,
+    w: width,
+    h: height,
+    rotation: node.rotation()
+  }, placement);
   node.scaleX(1);
   node.scaleY(1);
   node.width(bounded.w);
   node.height(bounded.h);
-  node.x(bounded.x);
-  node.y(bounded.y);
+  node.offsetX(bounded.w / 2);
+  node.offsetY(bounded.h / 2);
+  node.rotation(bounded.rotation ?? 0);
+  node.x(bounded.x + bounded.w / 2);
+  node.y(bounded.y + bounded.h / 2);
   return bounded;
 }
 
 function clampStageRect(rect: RectShape, placement: Placement): RectShape {
   const minWidth = Math.min(MIN_STAGE_SIZE, placement.width);
   const minHeight = Math.min(MIN_STAGE_SIZE, placement.height);
-  const width = clamp(rect.w, minWidth, placement.width);
-  const height = clamp(rect.h, minHeight, placement.height);
-  const x = clamp(rect.x, placement.x, placement.x + placement.width - width);
-  const y = clamp(rect.y, placement.y, placement.y + placement.height - height);
-  return { x, y, w: width, h: height };
+  let width = clamp(rect.w, minWidth, placement.width);
+  let height = clamp(rect.h, minHeight, placement.height);
+  const rotation = normalizeRotation(rect.rotation ?? 0);
+  let next = { x: rect.x, y: rect.y, w: width, h: height, rotation };
+  let bounds = rotatedBounds(next);
+  const scale = Math.min(
+    1,
+    bounds.width > 0 ? placement.width / bounds.width : 1,
+    bounds.height > 0 ? placement.height / bounds.height : 1
+  );
+  if (scale < 1) {
+    width = Math.max(minWidth, width * scale);
+    height = Math.max(minHeight, height * scale);
+    next = { ...next, w: width, h: height };
+    bounds = rotatedBounds(next);
+  }
+  const deltaX = bounds.x < placement.x ? placement.x - bounds.x : bounds.x + bounds.width > placement.x + placement.width ? placement.x + placement.width - (bounds.x + bounds.width) : 0;
+  const deltaY = bounds.y < placement.y ? placement.y - bounds.y : bounds.y + bounds.height > placement.y + placement.height ? placement.y + placement.height - (bounds.y + bounds.height) : 0;
+  return { ...next, x: next.x + deltaX, y: next.y + deltaY };
 }
 
-function fromKonvaBox(box: { x: number; y: number; width: number; height: number }): RectShape {
-  return { x: box.x, y: box.y, w: box.width, h: box.height };
+function rotatedBounds(rect: RectShape): { x: number; y: number; width: number; height: number } {
+  const radians = (rect.rotation ?? 0) * (Math.PI / 180);
+  const halfWidth = rect.w / 2;
+  const halfHeight = rect.h / 2;
+  const extentX = Math.abs(halfWidth * Math.cos(radians)) + Math.abs(halfHeight * Math.sin(radians));
+  const extentY = Math.abs(halfWidth * Math.sin(radians)) + Math.abs(halfHeight * Math.cos(radians));
+  const centerX = rect.x + rect.w / 2;
+  const centerY = rect.y + rect.h / 2;
+  return {
+    x: centerX - extentX,
+    y: centerY - extentY,
+    width: extentX * 2,
+    height: extentY * 2
+  };
 }
 
-function toKonvaBox(rect: RectShape, rotation: number): { x: number; y: number; width: number; height: number; rotation: number } {
-  return { x: rect.x, y: rect.y, width: rect.w, height: rect.h, rotation };
+function normalizeRotation(rotation: number): number {
+  const normalized = rotation % 360;
+  return normalized > 180 ? normalized - 360 : normalized <= -180 ? normalized + 360 : normalized;
 }
 
 function clamp(value: number, min: number, max: number): number {

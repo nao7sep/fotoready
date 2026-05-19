@@ -849,7 +849,7 @@ function App(): React.JSX.Element {
             </div>
             <p>
               A desktop photo editor for blogging and publication workflows, with queued image processing,
-              metadata tools, rename previews, and optional Gemini-assisted descriptions and slugs.
+              metadata controls, rename previews, and optional Gemini-assisted descriptions and slugs.
             </p>
             <div className="about-links">
               <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_REPOSITORY_URL)}>

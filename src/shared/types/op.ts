@@ -11,6 +11,8 @@ export type OpCategory = "Geometry" | "Tone" | "Effects" | "Conceal" | "Watermar
 export type OpDefinition<TParams extends Record<string, unknown> = Record<string, unknown>> = {
   type: string;
   label: string;
+  /** Optional shorter label used in the right-hand op picker. */
+  pickerLabel?: string;
   category: OpCategory;
   defaultParams: TParams;
   /**

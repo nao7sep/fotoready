@@ -351,7 +351,7 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
         <div className="settings-grid">
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.injectAuthorCopyright} onChange={(event) => setSettings({ ...settings, injectAuthorCopyright: event.currentTarget.checked })} />
-            Write metadata fields into saved files when the format supports them
+            Write these metadata fields to saved files when the format supports them
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.preserveSourceDates} onChange={(event) => setSettings({ ...settings, preserveSourceDates: event.currentTarget.checked })} />
@@ -470,9 +470,9 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <PathField
           allowClear
           buttonLabel="Choose image…"
-          emptyLabel="No default watermark image"
-          label="Default watermark image"
-          pick={async () => window.api.system.pickFile({ title: "Choose Default Watermark Image", extensions: ["png"] })}
+          emptyLabel="No default image watermark"
+          label="Default image watermark"
+          pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png"] })}
           value={settings.defaultWatermarkImage}
           onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
         />

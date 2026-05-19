@@ -114,7 +114,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
             <div className="op-buttons">
               {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
                 <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "pending"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
-                  {op.label}
+                  {op.pickerLabel ?? op.label}
                 </button>
               ))}
             </div>
@@ -134,7 +134,7 @@ function sortOpsForSection(opCatalog: OpCatalogItem[], section: (typeof ADD_OP_S
     const leftRank = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
     const rightRank = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
     if (leftRank !== rightRank) return leftRank - rightRank;
-    return left.label.localeCompare(right.label);
+    return (left.pickerLabel ?? left.label).localeCompare(right.pickerLabel ?? right.label);
   });
 }
 

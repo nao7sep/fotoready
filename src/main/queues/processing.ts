@@ -100,7 +100,7 @@ async function applyMetadataPolicy(outputPath: string, sourcePath: string, task:
     try {
       await injectMetadata(outputPath, policy.injectFields);
     } catch (error) {
-      throw new Error(`Failed to inject metadata into the output file. ${errorMessage(error)}`);
+      throw new Error(`Failed to write metadata to the output file. ${errorMessage(error)}`);
     }
   }
   const bytes = await fs.readFile(outputPath);

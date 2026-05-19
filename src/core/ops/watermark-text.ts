@@ -20,7 +20,8 @@ type WatermarkTextParams = {
 
 const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
-  label: "Text Watermark",
+  label: "Text watermark",
+  pickerLabel: "Text",
   category: "Watermark",
   previewBehavior: "show-output",
   defaultParams: {

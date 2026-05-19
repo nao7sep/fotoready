@@ -13,7 +13,8 @@ type WatermarkImageParams = {
 
 const watermarkImageModule: OpModule<WatermarkImageParams> = {
   type: "watermark-image",
-  label: "Image Watermark",
+  label: "Image watermark",
+  pickerLabel: "Image",
   category: "Watermark",
   previewBehavior: "show-output",
   defaultParams: {

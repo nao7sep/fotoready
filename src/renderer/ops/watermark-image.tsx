@@ -21,13 +21,13 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
           <input
             className="compact-control"
             disabled={disabled}
-            placeholder="Watermark PNG"
+            placeholder="PNG file"
             type="text"
             value={params.pngPath}
             onChange={(event) => onParamChange("pngPath", event.currentTarget.value)}
           />
           <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={async () => {
-            const picked = await api.system.pickFile({ title: "Choose Watermark PNG", extensions: ["png"] });
+            const picked = await api.system.pickFile({ title: "Choose PNG file", extensions: ["png"] });
             if (picked) onParamChange("pngPath", picked);
           }}>
             Choose PNG...

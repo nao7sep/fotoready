@@ -8,7 +8,8 @@ type InjectMetadataParams = {
 
 const injectMetadataModule: OpModule<InjectMetadataParams> = {
   type: "inject-metadata",
-  label: "Inject Metadata",
+  label: "Inject metadata",
+  pickerLabel: "Inject",
   category: "Metadata",
   previewBehavior: "show-output",
   metadataOnly: true,

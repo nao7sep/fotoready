@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Group, Image as KonvaImage, Layer, Stage } from "react-konva";
 import type { Task } from "@shared/types/project";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
-import { fitImage, imageBoundsFromSize } from "@renderer/ops/_overlay-primitives";
+import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
 
 export type EditorCanvasPreview = {
   dataUrl: string;
@@ -11,6 +11,7 @@ export type EditorCanvasPreview = {
 };
 
 export function EditorCanvas({
+  previewScaleMode,
   preview,
   previewState,
   task,
@@ -19,6 +20,7 @@ export function EditorCanvas({
   selectedOpId,
   onOpParamsChange
 }: {
+  previewScaleMode: ImageFitMode;
   preview: EditorCanvasPreview | null;
   previewState: "idle" | "loading" | "error";
   task: Task | null;
@@ -61,8 +63,8 @@ export function EditorCanvas({
   const longEdge = Math.max(imageSize.width, imageSize.height);
   const imageBounds = useMemo(() => imageBoundsFromSize(imageSize), [imageSize]);
   const placement = useMemo(
-    () => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height),
-    [frameSize.height, frameSize.width, imageSize.height, imageSize.width]
+    () => fitImage(imageSize.width, imageSize.height, frameSize.width, frameSize.height, previewScaleMode),
+    [frameSize.height, frameSize.width, imageSize.height, imageSize.width, previewScaleMode]
   );
 
   const overlayCtx: OverlayContext = useMemo(
@@ -90,7 +92,7 @@ export function EditorCanvas({
     <div className="editor-canvas" ref={frameRef}>
       {preview && !needsInteractiveCanvas ? (
         <div className="editor-canvas-static">
-          <img alt="" className="preview-image" src={preview.dataUrl} />
+          <img alt="" className="preview-image" src={preview.dataUrl} style={{ width: `${placement.width}px`, height: `${placement.height}px` }} />
         </div>
       ) : image ? (
         <Stage height={frameSize.height} width={frameSize.width}>

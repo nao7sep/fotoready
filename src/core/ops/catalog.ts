@@ -4,6 +4,7 @@
  */
 import "./crop";
 import "./rotate";
+import "./flip";
 import "./resize";
 import "./levels";
 import "./white-balance";

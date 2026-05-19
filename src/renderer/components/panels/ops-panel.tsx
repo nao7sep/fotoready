@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
@@ -6,6 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { getOpRenderer } from "@renderer/ops";
+import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata"] as const;
 
@@ -15,8 +16,10 @@ type OpsPanelProps = {
   hasGeminiApiKey: boolean;
   luts: LutEntry[];
   opCatalog: OpCatalogItem[];
+  pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
   onOpenSettings(): void;
+  onRevealOpHandled(): void;
   settings: GlobalSettings | null;
   selectedOpId: string | null;
   onAddOp(opType: string): void;
@@ -33,17 +36,34 @@ type OpsPanelProps = {
 };
 
 export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
-  const { activeTask, opCatalog, selectedOpId } = props;
+  const { activeTask, opCatalog, pendingRevealOpId, selectedOpId } = props;
+  const currentOpsRef = useRef<HTMLDivElement>(null);
+  const opRefs = useRef(new Map<string, HTMLElement>());
+
+  useEffect(() => {
+    if (!pendingRevealOpId) return;
+    const element = opRefs.current.get(pendingRevealOpId);
+    if (!element) return;
+    revealInScrollContainer(currentOpsRef.current, element);
+    props.onRevealOpHandled();
+  }, [pendingRevealOpId, activeTask?.pipeline.ops, props]);
 
   return (
     <>
       <aside className="panel ops-panel ops-edit-pane">
         <section className="op-section current-ops-section">
           <h3>Ops</h3>
-          <div className="current-ops">
+          <div className="current-ops" ref={currentOpsRef}>
             {activeTask ? (
               activeTask.pipeline.ops.length ? activeTask.pipeline.ops.map((op, index) => (
                 <PipelineOpCard
+                  cardRef={(element) => {
+                    if (element) {
+                      opRefs.current.set(op.id, element);
+                    } else {
+                      opRefs.current.delete(op.id);
+                    }
+                  }}
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={activeTask.status !== "pending"}
                   index={index}
@@ -101,6 +121,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
 }
 
 function PipelineOpCard({
+  cardRef,
   catalogItem,
   disabled,
   index,
@@ -116,6 +137,7 @@ function PipelineOpCard({
   originalSize,
   selected
 }: {
+  cardRef(element: HTMLElement | null): void;
   catalogItem: OpCatalogItem | null;
   disabled: boolean;
   index: number;
@@ -135,7 +157,7 @@ function PipelineOpCard({
   const Card = renderer?.Card;
 
   return (
-    <section className={`pipeline-op-card ${selected ? "active" : ""}`} onClick={onSelect}>
+    <section className={`pipeline-op-card ${selected ? "active" : ""}`} ref={cardRef} onClick={onSelect}>
       <div className="op-card-header">
         <label className="toggle-row">
           <input

@@ -14,7 +14,6 @@ export const redactFillRenderer: OpRenderer<RedactFillParams> = {
           Color
           <input disabled={disabled} type="color" value={params.color} onChange={(e) => onParamChange("color", e.currentTarget.value)} />
         </label>
-        <div className="row-detail span-two">Drag the rectangle on the preview to position and size it.</div>
       </div>
     );
   },

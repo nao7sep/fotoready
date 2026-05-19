@@ -14,7 +14,6 @@ export const redactPixelateRenderer: OpRenderer<RedactPixelateParams> = {
           Block size — <strong>{params.blockSize.toFixed(3)}</strong>
           <input disabled={disabled} max={0.05} min={0.005} step={0.005} type="range" value={params.blockSize} onChange={(e) => onParamChange("blockSize", e.currentTarget.valueAsNumber)} />
         </label>
-        <div className="row-detail span-two">Drag the rectangle on the preview to position and size it.</div>
       </div>
     );
   },

@@ -6,6 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
+import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
 
 export type LoadedTaskSidecar = {
@@ -83,13 +84,9 @@ function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
       height: Number(sidecar.original.height)
     },
     task: {
-      generateDescription: typeof (sidecar.task as { generateDescription?: unknown }).generateDescription === "boolean"
-        ? Boolean((sidecar.task as { generateDescription?: unknown }).generateDescription)
-        : Boolean((sidecar.task as { analyzeContent?: unknown }).analyzeContent),
-      generateSlug: typeof (sidecar.task as { generateSlug?: unknown }).generateSlug === "boolean"
-        ? Boolean((sidecar.task as { generateSlug?: unknown }).generateSlug)
-        : Boolean((sidecar.task as { analyzeContent?: unknown }).analyzeContent),
-      customSlug: typeof sidecar.task.customSlug === "string" ? sidecar.task.customSlug : null,
+      generateDescription: assertBoolean(sidecar.task.generateDescription, "task.generateDescription"),
+      generateSlug: assertBoolean(sidecar.task.generateSlug, "task.generateSlug"),
+      customSlug: sidecar.task.customSlug === null ? null : assertString(sidecar.task.customSlug, "task.customSlug"),
       pipeline,
       vision: sidecar.task.vision ? structuredClone(sidecar.task.vision) : null
     }

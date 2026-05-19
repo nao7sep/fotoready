@@ -1,4 +1,4 @@
-import { DEFAULT_FILENAME_TEMPLATE_ID } from "../constants";
+import { DEFAULT_FILENAME_TEMPLATE_ID, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
 import { builtinFilenameTemplates } from "../defaults";
 import type { FilenameTemplate, GlobalSettings, MetadataField, MetadataFields } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
@@ -30,8 +30,8 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     defaultAvifQuality: readValue(source, "defaultAvifQuality", fallback.defaultAvifQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     defaultPngPalette: readValue(source, "defaultPngPalette", fallback.defaultPngPalette, issues, assertBoolean),
     defaultMetadataStrip: readValue(source, "defaultMetadataStrip", fallback.defaultMetadataStrip, issues, validateMetadataStrip),
-    defaultGenerateDescription: readLegacyBooleanPair(source, "defaultGenerateDescription", "defaultAnalyzeContent", fallback.defaultGenerateDescription, issues),
-    defaultGenerateSlug: readLegacyBooleanPair(source, "defaultGenerateSlug", "defaultAnalyzeContent", fallback.defaultGenerateSlug, issues),
+    defaultGenerateDescription: readValue(source, "defaultGenerateDescription", fallback.defaultGenerateDescription, issues, assertBoolean),
+    defaultGenerateSlug: readValue(source, "defaultGenerateSlug", fallback.defaultGenerateSlug, issues, assertBoolean),
     enableJpegQualityEstimate: readValue(source, "enableJpegQualityEstimate", fallback.enableJpegQualityEstimate, issues, assertBoolean),
     defaultFlattenTransparency: readValue(source, "defaultFlattenTransparency", fallback.defaultFlattenTransparency, issues, assertBoolean),
     defaultBackgroundForTransparency: readValue(source, "defaultBackgroundForTransparency", fallback.defaultBackgroundForTransparency, issues, assertNonEmptyString),
@@ -49,12 +49,12 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
     model: readValue(source, "model", fallback.model, issues, assertNonEmptyString),
-    preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128 })),
+    preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
     filenameTemplates: normalizeFilenameTemplates(source.filenameTemplates, fallback.filenameTemplates, issues),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
-    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64 })),
+    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64, max: MAX_PREVIEW_LONG_EDGE })),
     previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
   };
 
@@ -120,27 +120,6 @@ function validateMetadataFields(value: unknown, path: string): MetadataFields {
 function validateWorkerPoolSize(value: unknown, path: string): number | null {
   if (value === null) return null;
   return assertFiniteNumber(value, path, { integer: true, min: 1, max: 512 });
-}
-
-function readLegacyBooleanPair(source: Record<string, unknown>, primaryKey: string, legacyKey: string, fallback: boolean, issues: string[]): boolean {
-  const primary = source[primaryKey];
-  if (primary !== undefined) {
-    try {
-      return assertBoolean(primary, `settings.${primaryKey}`);
-    } catch (error) {
-      issues.push(error instanceof Error ? error.message : String(error));
-      return fallback;
-    }
-  }
-  const legacy = source[legacyKey];
-  if (legacy !== undefined) {
-    try {
-      return assertBoolean(legacy, `settings.${legacyKey}`);
-    } catch (error) {
-      issues.push(error instanceof Error ? error.message : String(error));
-    }
-  }
-  return fallback;
 }
 
 function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[], issues: string[]): FilenameTemplate[] {

@@ -2,6 +2,7 @@ import { autoToneRenderer } from "./auto-tone";
 import { cropRenderer } from "./crop";
 import { curvesRenderer } from "./curves";
 import { denoiseRenderer } from "./denoise";
+import { flipRenderer } from "./flip";
 import { hslRenderer } from "./hsl";
 import { injectMetadataRenderer } from "./inject-metadata";
 import { levelsRenderer } from "./levels";
@@ -21,6 +22,7 @@ import type { OpRenderer } from "./op-renderer";
 const allRenderers: OpRenderer[] = [
   cropRenderer as OpRenderer,
   rotateRenderer as OpRenderer,
+  flipRenderer as OpRenderer,
   resizeRenderer as OpRenderer,
   levelsRenderer as OpRenderer,
   whiteBalanceRenderer as OpRenderer,

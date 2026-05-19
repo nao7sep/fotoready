@@ -2,9 +2,13 @@ import React from "react";
 import { Rect } from "react-konva";
 import type { OverlayContext, OverlayPlacement } from "./op-renderer";
 
+export type ImageFitMode = "fit" | "shrink-only";
+
 /** Fit an image of (imageWidth, imageHeight) into (frameWidth, frameHeight) while preserving aspect. */
-export function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number): OverlayPlacement {
-  const scale = Math.min(frameWidth / imageWidth, frameHeight / imageHeight);
+export function fitImage(imageWidth: number, imageHeight: number, frameWidth: number, frameHeight: number, mode: ImageFitMode = "fit"): OverlayPlacement {
+  const scale = mode === "fit"
+    ? Math.min(frameWidth / imageWidth, frameHeight / imageHeight)
+    : Math.min(1, frameWidth / imageWidth, frameHeight / imageHeight);
   const width = imageWidth * scale;
   const height = imageHeight * scale;
   return {

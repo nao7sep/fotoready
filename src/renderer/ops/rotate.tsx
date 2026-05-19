@@ -4,7 +4,13 @@ import type { OpRenderer } from "./op-renderer";
 
 type RotateParams = { degrees: number; fillColor: string };
 
-const rotateFillSwatches = ["#ffffff", "#000000", "#f5f5f5", "#e5e7eb", "#dbeafe"] as const;
+const rotateFillSwatches = [
+  { value: "rgba(0,0,0,0)", label: "Transparent", style: { background: "linear-gradient(45deg, #d1d5db 25%, transparent 25%, transparent 75%, #d1d5db 75%), linear-gradient(45deg, #d1d5db 25%, #ffffff 25%, #ffffff 75%, #d1d5db 75%)", backgroundPosition: "0 0, 6px 6px", backgroundSize: "12px 12px" } },
+  { value: "#ffffff", label: "White", style: { background: "#ffffff" } },
+  { value: "#000000", label: "Black", style: { background: "#000000" } },
+  { value: "#00ff66", label: "Key green", style: { background: "#00ff66" } },
+  { value: "#0088ff", label: "Key blue", style: { background: "#0088ff" } }
+] as const;
 
 export const rotateRenderer: OpRenderer<RotateParams> = {
   type: "rotate",
@@ -28,17 +34,17 @@ export const rotateRenderer: OpRenderer<RotateParams> = {
           <div className="geometry-swatch-group" role="group" aria-label="Rotate fill color">
             {rotateFillSwatches.map((swatch) => (
               <button
-                aria-label={`Use fill color ${swatch}`}
-                className={`color-swatch ${params.fillColor.toLowerCase() === swatch ? "active" : ""}`}
+                aria-label={`Use ${swatch.label.toLowerCase()} fill`}
+                className={`color-swatch ${normalizeFillColor(params.fillColor) === normalizeFillColor(swatch.value) ? "active" : ""}${swatch.value === "rgba(0,0,0,0)" ? " transparent" : ""}`}
                 disabled={disabled}
-                key={swatch}
-                style={{ background: swatch }}
+                key={swatch.value}
+                style={swatch.style}
                 type="button"
-                onClick={() => onParamChange("fillColor", swatch)}
+                onClick={() => onParamChange("fillColor", swatch.value)}
               />
             ))}
             <label className="color-picker-button">
-              <input disabled={disabled} type="color" value={params.fillColor} onChange={(e) => onParamChange("fillColor", e.currentTarget.value)} />
+              <input disabled={disabled} type="color" value={colorPickerValue(params.fillColor)} onChange={(e) => onParamChange("fillColor", e.currentTarget.value)} />
             </label>
           </div>
         </div>
@@ -67,4 +73,12 @@ function normalizeDegrees(value: number): number {
 
 function formatDegrees(value: number): string {
   return `${value > 0 ? "+" : ""}${Math.round(value)}°`;
+}
+
+function normalizeFillColor(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function colorPickerValue(value: string): string {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim()) ? value : "#ffffff";
 }

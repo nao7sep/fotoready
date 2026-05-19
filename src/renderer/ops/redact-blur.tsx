@@ -14,7 +14,6 @@ export const redactBlurRenderer: OpRenderer<RedactBlurParams> = {
           Radius — <strong>{params.radius.toFixed(3)}</strong>
           <input disabled={disabled} max={0.1} min={0.005} step={0.005} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />
         </label>
-        <div className="row-detail span-two">Drag the rectangle on the preview to position and size it.</div>
       </div>
     );
   },

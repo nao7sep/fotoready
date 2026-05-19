@@ -12,3 +12,7 @@ export const BUILTIN_FILENAME_TEMPLATE_IDS = {
 export const DEFAULT_FILENAME_TEMPLATE_ID = BUILTIN_FILENAME_TEMPLATE_IDS.slugSize;
 export const DEFAULT_LUT_FOLDER = "~/.fotoready/luts/";
 export const TASK_SIDECAR_SUFFIX = ".fotoready.json";
+export const MAX_RESIZE_DIMENSION = 8192;
+export const MAX_RESIZE_PIXELS = 40_000_000;
+export const MAX_PREVIEW_LONG_EDGE = 4096;
+export const MAX_VISION_IMAGE_LONG_EDGE = 4096;

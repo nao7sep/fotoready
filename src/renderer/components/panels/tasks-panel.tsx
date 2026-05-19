@@ -7,24 +7,20 @@ export function TasksPanel({
   activeTaskId,
   originals,
   queue,
-  selectedRenameTaskIds,
   tasks,
   onRename,
   onSaveAll,
   onCancelAll,
-  onSelect,
-  onToggleRenameSelection
+  onSelect
 }: {
   activeTaskId: string | null;
   originals: Original[];
   queue: QueueSnapshot;
-  selectedRenameTaskIds: string[];
   tasks: Task[];
   onRename(): void;
   onSaveAll(): void;
   onCancelAll(): void;
   onSelect(taskId: string): void;
-  onToggleRenameSelection(taskId: string, selected: boolean): void;
 }): React.JSX.Element {
   const hasPending = tasks.some((task) => task.status === "pending");
   const hasQueued = queue.queued > 0;
@@ -42,16 +38,6 @@ export function TasksPanel({
             type="button"
             onClick={() => onSelect(task.id)}
           >
-            {task.status === "done" ? (
-              <input
-                aria-label="Select for rename"
-                checked={selectedRenameTaskIds.includes(task.id)}
-                className="row-checkbox"
-                type="checkbox"
-                onChange={(event) => onToggleRenameSelection(task.id, event.currentTarget.checked)}
-                onClick={(event) => event.stopPropagation()}
-              />
-            ) : null}
             <span className={`status-dot ${task.status}`} aria-hidden="true">{statusIndicator(task)}</span>
             <span className="task-copy">
               <span className="row-title">{taskLabel(task, originals)}</span>
@@ -61,7 +47,7 @@ export function TasksPanel({
         ))}
       </div>
       <div className="panel-footer">
-        <button className="primary-action" type="button" onClick={onSaveAll} disabled={!hasPending}>
+        <button className="toolbar-button" type="button" onClick={onSaveAll} disabled={!hasPending}>
           <Save size={14} /> Save all
         </button>
         <button className="toolbar-button" type="button" onClick={onCancelAll} disabled={!hasQueued}>

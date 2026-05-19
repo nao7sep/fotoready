@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import type { SystemInfo } from "@shared/types/ipc";
+import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "@shared/constants";
 import type { FilenameTemplate, GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
-import { DEFAULT_LUT_FOLDER } from "@shared/constants";
 import { validateFilenameTemplates } from "@shared/validation/filename-template";
+import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { ModalShell } from "./modal-shell";
 
 type SettingsTab = "save" | "naming" | "metadata" | "vision" | "assets" | "app";
@@ -62,6 +63,7 @@ export function AppSettingsModal({
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>("save");
+  const settingsPageRef = useRef<HTMLDivElement>(null);
   const templateIssues = useMemo(
     () => settingsDraft ? validateFilenameTemplates(settingsDraft.filenameTemplates, settingsDraft.defaultTemplateId) : [],
     [settingsDraft]
@@ -88,9 +90,9 @@ export function AppSettingsModal({
       </div>
 
       {settingsDraft ? (
-        <div className="settings-page">
+        <div className="settings-page" ref={settingsPageRef}>
           {tab === "save" ? <SaveTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
-          {tab === "naming" ? <NamingTab settings={settingsDraft} setSettings={setSettingsDraft} templateIssues={templateIssues} /> : null}
+          {tab === "naming" ? <NamingTab scrollContainerRef={settingsPageRef} settings={settingsDraft} setSettings={setSettingsDraft} templateIssues={templateIssues} /> : null}
           {tab === "metadata" ? <MetadataTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
           {tab === "vision" ? (
             <VisionTab
@@ -232,10 +234,11 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
 }
 
 function NamingTab({
+  scrollContainerRef,
   settings,
   setSettings,
   templateIssues
-}: SettingsProps & { templateIssues: ReturnType<typeof validateFilenameTemplates> }): React.JSX.Element {
+}: SettingsProps & { scrollContainerRef: React.RefObject<HTMLDivElement | null>; templateIssues: ReturnType<typeof validateFilenameTemplates> }): React.JSX.Element {
   const templateRefs = useRef(new Map<string, HTMLDivElement>());
   const [pendingScrollTemplateId, setPendingScrollTemplateId] = useState<string | null>(null);
 
@@ -243,12 +246,12 @@ function NamingTab({
     if (!pendingScrollTemplateId) return;
     const element = templateRefs.current.get(pendingScrollTemplateId);
     if (!element) return;
-    element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    revealInScrollContainer(scrollContainerRef.current, element);
     const input = element.querySelector<HTMLInputElement>('input[type="text"]');
     input?.focus();
     input?.select();
     setPendingScrollTemplateId(null);
-  }, [pendingScrollTemplateId, settings.filenameTemplates]);
+  }, [pendingScrollTemplateId, scrollContainerRef, settings.filenameTemplates]);
 
   function updateTemplate(templateId: string, patch: Partial<FilenameTemplate>): void {
     setSettings({
@@ -403,7 +406,7 @@ function VisionTab({
             Model
             <input type="text" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })} />
           </label>
-          <NumberField label="Vision image long edge" max={4096} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
+          <NumberField label="Vision image long edge" max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"
@@ -490,7 +493,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           <NumberField
             className="span-two"
             label="Preview image long edge"
-            max={4096}
+            max={MAX_PREVIEW_LONG_EDGE}
             min={320}
             value={settings.previewLongEdge}
             onChange={(value) => setSettings({ ...settings, previewLongEdge: value })}
@@ -563,10 +566,33 @@ function NumberField({
   onChange(value: number): void;
   value: number;
 }): React.JSX.Element {
+  const [draftValue, setDraftValue] = useState(String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  const issue = getNumberFieldIssue(draftValue, min, max);
+
   return (
     <label className={`stacked-field${className ? ` ${className}` : ""}`}>
       {label}
-      <input max={max} min={min} type="number" value={value} onChange={(event) => onChange(event.currentTarget.valueAsNumber)} />
+      <input
+        aria-invalid={issue ? true : undefined}
+        inputMode="numeric"
+        type="text"
+        value={draftValue}
+        onBlur={() => {
+          if (issue || draftValue.length === 0) setDraftValue(String(value));
+        }}
+        onChange={(event) => {
+          const nextValue = cleanIntegerDraft(event.currentTarget.value);
+          setDraftValue(nextValue);
+          const parsed = parseIntegerDraft(nextValue);
+          if (parsed !== null && parsed >= min && parsed <= max) onChange(parsed);
+        }}
+      />
+      {issue ? <span className="field-help">{issue}</span> : null}
     </label>
   );
 }
@@ -634,6 +660,24 @@ function AutoTextarea({ value, onChange }: { value: string; onChange(value: stri
   }, [value]);
 
   return <textarea ref={ref} rows={1} value={value} onChange={(event) => onChange(event.currentTarget.value)} />;
+}
+
+function cleanIntegerDraft(value: string): string {
+  return value.replace(/[^\d]/g, "");
+}
+
+function parseIntegerDraft(value: string): number | null {
+  if (!/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getNumberFieldIssue(value: string, min: number, max: number): string | null {
+  if (value.length === 0) return null;
+  const parsed = parseIntegerDraft(value);
+  if (parsed === null) return "Enter a whole number.";
+  if (parsed < min || parsed > max) return `Must be between ${min.toLocaleString()} and ${max.toLocaleString()}.`;
+  return null;
 }
 
 function fieldLabel(field: keyof MetadataFields): string {

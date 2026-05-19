@@ -539,7 +539,7 @@ select:disabled {
 
 .geometry-controls {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .geometry-toolbar-row {
@@ -598,7 +598,7 @@ select:disabled {
 }
 
 .geometry-number-field {
-  min-width: 132px;
+  min-width: 0;
 }
 
 .color-swatch {
@@ -671,11 +671,6 @@ select:disabled {
 
 .preview-image {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
   box-shadow: 0 10px 40px rgb(0 0 0 / 45%);
 }
 
@@ -871,6 +866,7 @@ select:disabled {
 .current-ops {
   display: grid;
   gap: 8px;
+  align-content: start;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -883,8 +879,8 @@ select:disabled {
 
 .pipeline-op-card {
   display: grid;
-  gap: 10px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-raised-bg);
@@ -936,6 +932,11 @@ select:disabled {
   gap: 4px;
   color: var(--text-muted-color);
   font-size: 11px;
+}
+
+.field-grid label.toggle-row {
+  display: flex;
+  gap: 8px;
 }
 
 .span-two {
@@ -1036,6 +1037,10 @@ select:disabled {
   gap: 8px;
   color: var(--text-color);
   font-size: 13px;
+}
+
+.toggle-row span {
+  min-width: 0;
 }
 
 .toggle-row input[type="checkbox"] {

@@ -18,6 +18,7 @@ import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
+import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import "./styles/app.css";
 
@@ -87,6 +88,7 @@ function App(): React.JSX.Element {
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
+  const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
   const preview = useEditorStore((state) => state.preview);
@@ -123,7 +125,7 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
-  const previewRequest = useMemo(() => {
+  const previewConfig = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpId ? activeTask.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
     // Cards with previewBehavior "show-input" (crop, watermark, white-balance) display
@@ -131,6 +133,9 @@ function App(): React.JSX.Element {
     // Other cards include themselves so slider edits appear live.
     const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;
     const mode: PreviewRenderMode = selectedOp ? selectedDefinition?.previewBehavior === "show-input" ? "input" : "output" : "full";
+    const shownOps = !selectedOp || mode === "full"
+      ? activeTask.pipeline.ops
+      : activeTask.pipeline.ops.slice(0, activeTask.pipeline.ops.findIndex((op) => op.id === selectedOp.id) + (mode === "input" ? 0 : 1));
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,
       originalId: activeTask.originalId,
@@ -139,8 +144,15 @@ function App(): React.JSX.Element {
       ops: activeTask.pipeline.ops,
       output: activeTask.pipeline.output
     });
-    return { taskId: activeTask.id, options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode }, cacheKey };
+    return {
+      taskId: activeTask.id,
+      options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode },
+      cacheKey,
+      previewScaleMode: (shownOps.some((op) => op.enabled && op.type === "resize") ? "shrink-only" : "fit") as ImageFitMode
+    };
   }, [activeTask, opCatalog, selectedOpId]);
+  const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, cacheKey: previewConfig.cacheKey } : null;
+  const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
   const previewRequestKey = previewRequest?.cacheKey ?? null;
 
   useEffect(() => {
@@ -429,8 +441,9 @@ function App(): React.JSX.Element {
     if (!activeTask) return;
     const snapshot = await api.task.addOp(activeTask.id, opType);
     await refreshProject(snapshot);
-    const updatedTask = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId);
-    selectOp(updatedTask?.pipeline.ops.at(-1)?.id ?? null);
+    const addedOpId = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.at(-1)?.id ?? null;
+    selectOp(addedOpId);
+    setPendingRevealOpId(addedOpId);
   }
 
   async function removeOp(opId: string): Promise<void> {
@@ -633,13 +646,11 @@ function App(): React.JSX.Element {
             activeTaskId={activeTask?.id ?? null}
             originals={project?.originals ?? []}
             queue={queue}
-            selectedRenameTaskIds={selectedRenameTaskIds}
             tasks={project?.tasks ?? []}
             onRename={() => setRenameOpen(true)}
             onSaveAll={() => void saveAll()}
             onCancelAll={() => void cancelAll()}
             onSelect={(taskId) => void selectTask(taskId)}
-            onToggleRenameSelection={toggleRenameSelection}
           />
         ) : null}
         {showTasks ? <WorkspaceSplitter label="Resize Tasks panel" onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
@@ -652,7 +663,6 @@ function App(): React.JSX.Element {
                 <em>
                   {activeOriginal.width}×{activeOriginal.height} · {formatLabel(activeOriginal.format)}
                   {hasJpegEstimate ? ` · assumed JPEG quality ${activeOriginal.jpegQualityEstimate}` : ""}
-                  {activePreview ? ` · preview ${activePreview.width}×${activePreview.height}` : ""}
                   {activeTask ? ` · output ${formatLabel(resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format))}` : ""}
                   {activeTask ? ` · ${activeTask.status}` : ""}
                 </em>
@@ -696,6 +706,7 @@ function App(): React.JSX.Element {
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
               previewState={previewState}
+              previewScaleMode={previewScaleMode}
               selectedOpId={selectedOpId}
               task={activeTask}
             />
@@ -729,6 +740,7 @@ function App(): React.JSX.Element {
             hasGeminiApiKey={hasGeminiApiKey}
             luts={lutEntries}
             opCatalog={opCatalog}
+            pendingRevealOpId={pendingRevealOpId}
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
             onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
@@ -742,6 +754,7 @@ function App(): React.JSX.Element {
             onOpParamsChange={(opId, patch) => void updateOpParams(opId, patch)}
             onOutputChange={(key, value) => void updateOutput(key, value)}
             onRemoveOp={(opId) => void removeOp(opId)}
+            onRevealOpHandled={() => setPendingRevealOpId(null)}
             settings={settings}
             selectedOpId={selectedOpId}
           />

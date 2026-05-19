@@ -4,22 +4,22 @@ import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/concea
 import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared";
 import { compositeMaskedOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 
-type ConcealBlurParams = {
+type BlurParams = {
   rects: ConcealRegion[];
   radius: number;
 };
 
-const concealBlurModule: OpModule<ConcealBlurParams> = {
-  type: "conceal-blur",
-  label: "Conceal Blur",
+const blurModule: OpModule<BlurParams> = {
+  type: "blur",
+  label: "Blur",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], radius: 20 },
   validate(value) {
-    const record = assertParamsShape(value, ["rects", "radius"], "conceal-blur.params");
+    const record = assertParamsShape(value, ["rects", "radius"], "blur.params");
     return {
-      rects: validateConcealRegionList(record.rects, "conceal-blur.params.rects"),
-      radius: assertFiniteNumber(record.radius, "conceal-blur.params.radius", { min: 0, minExclusive: true })
+      rects: validateConcealRegionList(record.rects, "blur.params.rects"),
+      radius: assertFiniteNumber(record.radius, "blur.params.radius", { min: 0, minExclusive: true })
     };
   },
   async apply(image, params, ctx) {
@@ -37,4 +37,4 @@ const concealBlurModule: OpModule<ConcealBlurParams> = {
   }
 };
 
-registerOp(concealBlurModule);
+registerOp(blurModule);

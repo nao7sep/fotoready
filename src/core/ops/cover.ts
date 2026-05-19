@@ -4,24 +4,24 @@ import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/concea
 import { applyComposite, assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
 import { fillOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 
-type ConcealFillParams = {
+type CoverParams = {
   rects: ConcealRegion[];
   color: string;
   opacity: number;
 };
 
-const concealFillModule: OpModule<ConcealFillParams> = {
-  type: "conceal-fill",
-  label: "Conceal Fill",
+const coverModule: OpModule<CoverParams> = {
+  type: "cover",
+  label: "Cover",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], color: "#000000", opacity: 1 },
   validate(value) {
-    const record = assertParamsShape(value, ["rects", "color", "opacity"], "conceal-fill.params");
+    const record = assertParamsShape(value, ["rects", "color", "opacity"], "cover.params");
     return {
-      rects: validateConcealRegionList(record.rects, "conceal-fill.params.rects"),
-      color: assertNonEmptyString(record.color, "conceal-fill.params.color"),
-      opacity: assertFiniteNumber(record.opacity, "conceal-fill.params.opacity", { min: 0, max: 1 })
+      rects: validateConcealRegionList(record.rects, "cover.params.rects"),
+      color: assertNonEmptyString(record.color, "cover.params.color"),
+      opacity: assertFiniteNumber(record.opacity, "cover.params.opacity", { min: 0, max: 1 })
     };
   },
   async apply(image, params, ctx) {
@@ -35,7 +35,7 @@ const concealFillModule: OpModule<ConcealFillParams> = {
   }
 };
 
-registerOp(concealFillModule);
+registerOp(coverModule);
 
 function rgbaFromColor(color: string, opacity: number): string {
   const normalized = color.trim();

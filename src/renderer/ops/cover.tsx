@@ -1,13 +1,13 @@
 import React from "react";
-import type { ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
+import type { ConcealRegion } from "@shared/types/conceal";
 import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
 
-type ConcealPixelateParams = { rects: ConcealRegion[]; blockSize: number };
+type CoverParams = { rects: ConcealRegion[]; color: string; opacity: number };
 
-export const concealPixelateRenderer: OpRenderer<ConcealPixelateParams> = {
-  type: "conceal-pixelate",
+export const coverRenderer: OpRenderer<CoverParams> = {
+  type: "cover",
   Card({ params, disabled, onParamChange }) {
     const firstRegion = readConcealRegionList(params.rects)[0];
     return (
@@ -30,10 +30,14 @@ export const concealPixelateRenderer: OpRenderer<ConcealPixelateParams> = {
             Ellipse
           </button>
         </div>
+        <label className="conceal-color-row">
+          <span>Color</span>
+          <input disabled={disabled} type="color" value={params.color} onChange={(e) => onParamChange("color", e.currentTarget.value)} />
+        </label>
         <label className="slider-row">
-          <span>Block size</span>
-          <input disabled={disabled} max={0.05} min={0.005} step={0.005} type="range" value={params.blockSize} onChange={(e) => onParamChange("blockSize", e.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${(params.blockSize * 100).toFixed(1)}%`}</span>
+          <span>Opacity</span>
+          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.opacity} onChange={(e) => onParamChange("opacity", e.currentTarget.valueAsNumber)} />
+          <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
         </label>
       </div>
     );

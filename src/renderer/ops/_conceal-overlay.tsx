@@ -11,7 +11,7 @@ import {
   concealRegionToStage
 } from "./_conceal-primitives";
 
-/** Shared draggable conceal overlay used by conceal-fill, conceal-blur, conceal-pixelate. */
+/** Shared draggable conceal overlay used by cover, blur, and mosaic conceal ops. */
 export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOverlayProps<{ rects: ConcealRegion[] } & Record<string, unknown>>): React.JSX.Element | null {
   const rects = readConcealRegionList(params.rects);
   const firstRect = rects[0] ?? null;

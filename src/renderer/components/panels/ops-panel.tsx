@@ -114,7 +114,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
             <div className="op-buttons">
               {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
                 <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "pending"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
-                  Add {op.label}
+                  {op.label}
                 </button>
               ))}
             </div>

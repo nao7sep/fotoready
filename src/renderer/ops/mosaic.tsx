@@ -4,10 +4,10 @@ import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
 import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
 
-type ConcealBlurParams = { rects: ConcealRegion[]; radius: number };
+type MosaicParams = { rects: ConcealRegion[]; blockSize: number };
 
-export const concealBlurRenderer: OpRenderer<ConcealBlurParams> = {
-  type: "conceal-blur",
+export const mosaicRenderer: OpRenderer<MosaicParams> = {
+  type: "mosaic",
   Card({ params, disabled, onParamChange }) {
     const firstRegion = readConcealRegionList(params.rects)[0];
     return (
@@ -31,9 +31,9 @@ export const concealBlurRenderer: OpRenderer<ConcealBlurParams> = {
           </button>
         </div>
         <label className="slider-row">
-          <span>Radius</span>
-          <input disabled={disabled} max={40} min={1} step={1} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{params.radius.toFixed(0)}</span>
+          <span>Cell size</span>
+          <input disabled={disabled} max={0.05} min={0.005} step={0.005} type="range" value={params.blockSize} onChange={(e) => onParamChange("blockSize", e.currentTarget.valueAsNumber)} />
+          <span className="slider-value">{`${(params.blockSize * 100).toFixed(1)}%`}</span>
         </label>
       </div>
     );

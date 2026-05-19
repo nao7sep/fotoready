@@ -5,22 +5,22 @@ import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared
 import { compositeMaskedOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 import sharp from "sharp";
 
-type ConcealPixelateParams = {
+type MosaicParams = {
   rects: ConcealRegion[];
   blockSize: number;
 };
 
-const concealPixelateModule: OpModule<ConcealPixelateParams> = {
-  type: "conceal-pixelate",
-  label: "Conceal Pixelate",
+const mosaicModule: OpModule<MosaicParams> = {
+  type: "mosaic",
+  label: "Mosaic",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], blockSize: 0.016 },
   validate(value) {
-    const record = assertParamsShape(value, ["rects", "blockSize"], "conceal-pixelate.params");
+    const record = assertParamsShape(value, ["rects", "blockSize"], "mosaic.params");
     return {
-      rects: validateConcealRegionList(record.rects, "conceal-pixelate.params.rects"),
-      blockSize: normalizeBlockSize(assertFiniteNumber(record.blockSize, "conceal-pixelate.params.blockSize", { min: 0, minExclusive: true }))
+      rects: validateConcealRegionList(record.rects, "mosaic.params.rects"),
+      blockSize: normalizeBlockSize(assertFiniteNumber(record.blockSize, "mosaic.params.blockSize", { min: 0, minExclusive: true }))
     };
   },
   async apply(image, params, ctx) {
@@ -40,7 +40,7 @@ const concealPixelateModule: OpModule<ConcealPixelateParams> = {
   }
 };
 
-registerOp(concealPixelateModule);
+registerOp(mosaicModule);
 
 function normalizeBlockSize(blockSize: number): number {
   return blockSize > 1 ? blockSize / 1000 : blockSize;

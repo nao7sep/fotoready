@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
+import type { ConcealRegion } from "@shared/types/conceal";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpOverlayProps } from "./op-renderer";
 import {
@@ -14,11 +14,11 @@ import {
 /** Shared draggable conceal overlay used by conceal-fill, conceal-blur, conceal-pixelate. */
 export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOverlayProps<{ rects: ConcealRegion[] } & Record<string, unknown>>): React.JSX.Element | null {
   const rects = readConcealRegionList(params.rects);
-  const firstRect = rects[0] ?? DEFAULT_CONCEAL_REGION;
-  const clampedFirst = clampConcealRegion(firstRect, ctx.imageBounds);
+  const firstRect = rects[0] ?? null;
+  const clampedFirst = firstRect ? clampConcealRegion(firstRect, ctx.imageBounds) : null;
 
   const [draft, setDraft] = useState<ConcealRegion | null>(null);
-  useEffect(() => { setDraft(null); }, [firstRect.h, firstRect.rotation, firstRect.shape, firstRect.w, firstRect.x, firstRect.y]);
+  useEffect(() => { setDraft(null); }, [firstRect?.h, firstRect?.rotation, firstRect?.shape, firstRect?.w, firstRect?.x, firstRect?.y]);
 
   if (!selected) {
     return (
@@ -35,6 +35,8 @@ export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOver
       </>
     );
   }
+
+  if (!clampedFirst) return null;
 
   const visible = draft ?? clampedFirst;
   const stageRect = concealRegionToStage(visible, ctx.longEdge, ctx.placement);

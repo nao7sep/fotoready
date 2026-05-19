@@ -30,8 +30,8 @@ export const concealFillRenderer: OpRenderer<ConcealFillParams> = {
             Ellipse
           </button>
         </div>
-        <label className="span-two">
-          Color
+        <label className="conceal-color-row">
+          <span>Color</span>
           <input disabled={disabled} type="color" value={params.color} onChange={(e) => onParamChange("color", e.currentTarget.value)} />
         </label>
         <label className="slider-row">

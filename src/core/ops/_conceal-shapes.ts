@@ -45,13 +45,14 @@ export async function compositeMaskedOverlayFromConcealRegion(
   region: ConcealRegion,
   sourceWidth: number,
   sourceHeight: number,
-  transform: (regionImage: sharp.Sharp, size: { width: number; height: number }) => sharp.Sharp
+  transform: (regionImage: sharp.Sharp, size: { width: number; height: number }) => sharp.Sharp | Promise<sharp.Sharp>
 ): Promise<sharp.OverlayOptions> {
   const projected = projectConcealRegion(region, sourceWidth, sourceHeight);
-  const transformed = await transform(image.clone().extract(projected.bounds), {
+  const transformedImage = await transform(image.clone().extract(projected.bounds), {
     width: projected.bounds.width,
     height: projected.bounds.height
-  }).ensureAlpha().png().toBuffer();
+  });
+  const transformed = await transformedImage.ensureAlpha().png().toBuffer();
   const masked = await sharp(transformed)
     .composite([{ input: shapeSvg(projected, "#ffffff"), blend: "dest-in" }])
     .png()

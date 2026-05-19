@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { ANCHORS, anchorPosition, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertParamsShape, assertString, escapeXml } from "./_shared";
+import { ANCHORS, anchorPosition, applyComposite, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertParamsShape, assertString, escapeXml } from "./_shared";
 
 type WatermarkTextParams = {
   text: string;
@@ -53,7 +53,7 @@ const watermarkTextModule: OpModule<WatermarkTextParams> = {
   <text x="0" y="${Math.round(fontSize * 1.15)}" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="${fontSize}" fill="${escapeXml(params.color)}" fill-opacity="${params.opacity}">${escapeXml(params.text)}</text>
 </svg>`;
     const { left, top } = anchorPosition(params.anchor, ctx.sourceWidth, ctx.sourceHeight, svgWidth, svgHeight, marginX, marginY);
-    return image.composite([{ input: Buffer.from(svg), left, top }]);
+    return applyComposite(image, [{ input: Buffer.from(svg), left, top }]);
   }
 };
 

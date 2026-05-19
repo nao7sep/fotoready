@@ -33,6 +33,14 @@ export async function materialize(image: sharp.Sharp): Promise<{ image: sharp.Sh
   return { image: next, width: info.width, height: info.height };
 }
 
+/**
+ * Sharp composite chains are lazy; materialize immediately so later ops see the
+ * actual composited pixels rather than a still-deferred pipeline.
+ */
+export async function applyComposite(image: sharp.Sharp, overlays: sharp.OverlayOptions[]): Promise<{ image: sharp.Sharp; width: number; height: number }> {
+  return materialize(image.composite(overlays));
+}
+
 export async function compositeOverlayFromRegion(
   image: sharp.Sharp,
   region: { left: number; top: number; width: number; height: number },

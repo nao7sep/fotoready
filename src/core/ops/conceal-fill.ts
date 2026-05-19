@@ -1,7 +1,7 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
-import { assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
+import { applyComposite, assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
 import { fillOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 
 type ConcealFillParams = {
@@ -24,9 +24,9 @@ const concealFillModule: OpModule<ConcealFillParams> = {
       opacity: assertFiniteNumber(record.opacity, "conceal-fill.params.opacity", { min: 0, max: 1 })
     };
   },
-  apply(image, params, ctx) {
+  async apply(image, params, ctx) {
     if (params.rects.length === 0) return image;
-    return image.composite(params.rects.map((rect) => fillOverlayFromConcealRegion(
+    return applyComposite(image, params.rects.map((rect) => fillOverlayFromConcealRegion(
       rect,
       ctx.sourceWidth,
       ctx.sourceHeight,

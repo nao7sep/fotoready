@@ -10,13 +10,10 @@ export const lutRenderer: OpRenderer<LutParams> = {
     const { luts } = ctx;
     return (
       <div className="geometry-controls">
-        <label className="stacked-field">
-          LUT
-          <select disabled={disabled || luts.length === 0} value={params.cubePath} onChange={(e) => onParamChange("cubePath", e.currentTarget.value)}>
-            <option value="">Choose a LUT</option>
-            {luts.map((lut) => <option key={lut.path} value={lut.path}>{lut.name}</option>)}
-          </select>
-        </label>
+        <select className="compact-control" disabled={disabled || luts.length === 0} value={params.cubePath} onChange={(e) => onParamChange("cubePath", e.currentTarget.value)}>
+          <option value="">Choose a LUT</option>
+          {luts.map((lut) => <option key={lut.path} value={lut.path}>{lut.name}</option>)}
+        </select>
         <button className="toolbar-button" disabled={disabled} type="button" onClick={async () => {
           const picked = await api.system.pickFile({ title: "Choose Cube LUT", extensions: ["cube"] });
           if (!picked) return;

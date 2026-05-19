@@ -1,7 +1,7 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
-import { assertFiniteNumber, assertParamsShape } from "./_shared";
+import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared";
 import { compositeMaskedOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 
 type ConcealBlurParams = {
@@ -33,7 +33,7 @@ const concealBlurModule: OpModule<ConcealBlurParams> = {
         (regionImage) => regionImage.blur(Math.max(0.3, params.radius))
       );
     }));
-    return image.composite(overlays);
+    return applyComposite(image, overlays);
   }
 };
 

@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { ANCHORS, anchorPosition, assertFiniteNumber, assertOneOf, assertParamsShape, assertString } from "./_shared";
+import { ANCHORS, anchorPosition, applyComposite, assertFiniteNumber, assertOneOf, assertParamsShape, assertString } from "./_shared";
 
 type WatermarkImageParams = {
   pngPath: string;
@@ -48,7 +48,7 @@ const watermarkImageModule: OpModule<WatermarkImageParams> = {
       .modulate({ brightness: params.opacity })
       .toBuffer({ resolveWithObject: true });
     const { left, top } = anchorPosition(params.anchor, ctx.sourceWidth, ctx.sourceHeight, watermark.info.width, watermark.info.height, marginX, marginY);
-    return image.composite([{ input: watermark.data, left, top }]);
+    return applyComposite(image, [{ input: watermark.data, left, top }]);
   }
 };
 

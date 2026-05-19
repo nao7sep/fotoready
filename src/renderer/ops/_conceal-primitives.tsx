@@ -1,36 +1,36 @@
 import React from "react";
 import { Ellipse, Rect } from "react-konva";
-import { DEFAULT_REDACTION_REGION, REDACTION_SHAPES, type RedactionRegion, type RedactionShape } from "@shared/types/redaction";
+import { DEFAULT_CONCEAL_REGION, CONCEAL_SHAPES, type ConcealRegion, type ConcealShape } from "@shared/types/conceal";
 import type { OverlayPlacement } from "./op-renderer";
 
-export type StageRedactionRegion = { x: number; y: number; w: number; h: number; rotation: number };
+export type StageConcealRegion = { x: number; y: number; w: number; h: number; rotation: number };
 
-export function readRedactionRegionList(value: unknown): RedactionRegion[] {
+export function readConcealRegionList(value: unknown): ConcealRegion[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
-    const region = entry as Partial<RedactionRegion>;
+    const region = entry as Partial<ConcealRegion>;
     if (
       typeof region.x !== "number"
       || typeof region.y !== "number"
       || typeof region.w !== "number"
       || typeof region.h !== "number"
       || typeof region.rotation !== "number"
-      || !REDACTION_SHAPES.includes(region.shape as RedactionShape)
+      || !CONCEAL_SHAPES.includes(region.shape as ConcealShape)
     ) {
       return [];
     }
-    return [normalizeRegion(region as RedactionRegion)];
+    return [normalizeRegion(region as ConcealRegion)];
   });
 }
 
-export function patchFirstRedactionRegion(value: unknown, patch: Partial<RedactionRegion>): RedactionRegion[] {
-  const regions = readRedactionRegionList(value);
-  const first = normalizeRegion({ ...(regions[0] ?? DEFAULT_REDACTION_REGION), ...patch });
+export function patchFirstConcealRegion(value: unknown, patch: Partial<ConcealRegion>): ConcealRegion[] {
+  const regions = readConcealRegionList(value);
+  const first = normalizeRegion({ ...(regions[0] ?? DEFAULT_CONCEAL_REGION), ...patch });
   return regions.length === 0 ? [first] : [first, ...regions.slice(1)];
 }
 
-export function clampRedactionRegion(region: RedactionRegion, imageBounds: { maxX: number; maxY: number }): RedactionRegion {
+export function clampConcealRegion(region: ConcealRegion, imageBounds: { maxX: number; maxY: number }): ConcealRegion {
   const maxX = clamp(imageBounds.maxX, 0.01, 1);
   const maxY = clamp(imageBounds.maxY, 0.01, 1);
   const x = clamp(region.x, 0, maxX);
@@ -46,7 +46,7 @@ export function clampRedactionRegion(region: RedactionRegion, imageBounds: { max
   });
 }
 
-export function redactionRegionToStage(region: RedactionRegion, longEdge: number, placement: OverlayPlacement): StageRedactionRegion {
+export function concealRegionToStage(region: ConcealRegion, longEdge: number, placement: OverlayPlacement): StageConcealRegion {
   return {
     x: placement.x + region.x * longEdge * placement.scale,
     y: placement.y + region.y * longEdge * placement.scale,
@@ -56,12 +56,12 @@ export function redactionRegionToStage(region: RedactionRegion, longEdge: number
   };
 }
 
-export function redactionRegionFromStage(
+export function concealRegionFromStage(
   region: { x: number; y: number; w: number; h: number; rotation?: number },
   longEdge: number,
   placement: OverlayPlacement,
-  shape: RedactionShape
-): RedactionRegion {
+  shape: ConcealShape
+): ConcealRegion {
   return normalizeRegion({
     x: (region.x - placement.x) / (longEdge * placement.scale),
     y: (region.y - placement.y) / (longEdge * placement.scale),
@@ -72,7 +72,7 @@ export function redactionRegionFromStage(
   });
 }
 
-export function OverlayRedactionShape({
+export function OverlayConcealShape({
   color,
   placement,
   region,
@@ -80,10 +80,10 @@ export function OverlayRedactionShape({
 }: {
   color: string;
   placement: OverlayPlacement;
-  region: RedactionRegion;
+  region: ConcealRegion;
   longEdge: number;
 }): React.JSX.Element {
-  const stage = redactionRegionToStage(region, longEdge, placement);
+  const stage = concealRegionToStage(region, longEdge, placement);
   const centerX = stage.x + stage.w / 2;
   const centerY = stage.y + stage.h / 2;
   if (region.shape === "ellipse") {
@@ -118,7 +118,7 @@ export function OverlayRedactionShape({
   );
 }
 
-function normalizeRegion(region: RedactionRegion): RedactionRegion {
+function normalizeRegion(region: ConcealRegion): ConcealRegion {
   return {
     ...region,
     rotation: normalizeRotation(region.rotation)

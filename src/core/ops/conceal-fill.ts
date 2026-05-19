@@ -1,32 +1,32 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { DEFAULT_REDACTION_REGION, type RedactionRegion } from "@shared/types/redaction";
+import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import { assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
-import { fillOverlayFromRedactionRegion, validateRedactionRegionList } from "./_redaction-shapes";
+import { fillOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
 
-type RedactFillParams = {
-  rects: RedactionRegion[];
+type ConcealFillParams = {
+  rects: ConcealRegion[];
   color: string;
   opacity: number;
 };
 
-const redactFillModule: OpModule<RedactFillParams> = {
-  type: "redact-fill",
-  label: "Fill Redaction",
-  category: "Redaction",
+const concealFillModule: OpModule<ConcealFillParams> = {
+  type: "conceal-fill",
+  label: "Conceal Fill",
+  category: "Conceal",
   previewBehavior: "show-output",
-  defaultParams: { rects: [DEFAULT_REDACTION_REGION], color: "#000000", opacity: 1 },
+  defaultParams: { rects: [DEFAULT_CONCEAL_REGION], color: "#000000", opacity: 1 },
   validate(value) {
-    const record = assertParamsShape(value, ["rects", "color", "opacity"], "redact-fill.params");
+    const record = assertParamsShape(value, ["rects", "color", "opacity"], "conceal-fill.params");
     return {
-      rects: validateRedactionRegionList(record.rects, "redact-fill.params.rects"),
-      color: assertNonEmptyString(record.color, "redact-fill.params.color"),
-      opacity: assertFiniteNumber(record.opacity, "redact-fill.params.opacity", { min: 0, max: 1 })
+      rects: validateConcealRegionList(record.rects, "conceal-fill.params.rects"),
+      color: assertNonEmptyString(record.color, "conceal-fill.params.color"),
+      opacity: assertFiniteNumber(record.opacity, "conceal-fill.params.opacity", { min: 0, max: 1 })
     };
   },
   apply(image, params, ctx) {
     if (params.rects.length === 0) return image;
-    return image.composite(params.rects.map((rect) => fillOverlayFromRedactionRegion(
+    return image.composite(params.rects.map((rect) => fillOverlayFromConcealRegion(
       rect,
       ctx.sourceWidth,
       ctx.sourceHeight,
@@ -35,7 +35,7 @@ const redactFillModule: OpModule<RedactFillParams> = {
   }
 };
 
-registerOp(redactFillModule);
+registerOp(concealFillModule);
 
 function rgbaFromColor(color: string, opacity: number): string {
   const normalized = color.trim();

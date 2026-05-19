@@ -5,7 +5,7 @@ export type OpInstance = {
   enabled: boolean;
 };
 
-export type OpCategory = "Geometry" | "Tone" | "Effects" | "Redaction" | "Watermark" | "Metadata";
+export type OpCategory = "Geometry" | "Tone" | "Effects" | "Conceal" | "Watermark" | "Metadata";
 
 /** The renderer-safe description of an op. Lives in the IPC catalog. */
 export type OpDefinition<TParams extends Record<string, unknown> = Record<string, unknown>> = {

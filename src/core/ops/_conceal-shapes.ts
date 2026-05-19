@@ -1,18 +1,18 @@
 import sharp from "sharp";
-import { REDACTION_SHAPES, type RedactionRegion, type RedactionShape } from "@shared/types/redaction";
+import { CONCEAL_SHAPES, type ConcealRegion, type ConcealShape } from "@shared/types/conceal";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, clamp, escapeXml } from "./_shared";
 
-type PixelRedactionRegion = {
+type PixelConcealRegion = {
   bounds: { left: number; top: number; width: number; height: number };
   centerX: number;
   centerY: number;
   width: number;
   height: number;
   rotation: number;
-  shape: RedactionShape;
+  shape: ConcealShape;
 };
 
-export function validateRedactionRegionList(value: unknown, path: string): RedactionRegion[] {
+export function validateConcealRegionList(value: unknown, path: string): ConcealRegion[] {
   return assertArray(value, path).map((entry, index) => {
     const record = assertRecord(entry, `${path}[${index}]`);
     return {
@@ -21,18 +21,18 @@ export function validateRedactionRegionList(value: unknown, path: string): Redac
       w: assertFiniteNumber(record.w, `${path}[${index}].w`, { min: 0, max: 1, minExclusive: true }),
       h: assertFiniteNumber(record.h, `${path}[${index}].h`, { min: 0, max: 1, minExclusive: true }),
       rotation: normalizeRotation(assertFiniteNumber(record.rotation, `${path}[${index}].rotation`)),
-      shape: assertOneOf(record.shape, `${path}[${index}].shape`, REDACTION_SHAPES)
+      shape: assertOneOf(record.shape, `${path}[${index}].shape`, CONCEAL_SHAPES)
     };
   });
 }
 
-export function fillOverlayFromRedactionRegion(
-  region: RedactionRegion,
+export function fillOverlayFromConcealRegion(
+  region: ConcealRegion,
   sourceWidth: number,
   sourceHeight: number,
   fill: string
 ): sharp.OverlayOptions {
-  const projected = projectRedactionRegion(region, sourceWidth, sourceHeight);
+  const projected = projectConcealRegion(region, sourceWidth, sourceHeight);
   return {
     input: shapeSvg(projected, fill),
     left: projected.bounds.left,
@@ -40,14 +40,14 @@ export function fillOverlayFromRedactionRegion(
   };
 }
 
-export async function compositeMaskedOverlayFromRedactionRegion(
+export async function compositeMaskedOverlayFromConcealRegion(
   image: sharp.Sharp,
-  region: RedactionRegion,
+  region: ConcealRegion,
   sourceWidth: number,
   sourceHeight: number,
   transform: (regionImage: sharp.Sharp, size: { width: number; height: number }) => sharp.Sharp
 ): Promise<sharp.OverlayOptions> {
-  const projected = projectRedactionRegion(region, sourceWidth, sourceHeight);
+  const projected = projectConcealRegion(region, sourceWidth, sourceHeight);
   const transformed = await transform(image.clone().extract(projected.bounds), {
     width: projected.bounds.width,
     height: projected.bounds.height
@@ -63,7 +63,7 @@ export async function compositeMaskedOverlayFromRedactionRegion(
   };
 }
 
-function projectRedactionRegion(region: RedactionRegion, sourceWidth: number, sourceHeight: number): PixelRedactionRegion {
+function projectConcealRegion(region: ConcealRegion, sourceWidth: number, sourceHeight: number): PixelConcealRegion {
   const longEdge = Math.max(sourceWidth, sourceHeight, 1);
   const width = Math.max(1, region.w * longEdge);
   const height = Math.max(1, region.h * longEdge);
@@ -105,7 +105,7 @@ function rotatedBounds(centerX: number, centerY: number, width: number, height: 
   };
 }
 
-function shapeSvg(region: PixelRedactionRegion, fill: string): Buffer {
+function shapeSvg(region: PixelConcealRegion, fill: string): Buffer {
   const centerX = formatSvgNumber(region.centerX);
   const centerY = formatSvgNumber(region.centerY);
   const width = formatSvgNumber(region.width);

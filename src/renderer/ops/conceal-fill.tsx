@@ -1,15 +1,15 @@
 import React from "react";
 import type { OpRenderer } from "./op-renderer";
-import { RedactOverlay } from "./_redact-overlay";
-import type { RedactionRegion } from "@shared/types/redaction";
-import { patchFirstRedactionRegion, readRedactionRegionList } from "./_redaction-primitives";
+import { ConcealOverlay } from "./_conceal-overlay";
+import type { ConcealRegion } from "@shared/types/conceal";
+import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
 
-type RedactFillParams = { rects: RedactionRegion[]; color: string; opacity: number };
+type ConcealFillParams = { rects: ConcealRegion[]; color: string; opacity: number };
 
-export const redactFillRenderer: OpRenderer<RedactFillParams> = {
-  type: "redact-fill",
+export const concealFillRenderer: OpRenderer<ConcealFillParams> = {
+  type: "conceal-fill",
   Card({ params, disabled, onParamChange }) {
-    const firstRegion = readRedactionRegionList(params.rects)[0];
+    const firstRegion = readConcealRegionList(params.rects)[0];
     return (
       <div className="geometry-controls">
         <div className="segmented-control">
@@ -17,7 +17,7 @@ export const redactFillRenderer: OpRenderer<RedactFillParams> = {
             className={(firstRegion?.shape ?? "rectangle") === "rectangle" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => onParamChange("rects", patchFirstRedactionRegion(params.rects, { shape: "rectangle" }))}
+            onClick={() => onParamChange("rects", patchFirstConcealRegion(params.rects, { shape: "rectangle" }))}
           >
             Rectangle
           </button>
@@ -25,7 +25,7 @@ export const redactFillRenderer: OpRenderer<RedactFillParams> = {
             className={(firstRegion?.shape ?? "rectangle") === "ellipse" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => onParamChange("rects", patchFirstRedactionRegion(params.rects, { shape: "ellipse" }))}
+            onClick={() => onParamChange("rects", patchFirstConcealRegion(params.rects, { shape: "ellipse" }))}
           >
             Ellipse
           </button>
@@ -42,5 +42,5 @@ export const redactFillRenderer: OpRenderer<RedactFillParams> = {
       </div>
     );
   },
-  Overlay: RedactOverlay as never
+  Overlay: ConcealOverlay as never
 };

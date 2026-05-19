@@ -7,9 +7,9 @@ import { hslRenderer } from "./hsl";
 import { injectMetadataRenderer } from "./inject-metadata";
 import { levelsRenderer } from "./levels";
 import { lutRenderer } from "./lut";
-import { redactBlurRenderer } from "./redact-blur";
-import { redactFillRenderer } from "./redact-fill";
-import { redactPixelateRenderer } from "./redact-pixelate";
+import { concealBlurRenderer } from "./conceal-blur";
+import { concealFillRenderer } from "./conceal-fill";
+import { concealPixelateRenderer } from "./conceal-pixelate";
 import { resizeRenderer } from "./resize";
 import { rotateRenderer } from "./rotate";
 import { stripMetadataRenderer } from "./strip-metadata";
@@ -32,9 +32,9 @@ const allRenderers: OpRenderer[] = [
   unsharpMaskRenderer as OpRenderer,
   denoiseRenderer as OpRenderer,
   lutRenderer as OpRenderer,
-  redactFillRenderer as OpRenderer,
-  redactBlurRenderer as OpRenderer,
-  redactPixelateRenderer as OpRenderer,
+  concealFillRenderer as OpRenderer,
+  concealBlurRenderer as OpRenderer,
+  concealPixelateRenderer as OpRenderer,
   watermarkTextRenderer as OpRenderer,
   watermarkImageRenderer as OpRenderer,
   stripMetadataRenderer as OpRenderer,

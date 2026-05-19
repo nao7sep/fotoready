@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import type Konva from "konva";
 import { Ellipse, Rect, Transformer } from "react-konva";
-import type { RedactionShape } from "@shared/types/redaction";
+import type { ConcealShape } from "@shared/types/conceal";
 
 type RectShape = { x: number; y: number; w: number; h: number; rotation?: number };
 type Placement = { x: number; y: number; width: number; height: number; scale: number };
@@ -26,7 +26,7 @@ export function InteractiveOverlayRect({
   placement: Placement;
   rect: RectShape;
   rotateEnabled?: boolean;
-  shape?: RedactionShape;
+  shape?: ConcealShape;
   onChange(nextRect: RectShape): void;
   onCommit(nextRect: RectShape): void;
 }): React.JSX.Element {

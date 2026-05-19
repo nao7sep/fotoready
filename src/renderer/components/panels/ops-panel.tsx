@@ -8,7 +8,7 @@ import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@share
 import { getOpRenderer } from "@renderer/ops";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 
-const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata"] as const;
+const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
 const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> = {
   Tone: ["auto-tone", "levels", "curves", "white-balance", "hsl"]
 };

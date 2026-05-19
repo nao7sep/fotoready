@@ -1,15 +1,15 @@
 import React from "react";
-import type { RedactionRegion } from "@shared/types/redaction";
+import type { ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
-import { RedactOverlay } from "./_redact-overlay";
-import { patchFirstRedactionRegion, readRedactionRegionList } from "./_redaction-primitives";
+import { ConcealOverlay } from "./_conceal-overlay";
+import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
 
-type RedactPixelateParams = { rects: RedactionRegion[]; blockSize: number };
+type ConcealPixelateParams = { rects: ConcealRegion[]; blockSize: number };
 
-export const redactPixelateRenderer: OpRenderer<RedactPixelateParams> = {
-  type: "redact-pixelate",
+export const concealPixelateRenderer: OpRenderer<ConcealPixelateParams> = {
+  type: "conceal-pixelate",
   Card({ params, disabled, onParamChange }) {
-    const firstRegion = readRedactionRegionList(params.rects)[0];
+    const firstRegion = readConcealRegionList(params.rects)[0];
     return (
       <div className="geometry-controls">
         <div className="segmented-control">
@@ -17,7 +17,7 @@ export const redactPixelateRenderer: OpRenderer<RedactPixelateParams> = {
             className={(firstRegion?.shape ?? "rectangle") === "rectangle" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => onParamChange("rects", patchFirstRedactionRegion(params.rects, { shape: "rectangle" }))}
+            onClick={() => onParamChange("rects", patchFirstConcealRegion(params.rects, { shape: "rectangle" }))}
           >
             Rectangle
           </button>
@@ -25,7 +25,7 @@ export const redactPixelateRenderer: OpRenderer<RedactPixelateParams> = {
             className={(firstRegion?.shape ?? "rectangle") === "ellipse" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => onParamChange("rects", patchFirstRedactionRegion(params.rects, { shape: "ellipse" }))}
+            onClick={() => onParamChange("rects", patchFirstConcealRegion(params.rects, { shape: "ellipse" }))}
           >
             Ellipse
           </button>
@@ -38,5 +38,5 @@ export const redactPixelateRenderer: OpRenderer<RedactPixelateParams> = {
       </div>
     );
   },
-  Overlay: RedactOverlay as never
+  Overlay: ConcealOverlay as never
 };

@@ -22,7 +22,7 @@ export function fitImage(imageWidth: number, imageHeight: number, frameWidth: nu
 
 export type FractionRect = { x: number; y: number; w: number; h: number };
 
-/** A solid dashed-outline rect drawn in image space and projected onto the stage. Used by every overlay that draws a region (crop preview, redact rect, etc.). */
+/** A solid dashed-outline rect drawn in image space and projected onto the stage. Used by every overlay that draws a region (crop preview, conceal rect, etc.). */
 export function OverlayRect({
   color,
   placement,
@@ -74,7 +74,7 @@ export function CropDarkenMask({
   );
 }
 
-/** Clamp a fractional rect to the image bounds; used by crop + redact overlays. */
+/** Clamp a fractional rect to the image bounds; used by crop + conceal overlays. */
 export function clampFractionRect(rect: FractionRect, imageBounds: { maxX: number; maxY: number }): FractionRect {
   const maxX = clamp(imageBounds.maxX, 0.01, 1);
   const maxY = clamp(imageBounds.maxY, 0.01, 1);
@@ -113,7 +113,7 @@ export function imageBoundsFromSize(imageSize: { width: number; height: number }
   };
 }
 
-/** Decode a `params.rects` blob into a list of FractionRects. Used by every redact op. */
+/** Decode a `params.rects` blob into a list of FractionRects. Used by every conceal op. */
 export function readRectList(value: unknown): FractionRect[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {

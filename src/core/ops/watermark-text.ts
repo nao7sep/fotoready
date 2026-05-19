@@ -1,59 +1,73 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { ANCHORS, anchorPosition, applyComposite, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertParamsShape, assertString, escapeXml } from "./_shared";
+import sharp from "sharp";
+import { estimateWatermarkTextLayout } from "@shared/watermark-text-layout";
+import { applyTransformedOverlay, assertFiniteNumber, assertNonEmptyString, assertParamsShape, escapeXml } from "./_shared";
 
 type WatermarkTextParams = {
   text: string;
-  anchor: (typeof ANCHORS)[number];
-  marginX: number;
-  marginY: number;
+  x: number;
+  y: number;
+  rotation: number;
   opacity: number;
-  font: string;
   size: number;
   color: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  bold: boolean;
+  italic: boolean;
 };
 
 const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
   label: "Text Watermark",
   category: "Watermark",
-  previewBehavior: "show-input",
+  previewBehavior: "show-output",
   defaultParams: {
-    text: "",
-    anchor: "bottom-right",
-    marginX: 0.02,
-    marginY: 0.02,
+    text: "Watermark",
+    x: 0.74,
+    y: 0.9,
+    rotation: 0,
     opacity: 0.7,
-    font: "system",
     size: 0.03,
-    color: "#ffffff"
+    color: "#ffffff",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    bold: false,
+    italic: false
   },
   validate(value) {
-    const record = assertParamsShape(value, ["text", "anchor", "marginX", "marginY", "opacity", "font", "size", "color"], "watermark-text.params");
+    const record = assertParamsShape(value, ["text", "x", "y", "rotation", "opacity", "size", "color", "backgroundColor", "backgroundOpacity", "bold", "italic"], "watermark-text.params");
     return {
-      text: assertString(record.text, "watermark-text.params.text"),
-      anchor: assertOneOf(record.anchor, "watermark-text.params.anchor", ANCHORS),
-      marginX: assertFiniteNumber(record.marginX, "watermark-text.params.marginX", { min: 0, max: 1 }),
-      marginY: assertFiniteNumber(record.marginY, "watermark-text.params.marginY", { min: 0, max: 1 }),
+      text: typeof record.text === "string" ? record.text : "",
+      x: assertFiniteNumber(record.x, "watermark-text.params.x", { min: 0, max: 1 }),
+      y: assertFiniteNumber(record.y, "watermark-text.params.y", { min: 0, max: 1 }),
+      rotation: assertFiniteNumber(record.rotation, "watermark-text.params.rotation", { min: -180, max: 180 }),
       opacity: assertFiniteNumber(record.opacity, "watermark-text.params.opacity", { min: 0, max: 1 }),
-      font: assertNonEmptyString(record.font, "watermark-text.params.font"),
       size: assertFiniteNumber(record.size, "watermark-text.params.size", { min: 0, max: 1, minExclusive: true }),
-      color: assertNonEmptyString(record.color, "watermark-text.params.color")
+      color: assertNonEmptyString(record.color, "watermark-text.params.color"),
+      backgroundColor: assertNonEmptyString(record.backgroundColor, "watermark-text.params.backgroundColor"),
+      backgroundOpacity: assertFiniteNumber(record.backgroundOpacity, "watermark-text.params.backgroundOpacity", { min: 0, max: 1 }),
+      bold: typeof record.bold === "boolean" ? record.bold : false,
+      italic: typeof record.italic === "boolean" ? record.italic : false
     };
   },
-  apply(image, params, ctx) {
+  async apply(image, params, ctx) {
     if (!params.text.trim()) return image;
     const longEdge = Math.max(ctx.sourceWidth, ctx.sourceHeight);
     const fontSize = Math.max(8, Math.round(params.size * longEdge));
-    const marginX = Math.round(params.marginX * longEdge);
-    const marginY = Math.round(params.marginY * longEdge);
-    const svgWidth = Math.min(ctx.sourceWidth, Math.max(fontSize * 4, params.text.length * fontSize));
-    const svgHeight = Math.ceil(fontSize * 1.6);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}">
-  <text x="0" y="${Math.round(fontSize * 1.15)}" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="${fontSize}" fill="${escapeXml(params.color)}" fill-opacity="${params.opacity}">${escapeXml(params.text)}</text>
+    const layout = estimateWatermarkTextLayout(params.text, fontSize, params.bold, params.italic);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}">
+  <rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="${escapeXml(params.backgroundColor)}" fill-opacity="${params.backgroundOpacity}" />
+  <text x="${layout.paddingX}" y="${layout.baselineY}" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="${fontSize}" font-style="${params.italic ? "italic" : "normal"}" font-weight="${params.bold ? "700" : "400"}" fill="${escapeXml(params.color)}" fill-opacity="${params.opacity}">${escapeXml(params.text)}</text>
 </svg>`;
-    const { left, top } = anchorPosition(params.anchor, ctx.sourceWidth, ctx.sourceHeight, svgWidth, svgHeight, marginX, marginY);
-    return applyComposite(image, [{ input: Buffer.from(svg), left, top }]);
+    return applyTransformedOverlay(image, sharp(Buffer.from(svg)), {
+      left: params.x * longEdge,
+      top: params.y * longEdge,
+      width: layout.width,
+      height: layout.height,
+      rotation: params.rotation
+    });
   }
 };
 

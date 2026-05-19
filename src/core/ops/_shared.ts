@@ -1,8 +1,6 @@
 import type sharp from "sharp";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, assertString, assertNonEmptyString } from "@shared/validation/common";
 
-export const ANCHORS = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"] as const;
-
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export function clamp(value: number, min: number, max: number): number {
@@ -41,6 +39,29 @@ export async function applyComposite(image: sharp.Sharp, overlays: sharp.Overlay
   return materialize(image.composite(overlays));
 }
 
+export async function applyTransformedOverlay(
+  image: sharp.Sharp,
+  overlay: sharp.Sharp,
+  box: { left: number; top: number; width: number; height: number; rotation: number }
+): Promise<{ image: sharp.Sharp; width: number; height: number }> {
+  const rotated = await overlay
+    .resize(Math.max(1, Math.round(box.width)), Math.max(1, Math.round(box.height)), { fit: "fill" })
+    .ensureAlpha()
+    .rotate(box.rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const centerX = box.left + box.width / 2;
+  const centerY = box.top + box.height / 2;
+  const compositeLeft = Math.round(centerX - rotated.info.width / 2);
+  const compositeTop = Math.round(centerY - rotated.info.height / 2);
+  return applyComposite(image, [{
+    input: rotated.data,
+    raw: { width: rotated.info.width, height: rotated.info.height, channels: rotated.info.channels },
+    left: compositeLeft,
+    top: compositeTop
+  }]);
+}
+
 export async function compositeOverlayFromRegion(
   image: sharp.Sharp,
   region: { left: number; top: number; width: number; height: number },
@@ -74,22 +95,6 @@ export function regionFromRect(rect: Rect, sourceWidth: number, sourceHeight: nu
   const width = Math.max(1, Math.min(Math.round(rect.w * longEdge), sourceWidth - left));
   const height = Math.max(1, Math.min(Math.round(rect.h * longEdge), sourceHeight - top));
   return { left, top, width, height };
-}
-
-export function anchorPosition(
-  anchor: string,
-  imageWidth: number,
-  imageHeight: number,
-  width: number,
-  height: number,
-  marginX: number,
-  marginY: number
-): { left: number; top: number } {
-  const horizontal = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
-  const vertical = anchor.includes("top") ? "top" : anchor.includes("bottom") ? "bottom" : "center";
-  const left = horizontal === "left" ? marginX : horizontal === "right" ? imageWidth - width - marginX : Math.round((imageWidth - width) / 2);
-  const top = vertical === "top" ? marginY : vertical === "bottom" ? imageHeight - height - marginY : Math.round((imageHeight - height) / 2);
-  return { left: Math.max(0, left), top: Math.max(0, top) };
 }
 
 export function escapeXml(value: string): string {

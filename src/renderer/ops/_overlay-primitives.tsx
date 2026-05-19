@@ -126,29 +126,6 @@ export function readRectList(value: unknown): FractionRect[] {
   });
 }
 
-/** Compute anchor-based canvas position for watermark draggable overlays. */
-export function anchorCanvasPos(
-  anchor: string,
-  imageSize: { width: number; height: number },
-  longEdge: number,
-  placement: OverlayPlacement,
-  marginXFraction: number,
-  marginYFraction: number,
-  approxW: number,
-  approxH: number
-): { x: number; y: number } {
-  const marginXPx = marginXFraction * longEdge;
-  const marginYPx = marginYFraction * longEdge;
-  const horizontal = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
-  const vertical = anchor.includes("top") ? "top" : anchor.includes("bottom") ? "bottom" : "center";
-  const imgLeft = horizontal === "left" ? marginXPx : horizontal === "right" ? imageSize.width - approxW - marginXPx : (imageSize.width - approxW) / 2;
-  const imgTop = vertical === "top" ? marginYPx : vertical === "bottom" ? imageSize.height - approxH - marginYPx : (imageSize.height - approxH) / 2;
-  return {
-    x: placement.x + Math.max(0, imgLeft) * placement.scale,
-    y: placement.y + Math.max(0, imgTop) * placement.scale
-  };
-}
-
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }

@@ -90,11 +90,11 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("settings.update", async (_event, patch: Partial<GlobalSettings>) => {
     const nextCandidate = isRecord(patch) ? { ...ctx.settings, ...patch } : ctx.settings;
     const { settings, issues } = normalizeGlobalSettings(nextCandidate, ctx.settings);
-    Object.assign(ctx.settings, settings);
     for (const issue of issues) {
       ctx.logger.warn({ mod: "main.ipc", issue }, "settings patch contained invalid data");
     }
-    await saveSettings(ctx.paths.settingsPath, ctx.settings);
+    await saveSettings(ctx.paths.settingsPath, settings);
+    Object.assign(ctx.settings, settings);
     return ctx.settings;
   });
   ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
@@ -104,11 +104,11 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("state.update", async (_event, patch: Partial<UiState>) => {
     const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
     const { state, issues } = normalizeUiState(candidate, ctx.uiState);
-    Object.assign(ctx.uiState, state);
     for (const issue of issues) {
       ctx.logger.warn({ mod: "main.ipc", issue }, "state patch contained invalid data");
     }
-    await saveState(ctx.paths.statePath, ctx.uiState);
+    await saveState(ctx.paths.statePath, state);
+    Object.assign(ctx.uiState, state);
     return ctx.uiState;
   });
 

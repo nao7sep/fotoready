@@ -35,16 +35,42 @@ const initialQueueSnapshot: QueueSnapshot = {
 const APP_REPOSITORY_URL = "https://github.com/nao7sep/fotoready";
 const APP_ISSUES_URL = `${APP_REPOSITORY_URL}/issues`;
 
-const SHORTCUTS: ReadonlyArray<{ action: string; keys: string }> = [
-  { action: "Save current task", keys: "Cmd/Ctrl+S" },
-  { action: "Save all pending tasks", keys: "Cmd/Ctrl+Shift+S" },
-  { action: "Undo current task edits", keys: "Cmd/Ctrl+Z" },
-  { action: "Rename saved outputs", keys: "Cmd/Ctrl+R" },
-  { action: "Toggle histogram", keys: "Cmd/Ctrl+H" },
-  { action: "Show or hide Originals", keys: "Cmd/Ctrl+1" },
-  { action: "Show or hide Tasks", keys: "Cmd/Ctrl+2" },
-  { action: "Show or hide Ops", keys: "Cmd/Ctrl+3" },
-  { action: "Open Settings", keys: "Cmd/Ctrl+," }
+type ShortcutItem = {
+  action: string;
+  detail?: string;
+  keys: string;
+};
+
+const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<ShortcutItem> }> = [
+  {
+    title: "Import and save",
+    items: [
+      { action: "Add originals", detail: "Open the file picker to import source images or sidecars.", keys: "Cmd/Ctrl+N" },
+      { action: "Save current pending image", detail: "Apply the current task's ops, queue processing, and write the output image plus sidecar.", keys: "Cmd/Ctrl+S" },
+      { action: "Save all pending images", detail: "Queue every pending task for processing and output.", keys: "Cmd/Ctrl+Shift+S" },
+      { action: "Rename saved outputs", detail: "Open the rename dialog for completed tasks.", keys: "Cmd/Ctrl+R" }
+    ]
+  },
+  {
+    title: "Editing",
+    items: [
+      { action: "Undo last pending-task edit", detail: "Revert the most recent task edit, including op changes, params, output settings, and slug/generation toggles.", keys: "Cmd/Ctrl+Z" }
+    ]
+  },
+  {
+    title: "View",
+    items: [
+      { action: "Toggle histogram", detail: "Show or hide the preview histogram. Its position is remembered across sessions.", keys: "Cmd/Ctrl+H" }
+    ]
+  },
+  {
+    title: "App",
+    items: [
+      { action: "Open settings", keys: "Cmd/Ctrl+," },
+      { action: "Show keyboard shortcuts", keys: "Cmd/Ctrl+/" },
+      { action: "Close the active dialog", keys: "Esc" }
+    ]
+  }
 ];
 
 function App(): React.JSX.Element {
@@ -84,9 +110,6 @@ function App(): React.JSX.Element {
   const showOriginals = useEditorStore((state) => state.showOriginals);
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
-  const toggleOriginals = useEditorStore((state) => state.toggleOriginals);
-  const toggleTasks = useEditorStore((state) => state.toggleTasks);
-  const toggleOps = useEditorStore((state) => state.toggleOps);
   const opPreviewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
   const globalDragDepthRef = useRef(0);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
@@ -161,15 +184,9 @@ function App(): React.JSX.Element {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       const mod = event.metaKey || event.ctrlKey;
-      if (mod && event.key === "1") {
+      if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        toggleOriginals();
-      } else if (mod && event.key === "2") {
-        event.preventDefault();
-        toggleTasks();
-      } else if (mod && event.key === "3") {
-        event.preventDefault();
-        toggleOps();
+        void addOriginals();
       } else if (mod && event.key.toLowerCase() === "s" && event.shiftKey) {
         event.preventDefault();
         void saveAll();
@@ -185,6 +202,10 @@ function App(): React.JSX.Element {
       } else if (mod && event.key === ",") {
         event.preventDefault();
         void openSettings();
+      } else if (mod && (event.key === "/" || event.key === "?")) {
+        event.preventDefault();
+        setMenuOpen(false);
+        setShortcutsOpen(true);
       } else if (mod && event.key.toLowerCase() === "h") {
         event.preventDefault();
         void toggleHistogram();
@@ -193,7 +214,7 @@ function App(): React.JSX.Element {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks, toggleOps, toggleOriginals, toggleTasks, uiState?.showHistogram]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
@@ -783,11 +804,19 @@ function App(): React.JSX.Element {
       {shortcutsOpen ? (
         <ModalShell title="Keyboard shortcuts" size="small" onClose={() => setShortcutsOpen(false)}>
           <div className="shortcut-list">
-            {SHORTCUTS.map(({ action, keys }) => (
-              <div className="shortcut-row" key={action}>
-                <span>{action}</span>
-                <kbd>{keys}</kbd>
-              </div>
+            {SHORTCUT_SECTIONS.map(({ title, items }) => (
+              <section className="shortcut-group" key={title}>
+                <h3>{title}</h3>
+                {items.map(({ action, detail, keys }) => (
+                  <div className="shortcut-row" key={action}>
+                    <div className="shortcut-row-copy">
+                      <span>{action}</span>
+                      {detail ? <small>{detail}</small> : null}
+                    </div>
+                    <kbd>{keys}</kbd>
+                  </div>
+                ))}
+              </section>
             ))}
           </div>
         </ModalShell>
@@ -815,10 +844,6 @@ function App(): React.JSX.Element {
             <div className="settings-summary">
               <span>Developer</span>
               <code>Yoshinao Inoguchi</code>
-            </div>
-            <div className="settings-summary">
-              <span>Data directory</span>
-              <code>{systemInfo?.dataDir ?? "~/.fotoready"}</code>
             </div>
             <div className="settings-summary">
               <span>License</span>

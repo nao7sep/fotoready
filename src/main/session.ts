@@ -215,7 +215,7 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  retryTask(taskId: string): ProjectSessionSnapshot {
+  async retryTask(taskId: string): Promise<ProjectSessionSnapshot> {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
@@ -223,8 +223,7 @@ export class ProjectSession {
 
     if (task.error?.stage === "vision" && task.status === "done") {
       task.error = null;
-      void this.runVision(taskId);
-      return this.snapshot();
+      return this.runVision(taskId);
     }
 
     task.status = "pending";
@@ -462,9 +461,13 @@ export class ProjectSession {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
     if (task?.output && original) {
-      task.output.stagedParamsPath = await writeTaskSidecarFile(task.output.stagedPath, original, task, task.pipeline);
+      const outputPath = task.output.finalPath ?? task.output.stagedPath;
+      const paramsPath = await writeTaskSidecarFile(outputPath, original, task, task.pipeline);
+      task.output.stagedPath = outputPath;
+      task.output.stagedParamsPath = paramsPath;
       if (task.output.finalPath) {
-        task.output.finalParamsPath = await writeTaskSidecarFile(task.output.finalPath, original, task, task.pipeline);
+        task.output.finalPath = outputPath;
+        task.output.finalParamsPath = paramsPath;
       }
     }
     return this.snapshot();

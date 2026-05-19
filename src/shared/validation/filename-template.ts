@@ -1,5 +1,4 @@
 import { DEFAULT_FILENAME_TEMPLATE_ID } from "../constants";
-import { builtinFilenameTemplates } from "../defaults";
 import type { FilenameTemplate } from "../types/settings";
 
 export type FilenameTemplateValidationIssue = {
@@ -68,18 +67,10 @@ export function validateFilenameTemplates(templates: FilenameTemplate[], default
       issues.push({ templateId: template.id, message: `Pattern ${message}` });
     }
 
-    const builtin = builtinFilenameTemplates.find((item) => item.id === template.id);
-    if (builtin) {
-      if (template.pattern !== builtin.pattern || template.name !== builtin.name || template.builtin !== true) {
-        issues.push({ templateId: template.id, message: "Built-in template must keep its original name, pattern, and builtin flag." });
-      }
-    }
   }
 
-  for (const builtin of builtinFilenameTemplates) {
-    if (!templates.some((template) => template.id === builtin.id)) {
-      issues.push({ templateId: null, message: `Built-in filename template "${builtin.name}" must be present.` });
-    }
+  if (templates.length === 0) {
+    issues.push({ templateId: null, message: "At least one filename template is required." });
   }
 
   if (defaultTemplateId && !templates.some((template) => template.id === defaultTemplateId)) {

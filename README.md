@@ -47,3 +47,19 @@ npm run icons
 
 Packaging uses `electron-builder` and writes unpacked artifacts to `release/`.
 The unpacked macOS app is written to `release/mac-arm64/FotoReady.app`.
+
+## Keyboard shortcuts
+
+| Area | Action | Shortcut |
+| --- | --- | --- |
+| Import and save | Add originals | `Cmd/Ctrl+N` |
+| Import and save | Save current pending image | `Cmd/Ctrl+S` |
+| Import and save | Save all pending images | `Cmd/Ctrl+Shift+S` |
+| Import and save | Rename saved outputs | `Cmd/Ctrl+R` |
+| Editing | Undo last pending-task edit | `Cmd/Ctrl+Z` |
+| View | Toggle histogram | `Cmd/Ctrl+H` |
+| App | Open settings | `Cmd/Ctrl+,` |
+| App | Show keyboard shortcuts | `Cmd/Ctrl+/` |
+| App | Close the active dialog | `Esc` |
+
+`Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus the FotoReady sidecar file.

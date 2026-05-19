@@ -5,15 +5,9 @@ import type { Project } from "./types/project";
 
 export const builtinFilenameTemplates = [
   {
-    id: BUILTIN_FILENAME_TEMPLATE_IDS.slugSize,
-    name: "Slug + size",
-    pattern: "{slug}-{w}x{h}.{ext}",
-    builtin: true
-  },
-  {
-    id: BUILTIN_FILENAME_TEMPLATE_IDS.slug,
-    name: "Slug only",
-    pattern: "{slug}.{ext}",
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.original,
+    name: "Original only",
+    pattern: "{original}.{ext}",
     builtin: true
   },
   {
@@ -23,15 +17,21 @@ export const builtinFilenameTemplates = [
     builtin: true
   },
   {
-    id: BUILTIN_FILENAME_TEMPLATE_IDS.original,
-    name: "Original only",
-    pattern: "{original}.{ext}",
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.slug,
+    name: "Slug only",
+    pattern: "{slug}.{ext}",
+    builtin: true
+  },
+  {
+    id: BUILTIN_FILENAME_TEMPLATE_IDS.slugSize,
+    name: "Slug + size",
+    pattern: "{slug}-{w}x{h}.{ext}",
     builtin: true
   }
 ] as const;
 
-export const defaultVisionDescriptionPrompt = "Write one factual sentence describing the image for publication use. Mention the subject, setting, and the most useful distinguishing detail. Avoid marketing language and avoid guessing details that are not visible.";
-export const defaultVisionSlugPrompt = "Generate 3 to 5 lowercase English slug candidates from the description. Prefer concrete nouns and verbs, keep them concise, avoid filler words like photo, image, shot, and view, and use only letters, numbers, and hyphens.";
+export const defaultVisionDescriptionPrompt = "Write one factual sentence describing the image for publication use. State only what is clearly visible, including the subject, setting, and the most useful distinguishing detail. Avoid marketing language, emotional interpretation, and guesses about unseen context.";
+export const defaultVisionSlugPrompt = "Generate 3 to 5 distinct lowercase English slug candidates from the description. Prefer concrete nouns and verbs, order them from most specific to more general, avoid filler words like photo, image, shot, and view, and use only letters, numbers, and hyphens.";
 
 export function defaultOutputSettings(): OutputSettings {
   return {

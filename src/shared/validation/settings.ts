@@ -146,12 +146,12 @@ function readLegacyBooleanPair(source: Record<string, unknown>, primaryKey: stri
 function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[], issues: string[]): FilenameTemplate[] {
   const builtins = [...builtinFilenameTemplates];
   if (value === undefined) {
-    return ensureBuiltinTemplates(cloneValue(fallback.length ? fallback : builtins));
+    return cloneValue(fallback.length ? fallback : builtins);
   }
 
   if (!Array.isArray(value)) {
     issues.push("settings.filenameTemplates must be an array.");
-    return ensureBuiltinTemplates(cloneValue(fallback.length ? fallback : builtins));
+    return cloneValue(fallback.length ? fallback : builtins);
   }
 
   const templates: FilenameTemplate[] = [];
@@ -162,31 +162,30 @@ function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[]
   for (const [index, entry] of value.entries()) {
     try {
       const template = validateFilenameTemplate(entry, `settings.filenameTemplates[${index}]`);
-      const normalized = builtinFilenameTemplates.find((item) => item.id === template.id) ?? template;
-      if (seen.has(normalized.id)) {
-        issues.push(`settings.filenameTemplates[${index}].id duplicates "${normalized.id}".`);
+      if (seen.has(template.id)) {
+        issues.push(`settings.filenameTemplates[${index}].id duplicates "${template.id}".`);
         continue;
       }
-      seen.add(normalized.id);
-      const normalizedName = normalized.name.trim().toLowerCase();
+      seen.add(template.id);
+      const normalizedName = template.name.trim().toLowerCase();
       if (seenNames.has(normalizedName)) {
-        issues.push(`settings.filenameTemplates[${index}].name duplicates "${normalized.name.trim()}".`);
+        issues.push(`settings.filenameTemplates[${index}].name duplicates "${template.name.trim()}".`);
         continue;
       }
       seenNames.add(normalizedName);
-      const normalizedPattern = normalized.pattern.trim();
+      const normalizedPattern = template.pattern.trim();
       if (seenPatterns.has(normalizedPattern)) {
         issues.push(`settings.filenameTemplates[${index}].pattern duplicates another template.`);
         continue;
       }
       seenPatterns.add(normalizedPattern);
-      templates.push(normalized);
+      templates.push(template);
     } catch (error) {
       issues.push(error instanceof Error ? error.message : String(error));
     }
   }
 
-  const normalizedTemplates = ensureBuiltinTemplates(templates);
+  const normalizedTemplates = templates;
   for (const issue of validateFilenameTemplates(normalizedTemplates)) {
     issues.push(issue.templateId ? `settings.filenameTemplates[${issue.templateId}] ${issue.message}` : issue.message);
   }
@@ -203,14 +202,8 @@ function validateFilenameTemplate(value: unknown, path: string): FilenameTemplat
   return {
     id: assertNonEmptyString(record.id, `${path}.id`),
     name: assertNonEmptyString(record.name, `${path}.name`),
-    pattern,
-    builtin: record.builtin === undefined ? undefined : assertBoolean(record.builtin, `${path}.builtin`)
+    pattern
   };
-}
-
-function ensureBuiltinTemplates(templates: FilenameTemplate[]): FilenameTemplate[] {
-  const filtered = templates.filter((template) => !builtinFilenameTemplates.some((builtin) => builtin.id === template.id));
-  return [...builtinFilenameTemplates, ...filtered];
 }
 
 function normalizeDefaultTemplateId(value: unknown, templates: FilenameTemplate[], fallback: string, issues: string[]): string {

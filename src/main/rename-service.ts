@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { DEFAULT_FILENAME_TEMPLATE_ID, TASK_SIDECAR_SUFFIX } from "@shared/constants";
+import { DEFAULT_FILENAME_TEMPLATE_ID } from "@shared/constants";
 import { builtinFilenameTemplates } from "@shared/defaults";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
@@ -10,6 +10,7 @@ import type { RenamePreview } from "@shared/types/ipc";
 import { renderFilenameTemplate } from "@core/template-render";
 import { resolveSlugCollisions } from "@core/slug/collision-resolve";
 import { normalizeSlugCandidate } from "@core/slug/rules";
+import { sidecarPathForOutput } from "@main/task-sidecar";
 import { assertSafeRenderedFilename, validateFilenameTemplatePattern } from "@shared/validation/filename-template";
 
 type RenamePlanItem = RenamePreview["items"][number];
@@ -32,7 +33,7 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
 
   const items: RenamePlanItem[] = [];
   for (const [index, task] of doneTasks.entries()) {
-    const stagedPath = task.output.stagedPath;
+    const stagedPath = task.output.finalPath ?? task.output.stagedPath;
     const metadata = await sharp(stagedPath).metadata();
     const ext = outputExtension(stagedPath);
     const slug = slugMap.get(task.id) ?? "untitled-output";
@@ -72,35 +73,56 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
   }
 
   for (const item of preview.items) {
+    const task = project.tasks.find((candidate) => candidate.id === item.taskId);
+    if (!task?.output) {
+      continue;
+    }
     if (item.stagedPath === item.proposedPath) {
+      task.output.stagedPath = item.proposedPath;
+      task.output.finalPath = item.proposedPath;
+      task.output.stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
+      task.output.finalParamsPath = task.output.stagedParamsPath;
+      task.output.renamedAt = nowIso();
+      task.updatedAt = nowIso();
       continue;
     }
 
     await ensureNoCollision(item.proposedPath);
     const tempPath = `${item.proposedPath}.tmp-${process.pid}`;
-    await fs.copyFile(item.stagedPath, tempPath, fs.constants.COPYFILE_EXCL);
-    await fs.rename(tempPath, item.proposedPath);
+    try {
+      await fs.copyFile(item.stagedPath, tempPath, fs.constants.COPYFILE_EXCL);
+      await fs.rename(tempPath, item.proposedPath);
+    } catch (error) {
+      await fs.rm(tempPath, { force: true });
+      throw error;
+    }
     await fs.rm(item.stagedPath, { force: true });
-    const stagedParamsPath = sidecarPathForOutput(item.stagedPath);
+    const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
+    task.output.stagedPath = item.proposedPath;
+    task.output.finalPath = item.proposedPath;
+    task.output.renamedAt = nowIso();
+    task.updatedAt = nowIso();
+
     if (stagedParamsPath !== proposedParamsPath) {
       try {
         await ensureNoCollision(proposedParamsPath);
         await fs.rename(stagedParamsPath, proposedParamsPath);
+        task.output.stagedParamsPath = proposedParamsPath;
+        task.output.finalParamsPath = proposedParamsPath;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          throw error;
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          task.output.stagedParamsPath = proposedParamsPath;
+          task.output.finalParamsPath = proposedParamsPath;
+          continue;
         }
+        task.output.stagedParamsPath = stagedParamsPath;
+        task.output.finalParamsPath = stagedParamsPath;
+        throw error;
       }
     }
-
-    const task = project.tasks.find((candidate) => candidate.id === item.taskId);
-    if (task?.output) {
-      task.output.finalPath = item.proposedPath;
-      task.output.finalParamsPath = proposedParamsPath;
-      task.output.renamedAt = nowIso();
-      task.updatedAt = nowIso();
-    }
+    task.output.stagedParamsPath = proposedParamsPath;
+    task.output.finalParamsPath = proposedParamsPath;
   }
 }
 
@@ -124,11 +146,6 @@ function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): s
 
 function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
-}
-
-function sidecarPathForOutput(outputPath: string): string {
-  const parsed = path.parse(outputPath);
-  return path.join(parsed.dir, `${parsed.name}${TASK_SIDECAR_SUFFIX}`);
 }
 
 async function ensureNoCollision(filePath: string): Promise<void> {

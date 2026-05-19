@@ -1143,11 +1143,11 @@ select:disabled {
 
 .settings-section-stack h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-strong-color);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .modal-header,
@@ -1318,14 +1318,22 @@ select:disabled {
   font-size: 12px;
 }
 
+.settings-summary-inline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-summary-inline span {
+  white-space: nowrap;
+}
+
 .settings-summary span {
   color: var(--text-muted-color);
 }
 
 .settings-summary code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--text-strong-color);
 }
 
@@ -1365,9 +1373,30 @@ select:disabled {
   gap: 10px;
 }
 
+.settings-page .stacked-field,
+.settings-page .toggle-row,
+.settings-page .settings-summary,
+.settings-page .field-help,
+.settings-page .row-detail {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-page .stacked-field,
+.settings-page .toggle-row,
+.settings-page .field-help,
+.settings-page .row-detail,
+.settings-page .settings-summary span,
+.settings-page .settings-summary code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .settings-grid > .row-detail {
   grid-column: span 2;
   margin-top: -2px;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .settings-inline-row {
@@ -1429,7 +1458,7 @@ select:disabled {
 .settings-section-header h3 {
   flex: 1;
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .template-settings {
@@ -1457,9 +1486,9 @@ select:disabled {
 }
 
 .template-settings-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 10px;
 }
 
@@ -1470,10 +1499,8 @@ select:disabled {
   flex-wrap: wrap;
 }
 
-.template-settings-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.template-settings-name-field {
+  min-width: 0;
 }
 
 .template-settings-errors {
@@ -1493,19 +1520,49 @@ select:disabled {
 
 .shortcut-list {
   display: grid;
-  gap: 6px;
+  gap: 14px;
+}
+
+.shortcut-group {
+  display: grid;
+  gap: 8px;
+}
+
+.shortcut-group h3 {
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .shortcut-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 12px;
   font-size: 13px;
 }
 
+.shortcut-row-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.shortcut-row-copy span {
+  color: var(--text-strong-color);
+}
+
+.shortcut-row-copy small {
+  color: var(--text-soft-color);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .shortcut-row kbd {
   justify-self: end;
+  margin-top: 1px;
 }
 
 kbd {

@@ -1,11 +1,10 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
-import { assertBoolean } from "@shared/validation/common";
 
 type AutoToneParams = {
-  enabled: boolean;
-  strength: number;
+  shadowClip: number;
+  highlightClip: number;
 };
 
 const autoToneModule: OpModule<AutoToneParams> = {
@@ -13,16 +12,19 @@ const autoToneModule: OpModule<AutoToneParams> = {
   label: "Auto Tone",
   category: "Tone",
   previewBehavior: "show-output",
-  defaultParams: { enabled: true, strength: 0.7 },
+  defaultParams: { shadowClip: 1, highlightClip: 1 },
   validate(value) {
-    const record = assertParamsShape(value, ["enabled", "strength"], "auto-tone.params");
+    const record = assertParamsShape(value, ["shadowClip", "highlightClip"], "auto-tone.params");
     return {
-      enabled: assertBoolean(record.enabled, "auto-tone.params.enabled"),
-      strength: assertFiniteNumber(record.strength, "auto-tone.params.strength", { min: 0, max: 1 })
+      shadowClip: assertFiniteNumber(record.shadowClip, "auto-tone.params.shadowClip", { min: 0, max: 10 }),
+      highlightClip: assertFiniteNumber(record.highlightClip, "auto-tone.params.highlightClip", { min: 0, max: 10 })
     };
   },
   apply(image, params) {
-    return params.enabled ? image.normalize() : image;
+    return image.normalize({
+      lower: params.shadowClip,
+      upper: 100 - params.highlightClip
+    });
   }
 };
 

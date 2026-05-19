@@ -59,14 +59,14 @@ export const cropRenderer: OpRenderer<CropParams> = {
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Aspect: <strong>{aspectLabel(activeAspectId, currentRect)}</strong></span>
-          <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamsChange({ x: 0, y: 0, w: imageBounds.maxX, h: imageBounds.maxY, aspectLock: null })}>
+          <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamsChange({ x: 0, y: 0, w: imageBounds.maxX, h: imageBounds.maxY, aspectLock: null })}>
             Reset
           </button>
         </div>
         <div className="geometry-chip-group" role="group" aria-label="Crop aspect ratio">
           {cropAspectOptions.map((option) => (
             <button
-              className={`geometry-chip ${activeAspectId === option.id ? "active" : ""}`}
+              className={`toolbar-button compact-text ${activeAspectId === option.id ? "active" : ""}`}
               disabled={disabled}
               key={option.id}
               type="button"

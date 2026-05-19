@@ -24,14 +24,28 @@ const levelsModule: OpModule<LevelsParams> = {
     return {
       blackPoint,
       whitePoint,
-      gamma: assertFiniteNumber(record.gamma, "levels.params.gamma", { min: 0.1, max: 5 })
+      gamma: assertFiniteNumber(record.gamma, "levels.params.gamma", { min: 0.25, max: 4 })
     };
   },
-  apply(image, params) {
-    const multiplier = 255 / (params.whitePoint - params.blackPoint);
-    const offset = -params.blackPoint * multiplier;
-    return image.linear(multiplier, offset).gamma(params.gamma);
+  async apply(image, params) {
+    const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (info.width <= 0 || info.height <= 0) return image;
+
+    const inputSpan = Math.max(1, params.whitePoint - params.blackPoint);
+    for (let offset = 0; offset < raw.length; offset += 4) {
+      raw[offset] = applyLevelsValue(raw[offset], params.blackPoint, inputSpan, params.gamma);
+      raw[offset + 1] = applyLevelsValue(raw[offset + 1], params.blackPoint, inputSpan, params.gamma);
+      raw[offset + 2] = applyLevelsValue(raw[offset + 2], params.blackPoint, inputSpan, params.gamma);
+    }
+
+    const sharpImpl = (await import("sharp")).default;
+    return sharpImpl(raw, { raw: { width: info.width, height: info.height, channels: 4 } });
   }
 };
 
 registerOp(levelsModule);
+
+function applyLevelsValue(value: number, blackPoint: number, inputSpan: number, gamma: number): number {
+  const normalized = Math.max(0, Math.min(1, (value - blackPoint) / inputSpan));
+  return Math.max(0, Math.min(255, Math.round(Math.pow(normalized, gamma) * 255)));
+}

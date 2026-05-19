@@ -16,6 +16,7 @@ export type OverlayContext = {
   placement: OverlayPlacement;
   stageSize: { width: number; height: number };
   originalAspectRatio: number | null;
+  samplePixel(localX: number, localY: number): { r: number; g: number; b: number } | null;
 };
 
 export type OpCardContext = {

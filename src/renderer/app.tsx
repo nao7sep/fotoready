@@ -128,7 +128,7 @@ function App(): React.JSX.Element {
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpId ? activeTask.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
-    // Cards with previewBehavior "show-input" (crop, watermark, white-balance) display
+    // Cards with previewBehavior "show-input" (crop, watermark) display
     // the image *before* their own op so the overlay rectangle lines up with the unaltered base.
     // Other cards include themselves so slider edits appear live.
     const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;

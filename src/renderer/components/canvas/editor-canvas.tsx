@@ -68,8 +68,18 @@ export function EditorCanvas({
   );
 
   const overlayCtx: OverlayContext = useMemo(
-    () => ({ imageSize, longEdge, imageBounds, placement, stageSize: frameSize, originalAspectRatio }),
-    [imageBounds, imageSize, longEdge, placement, frameSize, originalAspectRatio]
+    () => ({
+      imageSize,
+      longEdge,
+      imageBounds,
+      placement,
+      stageSize: frameSize,
+      originalAspectRatio,
+      samplePixel(localX: number, localY: number) {
+        return image ? readImagePixel(image, localX, localY) : null;
+      }
+    }),
+    [frameSize, image, imageBounds, imageSize, longEdge, originalAspectRatio, placement]
   );
 
   function handleStageClick(event: { target: { getStage: () => { getPointerPosition: () => { x: number; y: number } | null } | null } }): void {
@@ -137,4 +147,28 @@ function useImage(dataUrl: string | null): HTMLImageElement | null {
     };
   }, [dataUrl]);
   return image;
+}
+
+function readImagePixel(image: HTMLImageElement, localX: number, localY: number): { r: number; g: number; b: number } | null {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (width <= 0 || height <= 0) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(image, 0, 0, width, height);
+  const x = clamp(Math.round(localX), 0, width - 1);
+  const y = clamp(Math.round(localY), 0, height - 1);
+  const pixel = ctx.getImageData(x, y, 1, 1).data;
+  return {
+    r: pixel[0] ?? 0,
+    g: pixel[1] ?? 0,
+    b: pixel[2] ?? 0
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

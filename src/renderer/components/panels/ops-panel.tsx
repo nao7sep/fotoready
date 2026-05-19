@@ -9,6 +9,9 @@ import { getOpRenderer } from "@renderer/ops";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Redaction", "Watermark", "Metadata"] as const;
+const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> = {
+  Tone: ["auto-tone", "levels", "curves", "white-balance", "hsl"]
+};
 
 type OpsPanelProps = {
   activeTask: Task | null;
@@ -107,7 +110,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
           <section className="op-section" key={section}>
             <h3>{section}</h3>
             <div className="op-buttons">
-              {opCatalog.filter((op) => op.category === section).map((op) => (
+              {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
                 <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "pending"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
                   Add {op.label}
                 </button>
@@ -118,6 +121,19 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
       </aside>
     </>
   );
+}
+
+function sortOpsForSection(opCatalog: OpCatalogItem[], section: (typeof ADD_OP_SECTIONS)[number]): OpCatalogItem[] {
+  const order = ADD_OP_ORDER[section];
+  if (!order) return opCatalog;
+  return [...opCatalog].sort((left, right) => {
+    const leftIndex = order.indexOf(left.type);
+    const rightIndex = order.indexOf(right.type);
+    const leftRank = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+    const rightRank = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return left.label.localeCompare(right.label);
+  });
 }
 
 function PipelineOpCard({
@@ -254,7 +270,7 @@ function OutputControls({
       {(task?.generateDescription || task?.generateSlug) && !task.output?.vision && !hasGeminiApiKey ? (
         <div className="modal-warning">
           Gemini API key required for description and slug generation.
-          <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
+          <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
       ) : task?.output?.vision ? (
         <div className="vision-description">

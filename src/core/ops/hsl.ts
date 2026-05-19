@@ -4,9 +4,21 @@ import { assertFiniteNumber, assertParamsShape, assertRecord, clamp01 } from "./
 
 export const HSL_RANGES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;
 export type HslRange = (typeof HSL_RANGES)[number];
+const HSL_KEYS = ["all", ...HSL_RANGES] as const;
+type HslKey = (typeof HSL_KEYS)[number];
+const HUE_CENTERS: ReadonlyArray<{ range: HslRange; hue: number }> = [
+  { range: "red", hue: 0 },
+  { range: "orange", hue: 30 },
+  { range: "yellow", hue: 60 },
+  { range: "green", hue: 120 },
+  { range: "aqua", hue: 180 },
+  { range: "blue", hue: 225 },
+  { range: "purple", hue: 270 },
+  { range: "magenta", hue: 315 }
+];
 
 type HslAdjustment = { hue: number; sat: number; lum: number };
-type HslParams = Record<HslRange, HslAdjustment>;
+type HslParams = Record<HslKey, HslAdjustment>;
 
 const zeroAdjustment: HslAdjustment = { hue: 0, sat: 0, lum: 0 };
 
@@ -15,18 +27,21 @@ const hslModule: OpModule<HslParams> = {
   label: "HSL",
   category: "Tone",
   previewBehavior: "show-output",
-  defaultParams: Object.fromEntries(HSL_RANGES.map((range) => [range, { ...zeroAdjustment }])) as HslParams,
+  defaultParams: Object.fromEntries(HSL_KEYS.map((range) => [range, { ...zeroAdjustment }])) as HslParams,
   validate(value) {
-    const record = assertParamsShape(value, HSL_RANGES, "hsl.params");
-    return Object.fromEntries(HSL_RANGES.map((range) => [range, validateRange(record[range], `hsl.params.${range}`)])) as HslParams;
+    const record = assertParamsShape(value, HSL_KEYS, "hsl.params");
+    return Object.fromEntries(HSL_KEYS.map((range) => [range, validateRange(record[range], `hsl.params.${range}`)])) as HslParams;
   },
   async apply(image, params) {
     const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     if (info.width <= 0 || info.height <= 0) return image;
 
+    const globalAdjustment = params.all ?? zeroAdjustment;
     for (let offset = 0; offset < raw.length; offset += 4) {
       const hsl = rgbToHsl(raw[offset], raw[offset + 1], raw[offset + 2]);
-      const adjustment = params[hueRangeName(hsl.h)];
+      const bandAdjustment = getBlendedBandAdjustment(hsl.h, params);
+      const bandInfluence = smoothstep(clamp01(hsl.s / 0.2));
+      const adjustment = combineAdjustments(globalAdjustment, scaleAdjustment(bandAdjustment, bandInfluence));
       if (!adjustment || (adjustment.hue === 0 && adjustment.sat === 0 && adjustment.lum === 0)) continue;
       const rgb = hslToRgb(wrapHue(hsl.h + adjustment.hue), clamp01(hsl.s * (1 + adjustment.sat)), clamp01(hsl.l + adjustment.lum));
       raw[offset] = rgb.r;
@@ -48,15 +63,53 @@ function validateRange(value: unknown, path: string): HslAdjustment {
   };
 }
 
-function hueRangeName(hue: number): HslRange {
-  if (hue < 15 || hue >= 345) return "red";
-  if (hue < 45) return "orange";
-  if (hue < 75) return "yellow";
-  if (hue < 165) return "green";
-  if (hue < 195) return "aqua";
-  if (hue < 255) return "blue";
-  if (hue < 285) return "purple";
-  return "magenta";
+function combineAdjustments(left: HslAdjustment, right: HslAdjustment): HslAdjustment {
+  return {
+    hue: left.hue + right.hue,
+    sat: left.sat + right.sat,
+    lum: left.lum + right.lum
+  };
+}
+
+function scaleAdjustment(adjustment: HslAdjustment, factor: number): HslAdjustment {
+  return {
+    hue: adjustment.hue * factor,
+    sat: adjustment.sat * factor,
+    lum: adjustment.lum * factor
+  };
+}
+
+function getBlendedBandAdjustment(hue: number, params: HslParams): HslAdjustment {
+  const wrappedHue = wrapHue(hue);
+  const upperIndex = HUE_CENTERS.findIndex((entry) => wrappedHue < entry.hue);
+  const nextIndex = upperIndex === -1 ? 0 : upperIndex;
+  const previousIndex = nextIndex === 0 ? HUE_CENTERS.length - 1 : nextIndex - 1;
+  const previous = HUE_CENTERS[previousIndex];
+  const next = HUE_CENTERS[nextIndex];
+  const span = circularDistanceForward(previous.hue, next.hue);
+  const distance = circularDistanceForward(previous.hue, wrappedHue);
+  const t = span <= 0 ? 0 : distance / span;
+  return interpolateAdjustment(
+    params[previous.range] ?? zeroAdjustment,
+    params[next.range] ?? zeroAdjustment,
+    smoothstep(clamp01(t))
+  );
+}
+
+function interpolateAdjustment(left: HslAdjustment, right: HslAdjustment, t: number): HslAdjustment {
+  return {
+    hue: left.hue + (right.hue - left.hue) * t,
+    sat: left.sat + (right.sat - left.sat) * t,
+    lum: left.lum + (right.lum - left.lum) * t
+  };
+}
+
+function circularDistanceForward(start: number, end: number): number {
+  return ((end - start) % 360 + 360) % 360;
+}
+
+function smoothstep(value: number): number {
+  return value * value * (3 - 2 * value);
 }
 
 function rgbToHsl(rByte: number, gByte: number, bByte: number): { h: number; s: number; l: number } {

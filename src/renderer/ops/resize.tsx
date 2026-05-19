@@ -58,7 +58,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
         <div className="geometry-chip-group" role="group" aria-label="Resize mode">
           {resizeModeOptions.map((option) => (
             <button
-              className={`geometry-chip ${activeMode === option.id ? "active" : ""}`}
+              className={`toolbar-button compact-text ${activeMode === option.id ? "active" : ""}`}
               disabled={disabled}
               key={option.id}
               type="button"
@@ -71,7 +71,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
         <div className="geometry-chip-group" role="group" aria-label="Common resize presets">
           {resizePresets.map((preset) => (
             <button
-              className="geometry-chip"
+              className="toolbar-button compact-text"
               disabled={disabled}
               key={preset}
               type="button"

@@ -19,9 +19,9 @@ export const rotateRenderer: OpRenderer<RotateParams> = {
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
           <div className="geometry-stepper-group">
-            <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(params.degrees - 90))}>-90°</button>
-            <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(params.degrees + 90))}>+90°</button>
-            <button className="inline-action" disabled={disabled} type="button" onClick={() => onParamChange("degrees", 0)}>Reset</button>
+          <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(params.degrees - 90))}>-90°</button>
+          <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamChange("degrees", normalizeDegrees(params.degrees + 90))}>+90°</button>
+          <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamChange("degrees", 0)}>Reset</button>
           </div>
           <span className="geometry-status">Angle: <strong>{formatDegrees(params.degrees)}</strong></span>
         </div>

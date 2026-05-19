@@ -3,6 +3,7 @@ import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
 import type { ConcealRegion } from "@shared/types/conceal";
 import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
+import { AngleControl, normalizeAngle } from "./_angle-controls";
 
 type CoverParams = { rects: ConcealRegion[]; color: string; opacity: number };
 
@@ -39,6 +40,7 @@ export const coverRenderer: OpRenderer<CoverParams> = {
           <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.opacity} onChange={(e) => onParamChange("opacity", e.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
         </label>
+        <AngleControl disabled={disabled} value={firstRegion?.rotation ?? 0} onChange={(rotation) => onParamChange("rects", patchFirstConcealRegion(params.rects, { rotation: normalizeAngle(rotation) }))} />
       </div>
     );
   },

@@ -3,6 +3,7 @@ import type { ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
 import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
+import { AngleControl, normalizeAngle } from "./_angle-controls";
 
 type BlurParams = { rects: ConcealRegion[]; radius: number };
 
@@ -35,6 +36,7 @@ export const blurRenderer: OpRenderer<BlurParams> = {
           <input disabled={disabled} max={40} min={1} step={1} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />
           <span className="slider-value">{params.radius.toFixed(0)}</span>
         </label>
+        <AngleControl disabled={disabled} value={firstRegion?.rotation ?? 0} onChange={(rotation) => onParamChange("rects", patchFirstConcealRegion(params.rects, { rotation: normalizeAngle(rotation) }))} />
       </div>
     );
   },

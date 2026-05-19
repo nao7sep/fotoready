@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "@renderer/ipc/client";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
+import { AngleControl, normalizeAngle } from "./_angle-controls";
 
 type WatermarkImageParams = {
   pngPath: string;
@@ -43,6 +44,7 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
           <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
         </label>
+        <AngleControl disabled={disabled} value={params.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
       </div>
     );
   },
@@ -130,6 +132,5 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function normalizeRotation(rotation: number): number {
-  const normalized = rotation % 360;
-  return normalized > 180 ? normalized - 360 : normalized <= -180 ? normalized + 360 : normalized;
+  return normalizeAngle(rotation);
 }

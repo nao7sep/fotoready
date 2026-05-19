@@ -1,22 +1,20 @@
-export const WATERMARK_TEXT_PADDING_X_EM = 0.45;
-export const WATERMARK_TEXT_PADDING_Y_EM = 0.32;
-export const WATERMARK_TEXT_LINE_HEIGHT_EM = 1.25;
-export const WATERMARK_TEXT_BOX_HEIGHT_EM = WATERMARK_TEXT_LINE_HEIGHT_EM + WATERMARK_TEXT_PADDING_Y_EM * 2;
+export const TEXT_WATERMARK_FONT_OPTIONS = [
+  {
+    label: "Sans",
+    value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  },
+  {
+    label: "Serif",
+    value: 'ui-serif, Georgia, Cambria, "Times New Roman", serif'
+  },
+  {
+    label: "Monospace",
+    value: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  },
+  {
+    label: "Rounded",
+    value: '"Avenir Next Rounded", "SF Pro Rounded", "Arial Rounded MT Bold", "Helvetica Rounded", system-ui, sans-serif'
+  }
+] as const;
 
-export function estimateWatermarkTextLayout(
-  text: string,
-  fontSize: number,
-  bold: boolean,
-  italic: boolean
-): { width: number; height: number; paddingX: number; baselineY: number } {
-  const characterCount = Math.max(1, Array.from(text).length);
-  const characterWidthEm = 0.62 + (bold ? 0.04 : 0) + (italic ? 0.04 : 0);
-  const paddingX = Math.ceil(fontSize * WATERMARK_TEXT_PADDING_X_EM);
-  const width = Math.ceil(Math.max(
-    fontSize * 2,
-    characterCount * fontSize * characterWidthEm + paddingX * 2
-  ));
-  const height = Math.ceil(fontSize * WATERMARK_TEXT_BOX_HEIGHT_EM);
-  const baselineY = Math.ceil(fontSize * (WATERMARK_TEXT_PADDING_Y_EM + 0.92));
-  return { width, height, paddingX, baselineY };
-}
+export const DEFAULT_TEXT_WATERMARK_FONT_FAMILY = TEXT_WATERMARK_FONT_OPTIONS[0].value;

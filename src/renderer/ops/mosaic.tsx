@@ -3,6 +3,7 @@ import type { ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
 import { patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
+import { AngleControl, normalizeAngle } from "./_angle-controls";
 
 type MosaicParams = { rects: ConcealRegion[]; blockSize: number };
 
@@ -35,6 +36,7 @@ export const mosaicRenderer: OpRenderer<MosaicParams> = {
           <input disabled={disabled} max={0.05} min={0.005} step={0.005} type="range" value={params.blockSize} onChange={(e) => onParamChange("blockSize", e.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${(params.blockSize * 100).toFixed(1)}%`}</span>
         </label>
+        <AngleControl disabled={disabled} value={firstRegion?.rotation ?? 0} onChange={(rotation) => onParamChange("rects", patchFirstConcealRegion(params.rects, { rotation: normalizeAngle(rotation) }))} />
       </div>
     );
   },

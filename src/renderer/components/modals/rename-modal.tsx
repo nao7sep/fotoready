@@ -139,9 +139,9 @@ export function RenameModal({
             ? `${preview.missingSlugCount} of ${preview.items.length} done tasks need a custom slug before rename.`
             : "Gemini API key required to generate missing descriptions before rename."}
           {hasGeminiApiKey ? (
-            <button className="inline-action" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
+            <button className="toolbar-button compact-text" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
           ) : (
-            <button className="inline-action" type="button" onClick={onOpenSettings}>Open settings</button>
+            <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
           )}
         </div>
       ) : null}

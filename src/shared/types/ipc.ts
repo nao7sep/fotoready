@@ -145,6 +145,7 @@ export type FotoReadyApi = {
   };
   luts: {
     list(): Promise<LutEntry[]>;
+    import(filePath: string): Promise<LutEntry>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

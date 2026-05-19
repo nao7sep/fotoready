@@ -68,7 +68,8 @@ const api: FotoReadyApi = {
     run: (templateId, taskIds) => ipcRenderer.invoke("rename.run", templateId, taskIds)
   },
   luts: {
-    list: () => ipcRenderer.invoke("luts.list")
+    list: () => ipcRenderer.invoke("luts.list"),
+    import: (filePath) => ipcRenderer.invoke("luts.import", filePath)
   },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")

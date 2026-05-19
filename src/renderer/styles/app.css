@@ -148,6 +148,7 @@ textarea {
   color: var(--text-color);
   background: transparent;
   text-align: left;
+  font-size: 12px;
 }
 
 .app-menu button:hover {

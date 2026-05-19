@@ -4,15 +4,20 @@ import { DEFAULT_LUT_FOLDER } from "@shared/constants";
 import type { LutEntry } from "@shared/types/ipc";
 
 const BUILT_INS = [
-  { name: "warm", transform: (r: number, g: number, b: number) => [r * 1.04, g * 1.01, b * 0.95] },
-  { name: "cool", transform: (r: number, g: number, b: number) => [r * 0.96, g * 1.0, b * 1.06] },
-  { name: "faded", transform: (r: number, g: number, b: number) => [r * 0.86 + 0.08, g * 0.86 + 0.08, b * 0.86 + 0.08] },
-  { name: "muted", transform: (r: number, g: number, b: number) => muted(r, g, b) },
-  { name: "high-contrast-bw", transform: (r: number, g: number, b: number) => highContrastBw(r, g, b) }
+  { name: "clean-contrast", transform: (r: number, g: number, b: number) => cleanContrast(r, g, b) },
+  { name: "cool-print", transform: (r: number, g: number, b: number) => coolPrint(r, g, b) },
+  { name: "muted-chrome", transform: (r: number, g: number, b: number) => mutedChrome(r, g, b) },
+  { name: "pastel-fade", transform: (r: number, g: number, b: number) => pastelFade(r, g, b) },
+  { name: "silver-fade", transform: (r: number, g: number, b: number) => silverFade(r, g, b) },
+  { name: "soft-matte", transform: (r: number, g: number, b: number) => softMatte(r, g, b) },
+  { name: "sunset-pop", transform: (r: number, g: number, b: number) => sunsetPop(r, g, b) },
+  { name: "teal-shadows", transform: (r: number, g: number, b: number) => tealShadows(r, g, b) },
+  { name: "vintage-warm", transform: (r: number, g: number, b: number) => vintageWarm(r, g, b) },
+  { name: "warm-print", transform: (r: number, g: number, b: number) => warmPrint(r, g, b) }
 ] as const;
 
 export async function listLuts(lutFolder: string, homeDir: string): Promise<LutEntry[]> {
-  const dir = expandHome(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
+  const dir = resolveLutDir(lutFolder, homeDir);
   await ensureBuiltInLuts(dir);
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
   return entries
@@ -22,7 +27,26 @@ export async function listLuts(lutFolder: string, homeDir: string): Promise<LutE
       path: path.join(dir, entry.name),
       builtin: BUILT_INS.some((builtIn) => `${builtIn.name}.cube` === entry.name)
     }))
-    .sort((a, b) => Number(b.builtin) - Number(a.builtin) || a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function importLut(filePath: string, lutFolder: string, homeDir: string): Promise<LutEntry> {
+  if (path.extname(filePath).toLowerCase() !== ".cube") {
+    throw new Error("Only .cube LUT files can be imported.");
+  }
+  const dir = resolveLutDir(lutFolder, homeDir);
+  await ensureBuiltInLuts(dir);
+  const absoluteSource = path.resolve(filePath);
+  const desiredBase = path.basename(absoluteSource, path.extname(absoluteSource));
+  const targetPath = await uniqueCubePath(dir, desiredBase);
+  if (absoluteSource !== targetPath) {
+    await fs.copyFile(absoluteSource, targetPath);
+  }
+  return {
+    name: path.basename(targetPath, path.extname(targetPath)),
+    path: targetPath,
+    builtin: false
+  };
 }
 
 async function ensureBuiltInLuts(dir: string): Promise<void> {
@@ -31,10 +55,10 @@ async function ensureBuiltInLuts(dir: string): Promise<void> {
 }
 
 function cubeContent(name: string, transform: (r: number, g: number, b: number) => readonly number[]): string {
-  const size = 8;
+  const size = 16;
   const lines = [
     `TITLE "${name}"`,
-    "LUT_3D_SIZE 8",
+    `LUT_3D_SIZE ${size}`,
     "DOMAIN_MIN 0 0 0",
     "DOMAIN_MAX 1 1 1"
   ];
@@ -48,14 +72,206 @@ function cubeContent(name: string, transform: (r: number, g: number, b: number) 
   return `${lines.join("\n")}\n`;
 }
 
-function muted(r: number, g: number, b: number): number[] {
-  const gray = r * 0.3 + g * 0.59 + b * 0.11;
-  return [gray + (r - gray) * 0.72, gray + (g - gray) * 0.72, gray + (b - gray) * 0.72];
+function cleanContrast(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1.08),
+    (rgb) => withSaturation(rgb, 1.04),
+    (rgb) => withGamma(rgb, 1.02)
+  );
 }
 
-function highContrastBw(r: number, g: number, b: number): number[] {
-  const gray = clamp((r * 0.3 + g * 0.59 + b * 0.11 - 0.5) * 1.35 + 0.5);
-  return [gray, gray, gray];
+function coolPrint(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1.03),
+    (rgb) => withSaturation(rgb, 0.95),
+    (rgb) => withBalance(rgb, 0.97, 1.01, 1.08),
+    (rgb) => withGamma(rgb, 1.04),
+    (rgb) => splitTone(rgb, [0.01, 0.03, 0.06], [0, 0.01, 0.02], 0.22, 0.08)
+  );
+}
+
+function mutedChrome(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1.14),
+    (rgb) => withSaturation(rgb, 0.82),
+    (rgb) => withBalance(rgb, 1.02, 1, 0.95),
+    (rgb) => withGamma(rgb, 0.97),
+    (rgb) => splitTone(rgb, [0.01, 0.03, 0.02], [0.02, 0.01, 0], 0.18, 0.1)
+  );
+}
+
+function pastelFade(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 0.88),
+    (rgb) => withSaturation(rgb, 0.86),
+    (rgb) => withBalance(rgb, 1.03, 1.01, 0.98),
+    (rgb) => withGamma(rgb, 1.08),
+    (rgb) => withLift(rgb, 0.06),
+    (rgb) => splitTone(rgb, [0, 0.03, 0.05], [0.05, 0.02, 0.03], 0.12, 0.18)
+  );
+}
+
+function silverFade(r: number, g: number, b: number): number[] {
+  const gray = clamp(luma(r, g, b));
+  return composeRgb(
+    [gray, gray, gray],
+    (rgb) => withContrast(rgb, 1.04),
+    (rgb) => withGamma(rgb, 1.03),
+    (rgb) => withLift(rgb, 0.04),
+    (rgb) => withBalance(rgb, 0.98, 0.99, 1.03)
+  );
+}
+
+function softMatte(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 0.93),
+    (rgb) => withSaturation(rgb, 0.95),
+    (rgb) => withGamma(rgb, 1.04),
+    (rgb) => withLift(rgb, 0.05)
+  );
+}
+
+function sunsetPop(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1.11),
+    (rgb) => withSaturation(rgb, 1.18),
+    (rgb) => withBalance(rgb, 1.09, 1.01, 0.9),
+    (rgb) => withGamma(rgb, 1.02),
+    (rgb) => splitTone(rgb, [0.04, 0.01, 0.06], [0.06, 0.03, 0], 0.24, 0.32)
+  );
+}
+
+function tealShadows(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1.1),
+    (rgb) => withSaturation(rgb, 1),
+    (rgb) => withBalance(rgb, 0.98, 1.02, 1.04),
+    (rgb) => withGamma(rgb, 0.99),
+    (rgb) => splitTone(rgb, [0, 0.05, 0.07], [0.04, 0.02, 0], 0.3, 0.2)
+  );
+}
+
+function vintageWarm(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 0.92),
+    (rgb) => withSaturation(rgb, 0.9),
+    (rgb) => withBalance(rgb, 1.08, 1.02, 0.89),
+    (rgb) => withGamma(rgb, 1.06),
+    (rgb) => withLift(rgb, 0.055),
+    (rgb) => splitTone(rgb, [0.01, 0.03, 0], [0.05, 0.03, 0], 0.18, 0.16)
+  );
+}
+
+function warmPrint(r: number, g: number, b: number): number[] {
+  return composeRgb(
+    [r, g, b],
+    (rgb) => withContrast(rgb, 1),
+    (rgb) => withSaturation(rgb, 1.03),
+    (rgb) => withBalance(rgb, 1.07, 1.02, 0.93),
+    (rgb) => withGamma(rgb, 1.03),
+    (rgb) => splitTone(rgb, [0, 0.01, 0.03], [0.04, 0.02, 0], 0.08, 0.18)
+  );
+}
+
+function composeRgb(
+  rgb: [number, number, number],
+  ...steps: Array<(rgb: [number, number, number]) => [number, number, number]>
+): [number, number, number] {
+  return steps.reduce((current, step) => step(current), rgb);
+}
+
+function withContrast([r, g, b]: [number, number, number], amount: number): [number, number, number] {
+  return [
+    clamp((r - 0.5) * amount + 0.5),
+    clamp((g - 0.5) * amount + 0.5),
+    clamp((b - 0.5) * amount + 0.5)
+  ];
+}
+
+function withLift([r, g, b]: [number, number, number], lift: number): [number, number, number] {
+  return [
+    clamp(r * (1 - lift) + lift),
+    clamp(g * (1 - lift) + lift),
+    clamp(b * (1 - lift) + lift)
+  ];
+}
+
+function withBalance([r, g, b]: [number, number, number], red: number, green: number, blue: number): [number, number, number] {
+  return [clamp(r * red), clamp(g * green), clamp(b * blue)];
+}
+
+function withGamma([r, g, b]: [number, number, number], gamma: number): [number, number, number] {
+  return [
+    clamp(Math.pow(r, 1 / gamma)),
+    clamp(Math.pow(g, 1 / gamma)),
+    clamp(Math.pow(b, 1 / gamma))
+  ];
+}
+
+function withSaturation([r, g, b]: [number, number, number], amount: number): [number, number, number] {
+  const gray = luma(r, g, b);
+  return [
+    clamp(gray + (r - gray) * amount),
+    clamp(gray + (g - gray) * amount),
+    clamp(gray + (b - gray) * amount)
+  ];
+}
+
+function splitTone(
+  [r, g, b]: [number, number, number],
+  shadows: [number, number, number],
+  highlights: [number, number, number],
+  shadowAmount: number,
+  highlightAmount: number
+): [number, number, number] {
+  const brightness = luma(r, g, b);
+  const shadowWeight = smoothstep(clamp01((0.62 - brightness) / 0.62)) * shadowAmount;
+  const highlightWeight = smoothstep(clamp01((brightness - 0.38) / 0.62)) * highlightAmount;
+  return [
+    clamp(r + shadows[0] * shadowWeight + highlights[0] * highlightWeight),
+    clamp(g + shadows[1] * shadowWeight + highlights[1] * highlightWeight),
+    clamp(b + shadows[2] * shadowWeight + highlights[2] * highlightWeight)
+  ];
+}
+
+function luma(r: number, g: number, b: number): number {
+  return r * 0.299 + g * 0.587 + b * 0.114;
+}
+
+function smoothstep(value: number): number {
+  return value * value * (3 - 2 * value);
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function resolveLutDir(lutFolder: string, homeDir: string): string {
+  return expandHome(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
+}
+
+async function uniqueCubePath(dir: string, baseName: string): Promise<string> {
+  const safeBase = baseName.trim().length > 0 ? baseName : "lut";
+  let attempt = 0;
+  while (attempt < 1000) {
+    const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
+    const candidate = path.join(dir, `${safeBase}${suffix}.cube`);
+    try {
+      await fs.access(candidate);
+      attempt += 1;
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error("Could not find a free LUT filename.");
 }
 
 function formatCubeNumber(value: number): string {

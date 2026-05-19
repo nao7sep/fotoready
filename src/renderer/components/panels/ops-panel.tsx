@@ -22,6 +22,7 @@ type OpsPanelProps = {
   pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
   onOpenSettings(): void;
+  onReloadLuts(): Promise<void>;
   onRevealOpHandled(): void;
   settings: GlobalSettings | null;
   selectedOpId: string | null;
@@ -79,6 +80,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   onParamChange={(key, value) => props.onOpParamChange(op.id, key, value)}
                   onParamsChange={(patch) => props.onOpParamsChange(op.id, patch)}
                   onRemove={() => props.onRemoveOp(op.id)}
+                  onReloadLuts={props.onReloadLuts}
                   onSelect={() => props.onSelectOp(op.id)}
                   originalSize={props.originalSize}
                   selected={selectedOpId === op.id}
@@ -149,6 +151,7 @@ function PipelineOpCard({
   onParamChange,
   onParamsChange,
   onRemove,
+  onReloadLuts,
   onSelect,
   originalSize,
   selected
@@ -165,6 +168,7 @@ function PipelineOpCard({
   onParamChange(key: string, value: unknown): void;
   onParamsChange(patch: Record<string, unknown>): void;
   onRemove(): void;
+  onReloadLuts(): Promise<void>;
   onSelect(): void;
   originalSize: { width: number; height: number } | null;
   selected: boolean;
@@ -210,7 +214,7 @@ function PipelineOpCard({
         <Card
           params={op.params}
           disabled={disabled}
-          ctx={{ luts, originalSize }}
+          ctx={{ luts, originalSize, reloadLuts: onReloadLuts }}
           onParamChange={(key, value) => onParamChange(String(key), value)}
           onParamsChange={(patch) => onParamsChange(patch as Record<string, unknown>)}
         />

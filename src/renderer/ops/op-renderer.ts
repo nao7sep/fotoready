@@ -22,6 +22,7 @@ export type OverlayContext = {
 export type OpCardContext = {
   luts: LutEntry[];
   originalSize: { width: number; height: number } | null;
+  reloadLuts?: () => Promise<void>;
 };
 
 export type OpCardProps<P extends Record<string, unknown>> = {

@@ -537,6 +537,10 @@ function App(): React.JSX.Element {
     setUiState(await api.state.update({ histogramPosition: position }));
   }
 
+  async function reloadLuts(): Promise<void> {
+    setLutEntries(await api.luts.list());
+  }
+
   async function updateOutput(key: string, value: unknown): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
@@ -748,6 +752,7 @@ function App(): React.JSX.Element {
             onGenerateSlugChange={(value) => void setGenerateSlug(value)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
+            onReloadLuts={reloadLuts}
             onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
             onOpEnabledChange={(opId, enabled) => void setOpEnabled(opId, enabled)}
             onOpParamChange={(opId, key, value) => void updateOpParam(opId, key, value)}

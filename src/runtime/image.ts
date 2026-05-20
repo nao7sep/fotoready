@@ -8,15 +8,36 @@ export type Image = {
   format: string;
 };
 
-export type WorkerJob = {
+export type WorkerProcessJob = {
   jobId: string;
-  kind: "process" | "preview";
+  kind: "process";
   sourcePath: string;
   sourceHash: string;
   pipeline: Pipeline;
-  outputPath: string | null;
+  outputPath: string;
+  previewLongEdge: null;
+};
+
+export type WorkerPreviewJob = {
+  jobId: string;
+  kind: "preview";
+  sourcePath: string;
+  sourceHash: string;
+  pipeline: Pipeline;
+  outputPath: null;
   previewLongEdge: number | null;
 };
+
+export type WorkerPreviewStageJob = {
+  jobId: string;
+  kind: "preview-stage";
+  bitmap: ArrayBuffer;
+  width: number;
+  height: number;
+  pipeline: Pipeline;
+};
+
+export type WorkerJob = WorkerProcessJob | WorkerPreviewJob | WorkerPreviewStageJob;
 
 export type WorkerResult =
   | { kind: "process"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }

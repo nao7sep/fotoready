@@ -20,6 +20,8 @@ type PipelineRunResult =
   | { kind: "buffer"; bytes: Buffer; width: number; height: number; appliedPipeline: Pipeline }
   | { kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline };
 
+type RawPipelineRunContext = Pick<PipelineRunContext, "resolveLut">;
+
 export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): Promise<PipelineRunResult> {
   const { image } = await decodeImage(ctx.sourcePath);
   let work = image.sharp;
@@ -41,8 +43,59 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     }
   }
 
-  const executedOps = pipeline.ops;
-  for (const op of executedOps) {
+  const rendered = await applyPipelineOps(work, workWidth, workHeight, pipeline, ctx);
+  work = rendered.image;
+  workWidth = rendered.width;
+  workHeight = rendered.height;
+
+  const appliedPipeline: Pipeline = { ...pipeline, ops: pipeline.ops };
+
+  if (ctx.outputPath) {
+    const encoded = await applyOutputEncoding(work, pipeline.output).toBuffer();
+    await fs.writeFile(ctx.outputPath, encoded);
+    return {
+      kind: "file",
+      outputPath: ctx.outputPath,
+      outputHash: sha256Bytes(encoded),
+      bytes: encoded.byteLength,
+      appliedPipeline
+    };
+  }
+
+  const { data: raw, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline };
+}
+
+export async function runPipelineFromRaw(
+  pipeline: Pipeline,
+  source: { bytes: Buffer; width: number; height: number },
+  ctx: RawPipelineRunContext
+): Promise<Extract<PipelineRunResult, { kind: "buffer" }>> {
+  const sharpImpl = (await import("sharp")).default;
+  const image = sharpImpl(source.bytes, {
+    raw: {
+      width: source.width,
+      height: source.height,
+      channels: 4
+    }
+  });
+  const rendered = await applyPipelineOps(image, source.width, source.height, pipeline, ctx);
+  const { data: raw, info } = await rendered.image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline: pipeline };
+}
+
+async function applyPipelineOps(
+  image: sharp.Sharp,
+  width: number,
+  height: number,
+  pipeline: Pipeline,
+  ctx: RawPipelineRunContext
+): Promise<{ image: sharp.Sharp; width: number; height: number }> {
+  let work = image;
+  let workWidth = width;
+  let workHeight = height;
+
+  for (const op of pipeline.ops) {
     if (!op.enabled) continue;
     const module = getOpModule(op.type);
     if (!module || module.metadataOnly || !module.apply) continue;
@@ -62,22 +115,7 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     }
   }
 
-  const appliedPipeline: Pipeline = { ...pipeline, ops: executedOps };
-
-  if (ctx.outputPath) {
-    const encoded = await applyOutputEncoding(work, pipeline.output).toBuffer();
-    await fs.writeFile(ctx.outputPath, encoded);
-    return {
-      kind: "file",
-      outputPath: ctx.outputPath,
-      outputHash: sha256Bytes(encoded),
-      bytes: encoded.byteLength,
-      appliedPipeline
-    };
-  }
-
-  const { data: raw, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline };
+  return { image: work, width: workWidth, height: workHeight };
 }
 
 function isImageFrame(value: sharp.Sharp | { image: sharp.Sharp; width: number; height: number }): value is { image: sharp.Sharp; width: number; height: number } {

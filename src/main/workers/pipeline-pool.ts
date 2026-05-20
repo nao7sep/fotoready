@@ -55,6 +55,24 @@ export class PipelineWorkerPool {
     return result;
   }
 
+  async renderStage(input: {
+    bitmap: Buffer;
+    width: number;
+    height: number;
+    pipeline: Pipeline;
+  }): Promise<Extract<WorkerResult, { kind: "preview" }>> {
+    const result = await this.run({
+      jobId: nanoid(),
+      kind: "preview-stage",
+      bitmap: toArrayBuffer(input.bitmap),
+      width: input.width,
+      height: input.height,
+      pipeline: input.pipeline
+    });
+    if (result.kind !== "preview") throw new Error("Worker returned a non-preview result.");
+    return result;
+  }
+
   async destroy(): Promise<void> {
     await this.#pool.destroy();
   }
@@ -62,4 +80,10 @@ export class PipelineWorkerPool {
   private async run(job: WorkerJob): Promise<WorkerResult> {
     return this.#pool.run(job) as Promise<WorkerResult>;
   }
+}
+
+function toArrayBuffer(buffer: Buffer): ArrayBuffer {
+  const arrayBuffer = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(arrayBuffer).set(buffer);
+  return arrayBuffer;
 }

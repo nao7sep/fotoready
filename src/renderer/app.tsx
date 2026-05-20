@@ -113,7 +113,6 @@ function App(): React.JSX.Element {
   const showOriginals = useEditorStore((state) => state.showOriginals);
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
-  const opPreviewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
   const globalDragDepthRef = useRef(0);
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
@@ -138,7 +137,7 @@ function App(): React.JSX.Element {
     const options = mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode };
     const previewPipeline = pipelineForPreview(activeTask.pipeline, options);
     const previewPixelOps = previewPipeline.ops.filter((op) => opCatalogByType.get(op.type)?.metadataOnly !== true);
-    const cacheKey = JSON.stringify({
+    const requestKey = JSON.stringify({
       taskId: activeTask.id,
       originalHash: activeOriginal?.sourceHash ?? null,
       previewLongEdge: settings?.previewLongEdge ?? null,
@@ -147,13 +146,13 @@ function App(): React.JSX.Element {
     return {
       taskId: activeTask.id,
       options,
-      cacheKey,
+      requestKey,
       previewScaleMode: ((selectedOp?.enabled && selectedOp.type === "resize") ? "shrink-only" : "fit") as ImageFitMode
     };
   }, [activeOriginal?.sourceHash, activeTask, opCatalogByType, selectedOpId, settings?.previewLongEdge]);
-  const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, cacheKey: previewConfig.cacheKey } : null;
+  const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, requestKey: previewConfig.requestKey } : null;
   const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
-  const previewRequestKey = previewRequest?.cacheKey ?? null;
+  const previewRequestKey = previewRequest?.requestKey ?? null;
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -242,19 +241,8 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    opPreviewCacheRef.current.clear();
-  }, [activeTask?.id]);
-
-  useEffect(() => {
     if (!previewRequest) {
       setPreview(null);
-      setPreviewState("idle");
-      return;
-    }
-
-    const cached = opPreviewCacheRef.current.get(previewRequest.cacheKey);
-    if (cached) {
-      setPreview(cached);
       setPreviewState("idle");
       return;
     }
@@ -267,7 +255,6 @@ function App(): React.JSX.Element {
       void api.preview.render(previewRequest.taskId, previewRequest.options)
         .then((result) => {
           if (!cancelled) {
-            opPreviewCacheRef.current.set(previewRequest.cacheKey, result);
             setPreview(result);
             setPreviewState("idle");
           }

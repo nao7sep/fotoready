@@ -1,9 +1,25 @@
 import { parentPort } from "node:worker_threads";
 import { loadCubeLut } from "@adapters/cube-loader";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
-import { runPipeline } from "@runtime/pipeline-runner";
+import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
 
 export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResult> {
+  if (job.kind === "preview-stage") {
+    const result = await runPipelineFromRaw(
+      job.pipeline,
+      { bytes: Buffer.from(job.bitmap), width: job.width, height: job.height },
+      { resolveLut: loadCubeLut }
+    );
+    return {
+      kind: "preview",
+      bitmap: toArrayBuffer(result.bytes),
+      width: result.width,
+      height: result.height,
+      format: "rgba8",
+      appliedPipeline: result.appliedPipeline
+    };
+  }
+
   const result = await runPipeline(job.pipeline, {
     sourcePath: job.sourcePath,
     sourceHash: job.sourceHash,

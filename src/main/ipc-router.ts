@@ -175,7 +175,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
 
   ipcMain.handle("ops.list", async () =>
-    listOpDefinitions().map(({ type, label, category, defaultParams, previewBehavior }) => ({ type, label, category, defaultParams, previewBehavior }))
+    listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
+      type,
+      label,
+      pickerLabel,
+      category,
+      defaultParams,
+      previewBehavior,
+      metadataOnly
+    }))
   );
   ipcMain.handle("preview.render", async (_event, taskId: string, options?: PreviewRenderOptions) =>
     ctx.projectSession.renderPreview(taskId, options)

@@ -158,7 +158,7 @@ function stageRectToImageWatermark(
     y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
     scale: clamp(width / ctx.longEdge, MIN_IMAGE_WATERMARK_SCALE, 1),
     rotation: normalizeRotation(rect.rotation ?? 0)
-  }, ctx.imageBounds, aspectRatio, 12 / ctx.longEdge);
+  }, ctx.imageBounds, aspectRatio, MIN_IMAGE_WATERMARK_SCALE);
 }
 
 function normalizeImageWatermark<T extends Partial<WatermarkImageParams>>(

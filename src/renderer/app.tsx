@@ -8,6 +8,7 @@ import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, Project
 import type { Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
+import { pipelineForPreview } from "@shared/preview-pipeline";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal } from "./components/modals/rename-modal";
@@ -125,32 +126,31 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
+  const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpId ? activeTask.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
     // Cards with previewBehavior "show-input" (currently crop) display
     // the image *before* their own op so the overlay rectangle lines up with the unaltered base.
     // Other cards include themselves so slider edits appear live.
-    const selectedDefinition = selectedOp ? opCatalog.find((item) => item.type === selectedOp.type) : null;
+    const selectedDefinition = selectedOp ? opCatalogByType.get(selectedOp.type) ?? null : null;
     const mode: PreviewRenderMode = selectedOp ? selectedDefinition?.previewBehavior === "show-input" ? "input" : "output" : "full";
-    const shownOps = !selectedOp || mode === "full"
-      ? activeTask.pipeline.ops
-      : activeTask.pipeline.ops.slice(0, activeTask.pipeline.ops.findIndex((op) => op.id === selectedOp.id) + (mode === "input" ? 0 : 1));
+    const options = mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode };
+    const previewPipeline = pipelineForPreview(activeTask.pipeline, options);
+    const previewPixelOps = previewPipeline.ops.filter((op) => opCatalogByType.get(op.type)?.metadataOnly !== true);
     const cacheKey = JSON.stringify({
       taskId: activeTask.id,
-      originalId: activeTask.originalId,
-      mode,
-      targetOpId: selectedOp?.id ?? null,
-      ops: activeTask.pipeline.ops,
-      output: activeTask.pipeline.output
+      originalHash: activeOriginal?.sourceHash ?? null,
+      previewLongEdge: settings?.previewLongEdge ?? null,
+      ops: previewPixelOps
     });
     return {
       taskId: activeTask.id,
-      options: mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode },
+      options,
       cacheKey,
-      previewScaleMode: (shownOps.some((op) => op.enabled && op.type === "resize") ? "shrink-only" : "fit") as ImageFitMode
+      previewScaleMode: ((selectedOp?.enabled && selectedOp.type === "resize") ? "shrink-only" : "fit") as ImageFitMode
     };
-  }, [activeTask, opCatalog, selectedOpId]);
+  }, [activeOriginal?.sourceHash, activeTask, opCatalogByType, selectedOpId, settings?.previewLongEdge]);
   const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, cacheKey: previewConfig.cacheKey } : null;
   const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
   const previewRequestKey = previewRequest?.cacheKey ?? null;

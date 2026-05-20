@@ -35,6 +35,11 @@ type TrimmedTextBitmap = {
   channels: 4;
 };
 
+const MAX_FITTED_TEXT_BITMAP_CACHE_ENTRIES = 96;
+const MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES = 256;
+const fittedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
+const renderedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
+
 const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
   label: "Text watermark",
@@ -147,6 +152,12 @@ const watermarkTextModule: OpModule<WatermarkTextParams> = {
 registerOp(watermarkTextModule);
 
 async function fitTextBitmap(params: WatermarkTextParams, maxWidth: number, maxHeight: number): Promise<TrimmedTextBitmap> {
+  const cacheKey = `${textBitmapStyleKey(params)}|fit|${maxWidth}x${maxHeight}`;
+  const cached = getCachedBitmap(fittedTextBitmapCache, cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   let low = 1;
   let high = Math.max(1, Math.ceil(Math.max(maxWidth, maxHeight) * 1.5));
   let best: TrimmedTextBitmap | null = null;
@@ -160,10 +171,18 @@ async function fitTextBitmap(params: WatermarkTextParams, maxWidth: number, maxH
       high = mid - 1;
     }
   }
-  return best ?? renderTrimmedTextBitmap(params, 1);
+  const bitmap = best ?? await renderTrimmedTextBitmap(params, 1);
+  setCachedBitmap(fittedTextBitmapCache, cacheKey, bitmap, MAX_FITTED_TEXT_BITMAP_CACHE_ENTRIES);
+  return cloneTrimmedTextBitmap(bitmap);
 }
 
 async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: number): Promise<TrimmedTextBitmap> {
+  const cacheKey = `${textBitmapStyleKey(params)}|render|${fontSize}`;
+  const cached = getCachedBitmap(renderedTextBitmapCache, cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const sharpImpl = (await import("sharp")).default;
   const characters = Math.max(1, Array.from(params.text).length);
   const margin = Math.max(4, Math.ceil(fontSize * 1.5));
@@ -186,7 +205,9 @@ async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: nu
   const rendered = await sharpImpl(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const bounds = alphaBounds(rendered.data, rendered.info.width, rendered.info.height, rendered.info.channels);
   if (!bounds) {
-    return { data: Buffer.from([0, 0, 0, 0]), width: 1, height: 1, channels: 4 };
+    const empty = { data: Buffer.from([0, 0, 0, 0]), width: 1, height: 1, channels: 4 } as const;
+    setCachedBitmap(renderedTextBitmapCache, cacheKey, empty, MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES);
+    return cloneTrimmedTextBitmap(empty);
   }
   const trimmed = await sharpImpl(rendered.data, {
     raw: {
@@ -198,12 +219,14 @@ async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: nu
     .extract(bounds)
     .raw()
     .toBuffer({ resolveWithObject: true });
-  return {
+  const bitmap = {
     data: Buffer.from(trimmed.data),
     width: trimmed.info.width,
     height: trimmed.info.height,
     channels: 4
-  };
+  } as const;
+  setCachedBitmap(renderedTextBitmapCache, cacheKey, bitmap, MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES);
+  return cloneTrimmedTextBitmap(bitmap);
 }
 
 function renderWatermarkBoxSvg(
@@ -261,5 +284,45 @@ function alphaBounds(data: Buffer, width: number, height: number, channels: numb
     top: minY,
     width: maxX - minX + 1,
     height: maxY - minY + 1
+  };
+}
+
+function textBitmapStyleKey(params: WatermarkTextParams): string {
+  return JSON.stringify({
+    text: params.text,
+    fontFamily: params.fontFamily,
+    opacity: params.opacity,
+    color: params.color,
+    bold: params.bold,
+    italic: params.italic,
+    underline: params.underline,
+    strikeThrough: params.strikeThrough
+  });
+}
+
+function getCachedBitmap(cache: Map<string, TrimmedTextBitmap>, key: string): TrimmedTextBitmap | null {
+  const value = cache.get(key);
+  if (!value) return null;
+  cache.delete(key);
+  cache.set(key, value);
+  return cloneTrimmedTextBitmap(value);
+}
+
+function setCachedBitmap(cache: Map<string, TrimmedTextBitmap>, key: string, bitmap: TrimmedTextBitmap, maxEntries: number): void {
+  cache.delete(key);
+  cache.set(key, cloneTrimmedTextBitmap(bitmap));
+  if (cache.size <= maxEntries) return;
+  const oldestKey = cache.keys().next().value;
+  if (typeof oldestKey === "string") {
+    cache.delete(oldestKey);
+  }
+}
+
+function cloneTrimmedTextBitmap(bitmap: TrimmedTextBitmap): TrimmedTextBitmap {
+  return {
+    data: Buffer.from(bitmap.data),
+    width: bitmap.width,
+    height: bitmap.height,
+    channels: bitmap.channels
   };
 }

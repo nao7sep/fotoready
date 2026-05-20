@@ -23,4 +23,6 @@ export type OpDefinition<TParams extends Record<string, unknown> = Record<string
    * "show-output" includes the op in the preview so slider changes appear live.
    */
   previewBehavior: "show-input" | "show-output";
+  /** True when the op only affects written metadata and never changes preview pixels. */
+  metadataOnly?: boolean;
 };

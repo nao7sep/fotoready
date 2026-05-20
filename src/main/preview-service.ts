@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { Original, Project, Task } from "@shared/types/project";
-import type { Pipeline } from "@shared/types/pipeline";
 import type { PreviewRenderOptions } from "@shared/types/ipc";
+import { pipelineForPreview } from "@shared/preview-pipeline";
 import { runPipeline } from "@runtime/pipeline-runner";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { loadCubeLut } from "@adapters/cube-loader";
@@ -53,7 +53,7 @@ export async function renderTaskPreview(
     throw new Error(`Original not found for task: ${taskId}`);
   }
 
-  const previewPipeline = pipelineForPreview(task, options);
+  const previewPipeline = pipelineForPreview(task.pipeline, options);
 
   const result = workerPool
     ? await workerPool.renderBuffer({
@@ -87,27 +87,5 @@ export async function renderTaskPreview(
     dataUrl: `data:image/png;base64,${png.toString("base64")}`,
     width: result.width,
     height: result.height
-  };
-}
-
-function pipelineForPreview(task: Task, options?: PreviewRenderOptions): Pipeline {
-  const mode = options?.mode ?? "full";
-  const targetOpId = options?.targetOpId ?? null;
-  if (mode === "full") {
-    return task.pipeline;
-  }
-
-  if (!targetOpId) {
-    throw new Error(`Preview mode "${mode}" requires a target op id.`);
-  }
-
-  const opIndex = task.pipeline.ops.findIndex((op) => op.id === targetOpId);
-  if (opIndex === -1) {
-    throw new Error(`Preview target op not found: ${targetOpId}`);
-  }
-
-  return {
-    ...task.pipeline,
-    ops: task.pipeline.ops.slice(0, mode === "input" ? opIndex : opIndex + 1)
   };
 }

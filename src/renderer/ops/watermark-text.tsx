@@ -1,9 +1,9 @@
-import React, { useId } from "react";
-import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
+import React from "react";
+import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
-import { formatPercent, fractionToPercentSteps, onePixelStep, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
+import { formatPercent, fractionToPercentSteps, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
 
 type WatermarkTextParams = {
   text: string;
@@ -30,6 +30,7 @@ type WatermarkTextParams = {
 };
 
 const MIN_TEXT_WATERMARK_BOX_SIZE = 0.02;
+const DEFAULT_TEXT_WATERMARK_BORDER_WIDTH = 0.002;
 
 const BOX_COLOR_SWATCHES = [
   {
@@ -54,13 +55,12 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
     const imageBounds = ctx.originalSize
       ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
       : { maxX: 1, maxY: 1 };
-    const fontFamilyListId = useId();
     const normalizedBox = normalizeTextWatermarkBox(params, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE);
     const xMax = fractionToPercentSteps(imageBounds.maxX);
     const yMax = fractionToPercentSteps(imageBounds.maxY);
     const widthMax = fractionToPercentSteps(imageBounds.maxX);
     const heightMax = fractionToPercentSteps(imageBounds.maxY);
-    const borderWidthFallback = Math.max(normalizedBox.borderWidth, onePixelStep(longEdge));
+    const borderWidthFallback = Math.max(normalizedBox.borderWidth, DEFAULT_TEXT_WATERMARK_BORDER_WIDTH);
 
     function updateBox(updates: Partial<WatermarkTextParams>): void {
       onParamsChange(updateTextWatermarkBox(normalizedBox, updates, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE));
@@ -237,17 +237,11 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           <input
             className="compact-control"
             disabled={disabled}
-            list={fontFamilyListId}
             placeholder={DEFAULT_TEXT_WATERMARK_FONT_FAMILY}
             type="text"
             value={normalizedBox.fontFamily}
             onChange={(event) => onParamChange("fontFamily", event.currentTarget.value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)}
           />
-          <datalist id={fontFamilyListId}>
-            {TEXT_WATERMARK_FONT_OPTIONS.map((option) => (
-              <option key={option.label} label={option.label} value={option.value} />
-            ))}
-          </datalist>
         </label>
         <div className="watermark-style-row">
           <button className={`toolbar-button compact-text ${normalizedBox.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !normalizedBox.bold)}>Bold</button>

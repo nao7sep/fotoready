@@ -12,10 +12,6 @@ export function percentStepsToFraction(value: number): number {
   return value / PERCENT_STEPS;
 }
 
-export function onePixelStep(longEdge: number): number {
-  return 1 / longEdge;
-}
-
 export function formatPercent(value: number): string {
   const percentage = Math.round(value * 1000) / 10;
   return `${Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1)}%`;

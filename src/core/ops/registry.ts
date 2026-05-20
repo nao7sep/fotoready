@@ -31,12 +31,13 @@ export function listOpModules(): OpModule[] {
 }
 
 export function listOpDefinitions(): OpDefinition[] {
-  return [...modules.values()].map(({ type, label, pickerLabel, category, defaultParams, previewBehavior }) => ({
+  return [...modules.values()].map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
     type,
     label,
     pickerLabel,
     category,
     defaultParams,
-    previewBehavior
+    previewBehavior,
+    metadataOnly
   }));
 }

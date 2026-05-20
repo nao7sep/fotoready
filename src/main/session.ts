@@ -325,6 +325,9 @@ export class ProjectSession {
     if (opType === "watermark-image" && typeof params.pngPath === "string" && !params.pngPath && this.settings.defaultWatermarkImage) {
       params.pngPath = this.settings.defaultWatermarkImage;
     }
+    if (opType === "watermark-text" && typeof params.fontFamily === "string" && this.settings.defaultWatermarkTextFontFamily.trim()) {
+      params.fontFamily = this.settings.defaultWatermarkTextFontFamily.trim();
+    }
     task.pipeline.ops.push({
       id: nanoid(),
       type: definition.type,

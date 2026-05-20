@@ -42,6 +42,7 @@ export type GlobalSettings = {
   defaultOutputDirectory: string;
   lutFolder: string;
   defaultWatermarkImage: string;
+  defaultWatermarkTextFontFamily: string;
   confirmDeleteOriginals: boolean;
   confirmDeleteTasks: boolean;
   confirmDeleteOutputFiles: boolean;

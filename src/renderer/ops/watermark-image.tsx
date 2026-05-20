@@ -3,6 +3,7 @@ import { api } from "@renderer/ipc/client";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
+import { fractionToPixels, pixelsToFraction, sliderLongEdge } from "./_slider-units";
 
 type WatermarkImageParams = {
   pngPath: string;
@@ -15,7 +16,29 @@ type WatermarkImageParams = {
 
 export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
   type: "watermark-image",
-  Card({ params, disabled, onParamChange }) {
+  Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
+    const image = useLocalImage(params.pngPath);
+    const longEdge = sliderLongEdge(ctx.originalSize);
+    const imageBounds = ctx.originalSize
+      ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
+      : { maxX: 1, maxY: 1 };
+    const aspectRatio = useMemo(() => {
+      if (!image) return 1.5;
+      const width = image.naturalWidth || image.width || 1;
+      const height = image.naturalHeight || image.height || 1;
+      return width / Math.max(1, height);
+    }, [image]);
+    const minWidth = Math.max(12, fractionToPixels(0.01, longEdge));
+    const watermarkHeight = params.scale / Math.max(0.01, aspectRatio);
+    const widthPx = fractionToPixels(params.scale, longEdge);
+    const xMax = fractionToPixels(Math.max(0, imageBounds.maxX - params.scale), longEdge);
+    const yMax = fractionToPixels(Math.max(0, imageBounds.maxY - watermarkHeight), longEdge);
+    const widthMax = Math.max(minWidth, fractionToPixels(maxImageWatermarkScale(imageBounds, aspectRatio), longEdge));
+
+    function patchGeometry(patch: Partial<WatermarkImageParams>): void {
+      onParamsChange(clampImageWatermark({ ...params, ...patch }, imageBounds, aspectRatio, pixelsToFraction(minWidth, longEdge)));
+    }
+
     return (
       <div className="geometry-controls">
         <div className="watermark-file-row">
@@ -35,13 +58,47 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
           </button>
         </div>
         <label className="slider-row">
-          <span>Scale</span>
-          <input disabled={disabled} max={0.5} min={0.01} step={0.01} type="range" value={params.scale} onChange={(event) => onParamChange("scale", event.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${Math.round(params.scale * 100)}%`}</span>
+          <span>Width</span>
+          <input
+            disabled={disabled}
+            max={widthMax}
+            min={minWidth}
+            step={1}
+            type="range"
+            value={widthPx}
+            onChange={(event) => patchGeometry({ scale: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
+          <span className="slider-value">{`${widthPx}px`}</span>
+        </label>
+        <label className="slider-row">
+          <span>X</span>
+          <input
+            disabled={disabled}
+            max={xMax}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.x, longEdge)}
+            onChange={(event) => patchGeometry({ x: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
+          <span className="slider-value">{`${fractionToPixels(params.x, longEdge)}px`}</span>
+        </label>
+        <label className="slider-row">
+          <span>Y</span>
+          <input
+            disabled={disabled}
+            max={yMax}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.y, longEdge)}
+            onChange={(event) => patchGeometry({ y: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
+          <span className="slider-value">{`${fractionToPixels(params.y, longEdge)}px`}</span>
         </label>
         <label className="slider-row">
           <span>Opacity</span>
-          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
         </label>
         <AngleControl disabled={disabled} value={params.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
@@ -90,16 +147,37 @@ function imageWatermarkToStageRect(
 
 function stageRectToImageWatermark(
   rect: { x: number; y: number; w: number; h: number; rotation?: number },
-  ctx: { longEdge: number; placement: { x: number; y: number; scale: number } },
+  ctx: { longEdge: number; imageBounds: { maxX: number; maxY: number }; placement: { x: number; y: number; scale: number } },
   aspectRatio: number
 ): Partial<WatermarkImageParams> {
   const width = rect.w / ctx.placement.scale;
-  return {
-    x: clamp((rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale), 0, 1),
-    y: clamp((rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale), 0, 1),
+  return clampImageWatermark({
+    x: (rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale),
+    y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
     scale: clamp(width / ctx.longEdge, 0.01, 1),
     rotation: normalizeRotation(rect.rotation ?? 0)
+  }, ctx.imageBounds, aspectRatio, 12 / ctx.longEdge);
+}
+
+function clampImageWatermark<T extends Partial<WatermarkImageParams>>(
+  params: T,
+  bounds: { maxX: number; maxY: number },
+  aspectRatio: number,
+  minScale: number
+): T {
+  const maxScale = maxImageWatermarkScale(bounds, aspectRatio);
+  const scale = clamp(params.scale ?? 0.15, Math.min(minScale, maxScale), Math.max(minScale, maxScale));
+  const height = scale / Math.max(0.01, aspectRatio);
+  return {
+    ...params,
+    scale,
+    x: clamp(params.x ?? 0, 0, Math.max(0, bounds.maxX - scale)),
+    y: clamp(params.y ?? 0, 0, Math.max(0, bounds.maxY - height))
   };
+}
+
+function maxImageWatermarkScale(bounds: { maxX: number; maxY: number }, aspectRatio: number): number {
+  return Math.max(0.01, Math.min(bounds.maxX, bounds.maxY * Math.max(0.01, aspectRatio)));
 }
 
 function useLocalImage(path: string): HTMLImageElement | null {

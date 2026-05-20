@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import type { SystemInfo } from "@shared/types/ipc";
 import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "@shared/constants";
 import type { FilenameTemplate, GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { validateFilenameTemplates } from "@shared/validation/filename-template";
+import { TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { ModalShell } from "./modal-shell";
 
@@ -450,6 +451,8 @@ function VisionTab({
 }
 
 function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
+  const fontFamilyListId = useId();
+
   return (
     <div className="settings-section-stack">
       <section>
@@ -467,15 +470,35 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
 
       <section>
         <h3>Watermark</h3>
-        <PathField
-          allowClear
-          buttonLabel="Choose image…"
-          emptyLabel="No default image watermark"
-          label="Default image watermark"
-          pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png"] })}
-          value={settings.defaultWatermarkImage}
-          onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
-        />
+        <div className="settings-grid">
+          <PathField
+            allowClear
+            buttonLabel="Choose image…"
+            emptyLabel="No default image watermark"
+            label="Default image watermark"
+            pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png"] })}
+            value={settings.defaultWatermarkImage}
+            onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
+          />
+          <label className="stacked-field span-two">
+            Default text watermark font family
+            <input
+              list={fontFamilyListId}
+              placeholder='system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+              type="text"
+              value={settings.defaultWatermarkTextFontFamily}
+              onChange={(event) => setSettings({ ...settings, defaultWatermarkTextFontFamily: event.currentTarget.value })}
+            />
+            <datalist id={fontFamilyListId}>
+              {TEXT_WATERMARK_FONT_OPTIONS.map((option) => (
+                <option key={option.label} label={option.label} value={option.value} />
+              ))}
+            </datalist>
+          </label>
+          <div className="row-detail">
+            New text watermark ops start with this CSS font-family string. Choose a preset or type your own stack.
+          </div>
+        </div>
       </section>
     </div>
   );

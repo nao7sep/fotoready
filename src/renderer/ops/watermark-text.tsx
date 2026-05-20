@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useId } from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
+import { fractionToPixels, onePixelStep, pixelsToFraction, sliderLongEdge } from "./_slider-units";
 
 type WatermarkTextParams = {
   text: string;
@@ -47,19 +48,20 @@ const BOX_COLOR_SWATCHES = [
 export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
   type: "watermark-text",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
-    const longEdge = ctx.originalSize ? Math.max(ctx.originalSize.width, ctx.originalSize.height) : null;
+    const longEdge = sliderLongEdge(ctx.originalSize);
     const imageBounds = ctx.originalSize
-      ? { maxX: ctx.originalSize.width / longEdge!, maxY: ctx.originalSize.height / longEdge! }
+      ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
       : { maxX: 1, maxY: 1 };
-    const fontOptions = useMemo(() => {
-      if (TEXT_WATERMARK_FONT_OPTIONS.some((option) => option.value === params.fontFamily)) {
-        return TEXT_WATERMARK_FONT_OPTIONS;
-      }
-      return [{ label: "Custom", value: params.fontFamily || DEFAULT_TEXT_WATERMARK_FONT_FAMILY }, ...TEXT_WATERMARK_FONT_OPTIONS];
-    }, [params.fontFamily]);
+    const fontFamilyListId = useId();
+    const minBoxSize = Math.max(12, fractionToPixels(0.02, longEdge));
+    const xMax = fractionToPixels(Math.max(0, imageBounds.maxX - params.w), longEdge);
+    const yMax = fractionToPixels(Math.max(0, imageBounds.maxY - params.h), longEdge);
+    const widthMax = Math.max(minBoxSize, fractionToPixels(Math.max(0.02, imageBounds.maxX - params.x), longEdge));
+    const heightMax = Math.max(minBoxSize, fractionToPixels(Math.max(0.02, imageBounds.maxY - params.y), longEdge));
+    const borderWidthFallback = Math.max(params.borderWidth, onePixelStep(longEdge));
 
     function patchBox(patch: Partial<WatermarkTextParams>): void {
-      onParamsChange(clampTextWatermarkBox({ ...params, ...patch }, imageBounds));
+      onParamsChange(clampTextWatermarkBox({ ...params, ...patch }, imageBounds, 0.02));
     }
 
     return (
@@ -73,11 +75,20 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         />
         <label className="stacked-field">
           Font family
-          <select disabled={disabled} value={params.fontFamily} onChange={(event) => onParamChange("fontFamily", event.currentTarget.value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)}>
-            {fontOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+          <input
+            className="compact-control"
+            disabled={disabled}
+            list={fontFamilyListId}
+            placeholder={DEFAULT_TEXT_WATERMARK_FONT_FAMILY}
+            type="text"
+            value={params.fontFamily}
+            onChange={(event) => onParamChange("fontFamily", event.currentTarget.value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)}
+          />
+          <datalist id={fontFamilyListId}>
+            {TEXT_WATERMARK_FONT_OPTIONS.map((option) => (
+              <option key={option.label} label={option.label} value={option.value} />
             ))}
-          </select>
+          </datalist>
         </label>
         <div className="watermark-style-row">
           <button className={`toolbar-button compact-text ${params.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !params.bold)}>Bold</button>
@@ -87,17 +98,59 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         </div>
         <label className="slider-row">
           <span>Width</span>
-          <input disabled={disabled} max={1} min={0.05} step={0.01} type="range" value={params.w} onChange={(event) => patchBox({ w: event.currentTarget.valueAsNumber })} />
+          <input
+            disabled={disabled}
+            max={widthMax}
+            min={minBoxSize}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.w, longEdge)}
+            onChange={(event) => patchBox({ w: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
           <span className="slider-value">{formatLength(params.w, longEdge)}</span>
         </label>
         <label className="slider-row">
           <span>Height</span>
-          <input disabled={disabled} max={0.5} min={0.03} step={0.005} type="range" value={params.h} onChange={(event) => patchBox({ h: event.currentTarget.valueAsNumber })} />
+          <input
+            disabled={disabled}
+            max={heightMax}
+            min={minBoxSize}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.h, longEdge)}
+            onChange={(event) => patchBox({ h: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
           <span className="slider-value">{formatLength(params.h, longEdge)}</span>
         </label>
         <label className="slider-row">
+          <span>X</span>
+          <input
+            disabled={disabled}
+            max={xMax}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.x, longEdge)}
+            onChange={(event) => patchBox({ x: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
+          <span className="slider-value">{formatLength(params.x, longEdge)}</span>
+        </label>
+        <label className="slider-row">
+          <span>Y</span>
+          <input
+            disabled={disabled}
+            max={yMax}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.y, longEdge)}
+            onChange={(event) => patchBox({ y: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+          />
+          <span className="slider-value">{formatLength(params.y, longEdge)}</span>
+        </label>
+        <label className="slider-row">
           <span>Opacity</span>
-          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
         </label>
         <AngleControl disabled={disabled} value={params.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
@@ -126,7 +179,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         </div>
         <label className="slider-row">
           <span>Background opacity</span>
-          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.backgroundOpacity} onChange={(event) => onParamChange("backgroundOpacity", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={params.backgroundOpacity} onChange={(event) => onParamChange("backgroundOpacity", event.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.backgroundOpacity * 100)}%`}</span>
         </label>
         <div className="geometry-toolbar-row">
@@ -140,41 +193,73 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
                 key={`border-${swatch.key}`}
                 style={swatch.style}
                 type="button"
-                onClick={() => onParamsChange(applyBorderSwatch(params, swatch.value))}
+                onClick={() => onParamsChange(applyBorderSwatch(params, swatch.value, borderWidthFallback))}
               />
             ))}
             <label className="color-picker-button">
               <input disabled={disabled} type="color" value={params.borderColor} onChange={(event) => onParamsChange({
                 borderColor: event.currentTarget.value,
                 borderOpacity: params.borderOpacity > 0 ? params.borderOpacity : 1,
-                borderWidth: params.borderWidth > 0 ? params.borderWidth : 0.002
+                borderWidth: borderWidthFallback
               })} />
             </label>
           </div>
         </div>
         <label className="slider-row">
           <span>Border opacity</span>
-          <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.borderOpacity} onChange={(event) => onParamChange("borderOpacity", event.currentTarget.valueAsNumber)} />
+          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={params.borderOpacity} onChange={(event) => onParamChange("borderOpacity", event.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.borderOpacity * 100)}%`}</span>
         </label>
         <label className="slider-row">
           <span>Border thickness</span>
-          <input disabled={disabled} max={0.03} min={0} step={0.001} type="range" value={params.borderWidth} onChange={(event) => onParamChange("borderWidth", event.currentTarget.valueAsNumber)} />
+          <input
+            disabled={disabled}
+            max={Math.max(0, fractionToPixels(0.03, longEdge))}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.borderWidth, longEdge)}
+            onChange={(event) => onParamChange("borderWidth", pixelsToFraction(event.currentTarget.valueAsNumber, longEdge))}
+          />
           <span className="slider-value">{formatLength(params.borderWidth, longEdge)}</span>
         </label>
         <label className="slider-row">
           <span>Horizontal padding</span>
-          <input disabled={disabled} max={0.08} min={0} step={0.002} type="range" value={params.paddingX} onChange={(event) => onParamChange("paddingX", event.currentTarget.valueAsNumber)} />
+          <input
+            disabled={disabled}
+            max={Math.max(0, fractionToPixels(0.08, longEdge))}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.paddingX, longEdge)}
+            onChange={(event) => onParamChange("paddingX", pixelsToFraction(event.currentTarget.valueAsNumber, longEdge))}
+          />
           <span className="slider-value">{formatLength(params.paddingX, longEdge)}</span>
         </label>
         <label className="slider-row">
           <span>Vertical padding</span>
-          <input disabled={disabled} max={0.08} min={0} step={0.002} type="range" value={params.paddingY} onChange={(event) => onParamChange("paddingY", event.currentTarget.valueAsNumber)} />
+          <input
+            disabled={disabled}
+            max={Math.max(0, fractionToPixels(0.08, longEdge))}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.paddingY, longEdge)}
+            onChange={(event) => onParamChange("paddingY", pixelsToFraction(event.currentTarget.valueAsNumber, longEdge))}
+          />
           <span className="slider-value">{formatLength(params.paddingY, longEdge)}</span>
         </label>
         <label className="slider-row">
           <span>Corner radius</span>
-          <input disabled={disabled} max={0.08} min={0} step={0.002} type="range" value={params.cornerRadius} onChange={(event) => onParamChange("cornerRadius", event.currentTarget.valueAsNumber)} />
+          <input
+            disabled={disabled}
+            max={Math.max(0, fractionToPixels(0.08, longEdge))}
+            min={0}
+            step={1}
+            type="range"
+            value={fractionToPixels(params.cornerRadius, longEdge)}
+            onChange={(event) => onParamChange("cornerRadius", pixelsToFraction(event.currentTarget.valueAsNumber, longEdge))}
+          />
           <span className="slider-value">{formatLength(params.cornerRadius, longEdge)}</span>
         </label>
       </div>
@@ -219,12 +304,16 @@ function stageRectToTextWatermark(
     w: rect.w / (ctx.longEdge * ctx.placement.scale),
     h: rect.h / (ctx.longEdge * ctx.placement.scale),
     rotation: normalizeRotation(rect.rotation ?? 0)
-  }, ctx.imageBounds);
+  }, ctx.imageBounds, 0.02);
 }
 
-function clampTextWatermarkBox<T extends Partial<WatermarkTextParams>>(params: T, bounds: { maxX: number; maxY: number }): T {
-  const w = clamp(params.w ?? 0.2, 0.02, Math.max(0.02, bounds.maxX));
-  const h = clamp(params.h ?? 0.06, 0.02, Math.max(0.02, bounds.maxY));
+function clampTextWatermarkBox<T extends Partial<WatermarkTextParams>>(
+  params: T,
+  bounds: { maxX: number; maxY: number },
+  minSize: number
+): T {
+  const w = clamp(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
+  const h = clamp(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
   return {
     ...params,
     w,
@@ -254,14 +343,14 @@ function applyBackgroundSwatch(params: WatermarkTextParams, value: string): Part
   };
 }
 
-function applyBorderSwatch(params: WatermarkTextParams, value: string): Partial<WatermarkTextParams> {
+function applyBorderSwatch(params: WatermarkTextParams, value: string, borderWidthFallback: number): Partial<WatermarkTextParams> {
   if (value === "transparent") {
     return { borderOpacity: 0 };
   }
   return {
     borderColor: value,
     borderOpacity: params.borderOpacity > 0 ? params.borderOpacity : 1,
-    borderWidth: params.borderWidth > 0 ? params.borderWidth : 0.002
+    borderWidth: params.borderWidth > 0 ? params.borderWidth : borderWidthFallback
   };
 }
 

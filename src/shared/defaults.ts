@@ -2,6 +2,7 @@ import { BUILTIN_FILENAME_TEMPLATE_IDS, DEFAULT_FILENAME_TEMPLATE_ID } from "./c
 import type { GlobalSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
+import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "./watermark-text-layout";
 
 export const builtinFilenameTemplates = [
   {
@@ -87,6 +88,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     defaultOutputDirectory: "",
     lutFolder: "",
     defaultWatermarkImage: "",
+    defaultWatermarkTextFontFamily: DEFAULT_TEXT_WATERMARK_FONT_FAMILY,
     workerPoolSize,
     previewLongEdge: 1024,
     previewDebounceMs: 150

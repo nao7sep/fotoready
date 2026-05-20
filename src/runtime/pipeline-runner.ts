@@ -9,10 +9,8 @@ import type sharp from "sharp";
 
 type PipelineRunContext = {
   sourcePath: string;
-  sourceHash: string;
   outputPath?: string;
   previewLongEdge?: number;
-  log?: (message: string, extra?: Record<string, unknown>) => void;
   resolveLut?: (cubePath: string) => Promise<CubeLut>;
 };
 

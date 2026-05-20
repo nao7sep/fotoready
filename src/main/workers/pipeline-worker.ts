@@ -1,4 +1,3 @@
-import { parentPort } from "node:worker_threads";
 import { loadCubeLut } from "@adapters/cube-loader";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
 import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
@@ -22,10 +21,8 @@ export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResu
 
   const result = await runPipeline(job.pipeline, {
     sourcePath: job.sourcePath,
-    sourceHash: job.sourceHash,
     outputPath: job.outputPath ?? undefined,
     previewLongEdge: job.kind === "preview" ? job.previewLongEdge ?? undefined : undefined,
-    log: (message, extra) => parentPort?.postMessage({ jobId: job.jobId, message, extra }),
     resolveLut: loadCubeLut
   });
 

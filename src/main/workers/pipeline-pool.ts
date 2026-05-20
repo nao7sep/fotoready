@@ -19,7 +19,6 @@ export class PipelineWorkerPool {
 
   async process(input: {
     sourcePath: string;
-    sourceHash: string;
     pipeline: Pipeline;
     outputPath: string;
   }): Promise<Extract<WorkerResult, { kind: "process" }>> {
@@ -27,7 +26,6 @@ export class PipelineWorkerPool {
       jobId: nanoid(),
       kind: "process",
       sourcePath: input.sourcePath,
-      sourceHash: input.sourceHash,
       pipeline: input.pipeline,
       outputPath: input.outputPath,
       previewLongEdge: null
@@ -38,7 +36,6 @@ export class PipelineWorkerPool {
 
   async renderBuffer(input: {
     sourcePath: string;
-    sourceHash: string;
     pipeline: Pipeline;
     previewLongEdge: number | null;
   }): Promise<Extract<WorkerResult, { kind: "preview" }>> {
@@ -46,7 +43,6 @@ export class PipelineWorkerPool {
       jobId: nanoid(),
       kind: "preview",
       sourcePath: input.sourcePath,
-      sourceHash: input.sourceHash,
       pipeline: input.pipeline,
       outputPath: null,
       previewLongEdge: input.previewLongEdge

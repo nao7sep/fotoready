@@ -137,7 +137,7 @@ function App(): React.JSX.Element {
     const options = mode === "full" || !selectedOp ? undefined : { targetOpId: selectedOp.id, mode };
     const previewPipeline = pipelineForPreview(activeTask.pipeline, options);
     const previewPixelOps = previewPipeline.ops.filter((op) => opCatalogByType.get(op.type)?.metadataOnly !== true);
-    const requestKey = JSON.stringify({
+    const previewStateKey = JSON.stringify({
       taskId: activeTask.id,
       originalHash: activeOriginal?.sourceHash ?? null,
       previewLongEdge: settings?.previewLongEdge ?? null,
@@ -146,13 +146,13 @@ function App(): React.JSX.Element {
     return {
       taskId: activeTask.id,
       options,
-      requestKey,
+      previewStateKey,
       previewScaleMode: ((selectedOp?.enabled && selectedOp.type === "resize") ? "shrink-only" : "fit") as ImageFitMode
     };
   }, [activeOriginal?.sourceHash, activeTask, opCatalogByType, selectedOpId, settings?.previewLongEdge]);
-  const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, requestKey: previewConfig.requestKey } : null;
+  const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, previewStateKey: previewConfig.previewStateKey } : null;
   const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
-  const previewRequestKey = previewRequest?.requestKey ?? null;
+  const previewStateKey = previewRequest?.previewStateKey ?? null;
 
   useEffect(() => {
     void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
@@ -271,7 +271,7 @@ function App(): React.JSX.Element {
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [previewRequestKey, settings?.previewDebounceMs]);
+  }, [previewStateKey, settings?.previewDebounceMs]);
 
   useEffect(() => {
     const originals = project?.originals ?? [];

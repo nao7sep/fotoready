@@ -10,9 +10,8 @@ import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
-import { renderOriginalThumbnail, type OriginalThumbnail } from "@main/preview-service";
-import { PreviewStageCache } from "@main/preview-stage-cache";
-import type { PreviewResult } from "@shared/types/ipc";
+import { PreviewService } from "@main/preview-service";
+import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
 import { previewRename, runRename } from "@main/rename-service";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
@@ -32,7 +31,7 @@ export class ProjectSession {
   #project: Project;
   #activeTaskId: string | null = null;
   #taskUndoHistory = new Map<string, Task[]>();
-  #previewStageCache: PreviewStageCache;
+  #previewService: PreviewService;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
 
   constructor(
@@ -42,7 +41,7 @@ export class ProjectSession {
     private readonly workerPool: PipelineWorkerPool
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
-    this.#previewStageCache = new PreviewStageCache(workerPool);
+    this.#previewService = new PreviewService(workerPool);
   }
 
   snapshot(): ProjectSessionSnapshot {
@@ -101,7 +100,7 @@ export class ProjectSession {
     if (activeTask && activeTask.status === "pending" && !activeTask.everEdited) {
       activeTask.originalId = original.id;
       activeTask.updatedAt = nowIso();
-      this.#previewStageCache.invalidateTask(activeTask.id);
+      this.#previewService.invalidateTask(activeTask.id);
       return this.snapshot();
     }
 
@@ -122,7 +121,7 @@ export class ProjectSession {
     this.#project.tasks = this.#project.tasks.filter((task) => !removedTaskIds.has(task.id));
     for (const taskId of removedTaskIds) {
       this.#taskUndoHistory.delete(taskId);
-      this.#previewStageCache.invalidateTask(taskId);
+      this.#previewService.invalidateTask(taskId);
     }
 
     if (this.#activeTaskId && removedTaskIds.has(this.#activeTaskId)) {
@@ -178,7 +177,7 @@ export class ProjectSession {
 
     this.#project.tasks.splice(index, 1);
     this.#taskUndoHistory.delete(taskId);
-    this.#previewStageCache.invalidateTask(taskId);
+    this.#previewService.invalidateTask(taskId);
     if (this.#activeTaskId === taskId) {
       this.#activeTaskId = this.#project.tasks[index]?.id ?? this.#project.tasks[index - 1]?.id ?? null;
     }
@@ -298,7 +297,7 @@ export class ProjectSession {
   }
 
   async renderPreview(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult> {
-    return this.#previewStageCache.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options);
+    return this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {
@@ -306,7 +305,7 @@ export class ProjectSession {
     if (!original) {
       throw new Error(`Original not found: ${originalId}`);
     }
-    return renderOriginalThumbnail(original);
+    return this.#previewService.renderOriginalThumbnail(original);
   }
 
   async afterTaskProcessed(taskId: string): Promise<void> {
@@ -345,7 +344,7 @@ export class ProjectSession {
       params,
       enabled: true
     });
-    this.#previewStageCache.invalidateTaskFrom(task.id, task.pipeline.ops.length - 1);
+    this.#previewService.invalidateTaskFrom(task.id, task.pipeline.ops.length - 1);
     touchTask(task);
     return this.snapshot();
   }
@@ -354,7 +353,7 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
-    this.#previewStageCache.invalidateTaskFrom(task.id, opIndex);
+    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops.splice(opIndex, 1);
     touchTask(task);
     return this.snapshot();
@@ -368,7 +367,7 @@ export class ProjectSession {
       return this.snapshot();
     }
     this.recordTaskEdit(task);
-    this.#previewStageCache.invalidateTaskFrom(task.id, Math.min(fromIndex, toIndex));
+    this.#previewService.invalidateTaskFrom(task.id, Math.min(fromIndex, toIndex));
     const [op] = task.pipeline.ops.splice(fromIndex, 1);
     if (!op) {
       throw new Error(`Op not found: ${opId}`);
@@ -382,7 +381,7 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
-    this.#previewStageCache.invalidateTaskFrom(task.id, opIndex);
+    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
     return this.snapshot();
@@ -393,7 +392,7 @@ export class ProjectSession {
     const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpModule);
     this.recordTaskEdit(task);
-    this.#previewStageCache.invalidateTaskFrom(task.id, opIndex);
+    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     return this.snapshot();
@@ -404,7 +403,7 @@ export class ProjectSession {
     const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
     this.recordTaskEdit(task);
-    this.#previewStageCache.invalidateTaskFrom(task.id, opIndex);
+    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     return this.snapshot();
@@ -464,7 +463,7 @@ export class ProjectSession {
     }
 
     this.#project.tasks[index] = previous;
-    this.#previewStageCache.invalidateTask(taskId);
+    this.#previewService.invalidateTask(taskId);
     return this.snapshot();
   }
 

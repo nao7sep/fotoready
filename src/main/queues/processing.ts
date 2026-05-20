@@ -74,13 +74,13 @@ export async function processTask(
 async function processOutputPipeline(
   pipeline: Pipeline,
   sourcePath: string,
-  original: { sourceHash: string; size: number; format: string; jpegQualityEstimate: number | null },
+  original: { size: number; format: string; jpegQualityEstimate: number | null },
   outputPath: string,
   settings: GlobalSettings,
   workerPool: PipelineWorkerPool
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
   const resolved = resolvePipelineForSave(pipeline, original, settings);
-  const result = await workerPool.process({ sourcePath, sourceHash: original.sourceHash, outputPath, pipeline: resolved });
+  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved });
   return { ...result, kind: "file" };
 }
 

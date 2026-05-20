@@ -12,7 +12,6 @@ export type WorkerProcessJob = {
   jobId: string;
   kind: "process";
   sourcePath: string;
-  sourceHash: string;
   pipeline: Pipeline;
   outputPath: string;
   previewLongEdge: null;
@@ -22,7 +21,6 @@ export type WorkerPreviewJob = {
   jobId: string;
   kind: "preview";
   sourcePath: string;
-  sourceHash: string;
   pipeline: Pipeline;
   outputPath: null;
   previewLongEdge: number | null;

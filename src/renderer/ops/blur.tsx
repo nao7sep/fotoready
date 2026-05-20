@@ -2,7 +2,7 @@ import React from "react";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
 import { ConcealOverlay } from "./_conceal-overlay";
-import { clampConcealRegion, patchFirstConcealRegion, readConcealRegionList } from "./_conceal-primitives";
+import { clampConcealRegion, readConcealRegionList, replacePrimaryConcealRegion, updateConcealRegion } from "./_conceal-primitives";
 import { ConcealGeometryControls } from "./_conceal-geometry-controls";
 import { sliderLongEdge } from "./_slider-units";
 
@@ -15,11 +15,11 @@ export const blurRenderer: OpRenderer<BlurParams> = {
     const imageBounds = ctx.originalSize
       ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
       : { maxX: 1, maxY: 1 };
-    const firstRegion = readConcealRegionList(params.rects)[0] ?? DEFAULT_CONCEAL_REGION;
+    const firstRegion = clampConcealRegion(readConcealRegionList(params.rects)[0] ?? DEFAULT_CONCEAL_REGION, imageBounds);
 
-    function patchRegion(patch: Partial<ConcealRegion>): void {
-      const nextRegion = clampConcealRegion({ ...firstRegion, ...patch }, imageBounds);
-      onParamChange("rects", patchFirstConcealRegion(params.rects, nextRegion));
+    function updateRegion(updates: Partial<ConcealRegion>): void {
+      const nextRegion = updateConcealRegion(firstRegion, updates, imageBounds);
+      onParamChange("rects", replacePrimaryConcealRegion(params.rects, nextRegion));
     }
 
     return (
@@ -29,7 +29,7 @@ export const blurRenderer: OpRenderer<BlurParams> = {
             className={firstRegion.shape === "rectangle" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => patchRegion({ shape: "rectangle" })}
+            onClick={() => updateRegion({ shape: "rectangle" })}
           >
             Rectangle
           </button>
@@ -37,12 +37,12 @@ export const blurRenderer: OpRenderer<BlurParams> = {
             className={firstRegion.shape === "ellipse" ? "active" : ""}
             disabled={disabled}
             type="button"
-            onClick={() => patchRegion({ shape: "ellipse" })}
+            onClick={() => updateRegion({ shape: "ellipse" })}
           >
             Ellipse
           </button>
         </div>
-        <ConcealGeometryControls disabled={disabled} imageBounds={imageBounds} longEdge={longEdge} region={firstRegion} onChange={patchRegion} />
+        <ConcealGeometryControls disabled={disabled} imageBounds={imageBounds} region={firstRegion} onChange={updateRegion} />
         <label className="slider-row">
           <span>Radius</span>
           <input disabled={disabled} max={40} min={1} step={1} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />

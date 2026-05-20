@@ -3,7 +3,7 @@ import { api } from "@renderer/ipc/client";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
-import { fractionToPixels, pixelsToFraction, sliderLongEdge } from "./_slider-units";
+import { formatPercent, fractionToPercentSteps, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
 
 type WatermarkImageParams = {
   pngPath: string;
@@ -13,6 +13,8 @@ type WatermarkImageParams = {
   scale: number;
   rotation: number;
 };
+
+const MIN_IMAGE_WATERMARK_SCALE = 0.01;
 
 export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
   type: "watermark-image",
@@ -28,15 +30,14 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
       const height = image.naturalHeight || image.height || 1;
       return width / Math.max(1, height);
     }, [image]);
-    const minWidth = Math.max(12, fractionToPixels(0.01, longEdge));
-    const watermarkHeight = params.scale / Math.max(0.01, aspectRatio);
-    const widthPx = fractionToPixels(params.scale, longEdge);
-    const xMax = fractionToPixels(Math.max(0, imageBounds.maxX - params.scale), longEdge);
-    const yMax = fractionToPixels(Math.max(0, imageBounds.maxY - watermarkHeight), longEdge);
-    const widthMax = Math.max(minWidth, fractionToPixels(maxImageWatermarkScale(imageBounds, aspectRatio), longEdge));
+    const normalizedWatermark = normalizeImageWatermark(params, imageBounds, aspectRatio, MIN_IMAGE_WATERMARK_SCALE);
+    const minWidth = fractionToPercentSteps(MIN_IMAGE_WATERMARK_SCALE);
+    const widthMax = fractionToPercentSteps(maxImageWatermarkScale(imageBounds, aspectRatio));
+    const xMax = fractionToPercentSteps(imageBounds.maxX);
+    const yMax = fractionToPercentSteps(imageBounds.maxY);
 
-    function patchGeometry(patch: Partial<WatermarkImageParams>): void {
-      onParamsChange(clampImageWatermark({ ...params, ...patch }, imageBounds, aspectRatio, pixelsToFraction(minWidth, longEdge)));
+    function updateGeometry(updates: Partial<WatermarkImageParams>): void {
+      onParamsChange(updateImageWatermark(normalizedWatermark, updates, imageBounds, aspectRatio, MIN_IMAGE_WATERMARK_SCALE));
     }
 
     return (
@@ -65,10 +66,10 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
             min={minWidth}
             step={1}
             type="range"
-            value={widthPx}
-            onChange={(event) => patchGeometry({ scale: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+            value={fractionToPercentSteps(normalizedWatermark.scale)}
+            onChange={(event) => updateGeometry({ scale: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{`${widthPx}px`}</span>
+          <span className="slider-value">{formatPercent(normalizedWatermark.scale)}</span>
         </label>
         <label className="slider-row">
           <span>X</span>
@@ -78,10 +79,10 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
             min={0}
             step={1}
             type="range"
-            value={fractionToPixels(params.x, longEdge)}
-            onChange={(event) => patchGeometry({ x: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+            value={fractionToPercentSteps(normalizedWatermark.x)}
+            onChange={(event) => updateGeometry({ x: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{`${fractionToPixels(params.x, longEdge)}px`}</span>
+          <span className="slider-value">{formatPercent(normalizedWatermark.x)}</span>
         </label>
         <label className="slider-row">
           <span>Y</span>
@@ -91,17 +92,17 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
             min={0}
             step={1}
             type="range"
-            value={fractionToPixels(params.y, longEdge)}
-            onChange={(event) => patchGeometry({ y: pixelsToFraction(event.currentTarget.valueAsNumber, longEdge) })}
+            value={fractionToPercentSteps(normalizedWatermark.y)}
+            onChange={(event) => updateGeometry({ y: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{`${fractionToPixels(params.y, longEdge)}px`}</span>
+          <span className="slider-value">{formatPercent(normalizedWatermark.y)}</span>
         </label>
+        <AngleControl disabled={disabled} value={normalizedWatermark.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
         <label className="slider-row">
           <span>Opacity</span>
-          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={params.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${Math.round(params.opacity * 100)}%`}</span>
+          <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={normalizedWatermark.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
+          <span className="slider-value">{`${Math.round(normalizedWatermark.opacity * 100)}%`}</span>
         </label>
-        <AngleControl disabled={disabled} value={params.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
       </div>
     );
   },
@@ -114,7 +115,8 @@ export const watermarkImageRenderer: OpRenderer<WatermarkImageParams> = {
       return width / Math.max(1, height);
     }, [image]);
     if (!selected || !params.pngPath) return null;
-    const stageRect = imageWatermarkToStageRect(params, ctx, aspectRatio);
+    const normalizedWatermark = normalizeImageWatermark(params, ctx.imageBounds, aspectRatio, MIN_IMAGE_WATERMARK_SCALE);
+    const stageRect = imageWatermarkToStageRect(normalizedWatermark, ctx, aspectRatio);
     return (
       <InteractiveOverlayRect
         aspectRatio={aspectRatio}
@@ -151,15 +153,15 @@ function stageRectToImageWatermark(
   aspectRatio: number
 ): Partial<WatermarkImageParams> {
   const width = rect.w / ctx.placement.scale;
-  return clampImageWatermark({
+  return normalizeImageWatermark({
     x: (rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale),
     y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
-    scale: clamp(width / ctx.longEdge, 0.01, 1),
+    scale: clamp(width / ctx.longEdge, MIN_IMAGE_WATERMARK_SCALE, 1),
     rotation: normalizeRotation(rect.rotation ?? 0)
   }, ctx.imageBounds, aspectRatio, 12 / ctx.longEdge);
 }
 
-function clampImageWatermark<T extends Partial<WatermarkImageParams>>(
+function normalizeImageWatermark<T extends Partial<WatermarkImageParams>>(
   params: T,
   bounds: { maxX: number; maxY: number },
   aspectRatio: number,
@@ -176,8 +178,59 @@ function clampImageWatermark<T extends Partial<WatermarkImageParams>>(
   };
 }
 
+function updateImageWatermark(
+  currentWatermark: WatermarkImageParams,
+  updates: Partial<WatermarkImageParams>,
+  bounds: { maxX: number; maxY: number },
+  aspectRatio: number,
+  minScale: number
+): WatermarkImageParams {
+  const normalizedWatermark = normalizeImageWatermark(currentWatermark, bounds, aspectRatio, minScale);
+  let x = normalizedWatermark.x;
+  let y = normalizedWatermark.y;
+  let scale = normalizedWatermark.scale;
+
+  if (updates.x !== undefined) {
+    x = clamp(updates.x, 0, Math.max(0, bounds.maxX - scale));
+  }
+  if (updates.y !== undefined) {
+    const height = scale / Math.max(0.01, aspectRatio);
+    y = clamp(updates.y, 0, Math.max(0, bounds.maxY - height));
+  }
+  if (updates.scale !== undefined) {
+    scale = clamp(updates.scale, minScale, maxImageWatermarkScaleAtPosition(bounds, aspectRatio, x, y, minScale));
+    y = clamp(y, 0, Math.max(0, bounds.maxY - scale / Math.max(0.01, aspectRatio)));
+  } else {
+    scale = clamp(scale, minScale, maxImageWatermarkScaleAtPosition(bounds, aspectRatio, x, y, minScale));
+  }
+
+  return {
+    ...normalizedWatermark,
+    ...updates,
+    x,
+    y,
+    scale
+  };
+}
+
 function maxImageWatermarkScale(bounds: { maxX: number; maxY: number }, aspectRatio: number): number {
   return Math.max(0.01, Math.min(bounds.maxX, bounds.maxY * Math.max(0.01, aspectRatio)));
+}
+
+function maxImageWatermarkScaleAtPosition(
+  bounds: { maxX: number; maxY: number },
+  aspectRatio: number,
+  x: number,
+  y: number,
+  minScale: number
+): number {
+  return Math.max(
+    minScale,
+    Math.min(
+      Math.max(minScale, bounds.maxX - x),
+      Math.max(minScale, (bounds.maxY - y) * Math.max(0.01, aspectRatio))
+    )
+  );
 }
 
 function useLocalImage(path: string): HTMLImageElement | null {

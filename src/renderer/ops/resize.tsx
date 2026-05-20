@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { MAX_RESIZE_DIMENSION, MAX_RESIZE_PIXELS } from "@shared/constants";
 import type { OpRenderer } from "./op-renderer";
 
@@ -16,39 +16,8 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
   type: "resize",
   Card({ params, disabled, onParamChange, onParamsChange }) {
     const activeMode = toUiMode(params.mode);
-    const [draftWidth, setDraftWidth] = useState(String(params.width));
-    const [draftHeight, setDraftHeight] = useState(String(params.height));
-
-    useEffect(() => {
-      setDraftWidth(String(params.width));
-      setDraftHeight(String(params.height));
-    }, [params.height, params.width]);
-
-    function setDimension(key: "width" | "height", rawValue: string): void {
-      const nextValue = cleanPositiveInteger(rawValue);
-      const nextWidth = key === "width" ? nextValue : draftWidth;
-      const nextHeight = key === "height" ? nextValue : draftHeight;
-      setDraftWidth(nextWidth);
-      setDraftHeight(nextHeight);
-      commitDimensions(nextWidth, nextHeight);
-    }
-
-    function commitDimensions(widthValue: string, heightValue: string): void {
-      const width = parsePositiveInteger(widthValue);
-      const height = parsePositiveInteger(heightValue);
-      if (width === null || height === null) return;
-      const issue = getResizeDraftIssue(width, height);
-      if (issue) return;
-      onParamsChange({ width, height });
-    }
-
-    function resetInvalidDraft(): void {
-      if (!draftIssue && draftWidth.length > 0 && draftHeight.length > 0) return;
-      setDraftWidth(String(params.width));
-      setDraftHeight(String(params.height));
-    }
-
-    const draftIssue = getResizeDraftIssue(parsePositiveInteger(draftWidth), parsePositiveInteger(draftHeight));
+    const widthMax = maxResizeDimension(params.height);
+    const heightMax = maxResizeDimension(params.width);
 
     return (
       <div className="geometry-controls">
@@ -75,69 +44,50 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
               disabled={disabled}
               key={preset}
               type="button"
-              onClick={() => {
-                setDraftWidth(String(preset));
-                setDraftHeight(String(preset));
-                onParamChange("width", preset as never);
-                onParamChange("height", preset as never);
-              }}
+              onClick={() => onParamsChange({ width: preset, height: preset })}
             >
               {preset}
             </button>
           ))}
         </div>
-        <div className="field-grid">
-          <label className="stacked-field geometry-number-field">
-            Width
-            <input
-              aria-invalid={draftIssue ? true : undefined}
-              disabled={disabled}
-              inputMode="numeric"
-              type="text"
-              value={draftWidth}
-              onBlur={resetInvalidDraft}
-              onChange={(e) => setDimension("width", e.currentTarget.value)}
-            />
-          </label>
-          <label className="stacked-field geometry-number-field">
-            Height
-            <input
-              aria-invalid={draftIssue ? true : undefined}
-              disabled={disabled}
-              inputMode="numeric"
-              type="text"
-              value={draftHeight}
-              onBlur={resetInvalidDraft}
-              onChange={(e) => setDimension("height", e.currentTarget.value)}
-            />
-          </label>
-        </div>
-        {draftIssue ? <div className="modal-error">{draftIssue}</div> : null}
+        <label className="slider-row">
+          <span>Width</span>
+          <input
+            disabled={disabled}
+            max={widthMax}
+            min={1}
+            step={1}
+            type="range"
+            value={params.width}
+            onChange={(event) => onParamChange("width", clampResizeDimension(event.currentTarget.valueAsNumber, params.height))}
+          />
+          <span className="slider-value">{`${params.width}px`}</span>
+        </label>
+        <label className="slider-row">
+          <span>Height</span>
+          <input
+            disabled={disabled}
+            max={heightMax}
+            min={1}
+            step={1}
+            type="range"
+            value={params.height}
+            onChange={(event) => onParamChange("height", clampResizeDimension(event.currentTarget.valueAsNumber, params.width))}
+          />
+          <span className="slider-value">{`${params.height}px`}</span>
+        </label>
         <div className="modal-warning">Resize usually works best near the end of the pipeline.</div>
       </div>
     );
   }
 };
 
-function cleanPositiveInteger(value: string): string {
-  return value.replace(/[^\d]/g, "");
+function clampResizeDimension(value: number, otherDimension: number): number {
+  return Math.max(1, Math.min(Math.round(value), maxResizeDimension(otherDimension)));
 }
 
-function parsePositiveInteger(value: string): number | null {
-  if (!/^\d+$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function getResizeDraftIssue(width: number | null, height: number | null): string | null {
-  if (width === null || height === null) return null;
-  if (width > MAX_RESIZE_DIMENSION || height > MAX_RESIZE_DIMENSION) {
-    return `Width and height must each be ${MAX_RESIZE_DIMENSION.toLocaleString()} px or less.`;
-  }
-  if (width * height > MAX_RESIZE_PIXELS) {
-    return `Width × height must stay at or below ${MAX_RESIZE_PIXELS.toLocaleString()} pixels.`;
-  }
-  return null;
+function maxResizeDimension(otherDimension: number): number {
+  return Math.max(1, Math.min(MAX_RESIZE_DIMENSION, Math.floor(MAX_RESIZE_PIXELS / Math.max(1, otherDimension))));
 }
 
 function toUiMode(mode: ResizeMode): ResizeUiMode {

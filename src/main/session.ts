@@ -328,6 +328,10 @@ export class ProjectSession {
     if (opType === "watermark-text" && typeof params.fontFamily === "string" && this.settings.defaultWatermarkTextFontFamily.trim()) {
       params.fontFamily = this.settings.defaultWatermarkTextFontFamily.trim();
     }
+    const original = this.#project.originals.find((item) => item.id === task.originalId) ?? null;
+    if (original) {
+      initializeOpParamsForOriginal(opType, params, original);
+    }
     task.pipeline.ops.push({
       id: nanoid(),
       type: definition.type,
@@ -568,6 +572,26 @@ function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fal
   };
 }
 
+function initializeOpParamsForOriginal(opType: string, params: Record<string, unknown>, original: Original): void {
+  if (opType !== "watermark-text") return;
+  const longEdge = Math.max(original.width, original.height, 1);
+  const imageBounds = { maxX: original.width / longEdge, maxY: original.height / longEdge };
+  if (
+    typeof params.x !== "number"
+    || typeof params.y !== "number"
+    || typeof params.w !== "number"
+    || typeof params.h !== "number"
+  ) {
+    return;
+  }
+  const w = clamp(params.w, 0.02, Math.max(0.02, imageBounds.maxX));
+  const h = clamp(params.h, 0.02, Math.max(0.02, imageBounds.maxY));
+  params.w = w;
+  params.h = h;
+  params.x = clamp(params.x, 0, Math.max(0, imageBounds.maxX - w));
+  params.y = clamp(params.y, 0, Math.max(0, imageBounds.maxY - h));
+}
+
 function nextTaskOutput(
   current: Task["pipeline"]["output"],
   key: string,
@@ -633,4 +657,8 @@ function touchTask(task: Task): void {
   task.updatedAt = nowIso();
   task.output = null;
   task.error = null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

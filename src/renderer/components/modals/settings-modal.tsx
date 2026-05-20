@@ -5,7 +5,7 @@ import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE }
 import type { FilenameTemplate, GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { validateFilenameTemplates } from "@shared/validation/filename-template";
-import { TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
+import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { ModalShell } from "./modal-shell";
 
@@ -484,7 +484,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
             Default text watermark font family
             <input
               list={fontFamilyListId}
-              placeholder='system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+              placeholder={DEFAULT_TEXT_WATERMARK_FONT_FAMILY}
               type="text"
               value={settings.defaultWatermarkTextFontFamily}
               onChange={(event) => setSettings({ ...settings, defaultWatermarkTextFontFamily: event.currentTarget.value })}

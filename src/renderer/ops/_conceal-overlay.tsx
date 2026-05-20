@@ -5,7 +5,7 @@ import type { OpOverlayProps } from "./op-renderer";
 import {
   clampConcealRegion,
   OverlayConcealShape,
-  patchFirstConcealRegion,
+  replacePrimaryConcealRegion,
   readConcealRegionList,
   concealRegionFromStage,
   concealRegionToStage
@@ -52,7 +52,7 @@ export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOver
         onCommit={(next) => {
           const committed = clampConcealRegion(concealRegionFromStage(next, ctx.longEdge, ctx.placement, visible.shape), ctx.imageBounds);
           setDraft(null);
-          const nextRects = patchFirstConcealRegion(rects, committed);
+          const nextRects = replacePrimaryConcealRegion(rects, committed);
           onParamsChange({ rects: nextRects });
         }}
       />

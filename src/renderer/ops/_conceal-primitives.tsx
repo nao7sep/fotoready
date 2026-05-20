@@ -24,9 +24,9 @@ export function readConcealRegionList(value: unknown): ConcealRegion[] {
   });
 }
 
-export function patchFirstConcealRegion(value: unknown, patch: Partial<ConcealRegion>): ConcealRegion[] {
+export function replacePrimaryConcealRegion(value: unknown, updates: Partial<ConcealRegion>): ConcealRegion[] {
   const regions = readConcealRegionList(value);
-  const first = normalizeRegion({ ...(regions[0] ?? DEFAULT_CONCEAL_REGION), ...patch });
+  const first = normalizeRegion({ ...(regions[0] ?? DEFAULT_CONCEAL_REGION), ...updates });
   return regions.length === 0 ? [first] : [first, ...regions.slice(1)];
 }
 
@@ -43,6 +43,40 @@ export function clampConcealRegion(region: ConcealRegion, imageBounds: { maxX: n
     y,
     w: clamp(region.w, 0.01, maxWidth),
     h: clamp(region.h, 0.01, maxHeight)
+  });
+}
+
+export function updateConcealRegion(region: ConcealRegion, updates: Partial<ConcealRegion>, imageBounds: { maxX: number; maxY: number }): ConcealRegion {
+  const current = clampConcealRegion(region, imageBounds);
+  let x = current.x;
+  let y = current.y;
+  let w = current.w;
+  let h = current.h;
+
+  if (updates.x !== undefined) {
+    x = clamp(updates.x, 0, Math.max(0, imageBounds.maxX - w));
+  }
+  if (updates.y !== undefined) {
+    y = clamp(updates.y, 0, Math.max(0, imageBounds.maxY - h));
+  }
+  if (updates.w !== undefined) {
+    w = clamp(updates.w, 0.01, Math.max(0.01, imageBounds.maxX - x));
+  } else {
+    w = clamp(w, 0.01, Math.max(0.01, imageBounds.maxX - x));
+  }
+  if (updates.h !== undefined) {
+    h = clamp(updates.h, 0.01, Math.max(0.01, imageBounds.maxY - y));
+  } else {
+    h = clamp(h, 0.01, Math.max(0.01, imageBounds.maxY - y));
+  }
+
+  return normalizeRegion({
+    ...current,
+    ...updates,
+    x,
+    y,
+    w,
+    h
   });
 }
 

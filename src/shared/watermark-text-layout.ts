@@ -1,7 +1,7 @@
 export const TEXT_WATERMARK_FONT_OPTIONS = [
   {
-    label: "Sans",
-    value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    label: "System UI",
+    value: "system-ui, sans-serif"
   },
   {
     label: "Serif",

@@ -15,6 +15,7 @@ export const DEFAULT_ASSET_OVERLAY_HEIGHT = DEFAULT_ASSET_OVERLAY_WIDTH / DEFAUL
 export const MIN_ASSET_OVERLAY_SIZE = 0.01;
 
 type OverlayBounds = { maxX: number; maxY: number };
+type SizeDriver = "width" | "height";
 
 export function normalizeAssetAspectRatio(aspectRatio: number | null | undefined): number {
   return typeof aspectRatio === "number" && Number.isFinite(aspectRatio) && aspectRatio > 0.01
@@ -38,130 +39,61 @@ export function normalizeAssetOverlay<T extends Partial<AssetOverlayParams>>(
 ): T {
   const normalizedAspectRatio = normalizeAssetAspectRatio(aspectRatio);
   const lockAspectRatio = params.lockAspectRatio ?? true;
-  let width = readPositive(params.width, DEFAULT_ASSET_OVERLAY_WIDTH);
-  let height = readPositive(params.height, DEFAULT_ASSET_OVERLAY_HEIGHT);
-
-  if (lockAspectRatio) {
-    if (!isPositive(params.width) && isPositive(params.height)) {
-      width = assetOverlayWidth(height, normalizedAspectRatio);
-    }
-    width = clampDimension(width, maxLockedWidth(bounds, normalizedAspectRatio), minSize);
-    height = assetOverlayHeight(width, normalizedAspectRatio);
-  } else {
-    width = clampDimension(width, bounds.maxX, minSize);
-    height = clampDimension(height, bounds.maxY, minSize);
-  }
-
+  const width = readPositive(params.width, DEFAULT_ASSET_OVERLAY_WIDTH);
+  const height = readPositive(params.height, DEFAULT_ASSET_OVERLAY_HEIGHT);
+  const driver: SizeDriver = isPositive(params.width) ? "width" : "height";
+  const size = lockAspectRatio
+    ? fitLockedSize({ width, height }, bounds, normalizedAspectRatio, minSize, driver)
+    : clampFreeSize({ width, height }, bounds, minSize);
   return {
     ...params,
     lockAspectRatio,
-    width,
-    height,
-    x: clamp(readFinite(params.x, 0), 0, Math.max(0, bounds.maxX - width)),
-    y: clamp(readFinite(params.y, 0), 0, Math.max(0, bounds.maxY - height))
+    width: size.width,
+    height: size.height,
+    x: clamp(readFinite(params.x, 0), 0, Math.max(0, bounds.maxX - size.width)),
+    y: clamp(readFinite(params.y, 0), 0, Math.max(0, bounds.maxY - size.height))
   };
 }
 
-export function updateAssetOverlay(
-  currentOverlay: AssetOverlayParams,
-  updates: Partial<AssetOverlayParams>,
+function fitLockedSize(
+  requested: { width: number; height: number },
   bounds: OverlayBounds,
-  aspectRatio: number | null | undefined,
-  minSize: number
-): AssetOverlayParams {
-  const normalizedAspectRatio = normalizeAssetAspectRatio(aspectRatio);
-  const normalizedOverlay = normalizeAssetOverlay(currentOverlay, bounds, normalizedAspectRatio, minSize);
-  const lockAspectRatio = updates.lockAspectRatio ?? normalizedOverlay.lockAspectRatio;
+  aspectRatio: number,
+  minSize: number,
+  driver: SizeDriver
+): { width: number; height: number } {
+  let width = readPositive(requested.width, DEFAULT_ASSET_OVERLAY_WIDTH);
+  let height = readPositive(requested.height, DEFAULT_ASSET_OVERLAY_HEIGHT);
 
-  if (isPositionOnlyUpdate(updates)) {
-    return {
-      ...normalizedOverlay,
-      ...updates,
-      x: clamp(readFinite(updates.x, normalizedOverlay.x), 0, Math.max(0, bounds.maxX - normalizedOverlay.width)),
-      y: clamp(readFinite(updates.y, normalizedOverlay.y), 0, Math.max(0, bounds.maxY - normalizedOverlay.height))
-    };
-  }
-
-  let x = clamp(readFinite(updates.x, normalizedOverlay.x), 0, bounds.maxX);
-  let y = clamp(readFinite(updates.y, normalizedOverlay.y), 0, bounds.maxY);
-  let width = readPositive(updates.width, normalizedOverlay.width);
-  let height = readPositive(updates.height, normalizedOverlay.height);
-
-  if (lockAspectRatio) {
-    if (updates.height !== undefined && updates.width === undefined) {
-      height = clampDimension(height, maxAssetOverlayHeightAtPosition(bounds, normalizedAspectRatio, true, x, y, minSize), minSize);
-      width = assetOverlayWidth(height, normalizedAspectRatio);
-      const maxWidth = maxAssetOverlayWidthAtPosition(bounds, normalizedAspectRatio, true, x, y, minSize);
-      if (width > maxWidth) {
-        width = clampDimension(width, maxWidth, minSize);
-        height = assetOverlayHeight(width, normalizedAspectRatio);
-      }
-    } else {
-      width = clampDimension(width, maxAssetOverlayWidthAtPosition(bounds, normalizedAspectRatio, true, x, y, minSize), minSize);
-      height = assetOverlayHeight(width, normalizedAspectRatio);
-      const maxHeight = maxAssetOverlayHeightAtPosition(bounds, normalizedAspectRatio, true, x, y, minSize);
-      if (height > maxHeight) {
-        height = clampDimension(height, maxHeight, minSize);
-        width = assetOverlayWidth(height, normalizedAspectRatio);
-      }
-    }
+  if (driver === "height") {
+    height = clampDimension(height, bounds.maxY, minSize);
+    width = assetOverlayWidth(height, aspectRatio);
   } else {
-    width = clampDimension(width, Math.max(0.000001, bounds.maxX - x), minSize);
-    height = clampDimension(height, Math.max(0.000001, bounds.maxY - y), minSize);
+    width = clampDimension(width, bounds.maxX, minSize);
+    height = assetOverlayHeight(width, aspectRatio);
   }
+
+  const widthScale = bounds.maxX / Math.max(width, 0.000001);
+  const heightScale = bounds.maxY / Math.max(height, 0.000001);
+  const scale = Math.min(1, widthScale, heightScale);
+  width *= scale;
+  height *= scale;
 
   return {
-    ...normalizedOverlay,
-    ...updates,
-    lockAspectRatio,
-    x: clamp(x, 0, Math.max(0, bounds.maxX - width)),
-    y: clamp(y, 0, Math.max(0, bounds.maxY - height)),
-    width,
-    height
+    width: clampDimension(width, bounds.maxX, minSize),
+    height: clampDimension(height, bounds.maxY, minSize)
   };
 }
 
-export function maxAssetOverlayWidthAtPosition(
+function clampFreeSize(
+  requested: { width: number; height: number },
   bounds: OverlayBounds,
-  aspectRatio: number | null | undefined,
-  lockAspectRatio: boolean,
-  x: number,
-  y: number,
   minSize: number
-): number {
-  const maxWidth = Math.max(0.000001, bounds.maxX - x);
-  if (!lockAspectRatio) {
-    return maxWidth;
-  }
-  return Math.max(0.000001, Math.min(maxWidth, assetOverlayWidth(Math.max(0.000001, bounds.maxY - y), aspectRatio), maxLockedWidth(bounds, aspectRatio)));
-}
-
-export function maxAssetOverlayHeightAtPosition(
-  bounds: OverlayBounds,
-  aspectRatio: number | null | undefined,
-  lockAspectRatio: boolean,
-  x: number,
-  y: number,
-  minSize: number
-): number {
-  const maxHeight = Math.max(0.000001, bounds.maxY - y);
-  if (!lockAspectRatio) {
-    return maxHeight;
-  }
-  return Math.max(0.000001, Math.min(maxHeight, assetOverlayHeight(Math.max(0.000001, bounds.maxX - x), aspectRatio)));
-}
-
-function maxLockedWidth(bounds: OverlayBounds, aspectRatio: number | null | undefined): number {
-  return Math.max(0.000001, Math.min(bounds.maxX, assetOverlayWidth(bounds.maxY, aspectRatio)));
-}
-
-function isPositionOnlyUpdate(updates: Partial<AssetOverlayParams>): boolean {
-  return (
-    updates.width === undefined
-    && updates.height === undefined
-    && updates.lockAspectRatio === undefined
-    && updates.assetPath === undefined
-  );
+): { width: number; height: number } {
+  return {
+    width: clampDimension(readPositive(requested.width, DEFAULT_ASSET_OVERLAY_WIDTH), bounds.maxX, minSize),
+    height: clampDimension(readPositive(requested.height, DEFAULT_ASSET_OVERLAY_HEIGHT), bounds.maxY, minSize)
+  };
 }
 
 function readFinite(value: number | undefined, fallback: number): number {

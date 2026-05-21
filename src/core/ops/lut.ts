@@ -22,7 +22,7 @@ const lutModule: OpModule<LutParams> = {
     };
   },
   async apply(image, params, ctx) {
-    if (!params.cubePath) return image;
+    if (!params.cubePath || params.strength <= 0) return image;
     if (!ctx.resolveLut) {
       throw new Error("LUT loading is not configured for this pipeline run.");
     }

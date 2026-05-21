@@ -21,6 +21,7 @@ const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
     };
   },
   apply(image, params) {
+    if (params.amount <= 0) return image;
     return image.sharpen({
       sigma: Math.max(0.3, params.radius),
       m1: params.amount

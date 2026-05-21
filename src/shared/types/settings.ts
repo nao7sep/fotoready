@@ -1,6 +1,7 @@
 import type { OutputFormat } from "./pipeline";
 
-export type MetadataField = "author" | "copyright" | "orientation" | "colorspace";
+export const METADATA_FIELDS = ["author", "copyright", "orientation", "colorspace"] as const;
+export type MetadataField = (typeof METADATA_FIELDS)[number];
 export type MetadataStripMode = MetadataField[];
 
 export type FilenameTemplate = {

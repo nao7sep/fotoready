@@ -1,9 +1,7 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { assertArray, assertOneOf, assertParamsShape } from "./_shared";
-import type { MetadataField, MetadataStripMode } from "@shared/types/settings";
-
-const METADATA_FIELDS = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
+import { METADATA_FIELDS, type MetadataStripMode } from "@shared/types/settings";
 
 type StripMetadataParams = {
   keep: MetadataStripMode;

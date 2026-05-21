@@ -1,10 +1,8 @@
 import React from "react";
+import { METADATA_FIELDS, type MetadataField } from "@shared/types/settings";
 import type { OpRenderer } from "./op-renderer";
 
-type MetadataField = "author" | "copyright" | "orientation" | "colorspace";
 type StripMetadataParams = { keep: MetadataField[] };
-
-const METADATA_FIELDS = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
 
 export const stripMetadataRenderer: OpRenderer<StripMetadataParams> = {
   type: "strip-metadata",

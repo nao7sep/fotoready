@@ -1,5 +1,6 @@
 import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
+import { clamp } from "@shared/numeric";
 import { normalizeAngle } from "@shared/rotation";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer, OverlayContext } from "./op-renderer";
@@ -298,14 +299,14 @@ function normalizeTextWatermarkBox<T extends Partial<WatermarkTextParams>>(
   bounds: { maxX: number; maxY: number }
 ): T {
   const minSize = MIN_TEXT_WATERMARK_BOX_SIZE;
-  const w = clampValue(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
-  const h = clampValue(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
+  const w = clamp(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
+  const h = clamp(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
   return {
     ...params,
     w,
     h,
-    x: clampValue(params.x ?? 0, 0, Math.max(0, bounds.maxX - w)),
-    y: clampValue(params.y ?? 0, 0, Math.max(0, bounds.maxY - h))
+    x: clamp(params.x ?? 0, 0, Math.max(0, bounds.maxX - w)),
+    y: clamp(params.y ?? 0, 0, Math.max(0, bounds.maxY - h))
   };
 }
 
@@ -342,8 +343,4 @@ function applyBorderSwatch(params: WatermarkTextParams, value: string, borderWid
 
 function normalizeColor(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function clampValue(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

@@ -1,5 +1,6 @@
 import React from "react";
 import { Circle } from "react-konva";
+import { clamp } from "@shared/numeric";
 import type { OpRenderer } from "./op-renderer";
 
 type WhiteBalanceParams = {
@@ -82,10 +83,6 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
     });
   }
 };
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 function formatSigned(value: number): string {
   return `${value > 0 ? "+" : ""}${value}`;

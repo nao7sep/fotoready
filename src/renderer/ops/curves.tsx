@@ -1,22 +1,23 @@
 import React from "react";
 import type { OpRenderer } from "./op-renderer";
 
-type CurvesParams = { rgb: Array<[number, number]> };
+type CurvePoint = [number, number];
+type CurvesParams = { rgb: CurvePoint[] };
 
 const inputValues = [0, 64, 128, 192, 255];
 const labels = ["Blacks", "Shadows", "Midtones", "Lights", "Whites"];
-const curvePresets = [
+const curvePresets: ReadonlyArray<{ id: string; label: string; rgb: CurvePoint[] }> = [
   { id: "neutral", label: "Neutral", rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] },
   { id: "recover-dark-details", label: "Recover dark details", rgb: [[0, 0], [64, 86], [128, 144], [192, 212], [255, 255]] },
   { id: "brighten-midtones", label: "Brighten midtones", rgb: [[0, 0], [64, 92], [128, 156], [192, 218], [255, 255]] },
   { id: "add-contrast", label: "Add contrast", rgb: [[0, 0], [64, 44], [128, 128], [192, 214], [255, 255]] },
   { id: "fade-blacks", label: "Fade blacks", rgb: [[0, 14], [64, 72], [128, 136], [192, 208], [255, 245]] }
-] satisfies ReadonlyArray<{ id: string; label: string; rgb: Array<[number, number]> }>;
+];
 
 export const curvesRenderer: OpRenderer<CurvesParams> = {
   type: "curves",
   Card({ params, disabled, onParamChange }) {
-    const points = params.rgb.length >= 2 ? params.rgb : [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] as Array<[number, number]>;
+    const points: CurvePoint[] = params.rgb.length >= 2 ? params.rgb : [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]];
     return (
       <div className="geometry-controls">
         <div className="geometry-chip-group" role="group" aria-label="Curves presets">
@@ -26,7 +27,7 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
               disabled={disabled}
               key={preset.id}
               type="button"
-              onClick={() => onParamChange("rgb", preset.rgb as never)}
+              onClick={() => onParamChange("rgb", preset.rgb)}
             >
               {preset.label}
             </button>
@@ -42,7 +43,7 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
               step={1}
               type="range"
               value={point[1]}
-              onChange={(e) => onParamChange("rgb", points.map((item, i) => i === index ? [item[0], e.currentTarget.valueAsNumber] : item) as never)}
+              onChange={(e) => onParamChange("rgb", points.map((item, i): CurvePoint => i === index ? [item[0], e.currentTarget.valueAsNumber] : item))}
             />
             <span className="slider-value">{`${inputValues[index] ?? point[0]}\u2192${point[1]}`}</span>
           </label>
@@ -52,6 +53,6 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
   }
 };
 
-function sameCurve(left: Array<[number, number]>, right: Array<[number, number]>): boolean {
+function sameCurve(left: CurvePoint[], right: CurvePoint[]): boolean {
   return left.length === right.length && left.every((point, index) => point[0] === right[index]?.[0] && point[1] === right[index]?.[1]);
 }

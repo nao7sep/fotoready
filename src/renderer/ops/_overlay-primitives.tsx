@@ -1,5 +1,6 @@
 import React from "react";
 import { Rect } from "react-konva";
+import { clamp } from "@shared/numeric";
 import type { OverlayContext, OverlayPlacement } from "./op-renderer";
 
 export type ImageFitMode = "fit" | "shrink-only";
@@ -187,10 +188,6 @@ export function readRectList(value: unknown): FractionRect[] {
     }
     return [rect as FractionRect];
   });
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 export type { OverlayContext };

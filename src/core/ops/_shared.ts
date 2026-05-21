@@ -1,15 +1,10 @@
 import type sharp from "sharp";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, assertString, assertNonEmptyString } from "@shared/validation/common";
+import { clamp, clamp01 } from "@shared/numeric";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
-export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-export function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
+export { clamp, clamp01 };
 
 export function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;

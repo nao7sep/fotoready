@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer } from "./op-renderer";
-import { clampFractionRect, CropDarkenMask, type FractionRect, imageBoundsFromSize, OverlayRect } from "./_overlay-primitives";
+import { clampFractionRect, CropDarkenMask, type FractionRect, imageBoundsFromOriginalSize, OverlayRect, rectFromStage, rectToStage } from "./_overlay-primitives";
 
 type CropAspectLock = number | string | null;
 type CropParams = { x: number; y: number; w: number; h: number; aspectLock: CropAspectLock };
@@ -24,7 +24,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
   type: "crop",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const originalAspectRatio = ctx.originalSize ? ctx.originalSize.width / Math.max(1, ctx.originalSize.height) : null;
-    const imageBounds = ctx.originalSize ? imageBoundsFromSize(ctx.originalSize) : { maxX: 1, maxY: 1 };
+    const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
     const currentRect = clampFractionRect({ x: params.x, y: params.y, w: params.w, h: params.h }, imageBounds);
     const activeAspectId = identifyAspect(params.aspectLock, originalAspectRatio);
     const customAspectDraft = useMemo(() => readCustomAspectDraft(params.aspectLock), [params.aspectLock]);
@@ -120,12 +120,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
 
     const visible = draft ?? rect;
     const aspect = resolveAspectRatio(params.aspectLock as CropAspectOptionId | number | null, ctx.originalAspectRatio);
-    const stageRect = {
-      x: ctx.placement.x + visible.x * ctx.longEdge * ctx.placement.scale,
-      y: ctx.placement.y + visible.y * ctx.longEdge * ctx.placement.scale,
-      w: visible.w * ctx.longEdge * ctx.placement.scale,
-      h: visible.h * ctx.longEdge * ctx.placement.scale
-    };
+    const stageRect = rectToStage(visible, ctx.longEdge, ctx.placement);
 
     return (
       <>
@@ -135,9 +130,9 @@ export const cropRenderer: OpRenderer<CropParams> = {
           color="#facc15"
           placement={ctx.placement}
           rect={stageRect}
-          onChange={(nextRect) => setDraft(stageToFractionRect(nextRect, ctx))}
+          onChange={(nextRect) => setDraft(rectFromStage(nextRect, ctx.longEdge, ctx.placement))}
           onCommit={(nextRect) => {
-            const committed = stageToFractionRect(nextRect, ctx);
+            const committed = rectFromStage(nextRect, ctx.longEdge, ctx.placement);
             setDraft(null);
             onParamsChange(committed);
           }}
@@ -146,15 +141,6 @@ export const cropRenderer: OpRenderer<CropParams> = {
     );
   }
 };
-
-function stageToFractionRect(rect: { x: number; y: number; w: number; h: number }, ctx: { placement: { x: number; y: number; scale: number }; longEdge: number }): FractionRect {
-  return {
-    x: (rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale),
-    y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
-    w: rect.w / (ctx.longEdge * ctx.placement.scale),
-    h: rect.h / (ctx.longEdge * ctx.placement.scale)
-  };
-}
 
 function identifyAspect(aspectLock: CropAspectLock, originalAspectRatio: number | null): CropAspectOptionId | "custom" {
   if (aspectLock === null || aspectLock === undefined) return "free";

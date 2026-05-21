@@ -18,7 +18,11 @@ type HslParams = Record<HslRange, HslAdjustment>;
 
 export const hslRenderer: OpRenderer<HslParams> = {
   type: "hsl",
-  Card({ params, disabled, onParamChange }) {
+  Card({ params, disabled, onParamsChange }) {
+    function setAdjustment(range: HslRange, patch: Partial<HslAdjustment>): void {
+      const current = params[range] ?? { hue: 0, sat: 0, lum: 0 };
+      onParamsChange({ [range]: { ...current, ...patch } } as Partial<HslParams>);
+    }
     return (
       <div className="hsl-panel">
         <div className="hsl-grid">
@@ -43,7 +47,7 @@ export const hslRenderer: OpRenderer<HslParams> = {
                     step={1}
                     type="range"
                     value={adjustment.hue}
-                    onChange={(e) => onParamChange(range.id, { ...adjustment, hue: e.currentTarget.valueAsNumber } as never)}
+                    onChange={(e) => setAdjustment(range.id, { hue: e.currentTarget.valueAsNumber })}
                   />
                   <span className="slider-value">{formatSigned(adjustment.hue, "\u00b0")}</span>
                 </label>
@@ -56,7 +60,7 @@ export const hslRenderer: OpRenderer<HslParams> = {
                     step={1}
                     type="range"
                     value={Math.round(adjustment.sat * 100)}
-                    onChange={(e) => onParamChange(range.id, { ...adjustment, sat: e.currentTarget.valueAsNumber / 100 } as never)}
+                    onChange={(e) => setAdjustment(range.id, { sat: e.currentTarget.valueAsNumber / 100 })}
                   />
                   <span className="slider-value">{formatSigned(Math.round(adjustment.sat * 100), "%")}</span>
                 </label>
@@ -69,7 +73,7 @@ export const hslRenderer: OpRenderer<HslParams> = {
                     step={1}
                     type="range"
                     value={Math.round(adjustment.lum * 100)}
-                    onChange={(e) => onParamChange(range.id, { ...adjustment, lum: e.currentTarget.valueAsNumber / 100 } as never)}
+                    onChange={(e) => setAdjustment(range.id, { lum: e.currentTarget.valueAsNumber / 100 })}
                   />
                   <span className="slider-value">{formatSigned(Math.round(adjustment.lum * 100), "%")}</span>
                 </label>

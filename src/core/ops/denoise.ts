@@ -19,7 +19,8 @@ const denoiseModule: OpModule<DenoiseParams> = {
     };
   },
   apply(image, params) {
-    return image.median(Math.max(1, Math.round(params.strength * 3)));
+    if (params.strength <= 0) return image;
+    return image.median(Math.max(1, Math.round(params.strength * 5)));
   }
 };
 

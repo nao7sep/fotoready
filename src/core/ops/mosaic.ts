@@ -20,7 +20,7 @@ const mosaicModule: OpModule<MosaicParams> = {
     const record = assertParamsShape(value, ["rects", "blockSize"], "mosaic.params");
     return {
       rects: validateConcealRegionList(record.rects, "mosaic.params.rects"),
-      blockSize: normalizeBlockSize(assertFiniteNumber(record.blockSize, "mosaic.params.blockSize", { min: 0, minExclusive: true }))
+      blockSize: assertFiniteNumber(record.blockSize, "mosaic.params.blockSize", { min: 0, max: 1, minExclusive: true })
     };
   },
   async apply(image, params, ctx) {
@@ -41,10 +41,6 @@ const mosaicModule: OpModule<MosaicParams> = {
 };
 
 registerOp(mosaicModule);
-
-function normalizeBlockSize(blockSize: number): number {
-  return blockSize > 1 ? blockSize / 1000 : blockSize;
-}
 
 async function pixelateRegion(
   regionImage: sharp.Sharp,

@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { clamp } from "@shared/numeric";
 import type { EditorCanvasPreview } from "./editor-canvas";
 
 type HistogramBins = {
@@ -211,8 +212,4 @@ function readHistogram(image: HTMLImageElement): HistogramBins {
 function emptyBins(): HistogramBins {
   const empty = new Array<number>(64).fill(0);
   return { red: empty, green: empty, blue: empty, luminance: empty, max: 1 };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

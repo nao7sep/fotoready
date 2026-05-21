@@ -12,7 +12,7 @@ const rotateModule: OpModule<RotateParams> = {
   label: "Rotate",
   category: "Geometry",
   previewBehavior: "show-output",
-  defaultParams: { degrees: 0, fillColor: "#ffffff" },
+  defaultParams: { degrees: 0, fillColor: "rgba(0,0,0,0)" },
   validate(value) {
     const record = assertParamsShape(value, ["degrees", "fillColor"], "rotate.params");
     return {

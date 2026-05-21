@@ -9,18 +9,20 @@ export const stripMetadataRenderer: OpRenderer<StripMetadataParams> = {
   Card({ params, disabled, onParamChange }) {
     const keep = Array.isArray(params.keep) ? params.keep : [];
     return (
-      <div className="field-grid">
-        {METADATA_FIELDS.map((field) => (
-          <label className="toggle-row" key={field}>
-            <input
-              disabled={disabled}
-              type="checkbox"
-              checked={keep.includes(field)}
-              onChange={(e) => onParamChange("keep", e.currentTarget.checked ? [...keep, field] : keep.filter((item) => item !== field))}
-            />
-            Keep {field}
-          </label>
-        ))}
+      <div className="geometry-controls">
+        <div className="field-grid">
+          {METADATA_FIELDS.map((field) => (
+            <label className="toggle-row" key={field}>
+              <input
+                disabled={disabled}
+                type="checkbox"
+                checked={keep.includes(field)}
+                onChange={(e) => onParamChange("keep", e.currentTarget.checked ? [...keep, field] : keep.filter((item) => item !== field))}
+              />
+              Keep {field}
+            </label>
+          ))}
+        </div>
       </div>
     );
   }

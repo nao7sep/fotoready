@@ -26,7 +26,7 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
             step={1}
             type="range"
             value={params.temperature}
-            onChange={(e) => onParamsChange({ samplePoint: null, temperature: e.currentTarget.valueAsNumber })}
+            onChange={(e) => onParamsChange({ temperature: e.currentTarget.valueAsNumber })}
           />
           <span className="slider-value">{formatSigned(params.temperature)}</span>
         </label>
@@ -39,7 +39,7 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
             step={1}
             type="range"
             value={params.tint}
-            onChange={(e) => onParamsChange({ samplePoint: null, tint: e.currentTarget.valueAsNumber })}
+            onChange={(e) => onParamsChange({ tint: e.currentTarget.valueAsNumber })}
           />
           <span className="slider-value">{formatSigned(params.tint)}</span>
         </label>

@@ -10,18 +10,20 @@ export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
   Card({ params, disabled, onParamChange }) {
     const fields = params.fields ?? {};
     return (
-      <div className="field-grid">
-        {KNOWN_FIELDS.map((field) => (
-          <label className="stacked-field" key={field}>
-            {field}
-            <input
-              disabled={disabled}
-              type="text"
-              value={fields[field] ?? ""}
-              onChange={(e) => onParamChange("fields", { ...fields, [field]: e.currentTarget.value })}
-            />
-          </label>
-        ))}
+      <div className="geometry-controls">
+        <div className="field-grid">
+          {KNOWN_FIELDS.map((field) => (
+            <label className="stacked-field" key={field}>
+              {field}
+              <input
+                disabled={disabled}
+                type="text"
+                value={fields[field] ?? ""}
+                onChange={(e) => onParamChange("fields", { ...fields, [field]: e.currentTarget.value })}
+              />
+            </label>
+          ))}
+        </div>
       </div>
     );
   }

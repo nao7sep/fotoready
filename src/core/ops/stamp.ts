@@ -1,4 +1,4 @@
-import type { AssetOverlayParams } from "@shared/asset-overlay";
+import { assetOverlayHeight, type AssetOverlayParams } from "@shared/asset-overlay";
 import { registerOp } from "./registry";
 import { createAssetOverlayModule } from "./_asset-overlay";
 
@@ -10,8 +10,10 @@ registerOp(createAssetOverlayModule({
     assetPath: "",
     x: 0.72,
     y: 0.78,
-    opacity: 1,
     width: 0.18,
+    height: assetOverlayHeight(0.18, undefined),
+    lockAspectRatio: true,
+    opacity: 1,
     rotation: 0
   } satisfies AssetOverlayParams
 }));

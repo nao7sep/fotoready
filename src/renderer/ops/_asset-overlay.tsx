@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  MIN_ASSET_OVERLAY_WIDTH,
-  assetOverlayHeight,
-  maxAssetOverlayWidth,
+  MIN_ASSET_OVERLAY_SIZE,
+  maxAssetOverlayHeightAtPosition,
+  maxAssetOverlayWidthAtPosition,
   normalizeAssetAspectRatio,
   normalizeAssetOverlay,
   updateAssetOverlay,
@@ -38,7 +38,7 @@ export function AssetOverlayControls({
     ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
     : { maxX: 1, maxY: 1 };
   const normalizedOverlay = useMemo(
-    () => normalizeAssetOverlay(params, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH),
+    () => normalizeAssetOverlay(params, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE),
     [aspectRatio, imageBounds.maxX, imageBounds.maxY, params]
   );
 
@@ -48,36 +48,44 @@ export function AssetOverlayControls({
     onParamsChange({
       x: normalizedOverlay.x,
       y: normalizedOverlay.y,
-      width: normalizedOverlay.width
+      width: normalizedOverlay.width,
+      height: normalizedOverlay.height
     });
   }, [ctx.originalSize, normalizedOverlay, onParamsChange, params]);
 
-  const minWidth = fractionToPercentSteps(MIN_ASSET_OVERLAY_WIDTH);
-  const widthMax = fractionToPercentSteps(maxAssetOverlayWidth(imageBounds, aspectRatio));
+  const minWidth = fractionToPercentSteps(MIN_ASSET_OVERLAY_SIZE);
+  const minHeight = fractionToPercentSteps(MIN_ASSET_OVERLAY_SIZE);
+  const widthMax = fractionToPercentSteps(
+    maxAssetOverlayWidthAtPosition(
+      imageBounds,
+      aspectRatio,
+      normalizedOverlay.lockAspectRatio,
+      normalizedOverlay.x,
+      normalizedOverlay.y,
+      MIN_ASSET_OVERLAY_SIZE
+    )
+  );
+  const heightMax = fractionToPercentSteps(
+    maxAssetOverlayHeightAtPosition(
+      imageBounds,
+      aspectRatio,
+      normalizedOverlay.lockAspectRatio,
+      normalizedOverlay.x,
+      normalizedOverlay.y,
+      MIN_ASSET_OVERLAY_SIZE
+    )
+  );
   const xMax = fractionToPercentSteps(imageBounds.maxX);
   const yMax = fractionToPercentSteps(imageBounds.maxY);
 
   function updateGeometry(updates: Partial<AssetOverlayParams>): void {
-    onParamsChange(updateAssetOverlay(normalizedOverlay, updates, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH));
+    onParamsChange(updateAssetOverlay(normalizedOverlay, updates, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE));
   }
 
   return (
     <div className="geometry-controls">
       {sourceField}
       {sourceAction}
-      <label className="slider-row">
-        <span>Width</span>
-        <input
-          disabled={disabled}
-          max={widthMax}
-          min={minWidth}
-          step={1}
-          type="range"
-          value={fractionToPercentSteps(normalizedOverlay.width)}
-          onChange={(event) => updateGeometry({ width: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
-        />
-        <span className="slider-value">{formatPercent(normalizedOverlay.width)}</span>
-      </label>
       <label className="slider-row">
         <span>X</span>
         <input
@@ -104,6 +112,41 @@ export function AssetOverlayControls({
         />
         <span className="slider-value">{formatPercent(normalizedOverlay.y)}</span>
       </label>
+      <label className="toggle-row">
+        <input
+          checked={normalizedOverlay.lockAspectRatio}
+          disabled={disabled}
+          type="checkbox"
+          onChange={(event) => updateGeometry({ lockAspectRatio: event.currentTarget.checked })}
+        />
+        Lock aspect ratio
+      </label>
+      <label className="slider-row">
+        <span>Width</span>
+        <input
+          disabled={disabled}
+          max={widthMax}
+          min={minWidth}
+          step={1}
+          type="range"
+          value={fractionToPercentSteps(normalizedOverlay.width)}
+          onChange={(event) => updateGeometry({ width: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
+        />
+        <span className="slider-value">{formatPercent(normalizedOverlay.width)}</span>
+      </label>
+      <label className="slider-row">
+        <span>Height</span>
+        <input
+          disabled={disabled}
+          max={heightMax}
+          min={minHeight}
+          step={1}
+          type="range"
+          value={fractionToPercentSteps(normalizedOverlay.height)}
+          onChange={(event) => updateGeometry({ height: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
+        />
+        <span className="slider-value">{formatPercent(normalizedOverlay.height)}</span>
+      </label>
       <AngleControl disabled={disabled} value={normalizedOverlay.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
       <label className="slider-row">
         <span>Opacity</span>
@@ -118,7 +161,11 @@ export function AssetOverlayControls({
         />
         <span className="slider-value">{`${Math.round(normalizedOverlay.opacity * 100)}%`}</span>
       </label>
-      <div className="row-detail">Height follows the asset: {formatPercent(assetOverlayHeight(normalizedOverlay.width, aspectRatio))}</div>
+      <div className="row-detail">
+        {normalizedOverlay.lockAspectRatio
+          ? `Locked to ${formatPercent(normalizedOverlay.width)} × ${formatPercent(normalizedOverlay.height)}.`
+          : `Free size: ${formatPercent(normalizedOverlay.width)} × ${formatPercent(normalizedOverlay.height)}.`}
+      </div>
     </div>
   );
 }
@@ -169,11 +216,11 @@ export function AssetOverlayRect({
   selected: boolean;
 }): React.JSX.Element | null {
   if (!selected || !params.assetPath) return null;
-  const normalizedOverlay = normalizeAssetOverlay(params, ctx.imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH);
-  const stageRect = assetOverlayToStageRect(normalizedOverlay, ctx, aspectRatio);
+  const normalizedOverlay = normalizeAssetOverlay(params, ctx.imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE);
+  const stageRect = assetOverlayToStageRect(normalizedOverlay, ctx);
   return (
     <InteractiveOverlayRect
-      aspectRatio={aspectRatio}
+      aspectRatio={normalizedOverlay.lockAspectRatio ? aspectRatio : null}
       color={color}
       placement={ctx.placement}
       rect={stageRect}
@@ -185,11 +232,19 @@ export function AssetOverlayRect({
 }
 
 export function useLocalAssetAspectRatio(assetPath: string): number {
-  const image = useLocalAssetImage(assetPath);
-  return useMemo(() => {
-    if (!image) return normalizeAssetAspectRatio(null);
-    return normalizeAssetAspectRatio((image.naturalWidth || image.width || 1) / Math.max(1, image.naturalHeight || image.height || 1));
-  }, [image]);
+  const [aspectRatio, setAspectRatio] = useState(() => normalizeAssetAspectRatio(null));
+  useEffect(() => {
+    let cancelled = false;
+    void readLocalAssetAspectRatio(assetPath).then((next) => {
+      if (!cancelled) {
+        setAspectRatio(normalizeAssetAspectRatio(next));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetPath]);
+  return aspectRatio;
 }
 
 export async function normalizeAssetOverlayForPath(
@@ -202,22 +257,22 @@ export async function normalizeAssetOverlayForPath(
   const imageBounds = originalSize
     ? { maxX: originalSize.width / longEdge, maxY: originalSize.height / longEdge }
     : { maxX: 1, maxY: 1 };
-  const normalized = normalizeAssetOverlay({ ...params, assetPath: nextAssetPath }, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH);
+  const normalized = normalizeAssetOverlay({ ...params, assetPath: nextAssetPath }, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE);
   return {
     assetPath: nextAssetPath,
     x: normalized.x,
     y: normalized.y,
-    width: normalized.width
+    width: normalized.width,
+    height: normalized.height
   };
 }
 
 function assetOverlayToStageRect(
   params: AssetOverlayParams,
-  ctx: { longEdge: number; placement: { x: number; y: number; scale: number } },
-  aspectRatio: number
+  ctx: { longEdge: number; placement: { x: number; y: number; scale: number } }
 ): { x: number; y: number; w: number; h: number; rotation: number } {
   const width = params.width * ctx.longEdge;
-  const height = assetOverlayHeight(params.width, aspectRatio) * ctx.longEdge;
+  const height = params.height * ctx.longEdge;
   return {
     x: ctx.placement.x + params.x * ctx.longEdge * ctx.placement.scale,
     y: ctx.placement.y + params.y * ctx.longEdge * ctx.placement.scale,
@@ -233,51 +288,41 @@ function stageRectToAssetOverlay(
   aspectRatio: number
 ): Partial<AssetOverlayParams> {
   const width = rect.w / (ctx.placement.scale * ctx.longEdge);
+  const height = rect.h / (ctx.placement.scale * ctx.longEdge);
   const normalized = normalizeAssetOverlay({
     x: (rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale),
     y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
     width,
+    height,
     rotation: normalizeAngle(rect.rotation ?? 0)
-  }, ctx.imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH);
+  }, ctx.imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE);
   return {
     x: normalized.x,
     y: normalized.y,
     width: normalized.width,
+    height: normalized.height,
     rotation: normalized.rotation
   };
-}
-
-function useLocalAssetImage(assetPath: string): HTMLImageElement | null {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  useEffect(() => {
-    if (!assetPath) {
-      setImage(null);
-      return;
-    }
-    const next = new window.Image();
-    next.onload = () => setImage(next);
-    next.onerror = () => setImage(null);
-    next.src = fileUrl(assetPath);
-    return () => {
-      next.onload = null;
-      next.onerror = null;
-    };
-  }, [assetPath]);
-  return image;
 }
 
 async function readLocalAssetAspectRatio(assetPath: string): Promise<number> {
   if (!assetPath) return normalizeAssetAspectRatio(null);
   return new Promise((resolve) => {
     const next = new window.Image();
-    next.onload = () => resolve(normalizeAssetAspectRatio((next.naturalWidth || next.width || 1) / Math.max(1, next.naturalHeight || next.height || 1)));
+    next.onload = () => resolve(readRenderedAssetAspectRatio(next));
     next.onerror = () => resolve(normalizeAssetAspectRatio(null));
     next.src = fileUrl(assetPath);
   });
 }
 
 function sameGeometry(left: AssetOverlayParams, right: AssetOverlayParams): boolean {
-  return nearlyEqual(left.x, right.x) && nearlyEqual(left.y, right.y) && nearlyEqual(left.width, right.width);
+  return (
+    nearlyEqual(left.x, right.x)
+    && nearlyEqual(left.y, right.y)
+    && nearlyEqual(left.width, right.width)
+    && nearlyEqual(left.height, right.height)
+    && left.lockAspectRatio === right.lockAspectRatio
+  );
 }
 
 function nearlyEqual(left: number, right: number): boolean {
@@ -288,6 +333,55 @@ function fileUrl(assetPath: string): string {
   const normalized = assetPath.replaceAll("\\", "/");
   const absolute = normalized.startsWith("/") ? normalized : `/${normalized}`;
   return encodeURI(`file://${absolute}`).replaceAll("#", "%23");
+}
+
+function readRenderedAssetAspectRatio(image: HTMLImageElement): number {
+  const sourceWidth = image.naturalWidth || image.width || 1;
+  const sourceHeight = image.naturalHeight || image.height || 1;
+  const scale = Math.min(1, 1024 / Math.max(sourceWidth, sourceHeight, 1));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return normalizeAssetAspectRatio(sourceWidth / Math.max(1, sourceHeight));
+  }
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  const data = ctx.getImageData(0, 0, width, height).data;
+  const bounds = alphaBounds(data, width, height);
+  if (!bounds) {
+    return normalizeAssetAspectRatio(null);
+  }
+  return normalizeAssetAspectRatio(bounds.width / Math.max(1, bounds.height));
+}
+
+function alphaBounds(data: Uint8ClampedArray, width: number, height: number): { left: number; top: number; width: number; height: number } | null {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * 4 + 3] ?? 0;
+      if (alpha <= 0) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  return {
+    left: minX,
+    top: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1
+  };
 }
 
 type AssetOverlayCardProps = Parameters<NonNullable<OpRenderer<AssetOverlayParams>["Card"]>>[0];

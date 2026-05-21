@@ -57,6 +57,8 @@ Most cards preview the image after their current parameters are applied. Cards t
 
 Asset-backed pickers rescan their directories when opened. LUT lists reflect the current LUT folder, and stamp lists reflect `~/.fotoready/stamps/` without requiring an app restart.
 
+Image watermark and stamp now use explicit overlay rectangles (`x`, `y`, `width`, `height`) with a default-on **Lock aspect ratio** toggle. With the lock on, width and height stay in sync using the asset's visible bounds; with it off, the asset can be stretched freely.
+
 ## Keyboard shortcuts
 
 | Area | Action | Shortcut |

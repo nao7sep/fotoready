@@ -50,7 +50,7 @@ export async function processTask(
     const finalFacts = await applyMetadataPolicy(result.outputPath, sourcePath, task, settings, savedAt);
 
     task.pipeline = result.appliedPipeline;
-    task.status = "done";
+    task.status = "saved";
     task.output = {
       stagedPath: result.outputPath,
       stagedParamsPath: "",

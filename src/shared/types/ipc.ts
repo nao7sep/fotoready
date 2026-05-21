@@ -8,9 +8,9 @@ import type { RenameTemplateId } from "../rename-template";
 export type { VisionRunMode } from "./project";
 
 export type QueueSnapshot = {
-  done: number;
+  saved: number;
   total: number;
-  pending: number;
+  notSaved: number;
   queued: number;
   processing: number;
   errors: number;

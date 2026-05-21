@@ -106,7 +106,7 @@ export class ProjectSession {
     }
 
     const activeTask = this.#activeTaskId ? this.#project.tasks.find((task) => task.id === this.#activeTaskId) : null;
-    if (activeTask && activeTask.status === "pending" && !activeTask.everEdited) {
+    if (activeTask && activeTask.status === "not-saved" && !activeTask.everEdited) {
       activeTask.originalId = original.id;
       activeTask.updatedAt = nowIso();
       this.#previewService.invalidateTask(activeTask.id);
@@ -209,7 +209,7 @@ export class ProjectSession {
       task.output.stagedParamsPath
     ].filter((filePath): filePath is string => typeof filePath === "string"));
 
-    task.status = "pending";
+    task.status = "not-saved";
     task.output = null;
     task.error = null;
     task.updatedAt = nowIso();
@@ -224,7 +224,7 @@ export class ProjectSession {
 
     task.error = null;
     if (task.status === "error") {
-      task.status = "pending";
+      task.status = "not-saved";
     }
     task.updatedAt = nowIso();
     return this.snapshot();
@@ -236,12 +236,12 @@ export class ProjectSession {
       throw new Error(`Task not found: ${taskId}`);
     }
 
-    if (task.error?.stage === "vision" && task.status === "done") {
+    if (task.error?.stage === "vision" && task.status === "saved") {
       task.error = null;
       return this.runVision(taskId);
     }
 
-    task.status = "pending";
+    task.status = "not-saved";
     task.error = null;
     task.output = null;
     task.updatedAt = nowIso();
@@ -254,7 +254,7 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    if (task.status !== "pending") {
+    if (task.status !== "not-saved") {
       return this.snapshot();
     }
     task.status = "queued";
@@ -269,8 +269,8 @@ export class ProjectSession {
   }
 
   enqueueSaveAll(): ProjectSessionSnapshot {
-    const pendingIds = this.#project.tasks.filter((task) => task.status === "pending").map((task) => task.id);
-    for (const taskId of pendingIds) {
+    const notSavedIds = this.#project.tasks.filter((task) => task.status === "not-saved").map((task) => task.id);
+    for (const taskId of notSavedIds) {
       this.enqueueSave(taskId);
     }
     return this.snapshot();
@@ -283,7 +283,7 @@ export class ProjectSession {
     }
     if (task.status === "queued") {
       this.processingQueue.cancelTask(taskId);
-      task.status = "pending";
+      task.status = "not-saved";
       task.updatedAt = nowIso();
     }
     return this.snapshot();
@@ -294,7 +294,7 @@ export class ProjectSession {
     const cancelledSet = new Set(cancelledIds);
     for (const task of this.#project.tasks) {
       if (task.status === "queued" || cancelledSet.has(task.id)) {
-        task.status = "pending";
+        task.status = "not-saved";
         task.updatedAt = nowIso();
       }
     }
@@ -319,7 +319,7 @@ export class ProjectSession {
 
   async afterTaskProcessed(taskId: string): Promise<void> {
     const task = this.#project.tasks.find((item) => item.id === taskId);
-    if (!task || task.status !== "done" || !task.output || (!task.generateDescription && !task.generateSlug)) {
+    if (!task || task.status !== "saved" || !task.output || (!task.generateDescription && !task.generateSlug)) {
       return;
     }
     if (!(await this.visionQueue.hasGeminiApiKey())) {
@@ -424,7 +424,7 @@ export class ProjectSession {
 
   async setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
-    if (task.status === "pending") this.recordTaskEdit(task);
+    if (task.status === "not-saved") this.recordTaskEdit(task);
     task.generateDescription = generateDescription || task.generateSlug;
     touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
@@ -433,7 +433,7 @@ export class ProjectSession {
 
   async setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
-    if (task.status === "pending") this.recordTaskEdit(task);
+    if (task.status === "not-saved") this.recordTaskEdit(task);
     task.generateSlug = generateSlug;
     task.generateDescription = generateSlug ? true : task.generateDescription;
     touchTaskMetadata(task);
@@ -443,7 +443,7 @@ export class ProjectSession {
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
-    if (task.status === "pending") this.recordTaskEdit(task);
+    if (task.status === "not-saved") this.recordTaskEdit(task);
     task.customSlug = normalizeOptionalSlug(customSlug);
     touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
@@ -468,8 +468,8 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    if (task.status !== "pending") {
-      throw new Error("Only pending tasks can be undone. Fork this task before editing.");
+    if (task.status !== "not-saved") {
+      throw new Error("Only not-saved tasks can be undone. Fork this task before editing.");
     }
 
     const history = this.#taskUndoHistory.get(taskId);
@@ -550,8 +550,8 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    if (task.status !== "pending") {
-      throw new Error("Only pending tasks can be edited. Fork this task before editing.");
+    if (task.status !== "not-saved") {
+      throw new Error("Only not-saved tasks can be edited. Fork this task before editing.");
     }
     return task;
   }
@@ -622,7 +622,7 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings): Ta
     visionRunning: false,
     visionRunMode: null,
     pipeline,
-    status: "pending",
+    status: "not-saved",
     output: null,
     error: null,
     everEdited: false,

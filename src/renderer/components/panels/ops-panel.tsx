@@ -77,7 +77,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                     }
                   }}
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
-                  disabled={activeTask.status !== "pending"}
+                  disabled={activeTask.status !== "not-saved"}
                   index={index}
                   key={op.id}
                   luts={props.luts}
@@ -109,7 +109,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               onClearVision={props.onClearVision}
               onGenerateVision={props.onGenerateVision}
               onOpenSettings={props.onOpenSettings}
-              outputDisabled={!activeTask || activeTask.status !== "pending"}
+              outputDisabled={!activeTask || activeTask.status !== "not-saved"}
               original={props.activeOriginal}
               settings={props.settings}
               task={activeTask}
@@ -129,7 +129,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
             <h3>{section}</h3>
             <div className="op-buttons">
               {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
-                <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "pending"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
+                <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "not-saved"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
                   {op.pickerLabel ?? op.label}
                 </button>
               ))}

@@ -46,7 +46,7 @@ export function RenameModal({
     && preview.items.some((item) => dirtySlugDrafts[item.taskId])
   );
   const canRun = Boolean(
-    preview?.items.some((item) => item.status === "ready" || item.status === "unchanged")
+    preview?.items.some((item) => item.status === "ready")
     && preview.blockedCount === 0
     && !hasPendingSlugDrafts
   );
@@ -140,7 +140,7 @@ export function RenameModal({
       </label>
 
       {preview?.blockedCount ? (
-        <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need attention before rename.</div>
+        <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need{preview.blockedCount === 1 ? "s" : ""} attention before rename.</div>
       ) : null}
 
       {error ? <div className="modal-error">{error}</div> : null}

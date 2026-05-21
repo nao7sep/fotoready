@@ -23,7 +23,7 @@ export function TasksPanel({
   onCancelAll(): void;
   onSelect(taskId: string): void;
 }): React.JSX.Element {
-  const hasPending = tasks.some((task) => task.status === "pending");
+  const hasPending = tasks.some((task) => task.status === "not-saved");
   const hasQueued = queue.queued > 0;
 
   return (
@@ -75,7 +75,6 @@ function statusIndicator(task: Task): string {
   if (task.visionRunning) return "◐";
   if (task.status === "processing") return "◐";
   if (task.status === "queued") return "◔";
-  if (task.status === "error") return "x";
   return "●";
 }
 

@@ -3,9 +3,9 @@ import type { Project } from "@shared/types/project";
 
 export function queueSnapshotFromProject(project: Project, activeTaskId: string | null = firstProcessingTaskId(project)): QueueSnapshot {
   return {
-    done: project.tasks.filter((task) => task.status === "done").length,
+    saved: project.tasks.filter((task) => task.status === "saved").length,
     total: project.tasks.length,
-    pending: project.tasks.filter((task) => task.status === "pending").length,
+    notSaved: project.tasks.filter((task) => task.status === "not-saved").length,
     queued: project.tasks.filter((task) => task.status === "queued").length,
     processing: project.tasks.filter((task) => task.status === "processing").length,
     errors: project.tasks.filter((task) => task.status === "error").length,

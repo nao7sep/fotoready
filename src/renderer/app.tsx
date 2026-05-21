@@ -25,9 +25,9 @@ import { taskStateLabel } from "./task-visual-state";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
-  done: 0,
+  saved: 0,
   total: 0,
-  pending: 0,
+  notSaved: 0,
   queued: 0,
   processing: 0,
   errors: 0,
@@ -214,13 +214,13 @@ function App(): React.JSX.Element {
         void saveAll();
       } else if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        if (activeTask?.status === "pending") void saveTask(activeTask.id);
+        if (activeTask?.status === "not-saved") void saveTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "z" && !event.shiftKey) {
         event.preventDefault();
-        if (activeTask?.status === "pending") void undoTask(activeTask.id);
+        if (activeTask?.status === "not-saved") void undoTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "r") {
         event.preventDefault();
-        if (project?.tasks.some((task) => task.status === "done")) setRenameOpen(true);
+        if (project?.tasks.some((task) => task.status === "saved")) setRenameOpen(true);
       } else if (mod && event.key === ",") {
         event.preventDefault();
         void openSettings();
@@ -705,7 +705,7 @@ function App(): React.JSX.Element {
                 </em>
               ) : null}
             </span>
-            {activeTask?.status === "pending" ? (
+            {activeTask?.status === "not-saved" ? (
               <button className="inline-action" type="button" onClick={() => void saveTask(activeTask.id)}>
                 <Save size={14} /> Save
               </button>
@@ -715,7 +715,7 @@ function App(): React.JSX.Element {
                 <X size={14} /> Cancel
               </button>
             ) : null}
-            {activeTask && activeTask.status === "done" ? (
+            {activeTask && activeTask.status === "saved" ? (
               <button className="inline-action" type="button" onClick={() => void forkTask(activeTask.id)}>
                 <CopyPlus size={14} /> Fork
               </button>
@@ -917,7 +917,7 @@ function WorkspaceSplitter({
 
 /** Build a short, sparse summary for the status bar. Hides zero-count categories. */
 function summarizeQueue(queue: QueueSnapshot): string {
-  const parts = [`${queue.done}/${queue.total}`];
+  const parts = [`${queue.saved}/${queue.total}`];
   if (queue.processing > 0) parts.push(`${queue.processing} running`);
   if (queue.queued > 0) parts.push(`${queue.queued} queued`);
   if (queue.errors > 0) parts.push(`${queue.errors} failed`);

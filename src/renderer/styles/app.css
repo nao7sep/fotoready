@@ -513,7 +513,7 @@ select:disabled {
 }
 
 .status-dot.state-error {
-  color: #f87171;
+  color: var(--danger-text);
 }
 
 .task-copy {
@@ -1367,7 +1367,7 @@ select:disabled {
 }
 
 .rename-preview-dot.state-error {
-  color: #f87171;
+  color: var(--danger-text);
 }
 
 .rename-preview-meta {

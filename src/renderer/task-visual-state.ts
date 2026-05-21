@@ -1,5 +1,5 @@
 import type { QueueSnapshot, RenamePreviewItem } from "@shared/types/ipc";
-import type { Task } from "@shared/types/project";
+import type { Task, VisionRunMode } from "@shared/types/project";
 
 export type TaskVisualState = "not-saved" | "saved" | "description-generated" | "slug-generated" | "error";
 
@@ -34,9 +34,16 @@ export function taskStateLabelForVisualState(state: TaskVisualState): string {
 }
 
 export function taskStateLabel(task: Task, queue: QueueSnapshot): string {
+  if (task.visionRunning) return visionGeneratingLabel(task.visionRunMode);
   if (queue.activeTaskId === task.id || task.status === "processing") return "Saving";
   if (task.status === "queued") return "Waiting to save";
   return taskStateLabelForVisualState(taskVisualState(task));
+}
+
+function visionGeneratingLabel(mode: VisionRunMode | null): string {
+  if (mode === "slug") return "Generating slug";
+  if (mode === "description-and-slug") return "Generating description and slug";
+  return "Generating description";
 }
 
 export function renameItemVisualState(task: Task | undefined, item: RenamePreviewItem): TaskVisualState {
@@ -48,7 +55,7 @@ export function renameItemVisualState(task: Task | undefined, item: RenamePrevie
 export function renameItemStateLabel(state: TaskVisualState, item: RenamePreviewItem): string {
   if (state === "error") return item.issue ?? "Needs attention";
   if (item.status === "not-saved") return "Not saved";
-  if (item.status === "unchanged") return "Renamed";
+  if (item.status === "unchanged") return "Already named";
   if (item.status === "ready") return "Ready to rename";
   if (item.issue === "Missing slug") return missingSlugLabel(state);
   return taskStateLabelForVisualState(state);

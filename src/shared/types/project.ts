@@ -20,7 +20,7 @@ export type Original = {
   addedAt: string;
 };
 
-export type TaskStatus = "pending" | "queued" | "processing" | "done" | "error";
+export type TaskStatus = "not-saved" | "queued" | "processing" | "saved" | "error";
 
 export type VisionRunMode = "description" | "description-and-slug" | "slug";
 

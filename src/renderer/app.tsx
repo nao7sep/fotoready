@@ -754,7 +754,7 @@ function App(): React.JSX.Element {
           </div>
           {activeTask?.error ? (
             <div className="error-strip">
-              <strong>{activeTask.error.stage}</strong>
+              <strong>{errorStageLabel(activeTask.error.stage)}</strong>
               <span>{activeTask.error.message}</span>
               {activeTask.error.retryable ? (
                 <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>Retry</button>
@@ -998,6 +998,12 @@ function savedOutputDeletePaths(task: Task): string[] {
     task.output.finalPath ?? task.output.stagedPath,
     task.output.finalParamsPath ?? task.output.stagedParamsPath
   ].filter((filePath): filePath is string => typeof filePath === "string" && filePath.length > 0)));
+}
+
+function errorStageLabel(stage: "processing" | "vision" | "rename"): string {
+  if (stage === "processing") return "Save error";
+  if (stage === "vision") return "Vision error";
+  return "Rename error";
 }
 
 function stringifyLogArgs(args: unknown[]): string {

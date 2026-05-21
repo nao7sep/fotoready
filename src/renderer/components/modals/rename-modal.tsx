@@ -242,7 +242,7 @@ function RenamePreviewRow({
           <span className={`rename-preview-dot state-${visualState}`} aria-hidden="true">●</span>
           <span>{stateText}</span>
         </span>
-        <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? "Not saved yet"}</span>
+        <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? (item.status === "not-saved" ? "Not saved yet" : (item.issue ?? "Unavailable"))}</span>
         <span className="rename-preview-meta" title={item.currentPath ?? ""}>
           <span className="rename-preview-meta-label">Current</span>
           <span>{item.currentName ?? "Not saved"}</span>

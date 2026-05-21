@@ -8,6 +8,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
+import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { PreviewRenderOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
@@ -175,6 +176,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
 
+  ipcMain.handle("assets.aspectRatio", async (_event, assetPath: string) => {
+    if (typeof assetPath !== "string" || !assetPath) return 1;
+    try {
+      return await readAssetAspectRatio(assetPath);
+    } catch (err) {
+      ctx.logger.warn({ mod: "main.ipc", assetPath, err: String(err) }, "failed to read asset aspect ratio");
+      return 1;
+    }
+  });
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
       type,

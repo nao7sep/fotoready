@@ -56,6 +56,9 @@ const api: FotoReadyApi = {
   ops: {
     list: () => ipcRenderer.invoke("ops.list")
   },
+  assets: {
+    aspectRatio: (assetPath) => ipcRenderer.invoke("assets.aspectRatio", assetPath)
+  },
   preview: {
     render: (taskId, options) => ipcRenderer.invoke("preview.render", taskId, options),
     originalThumbnail: (originalId) => ipcRenderer.invoke("preview.originalThumbnail", originalId)

@@ -2,7 +2,6 @@ import type sharp from "sharp";
 import type { AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCategory } from "@shared/types/op";
 import { assertBoolean } from "@shared/validation/common";
-import { DEFAULT_ASSET_OVERLAY_ASPECT_RATIO } from "@shared/asset-overlay";
 import { applyTransformedOverlay, assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
 import type { OpApplyContext, OpModule } from "./op-module";
 
@@ -74,7 +73,7 @@ export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlay
 }
 
 export async function readAssetAspectRatio(assetPath: string): Promise<number> {
-  if (!assetPath) return DEFAULT_ASSET_OVERLAY_ASPECT_RATIO;
+  if (!assetPath) return 1;
   const key = normalizeAssetCacheKey(assetPath);
   const cached = assetAspectRatioCache.get(key);
   if (cached !== undefined) {
@@ -83,7 +82,7 @@ export async function readAssetAspectRatio(assetPath: string): Promise<number> {
   const rendered = await renderTrimmedAssetBitmap(assetPath, ASSET_ASPECT_SAMPLE_WIDTH, false);
   const aspectRatio = rendered.info.width > 0 && rendered.info.height > 0
     ? rendered.info.width / rendered.info.height
-    : DEFAULT_ASSET_OVERLAY_ASPECT_RATIO;
+    : 1;
   assetAspectRatioCache.set(key, aspectRatio);
   return aspectRatio;
 }

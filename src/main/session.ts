@@ -21,7 +21,7 @@ import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSide
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOutputFormat } from "@shared/output-format";
-import { MIN_ASSET_OVERLAY_SIZE, normalizeAssetOverlay } from "@shared/asset-overlay";
+import { DEFAULT_ASSET_OVERLAY_WIDTH, clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 
 export type ProjectSessionSnapshot = {
@@ -620,9 +620,10 @@ async function initializeOpParamsForOriginal(opType: string, params: Record<stri
   ) {
     return;
   }
-  const aspectRatio = params.assetPath ? await readAssetAspectRatio(params.assetPath) : null;
-  const normalized = normalizeAssetOverlay(params, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE);
-  Object.assign(params, normalized);
+  const ar = params.assetPath ? await readAssetAspectRatio(params.assetPath as string) : 1;
+  const width = DEFAULT_ASSET_OVERLAY_WIDTH;
+  const height = width / Math.max(0.01, ar);
+  Object.assign(params, clampAssetOverlay({ ...(params as unknown as AssetOverlayParams), width, height }, imageBounds));
 }
 
 function nextTaskOutput(

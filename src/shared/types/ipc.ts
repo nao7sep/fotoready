@@ -138,6 +138,9 @@ export type FotoReadyApi = {
   ops: {
     list(): Promise<OpCatalogItem[]>;
   };
+  assets: {
+    aspectRatio(assetPath: string): Promise<number>;
+  };
   preview: {
     render(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult>;
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;

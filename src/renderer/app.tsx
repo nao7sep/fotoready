@@ -5,7 +5,7 @@ import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
 import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo } from "@shared/types/ipc";
-import type { Task } from "@shared/types/project";
+import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { pipelineForPreview } from "@shared/preview-pipeline";
@@ -259,6 +259,38 @@ function App(): React.JSX.Element {
       offQueue();
     };
   }, []);
+
+  useEffect(() => {
+    return api.lifecycle.onCloseRequest(() => {
+      void (async () => {
+        if (settingsDirty || apiKeyDirty) {
+          const discard = await confirmer.confirm({
+            title: "Discard changes?",
+            message: "You have unsaved settings changes. Discard them and close?",
+            confirmLabel: "Discard",
+            danger: true
+          });
+          if (!discard) {
+            await api.lifecycle.approveClose(false);
+            return;
+          }
+        }
+
+        if (hasWorkspaceWork(project, queue)) {
+          const close = await confirmer.confirm({
+            title: "Close FotoReady?",
+            message: "Close and discard the current workspace?",
+            confirmLabel: "Close",
+            danger: true
+          });
+          await api.lifecycle.approveClose(close);
+          return;
+        }
+
+        await api.lifecycle.approveClose(true);
+      })();
+    });
+  }, [apiKeyDirty, confirmer, project, queue, settingsDirty]);
 
   useEffect(() => {
     if (!previewRequest) {
@@ -910,6 +942,10 @@ function basename(sourcePath: string): string {
 function taskLabel(task: Task, originals: { id: string; sourcePath: string }[]): string {
   const original = originals.find((item) => item.id === task.originalId);
   return original ? basename(original.sourcePath) : task.id;
+}
+
+function hasWorkspaceWork(project: Project | undefined, queue: QueueSnapshot): boolean {
+  return Boolean(project && (project.originals.length > 0 || project.tasks.length > 0 || queue.total > 0));
 }
 
 function hasFileDrag(dataTransfer: DataTransfer | null): boolean {

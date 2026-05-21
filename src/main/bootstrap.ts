@@ -1,4 +1,4 @@
-import { BrowserWindow, app } from "electron";
+import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
@@ -52,6 +52,7 @@ export async function bootstrap(): Promise<void> {
       sandbox: false
     }
   });
+  installCloseGuard(win);
 
   win.once("ready-to-show", () => win.show());
 
@@ -63,11 +64,67 @@ export async function bootstrap(): Promise<void> {
 
   logger.info({ mod: "main.bootstrap", dataDir: paths.dataDir }, "app started");
 
-  app.once("before-quit", () => {
+  app.once("will-quit", () => {
     void pipelineWorkerPool.destroy();
   });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void bootstrap();
+  });
+}
+
+function installCloseGuard(win: BrowserWindow): void {
+  let closeAllowed = false;
+  let closeRequestPending = false;
+  let closeRequestMode: "window" | "quit" = "window";
+  let systemShutdown = false;
+
+  const markSystemShutdown = () => {
+    systemShutdown = true;
+    closeAllowed = true;
+  };
+
+  powerMonitor.once("shutdown", markSystemShutdown);
+  win.once("query-session-end", markSystemShutdown);
+  win.once("session-end", markSystemShutdown);
+
+  function requestClose(mode: "window" | "quit"): void {
+    if (closeRequestPending || win.webContents.isDestroyed()) return;
+    closeRequestPending = true;
+    closeRequestMode = mode;
+    win.webContents.send("lifecycle.close-requested", { mode });
+  }
+
+  win.on("close", (event) => {
+    if (closeAllowed || systemShutdown) return;
+    event.preventDefault();
+    requestClose("window");
+  });
+
+  const beforeQuitHandler = (event: Electron.Event) => {
+    if (closeAllowed || systemShutdown) return;
+    event.preventDefault();
+    requestClose("quit");
+  };
+  app.on("before-quit", beforeQuitHandler);
+
+  ipcMain.handle("lifecycle.approveClose", (event, allow: boolean) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== win) return;
+    closeRequestPending = false;
+    if (!allow) return;
+    closeAllowed = true;
+    if (closeRequestMode === "quit") {
+      app.quit();
+      return;
+    }
+    win.close();
+  });
+
+  win.once("closed", () => {
+    app.off("before-quit", beforeQuitHandler);
+    powerMonitor.off("shutdown", markSystemShutdown);
+    win.off("query-session-end", markSystemShutdown);
+    win.off("session-end", markSystemShutdown);
+    ipcMain.removeHandler("lifecycle.approveClose");
   });
 }

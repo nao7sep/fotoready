@@ -83,6 +83,14 @@ const api: FotoReadyApi = {
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
   },
+  lifecycle: {
+    approveClose: (allow) => ipcRenderer.invoke("lifecycle.approveClose", allow),
+    onCloseRequest: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) => callback(request);
+      ipcRenderer.on("lifecycle.close-requested", listener);
+      return () => ipcRenderer.off("lifecycle.close-requested", listener);
+    }
+  },
   events: {
     onProjectSnapshot: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof callback>[0]) => callback(snapshot);

@@ -39,6 +39,9 @@ export async function applyTransformedOverlay(
   overlay: sharp.Sharp,
   box: { left: number; top: number; width: number; height: number; rotation: number }
 ): Promise<{ image: sharp.Sharp; width: number; height: number }> {
+  const imageMetadata = await image.metadata();
+  const imageWidth = imageMetadata.width ?? 0;
+  const imageHeight = imageMetadata.height ?? 0;
   const rotated = await overlay
     .resize(Math.max(1, Math.round(box.width)), Math.max(1, Math.round(box.height)), { fit: "fill" })
     .ensureAlpha()
@@ -49,11 +52,33 @@ export async function applyTransformedOverlay(
   const centerY = box.top + box.height / 2;
   const compositeLeft = Math.round(centerX - rotated.info.width / 2);
   const compositeTop = Math.round(centerY - rotated.info.height / 2);
+  const visibleLeft = Math.max(0, compositeLeft);
+  const visibleTop = Math.max(0, compositeTop);
+  const visibleRight = Math.min(imageWidth, compositeLeft + rotated.info.width);
+  const visibleBottom = Math.min(imageHeight, compositeTop + rotated.info.height);
+  const visibleWidth = visibleRight - visibleLeft;
+  const visibleHeight = visibleBottom - visibleTop;
+  if (visibleWidth <= 0 || visibleHeight <= 0) {
+    return { image, width: imageWidth, height: imageHeight };
+  }
+  const input = visibleWidth === rotated.info.width && visibleHeight === rotated.info.height
+    ? rotated.data
+    : await (await import("sharp")).default(rotated.data, {
+      raw: { width: rotated.info.width, height: rotated.info.height, channels: rotated.info.channels }
+    })
+      .extract({
+        left: visibleLeft - compositeLeft,
+        top: visibleTop - compositeTop,
+        width: visibleWidth,
+        height: visibleHeight
+      })
+      .raw()
+      .toBuffer();
   return applyComposite(image, [{
-    input: rotated.data,
-    raw: { width: rotated.info.width, height: rotated.info.height, channels: rotated.info.channels },
-    left: compositeLeft,
-    top: compositeTop
+    input,
+    raw: { width: visibleWidth, height: visibleHeight, channels: rotated.info.channels },
+    left: visibleLeft,
+    top: visibleTop
   }]);
 }
 

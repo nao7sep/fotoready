@@ -81,6 +81,10 @@ export type StampEntry = {
   format: "png" | "svg";
 };
 
+export type CloseRequest = {
+  mode: "window" | "quit";
+};
+
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
 export type TaskDeleteOptions = {
@@ -169,6 +173,10 @@ export type FotoReadyApi = {
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;
+  };
+  lifecycle: {
+    approveClose(allow: boolean): Promise<void>;
+    onCloseRequest(callback: (request: CloseRequest) => void): () => void;
   };
   events: {
     onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;

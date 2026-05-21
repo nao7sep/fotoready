@@ -75,32 +75,6 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           onChange={(event) => onParamChange("text", event.currentTarget.value)}
         />
         <label className="slider-row">
-          <span>Width</span>
-          <input
-            disabled={disabled}
-            max={widthMax}
-            min={fractionToPercentSteps(MIN_TEXT_WATERMARK_BOX_SIZE)}
-            step={1}
-            type="range"
-            value={fractionToPercentSteps(normalizedBox.w)}
-            onChange={(event) => updateBox({ w: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
-          />
-          <span className="slider-value">{formatPercent(normalizedBox.w)}</span>
-        </label>
-        <label className="slider-row">
-          <span>Height</span>
-          <input
-            disabled={disabled}
-            max={heightMax}
-            min={fractionToPercentSteps(MIN_TEXT_WATERMARK_BOX_SIZE)}
-            step={1}
-            type="range"
-            value={fractionToPercentSteps(normalizedBox.h)}
-            onChange={(event) => updateBox({ h: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
-          />
-          <span className="slider-value">{formatPercent(normalizedBox.h)}</span>
-        </label>
-        <label className="slider-row">
           <span>X</span>
           <input
             disabled={disabled}
@@ -125,6 +99,32 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             onChange={(event) => updateBox({ y: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
           <span className="slider-value">{formatPercent(normalizedBox.y)}</span>
+        </label>
+        <label className="slider-row">
+          <span>Width</span>
+          <input
+            disabled={disabled}
+            max={widthMax}
+            min={fractionToPercentSteps(MIN_TEXT_WATERMARK_BOX_SIZE)}
+            step={1}
+            type="range"
+            value={fractionToPercentSteps(normalizedBox.w)}
+            onChange={(event) => updateBox({ w: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
+          />
+          <span className="slider-value">{formatPercent(normalizedBox.w)}</span>
+        </label>
+        <label className="slider-row">
+          <span>Height</span>
+          <input
+            disabled={disabled}
+            max={heightMax}
+            min={fractionToPercentSteps(MIN_TEXT_WATERMARK_BOX_SIZE)}
+            step={1}
+            type="range"
+            value={fractionToPercentSteps(normalizedBox.h)}
+            onChange={(event) => updateBox({ h: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
+          />
+          <span className="slider-value">{formatPercent(normalizedBox.h)}</span>
         </label>
         <AngleControl disabled={disabled} value={normalizedBox.rotation} onChange={(rotation) => updateBox({ rotation: normalizeAngle(rotation) })} />
         <div className="geometry-toolbar-row">

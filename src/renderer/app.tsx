@@ -21,6 +21,7 @@ import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout } from "./layout/workspace-layout";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
+import { taskStateLabel } from "./task-visual-state";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -732,7 +733,7 @@ function App(): React.JSX.Element {
                   {activeOriginal.width}×{activeOriginal.height} · {formatLabel(activeOriginal.format)}
                   {hasJpegEstimate ? ` · assumed JPEG quality ${activeOriginal.jpegQualityEstimate}` : ""}
                   {activeTask ? ` · output ${formatLabel(resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format))}` : ""}
-                  {activeTask ? ` · ${activeTask.status}` : ""}
+                  {activeTask ? ` · ${taskStateLabel(activeTask, queue)}` : ""}
                 </em>
               ) : null}
             </span>

@@ -23,6 +23,12 @@
   --accent-soft-bg: #d4eee9;
   --accent-soft-border: #8ce0d3;
   --accent-soft-text: #1c4842;
+  --idle-text: #475569;
+  --idle-soft-bg: #e2e8f0;
+  --idle-border: #94a3b8;
+  --saving-text: #7c3aed;
+  --saving-soft-bg: #ede9fe;
+  --saving-border: #c4b5fd;
   --info-text: #1d4ed8;
   --info-soft-bg: #dbeafe;
   --info-border: #93c5fd;
@@ -490,15 +496,19 @@ select:disabled {
   flex: 0 0 auto;
 }
 
-.status-dot.state-before-save {
-  color: #eab308;
+.status-dot.state-not-saved {
+  color: var(--idle-text);
+}
+
+.status-dot.state-saving {
+  color: var(--saving-text);
 }
 
 .status-dot.state-generating {
   color: var(--info-text);
 }
 
-.status-dot.state-generated {
+.status-dot.state-ready {
   color: var(--accent-bg);
 }
 
@@ -1272,15 +1282,19 @@ select:disabled {
   color: var(--danger-text);
 }
 
-.rename-preview-state.state-before-save {
-  color: var(--warning-text);
+.rename-preview-state.state-not-saved {
+  color: var(--idle-text);
+}
+
+.rename-preview-state.state-saving {
+  color: var(--saving-text);
 }
 
 .rename-preview-state.state-generating {
   color: var(--info-text);
 }
 
-.rename-preview-state.state-generated {
+.rename-preview-state.state-ready {
   color: var(--accent-soft-text);
 }
 
@@ -1290,12 +1304,16 @@ select:disabled {
   line-height: 1;
 }
 
-.rename-preview-dot.state-generated {
+.rename-preview-dot.state-ready {
   color: var(--accent-bg);
 }
 
-.rename-preview-dot.state-before-save {
-  color: #eab308;
+.rename-preview-dot.state-not-saved {
+  color: var(--idle-text);
+}
+
+.rename-preview-dot.state-saving {
+  color: var(--saving-text);
 }
 
 .rename-preview-dot.state-generating {
@@ -1475,14 +1493,24 @@ select:disabled {
   overflow-wrap: anywhere;
 }
 
-.vision-description.state-before-save {
-  border-color: var(--warning-border);
-  background: var(--warning-soft-bg);
+.vision-description.state-not-saved {
+  border-color: var(--idle-border);
+  background: var(--idle-soft-bg);
 }
 
-.vision-description.state-before-save span,
-.vision-description.state-before-save p {
-  color: var(--warning-text);
+.vision-description.state-not-saved span,
+.vision-description.state-not-saved p {
+  color: var(--idle-text);
+}
+
+.vision-description.state-saving {
+  border-color: var(--saving-border);
+  background: var(--saving-soft-bg);
+}
+
+.vision-description.state-saving span,
+.vision-description.state-saving p {
+  color: var(--saving-text);
 }
 
 .vision-description.state-generating {
@@ -1495,13 +1523,13 @@ select:disabled {
   color: var(--info-text);
 }
 
-.vision-description.state-generated {
+.vision-description.state-ready {
   border-color: var(--accent-soft-border);
   background: var(--accent-soft-bg);
 }
 
-.vision-description.state-generated span,
-.vision-description.state-generated p {
+.vision-description.state-ready span,
+.vision-description.state-ready p {
   color: var(--accent-soft-text);
 }
 

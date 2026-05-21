@@ -2,7 +2,7 @@ import React from "react";
 import { Pencil, Save, X } from "lucide-react";
 import type { QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
-import { taskVisualState } from "@renderer/task-visual-state";
+import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
 
 export function TasksPanel({
   activeTaskId,
@@ -84,10 +84,7 @@ function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string
 }
 
 function taskQueueDetail(task: Task, queue: QueueSnapshot): string {
-  if (task.visionRunning) return "generating";
-  if (queue.activeTaskId === task.id) return "processing now";
-  if (task.status === "queued") return "queued";
-  return task.status;
+  return taskStateLabel(task, queue);
 }
 
 function basename(sourcePath: string): string {

@@ -209,7 +209,7 @@ function RenamePreviewRow({
   const visualState = draftEmpty
     ? "error"
     : draftDirty
-      ? "before-save"
+      ? "not-saved"
       : previewVisualState;
   const stateText = draftEmpty
     ? "Missing slug"
@@ -220,7 +220,7 @@ function RenamePreviewRow({
         : previewVisualState === "generating"
           ? "Generating"
           : item.status === "not-saved"
-            ? "Before save"
+            ? "Not saved"
             : item.status === "unchanged"
               ? "No change"
               : "Ready";

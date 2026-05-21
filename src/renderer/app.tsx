@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { BarChart3, CopyPlus, Menu, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
@@ -107,8 +107,6 @@ function App(): React.JSX.Element {
   const setShortcutsOpen = useEditorStore((state) => state.setShortcutsOpen);
   const aboutOpen = useEditorStore((state) => state.aboutOpen);
   const setAboutOpen = useEditorStore((state) => state.setAboutOpen);
-  const errorsOpen = useEditorStore((state) => state.errorsOpen);
-  const setErrorsOpen = useEditorStore((state) => state.setErrorsOpen);
   const menuOpen = useEditorStore((state) => state.menuOpen);
   const setMenuOpen = useEditorStore((state) => state.setMenuOpen);
   const showOriginals = useEditorStore((state) => state.showOriginals);
@@ -121,7 +119,6 @@ function App(): React.JSX.Element {
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
-  const erroredTasks = project?.tasks.filter((task) => task.error) ?? [];
   const showHistogram = uiState?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
@@ -401,21 +398,6 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.dismissError(taskId));
   }
 
-  async function revealSource(): Promise<void> {
-    if (activeOriginal) await api.system.revealInFolder(activeOriginal.sourcePath);
-  }
-
-  async function revealTaskSource(task: Task): Promise<void> {
-    const original = project?.originals.find((item) => item.id === task.originalId);
-    if (original) await api.system.revealInFolder(original.sourcePath);
-  }
-
-  async function editErroredTask(task: Task): Promise<void> {
-    if (task.error) await refreshProject(await api.task.dismissError(task.id));
-    await refreshProject(await api.task.select(task.id));
-    setErrorsOpen(false);
-  }
-
   async function undoTask(taskId: string): Promise<void> {
     await refreshProject(await api.task.undo(taskId));
   }
@@ -635,10 +617,6 @@ function App(): React.JSX.Element {
             }}>Keyboard shortcuts</button>
             <button type="button" onClick={() => {
               setMenuOpen(false);
-              setErrorsOpen(true);
-            }}>Errors{erroredTasks.length ? ` (${erroredTasks.length})` : ""}</button>
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
               setAboutOpen(true);
             }}>About FotoReady</button>
           </div>
@@ -701,11 +679,6 @@ function App(): React.JSX.Element {
                 <CopyPlus size={14} /> Fork
               </button>
             ) : null}
-            {activeTask?.error ? (
-              <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>
-                <RotateCcw size={14} /> Retry
-              </button>
-            ) : null}
             {activeTask ? (
               <button className="inline-action danger" type="button" onClick={() => void deleteTask(activeTask)}>
                 <Trash2 size={14} /> Delete
@@ -742,8 +715,9 @@ function App(): React.JSX.Element {
             <div className="error-strip">
               <strong>{activeTask.error.stage}</strong>
               <span>{activeTask.error.message}</span>
-              <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>Retry</button>
-              <button className="inline-action" disabled={!activeOriginal} type="button" onClick={() => void revealSource()}>Reveal source</button>
+              {activeTask.error.retryable ? (
+                <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>Retry</button>
+              ) : null}
               <button className="inline-action" type="button" onClick={() => void dismissError(activeTask.id)}>Dismiss</button>
             </div>
           ) : null}
@@ -892,34 +866,7 @@ function App(): React.JSX.Element {
       <footer className="status-bar">
         <span className="queue-summary">{summarizeQueue(queue)}</span>
         <span className="top-bar-spacer" />
-        {erroredTasks.length ? (
-          <button className="toolbar-button compact-text" type="button" onClick={() => setErrorsOpen(true)}>
-            Errors
-          </button>
-        ) : null}
       </footer>
-
-      {errorsOpen ? (
-        <ModalShell title="Errors" size="wide" onClose={() => setErrorsOpen(false)}>
-          <div className="error-center-list">
-            {erroredTasks.length ? erroredTasks.map((task) => (
-              <div className="error-center-row" key={task.id}>
-                <div className="error-center-header">
-                  <span className="error-center-title">{taskLabel(task, project?.originals ?? [])}</span>
-                  {task.error?.stage ? <span className="error-stage-badge">{task.error.stage}</span> : null}
-                </div>
-                {task.error?.message ? <p className="error-center-message">{task.error.message}</p> : null}
-                <div className="error-center-actions">
-                  <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
-                  <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
-                  <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
-                  <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
-                </div>
-              </div>
-            )) : <div className="ops-empty">No current task errors</div>}
-          </div>
-        </ModalShell>
-      ) : null}
     </main>
   );
 }

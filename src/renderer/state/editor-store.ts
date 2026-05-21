@@ -12,7 +12,6 @@ type EditorStore = {
   apiKeyOpen: boolean;
   shortcutsOpen: boolean;
   aboutOpen: boolean;
-  errorsOpen: boolean;
   menuOpen: boolean;
   showOriginals: boolean;
   showTasks: boolean;
@@ -25,7 +24,6 @@ type EditorStore = {
   setApiKeyOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
   setAboutOpen(open: boolean): void;
-  setErrorsOpen(open: boolean): void;
   setMenuOpen(open: boolean): void;
   toggleOriginals(): void;
   toggleTasks(): void;
@@ -41,7 +39,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   apiKeyOpen: false,
   shortcutsOpen: false,
   aboutOpen: false,
-  errorsOpen: false,
   menuOpen: false,
   showOriginals: true,
   showTasks: true,
@@ -60,7 +57,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setApiKeyOpen: (apiKeyOpen) => set({ apiKeyOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
-  setErrorsOpen: (errorsOpen) => set({ errorsOpen }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
   toggleOriginals: () => set((state) => ({ showOriginals: !state.showOriginals })),
   toggleTasks: () => set((state) => ({ showTasks: !state.showTasks })),

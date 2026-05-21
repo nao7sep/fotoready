@@ -728,7 +728,8 @@ select:disabled {
   min-width: 0;
   overflow: hidden;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 8px 12px;
   border-top: 1px solid var(--danger-border);
@@ -738,77 +739,18 @@ select:disabled {
 }
 
 .error-strip strong {
+  flex: 0 0 auto;
   text-transform: uppercase;
   font-size: 11px;
+  line-height: 26px;
 }
 
 .error-strip span {
-  flex: 1;
+  flex: 1 1 320px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-center-list {
-  min-height: 260px;
-  overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.error-center-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.error-center-row:last-child {
-  border-bottom: 0;
-}
-
-.error-center-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.error-center-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-strong-color);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.error-stage-badge {
-  font-size: 11px;
-  color: var(--danger-text);
-  background: var(--danger-soft-bg);
-  border: 1px solid var(--danger-border);
-  border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.error-center-message {
-  font-size: 12px;
-  color: var(--danger-text);
   overflow-wrap: anywhere;
-  margin: 0;
-}
-
-.error-center-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  line-height: 1.35;
+  padding: 5px 0;
 }
 
 .histogram-overlay {

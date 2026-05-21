@@ -293,8 +293,6 @@ function OutputControls({
           <span>{task.generateSlug ? "Generated description and slug source" : "Generated description"}</span>
           <p>{task.output.vision.description}</p>
         </div>
-      ) : task?.error?.stage === "vision" ? (
-        <div className="modal-error">{task.error.message}</div>
       ) : null}
       <label className="stacked-field">
         Custom slug

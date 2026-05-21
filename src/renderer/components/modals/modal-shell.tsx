@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 export type ModalSize = "default" | "small" | "wide";
@@ -25,6 +26,8 @@ export function ModalShell({
   children: React.ReactNode;
 }): React.JSX.Element {
   const modalIdRef = useRef(Symbol("modal"));
+  const modalRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   function requestClose(): void {
     onClose();
@@ -40,8 +43,21 @@ export function ModalShell({
   }, []);
 
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const modal = modalRef.current;
+    const autoFocusTarget = modal?.querySelector<HTMLElement>("[autofocus]");
+    (autoFocusTarget ?? modal)?.focus();
+    return () => {
+      if (previousFocus && previousFocus.isConnected) {
+        previousFocus.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape" && modalStack.at(-1) === modalIdRef.current) {
+        event.preventDefault();
         event.stopPropagation();
         requestClose();
       }
@@ -50,16 +66,16 @@ export function ModalShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="modal-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
     >
-      <section className={`modal modal-${size}`}>
+      <section className={`modal modal-${size}`} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="modal-header">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={requestClose}>
             <X size={16} />
           </button>
@@ -67,6 +83,7 @@ export function ModalShell({
         <div className="modal-body">{children}</div>
         {footer ? <footer className="modal-actions">{footer}</footer> : null}
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }

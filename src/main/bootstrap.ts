@@ -89,7 +89,11 @@ function installCloseGuard(win: BrowserWindow): void {
   win.once("session-end", markSystemShutdown);
 
   function requestClose(mode: "window" | "quit"): void {
-    if (closeRequestPending || win.webContents.isDestroyed()) return;
+    if (win.webContents.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
+    if (closeRequestPending) return;
     closeRequestPending = true;
     closeRequestMode = mode;
     win.webContents.send("lifecycle.close-requested", { mode });

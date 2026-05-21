@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
@@ -24,11 +24,11 @@ export function RenameModal({
   onClose(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: RenameTemplateId): Promise<void>;
+  onRun(templateId: RenameTemplateId, renamedCount: number): Promise<void>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void>;
 }): React.JSX.Element {
-  const [draftStates, setDraftStates] = useState<Record<string, { dirty: boolean; empty: boolean }>>({});
+  const [dirtySlugDrafts, setDirtySlugDrafts] = useState<Record<string, boolean>>({});
   const [templateId, setTemplateId] = useState<RenameTemplateId>(DEFAULT_RENAME_TEMPLATE_ID);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -38,7 +38,7 @@ export function RenameModal({
   const modalBusy = runBusy;
   const hasPendingSlugDrafts = Boolean(
     preview?.usesSlug
-    && preview.items.some((item) => draftStates[item.taskId]?.dirty)
+    && preview.items.some((item) => dirtySlugDrafts[item.taskId])
   );
   const canRun = Boolean(
     preview?.items.some((item) => item.status === "ready" || item.status === "unchanged")
@@ -49,10 +49,17 @@ export function RenameModal({
 
   useEffect(() => {
     const activeTaskIds = new Set(preview?.items.map((item) => item.taskId) ?? []);
-    setDraftStates((current) => Object.fromEntries(
+    setDirtySlugDrafts((current) => Object.fromEntries(
       Object.entries(current).filter(([taskId]) => activeTaskIds.has(taskId))
     ));
   }, [preview]);
+
+  const setDirtySlugDraft = useCallback((taskId: string, dirty: boolean) => {
+    setDirtySlugDrafts((current) => {
+      if (current[taskId] === dirty) return current;
+      return { ...current, [taskId]: dirty };
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +89,7 @@ export function RenameModal({
     setRunBusy(true);
     setError(null);
     try {
-      await onRun(templateId);
+      await onRun(templateId, preview?.renameableCount ?? 0);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
       setRunBusy(false);
@@ -157,13 +164,7 @@ export function RenameModal({
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }
             }}
-            onDraftStateChange={(taskId, draftState) => {
-              setDraftStates((current) => {
-                const previous = current[taskId];
-                if (previous?.dirty === draftState.dirty && previous?.empty === draftState.empty) return current;
-                return { ...current, [taskId]: draftState };
-              });
-            }}
+            onDraftStateChange={setDirtySlugDraft}
             showSlugEditor={Boolean(preview.usesSlug && item.currentPath)}
           />
         )) : (
@@ -188,7 +189,7 @@ function RenamePreviewRow({
   disabled: boolean;
   item: RenamePreviewItem;
   task: Task | undefined;
-  onDraftStateChange(taskId: string, draftState: { dirty: boolean; empty: boolean }): void;
+  onDraftStateChange(taskId: string, dirty: boolean): void;
   onRegenerateSlug(taskId: string): Promise<void>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   showSlugEditor: boolean;
@@ -227,8 +228,8 @@ function RenamePreviewRow({
   const rowDisabled = disabled || actionBusy || Boolean(task?.visionRunning);
 
   useEffect(() => {
-    onDraftStateChange(item.taskId, { dirty: draftDirty, empty: draftEmpty });
-  }, [draftDirty, draftEmpty, item.taskId, onDraftStateChange]);
+    onDraftStateChange(item.taskId, draftDirty);
+  }, [draftDirty, item.taskId, onDraftStateChange]);
 
   async function commitSlugDraft(): Promise<void> {
     if (draftSlug === initialSlug) return;

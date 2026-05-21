@@ -1,8 +1,11 @@
 import type { GlobalSettings } from "./settings";
 import type { UiState } from "./state";
 import type { Project } from "./project";
+import type { VisionRunMode } from "./project";
 import type { OpDefinition } from "./op";
 import type { RenameTemplateId } from "../rename-template";
+
+export type { VisionRunMode } from "./project";
 
 export type QueueSnapshot = {
   done: number;
@@ -42,8 +45,6 @@ export type PreviewRenderOptions = {
   targetOpId?: string | null;
   mode?: PreviewRenderMode;
 };
-
-export type VisionRunMode = "description" | "description-and-slug" | "slug";
 
 export type VisionRunOptions = {
   mode?: VisionRunMode;

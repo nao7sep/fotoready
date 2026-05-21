@@ -49,15 +49,15 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
     title: "Import and save",
     items: [
       { action: "Add originals", detail: "Open the file picker to import source images or sidecars.", keys: "Cmd/Ctrl+N" },
-      { action: "Save current pending image", detail: "Apply the current task's ops, queue processing, and write the output image plus sidecar.", keys: "Cmd/Ctrl+S" },
-      { action: "Save all pending images", detail: "Queue every pending task for processing and output.", keys: "Cmd/Ctrl+Shift+S" },
+      { action: "Save current not-saved image", detail: "Apply the current task's ops, queue saving, and write the output image plus sidecar.", keys: "Cmd/Ctrl+S" },
+      { action: "Save all not-saved images", detail: "Queue every not-saved task for saving.", keys: "Cmd/Ctrl+Shift+S" },
       { action: "Rename all", detail: "Review saved and unsaved tasks before renaming saved outputs.", keys: "Cmd/Ctrl+R" }
     ]
   },
   {
     title: "Editing",
     items: [
-      { action: "Undo last pending-task edit", detail: "Revert the most recent task edit, including op changes, params, output settings, and slug/generation toggles.", keys: "Cmd/Ctrl+Z" }
+      { action: "Undo last not-saved edit", detail: "Revert the most recent task edit, including op changes, params, output settings, and slug/generation toggles.", keys: "Cmd/Ctrl+Z" }
     ]
   },
   {
@@ -91,7 +91,6 @@ function App(): React.JSX.Element {
   const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
-  const [visionTaskModes, setVisionTaskModes] = useState<Record<string, VisionRunMode>>({});
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
   const preview = useEditorStore((state) => state.preview);
@@ -124,29 +123,8 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
-  const queuedVisionMode: VisionRunMode | null = activeTask
-    && queue.activeTaskId === activeTask.id
-    && activeTask.status === "done"
-    && Boolean(activeTask.output)
-    && !activeTask.output?.vision
-    && Boolean(activeTask.generateDescription || activeTask.generateSlug)
-    && hasGeminiApiKey
-    ? activeTask.generateSlug ? "description-and-slug" : "description"
-    : null;
-  const activeTaskVisionMode = activeTask
-    ? visionTaskModes[activeTask.id]
-      ?? queuedVisionMode
-      ?? (
-        activeTask.visionRunning
-          ? activeTask.output?.vision?.description?.trim() && activeTask.generateSlug && !(activeTask.output.vision.slugCandidates[0] ?? "").trim()
-            ? "slug"
-            : activeTask.generateSlug
-              ? "description-and-slug"
-              : "description"
-          : null
-      )
-    : null;
-  const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning || activeTaskVisionMode !== null);
+  const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
+  const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning);
   const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
@@ -536,17 +514,7 @@ function App(): React.JSX.Element {
   }
 
   async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<void> {
-    const mode = options?.mode ?? "description";
-    setVisionTaskModes((current) => ({ ...current, [taskId]: mode }));
-    try {
-      await refreshProject(await api.vision.runForTask(taskId, options));
-    } finally {
-      setVisionTaskModes((current) => {
-        const next = { ...current };
-        delete next[taskId];
-        return next;
-      });
-    }
+    await refreshProject(await api.vision.runForTask(taskId, options));
   }
 
   async function addDroppedFiles(files: FileList | File[]): Promise<void> {
@@ -847,9 +815,15 @@ function App(): React.JSX.Element {
             const mode: VisionRunMode = task.output.vision?.description?.trim() ? "slug" : "description-and-slug";
             await runVisionForTask(taskId, { mode });
           }}
-          onRun={async (templateId) => {
+          onRun={async (templateId, renamedCount) => {
             await refreshProject(await api.rename.run(templateId));
             setRenameOpen(false);
+            await confirmer.alert({
+              title: "Rename complete",
+              message: renamedCount === 0
+                ? "No files needed renaming."
+                : `Renamed ${renamedCount} file${renamedCount === 1 ? "" : "s"}.`
+            });
           }}
           onSetRenameSlug={async (taskId, customSlug) => {
             await refreshProject(await api.task.setCustomSlug(taskId, customSlug));

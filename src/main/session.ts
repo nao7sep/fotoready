@@ -24,6 +24,7 @@ import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOutputFormat } from "@shared/output-format";
 import { DEFAULT_ASSET_OVERLAY_WIDTH, clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { BoxBounds } from "@shared/box-geometry";
+import { resolveVisionRunMode } from "@shared/vision-run-mode";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
@@ -496,7 +497,10 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
+    const mode = resolveVisionRunMode(task, options);
+    if (!mode) return this.snapshot();
     task.visionRunning = true;
+    task.visionRunMode = mode;
     if (task.error?.stage === "vision") task.error = null;
     task.updatedAt = nowIso();
     await this.emitSnapshot();
@@ -508,6 +512,7 @@ export class ProjectSession {
       await this.writeOutputSidecarIfSaved(task);
     } finally {
       task.visionRunning = false;
+      task.visionRunMode = null;
       task.updatedAt = nowIso();
       await this.emitSnapshot();
     }
@@ -615,6 +620,7 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings): Ta
     generateSlug: settings.defaultGenerateSlug,
     customSlug: null,
     visionRunning: false,
+    visionRunMode: null,
     pipeline,
     status: "pending",
     output: null,

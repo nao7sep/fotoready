@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { nowIso } from "@shared/time";
 import type { Project, TaskError } from "@shared/types/project";
 import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRunMode } from "@shared/vision-run-mode";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
 import { ApiKeyStore } from "@adapters/api-keys";
@@ -96,21 +97,6 @@ export class VisionQueue {
       task.updatedAt = nowIso();
     }
   }
-}
-
-function resolveVisionRunMode(projectTask: Project["tasks"][number], options?: VisionRunOptions): VisionRunMode | null {
-  if (options?.mode) return options.mode;
-  if (projectTask.generateSlug) return "description-and-slug";
-  if (projectTask.generateDescription) return "description";
-  return null;
-}
-
-function includesDescriptionGeneration(mode: VisionRunMode): boolean {
-  return mode === "description" || mode === "description-and-slug";
-}
-
-function includesSlugGeneration(mode: VisionRunMode): boolean {
-  return mode === "description-and-slug" || mode === "slug";
 }
 
 async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<Buffer> {

@@ -5,10 +5,10 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 ## Status
 
 - Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list. User-initiated close/quit asks for confirmation when the current workspace or a settings draft would be discarded; OS shutdown/restart bypasses that prompt.
-- Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
+- Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run with completion confirmation, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
 - Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
 - Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
-- Queue/error UX with active-task reporting, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
+- Queue/error UX with active-task reporting, consistent Not saved / Saving / Generating / Ready / Needs attention state labels, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
 
 ## Current limitations
 
@@ -84,15 +84,15 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle.
 | Area | Action | Shortcut |
 | --- | --- | --- |
 | Import and save | Add originals | `Cmd/Ctrl+N` |
-| Import and save | Save current pending image | `Cmd/Ctrl+S` |
-| Import and save | Save all pending images | `Cmd/Ctrl+Shift+S` |
+| Import and save | Save current not-saved image | `Cmd/Ctrl+S` |
+| Import and save | Save all not-saved images | `Cmd/Ctrl+Shift+S` |
 | Import and save | Rename all | `Cmd/Ctrl+R` |
-| Editing | Undo last pending-task edit | `Cmd/Ctrl+Z` |
+| Editing | Undo last not-saved edit | `Cmd/Ctrl+Z` |
 | View | Toggle histogram | `Cmd/Ctrl+H` |
 | App | Open settings | `Cmd/Ctrl+,` |
 | App | Show keyboard shortcuts | `Cmd/Ctrl+/` |
 | App | Close the active dialog | `Esc` |
 
-`Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus its JSON sidecar file.
-`Save all pending images` queues every pending task the same way.
-`Rename all` uses four built-in filename choices: `Slug + size` (default), `Slug only`, `Original + size`, and `Original only`. The modal keeps the current output folder at the top, recalculates destinations when that folder changes, shows each row's state first, and exposes inline slug editing/generation only when the selected template uses slugs. Collision checks are destination-directory aware: exact destination path and sidecar collisions always block, while semantic `{original}` / `{slug}` collisions are only treated as conflicts when those rows would land in the same destination directory. Only saved outputs with ready or unchanged rows are renamed.
+`Save current not-saved image` queues saving for the selected not-saved task, applies its current ops, and writes the output image plus its JSON sidecar file.
+`Save all not-saved images` queues every not-saved task the same way.
+`Rename all` uses four built-in filename choices: `Slug + size` (default), `Slug only`, `Original + size`, and `Original only`. The modal keeps the current output folder at the top, recalculates destinations when that folder changes, shows each row's state first, and exposes inline slug editing/generation only when the selected template uses slugs. The chosen rename slug is stored on the task; generated slug candidates are suggestions, and empty or uncommitted slug edits block slug-based rename templates. Collision checks are destination-directory aware: exact destination path and sidecar collisions always block, while semantic `{original}` / `{slug}` collisions are only treated as conflicts when those rows would land in the same destination directory. Only saved outputs with ready or unchanged rows are renamed. On success the modal closes and shows a completion confirmation; on failure the modal remains open and shows the error.

@@ -22,6 +22,8 @@ export type Original = {
 
 export type TaskStatus = "pending" | "queued" | "processing" | "done" | "error";
 
+export type VisionRunMode = "description" | "description-and-slug" | "slug";
+
 export type VisionResult = {
   description: string;
   slugCandidates: string[];
@@ -55,6 +57,7 @@ export type Task = {
   generateSlug: boolean;
   customSlug: string | null;
   visionRunning: boolean;
+  visionRunMode: VisionRunMode | null;
   pipeline: Pipeline;
   status: TaskStatus;
   output: TaskOutput | null;

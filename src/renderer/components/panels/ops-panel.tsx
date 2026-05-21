@@ -302,7 +302,9 @@ function OutputControls({
   const generatedSlug = vision?.slugCandidates[0] ?? null;
   const hasGeneratedDescription = description.length > 0;
   const hasGeneratedSlug = Boolean(generatedSlug?.trim());
-  const generationStatus = visionGenerationMode === "slug"
+  const generationStatus = visionGenerationMode === null
+    ? "Generating..."
+    : visionGenerationMode === "slug"
     ? "Generating slug..."
     : visionGenerationMode === "description-and-slug"
       ? hasGeneratedDescription && !hasGeneratedSlug

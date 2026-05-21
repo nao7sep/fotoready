@@ -85,22 +85,61 @@ export function clampFractionRect(rect: FractionRect, imageBounds: { maxX: numbe
   return { x, y, w: clamp(rect.w, minSize, maxWidth), h: clamp(rect.h, minSize, maxHeight) };
 }
 
+export type UpdateFractionRectOptions = {
+  /** Smallest allowed width/height after clamping. Defaults to 0.01. */
+  minSize?: number;
+  /**
+   * Positive number = lock width/height to this ratio (w/h). Updating one dimension
+   * derives the other, and clamping respects both axes so the locked ratio survives.
+   * `null` / `undefined` / `0` = free. Text watermark passes `null`; image watermark
+   * and stamp pass the asset's natural aspect ratio when the user enables the toggle.
+   */
+  aspectLock?: number | null;
+};
+
 /**
- * Apply a {x,y,w,h} patch to a rect, re-clamping so the result stays inside bounds.
- * Updates x/y first against the current size, then w/h against the (possibly new) position —
- * so bumping the rect toward an edge shrinks it rather than refusing the move.
+ * Canonical "apply a position/size patch to a fraction rect, then re-clamp inside bounds"
+ * helper. Used by every box-shaped op (conceal, text watermark, image watermark, stamp,
+ * crop's overlay) so the slider/drag semantics never drift between cards:
+ *
+ * - Sliders should set their `max` to the full axis bound (`imageBounds.maxX` / `maxY`)
+ *   so the track shows the entire space; this helper does the clamping. A thumb that
+ *   refuses to advance is the user's signal that the coupled dimension is using the
+ *   remaining room.
+ * - Moves preserve size: bumping x against the right edge stops the thumb rather than
+ *   shrinking the rect.
+ * - Resizes preserve position: dragging w/h past the available room stops the thumb
+ *   rather than nudging x/y.
+ * - With `aspectLock`, the unspecified dimension is derived from the specified one and
+ *   the clamp respects both axes so the ratio always holds.
  */
 export function updateFractionRect(
   rect: FractionRect,
   updates: Partial<FractionRect>,
   imageBounds: { maxX: number; maxY: number },
-  minSize: number = 0.01
+  options: UpdateFractionRectOptions = {}
 ): FractionRect {
+  const minSize = options.minSize ?? 0.01;
+  const aspectLock = options.aspectLock && options.aspectLock > 0 ? options.aspectLock : null;
   const current = clampFractionRect(rect, imageBounds, minSize);
+
+  let nextW = updates.w !== undefined ? updates.w : current.w;
+  let nextH = updates.h !== undefined ? updates.h : current.h;
+  if (aspectLock) {
+    if (updates.w !== undefined && updates.h === undefined) nextH = nextW / aspectLock;
+    else if (updates.h !== undefined && updates.w === undefined) nextW = nextH * aspectLock;
+  }
+
   const x = updates.x !== undefined ? clamp(updates.x, 0, Math.max(0, imageBounds.maxX - current.w)) : current.x;
   const y = updates.y !== undefined ? clamp(updates.y, 0, Math.max(0, imageBounds.maxY - current.h)) : current.y;
-  const w = clamp(updates.w !== undefined ? updates.w : current.w, minSize, Math.max(minSize, imageBounds.maxX - x));
-  const h = clamp(updates.h !== undefined ? updates.h : current.h, minSize, Math.max(minSize, imageBounds.maxY - y));
+
+  if (aspectLock) {
+    const maxWidth = Math.max(minSize, Math.min(imageBounds.maxX - x, (imageBounds.maxY - y) * aspectLock));
+    const w = clamp(nextW, minSize, maxWidth);
+    return { x, y, w, h: w / aspectLock };
+  }
+  const w = clamp(nextW, minSize, Math.max(minSize, imageBounds.maxX - x));
+  const h = clamp(nextH, minSize, Math.max(minSize, imageBounds.maxY - y));
   return { x, y, w, h };
 }
 

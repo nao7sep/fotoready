@@ -62,7 +62,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
     const borderWidthFallback = Math.max(normalizedBox.borderWidth, DEFAULT_TEXT_WATERMARK_BORDER_WIDTH);
 
     function updateBox(updates: Partial<FractionRect>): void {
-      onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE));
+      onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, { minSize: MIN_TEXT_WATERMARK_BOX_SIZE }));
     }
 
     return (

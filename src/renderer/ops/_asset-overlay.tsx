@@ -8,7 +8,7 @@ import {
 import { api } from "@renderer/ipc/client";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
-import { imageBoundsFromOriginalSize, rectFromStage, rectToStage } from "./_overlay-primitives";
+import { imageBoundsFromOriginalSize, rectFromStage, rectToStage, updateFractionRect, type FractionRect } from "./_overlay-primitives";
 import { formatPercent, fractionToPercentSteps, percentStepsToFraction } from "./_slider-units";
 import type { OpCardContext, OpRenderer, OverlayContext } from "./op-renderer";
 
@@ -75,7 +75,10 @@ function AssetOverlayControls({
   const bounds = imageBoundsFromOriginalSize(ctx.originalSize);
   const o = clampAssetOverlay(params, bounds);
   const minSize = fractionToPercentSteps(MIN_ASSET_OVERLAY_SIZE);
-  const safeAspectRatio = Math.max(0.01, aspectRatio);
+
+  function applyBoxPatch(patch: Partial<AssetOverlayParams>): void {
+    onParamsChange(updateAssetOverlayBox(o, patch, bounds, aspectRatio));
+  }
 
   return (
     <div className="geometry-controls">
@@ -85,12 +88,12 @@ function AssetOverlayControls({
         <span>X</span>
         <input
           disabled={disabled}
-          max={fractionToPercentSteps(Math.max(0, bounds.maxX - o.width))}
+          max={fractionToPercentSteps(bounds.maxX)}
           min={0}
           step={1}
           type="range"
           value={fractionToPercentSteps(o.x)}
-          onChange={(e) => onParamChange("x", percentStepsToFraction(e.currentTarget.valueAsNumber))}
+          onChange={(e) => applyBoxPatch({ x: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
         <span className="slider-value">{formatPercent(o.x)}</span>
       </label>
@@ -98,12 +101,12 @@ function AssetOverlayControls({
         <span>Y</span>
         <input
           disabled={disabled}
-          max={fractionToPercentSteps(Math.max(0, bounds.maxY - o.height))}
+          max={fractionToPercentSteps(bounds.maxY)}
           min={0}
           step={1}
           type="range"
           value={fractionToPercentSteps(o.y)}
-          onChange={(e) => onParamChange("y", percentStepsToFraction(e.currentTarget.valueAsNumber))}
+          onChange={(e) => applyBoxPatch({ y: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
         <span className="slider-value">{formatPercent(o.y)}</span>
       </label>
@@ -112,13 +115,7 @@ function AssetOverlayControls({
           checked={o.lockAspectRatio}
           disabled={disabled}
           type="checkbox"
-          onChange={(e) => {
-            if (e.currentTarget.checked) {
-              onParamsChange({ lockAspectRatio: true, height: o.width / safeAspectRatio });
-            } else {
-              onParamChange("lockAspectRatio", false);
-            }
-          }}
+          onChange={(e) => applyBoxPatch({ lockAspectRatio: e.currentTarget.checked })}
         />
         Lock aspect ratio
       </label>
@@ -126,19 +123,12 @@ function AssetOverlayControls({
         <span>Width</span>
         <input
           disabled={disabled}
-          max={fractionToPercentSteps(Math.max(MIN_ASSET_OVERLAY_SIZE, bounds.maxX - o.x))}
+          max={fractionToPercentSteps(bounds.maxX)}
           min={minSize}
           step={1}
           type="range"
           value={fractionToPercentSteps(o.width)}
-          onChange={(e) => {
-            const w = percentStepsToFraction(e.currentTarget.valueAsNumber);
-            if (o.lockAspectRatio) {
-              onParamsChange({ width: w, height: w / safeAspectRatio });
-            } else {
-              onParamChange("width", w);
-            }
-          }}
+          onChange={(e) => applyBoxPatch({ width: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
         <span className="slider-value">{formatPercent(o.width)}</span>
       </label>
@@ -146,19 +136,12 @@ function AssetOverlayControls({
         <span>Height</span>
         <input
           disabled={disabled}
-          max={fractionToPercentSteps(Math.max(MIN_ASSET_OVERLAY_SIZE, bounds.maxY - o.y))}
+          max={fractionToPercentSteps(bounds.maxY)}
           min={minSize}
           step={1}
           type="range"
           value={fractionToPercentSteps(o.height)}
-          onChange={(e) => {
-            const h = percentStepsToFraction(e.currentTarget.valueAsNumber);
-            if (o.lockAspectRatio) {
-              onParamsChange({ height: h, width: h * safeAspectRatio });
-            } else {
-              onParamChange("height", h);
-            }
-          }}
+          onChange={(e) => applyBoxPatch({ height: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
         <span className="slider-value">{formatPercent(o.height)}</span>
       </label>
@@ -182,6 +165,45 @@ function AssetOverlayControls({
       </label>
     </div>
   );
+}
+
+/**
+ * Apply a position/size/lock patch to an asset overlay. Delegates the geometry math to
+ * the shared `updateFractionRect` so image-watermark, stamp, and text-watermark all share
+ * one canonical clamp/lock implementation. The only asset-specific concerns handled here
+ * are the `width`/`height` ↔ `w`/`h` key-name translation and the "lock just turned on"
+ * UX where enabling the toggle snaps height to width / aspectRatio.
+ */
+function updateAssetOverlayBox(
+  current: AssetOverlayParams,
+  updates: Partial<AssetOverlayParams>,
+  bounds: { maxX: number; maxY: number },
+  aspectRatio: number
+): Partial<AssetOverlayParams> {
+  const safeAR = Math.max(0.01, aspectRatio);
+  const lockNow = updates.lockAspectRatio ?? current.lockAspectRatio;
+  const lockTurningOn = updates.lockAspectRatio === true && !current.lockAspectRatio;
+
+  const rectUpdates: Partial<FractionRect> = {};
+  if (updates.x !== undefined) rectUpdates.x = updates.x;
+  if (updates.y !== undefined) rectUpdates.y = updates.y;
+  if (updates.width !== undefined) rectUpdates.w = updates.width;
+  if (updates.height !== undefined) rectUpdates.h = updates.height;
+  if (lockTurningOn && updates.width === undefined && updates.height === undefined) {
+    // Enabling the lock should snap height to width/AR rather than preserve a mismatched ratio.
+    rectUpdates.h = current.width / safeAR;
+  }
+
+  const next = updateFractionRect(
+    { x: current.x, y: current.y, w: current.width, h: current.height },
+    rectUpdates,
+    bounds,
+    { minSize: MIN_ASSET_OVERLAY_SIZE, aspectLock: lockNow ? safeAR : null }
+  );
+
+  const patch: Partial<AssetOverlayParams> = { x: next.x, y: next.y, width: next.w, height: next.h };
+  if (updates.lockAspectRatio !== undefined) patch.lockAspectRatio = updates.lockAspectRatio;
+  return patch;
 }
 
 function AssetOverlayRect({

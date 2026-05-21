@@ -75,14 +75,33 @@ export function CropDarkenMask({
 }
 
 /** Clamp a fractional rect to the image bounds; used by crop + conceal overlays. */
-export function clampFractionRect(rect: FractionRect, imageBounds: { maxX: number; maxY: number }): FractionRect {
-  const maxX = clamp(imageBounds.maxX, 0.01, 1);
-  const maxY = clamp(imageBounds.maxY, 0.01, 1);
+export function clampFractionRect(rect: FractionRect, imageBounds: { maxX: number; maxY: number }, minSize: number = 0.01): FractionRect {
+  const maxX = clamp(imageBounds.maxX, minSize, 1);
+  const maxY = clamp(imageBounds.maxY, minSize, 1);
   const x = clamp(rect.x, 0, maxX);
   const y = clamp(rect.y, 0, maxY);
-  const maxWidth = Math.max(0.01, maxX - x);
-  const maxHeight = Math.max(0.01, maxY - y);
-  return { x, y, w: clamp(rect.w, 0.01, maxWidth), h: clamp(rect.h, 0.01, maxHeight) };
+  const maxWidth = Math.max(minSize, maxX - x);
+  const maxHeight = Math.max(minSize, maxY - y);
+  return { x, y, w: clamp(rect.w, minSize, maxWidth), h: clamp(rect.h, minSize, maxHeight) };
+}
+
+/**
+ * Apply a {x,y,w,h} patch to a rect, re-clamping so the result stays inside bounds.
+ * Updates x/y first against the current size, then w/h against the (possibly new) position —
+ * so bumping the rect toward an edge shrinks it rather than refusing the move.
+ */
+export function updateFractionRect(
+  rect: FractionRect,
+  updates: Partial<FractionRect>,
+  imageBounds: { maxX: number; maxY: number },
+  minSize: number = 0.01
+): FractionRect {
+  const current = clampFractionRect(rect, imageBounds, minSize);
+  const x = updates.x !== undefined ? clamp(updates.x, 0, Math.max(0, imageBounds.maxX - current.w)) : current.x;
+  const y = updates.y !== undefined ? clamp(updates.y, 0, Math.max(0, imageBounds.maxY - current.h)) : current.y;
+  const w = clamp(updates.w !== undefined ? updates.w : current.w, minSize, Math.max(minSize, imageBounds.maxX - x));
+  const h = clamp(updates.h !== undefined ? updates.h : current.h, minSize, Math.max(minSize, imageBounds.maxY - y));
+  return { x, y, w, h };
 }
 
 /** Map an image-bound-aware FractionRect into stage-space pixel coordinates. */
@@ -111,6 +130,11 @@ export function imageBoundsFromSize(imageSize: { width: number; height: number }
     maxX: clamp(imageSize.width / longEdge, 0.01, 1),
     maxY: clamp(imageSize.height / longEdge, 0.01, 1)
   };
+}
+
+/** Same as imageBoundsFromSize but tolerates a null originalSize and falls back to a 1:1 square. */
+export function imageBoundsFromOriginalSize(originalSize: { width: number; height: number } | null): { maxX: number; maxY: number } {
+  return originalSize ? imageBoundsFromSize(originalSize) : { maxX: 1, maxY: 1 };
 }
 
 /** Decode a `params.rects` blob into a list of FractionRects. Used by every conceal op. */

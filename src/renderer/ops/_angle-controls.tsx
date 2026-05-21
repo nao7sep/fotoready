@@ -1,4 +1,7 @@
 import React from "react";
+import { formatAngle, normalizeAngle } from "@shared/rotation";
+
+export { formatAngle, normalizeAngle };
 
 export function AngleControl({
   value,
@@ -27,15 +30,4 @@ export function AngleControl({
       </label>
     </>
   );
-}
-
-export function normalizeAngle(value: number): number {
-  let next = Math.round(value);
-  while (next > 180) next -= 360;
-  while (next < -180) next += 360;
-  return next;
-}
-
-export function formatAngle(value: number): string {
-  return `${value > 0 ? "+" : ""}${Math.round(value)}°`;
 }

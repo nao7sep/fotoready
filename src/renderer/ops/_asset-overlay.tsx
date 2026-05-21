@@ -3,15 +3,14 @@ import {
   DEFAULT_ASSET_OVERLAY_WIDTH,
   MIN_ASSET_OVERLAY_SIZE,
   clampAssetOverlay,
-  type AssetOverlayParams,
-  type OverlayImageBounds
+  type AssetOverlayParams
 } from "@shared/asset-overlay";
 import { api } from "@renderer/ipc/client";
-import type { OpRenderer } from "./op-renderer";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
-import { formatPercent, fractionToPercentSteps, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
-import type { OpCardContext, OverlayContext } from "./op-renderer";
+import { imageBoundsFromOriginalSize, rectFromStage, rectToStage } from "./_overlay-primitives";
+import { formatPercent, fractionToPercentSteps, percentStepsToFraction } from "./_slider-units";
+import type { OpCardContext, OpRenderer, OverlayContext } from "./op-renderer";
 
 type AssetOverlayCardProps = Parameters<NonNullable<OpRenderer<AssetOverlayParams>["Card"]>>[0];
 
@@ -73,9 +72,10 @@ function AssetOverlayControls({
   sourceAction: React.ReactNode;
   sourceField: React.ReactNode;
 }): React.JSX.Element {
-  const bounds = boundsFromCtx(ctx);
+  const bounds = imageBoundsFromOriginalSize(ctx.originalSize);
   const o = clampAssetOverlay(params, bounds);
   const minSize = fractionToPercentSteps(MIN_ASSET_OVERLAY_SIZE);
+  const safeAspectRatio = Math.max(0.01, aspectRatio);
 
   return (
     <div className="geometry-controls">
@@ -114,7 +114,7 @@ function AssetOverlayControls({
           type="checkbox"
           onChange={(e) => {
             if (e.currentTarget.checked) {
-              onParamsChange({ lockAspectRatio: true, height: o.width / Math.max(0.01, aspectRatio) });
+              onParamsChange({ lockAspectRatio: true, height: o.width / safeAspectRatio });
             } else {
               onParamChange("lockAspectRatio", false);
             }
@@ -134,7 +134,7 @@ function AssetOverlayControls({
           onChange={(e) => {
             const w = percentStepsToFraction(e.currentTarget.valueAsNumber);
             if (o.lockAspectRatio) {
-              onParamsChange({ width: w, height: w / Math.max(0.01, aspectRatio) });
+              onParamsChange({ width: w, height: w / safeAspectRatio });
             } else {
               onParamChange("width", w);
             }
@@ -154,7 +154,7 @@ function AssetOverlayControls({
           onChange={(e) => {
             const h = percentStepsToFraction(e.currentTarget.valueAsNumber);
             if (o.lockAspectRatio) {
-              onParamsChange({ height: h, width: h * Math.max(0.01, aspectRatio) });
+              onParamsChange({ height: h, width: h * safeAspectRatio });
             } else {
               onParamChange("height", h);
             }
@@ -201,29 +201,24 @@ function AssetOverlayRect({
 }): React.JSX.Element | null {
   if (!selected || !params.assetPath) return null;
   const o = clampAssetOverlay(params, ctx.imageBounds);
-  const s = ctx.longEdge * ctx.placement.scale;
+  const stageBox = rectToStage({ x: o.x, y: o.y, w: o.width, h: o.height }, ctx.longEdge, ctx.placement);
   return (
     <InteractiveOverlayRect
       aspectRatio={o.lockAspectRatio ? aspectRatio : null}
       color={color}
       placement={ctx.placement}
-      rect={{
-        x: ctx.placement.x + o.x * s,
-        y: ctx.placement.y + o.y * s,
-        w: o.width * s,
-        h: o.height * s,
-        rotation: o.rotation
-      }}
+      rect={{ ...stageBox, rotation: o.rotation }}
       rotateEnabled
       onChange={() => undefined}
       onCommit={(next) => {
+        const imageRect = rectFromStage(next, ctx.longEdge, ctx.placement);
         const clamped = clampAssetOverlay(
           {
             ...o,
-            x: (next.x - ctx.placement.x) / s,
-            y: (next.y - ctx.placement.y) / s,
-            width: next.w / s,
-            height: next.h / s,
+            x: imageRect.x,
+            y: imageRect.y,
+            width: imageRect.w,
+            height: imageRect.h,
             rotation: normalizeAngle(next.rotation ?? 0)
           },
           ctx.imageBounds
@@ -245,17 +240,13 @@ export async function normalizeAssetOverlayForPath(
   originalSize: { width: number; height: number } | null,
   nextAssetPath: string
 ): Promise<Partial<AssetOverlayParams>> {
-  const ar = await readLocalAssetAspectRatio(nextAssetPath);
-  const bounds = boundsFromSize(originalSize);
-  const width = clamp(DEFAULT_ASSET_OVERLAY_WIDTH, MIN_ASSET_OVERLAY_SIZE, bounds.maxX);
-  const height = clamp(width / Math.max(0.01, ar), MIN_ASSET_OVERLAY_SIZE, bounds.maxY);
-  return {
-    assetPath: nextAssetPath,
-    x: clamp(params.x, 0, Math.max(0, bounds.maxX - width)),
-    y: clamp(params.y, 0, Math.max(0, bounds.maxY - height)),
-    width,
-    height
-  };
+  const aspectRatio = await readLocalAssetAspectRatio(nextAssetPath);
+  const width = DEFAULT_ASSET_OVERLAY_WIDTH;
+  const height = width / Math.max(0.01, aspectRatio);
+  return clampAssetOverlay(
+    { ...params, assetPath: nextAssetPath, width, height },
+    imageBoundsFromOriginalSize(originalSize)
+  );
 }
 
 export function useLocalAssetAspectRatio(assetPath: string): number {
@@ -270,17 +261,6 @@ export function useLocalAssetAspectRatio(assetPath: string): number {
   return aspectRatio;
 }
 
-function boundsFromCtx(ctx: OpCardContext): OverlayImageBounds {
-  return boundsFromSize(ctx.originalSize);
-}
-
-function boundsFromSize(originalSize: { width: number; height: number } | null): OverlayImageBounds {
-  const longEdge = sliderLongEdge(originalSize);
-  return originalSize
-    ? { maxX: originalSize.width / longEdge, maxY: originalSize.height / longEdge }
-    : { maxX: 1, maxY: 1 };
-}
-
 async function readLocalAssetAspectRatio(assetPath: string): Promise<number> {
   if (!assetPath) return 1;
   try {
@@ -289,8 +269,4 @@ async function readLocalAssetAspectRatio(assetPath: string): Promise<number> {
   } catch {
     return 1;
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

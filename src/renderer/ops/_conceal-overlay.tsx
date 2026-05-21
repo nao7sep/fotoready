@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from "react";
+import { Ellipse, Rect } from "react-konva";
 import type { ConcealRegion } from "@shared/types/conceal";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
-import type { OpOverlayProps } from "./op-renderer";
+import type { OpOverlayProps, OverlayPlacement } from "./op-renderer";
 import {
   clampConcealRegion,
-  OverlayConcealShape,
-  replacePrimaryConcealRegion,
-  readConcealRegionList,
   concealRegionFromStage,
-  concealRegionToStage
+  concealRegionToStage,
+  readConcealRegionList,
+  replacePrimaryConcealRegion
 } from "./_conceal-primitives";
 
-/** Shared draggable conceal overlay used by cover, blur, and mosaic conceal ops. */
-export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOverlayProps<{ rects: ConcealRegion[] } & Record<string, unknown>>): React.JSX.Element | null {
+/** Shared draggable conceal overlay used by cover, blur, and mosaic. */
+export function ConcealOverlay<P extends { rects: ConcealRegion[] } & Record<string, unknown>>({
+  params,
+  selected,
+  ctx,
+  onParamsChange
+}: OpOverlayProps<P>): React.JSX.Element | null {
   const rects = readConcealRegionList(params.rects);
   const firstRect = rects[0] ?? null;
   const clampedFirst = firstRect ? clampConcealRegion(firstRect, ctx.imageBounds) : null;
@@ -24,7 +29,7 @@ export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOver
     return (
       <>
         {rects.map((rect, index) => (
-          <OverlayConcealShape
+          <ConcealShapeOutline
             color="#f87171"
             key={`r-${index}`}
             longEdge={ctx.longEdge}
@@ -52,12 +57,11 @@ export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOver
         onCommit={(next) => {
           const committed = clampConcealRegion(concealRegionFromStage(next, ctx.longEdge, ctx.placement, visible.shape), ctx.imageBounds);
           setDraft(null);
-          const nextRects = replacePrimaryConcealRegion(rects, committed);
-          onParamsChange({ rects: nextRects });
+          onParamsChange({ rects: replacePrimaryConcealRegion(rects, committed) } as Partial<P>);
         }}
       />
       {rects.slice(1).map((rect, index) => (
-        <OverlayConcealShape
+        <ConcealShapeOutline
           color="#f87171"
           key={`r-${index + 1}`}
           longEdge={ctx.longEdge}
@@ -66,5 +70,51 @@ export function ConcealOverlay({ params, selected, ctx, onParamsChange }: OpOver
         />
       ))}
     </>
+  );
+}
+
+function ConcealShapeOutline({
+  color,
+  placement,
+  region,
+  longEdge
+}: {
+  color: string;
+  placement: OverlayPlacement;
+  region: ConcealRegion;
+  longEdge: number;
+}): React.JSX.Element {
+  const stage = concealRegionToStage(region, longEdge, placement);
+  const centerX = stage.x + stage.w / 2;
+  const centerY = stage.y + stage.h / 2;
+  if (region.shape === "ellipse") {
+    return (
+      <Ellipse
+        dash={[6, 4]}
+        listening={false}
+        radiusX={stage.w / 2}
+        radiusY={stage.h / 2}
+        rotation={stage.rotation}
+        stroke={color}
+        strokeWidth={2}
+        x={centerX}
+        y={centerY}
+      />
+    );
+  }
+  return (
+    <Rect
+      dash={[6, 4]}
+      height={stage.h}
+      listening={false}
+      offsetX={stage.w / 2}
+      offsetY={stage.h / 2}
+      rotation={stage.rotation}
+      stroke={color}
+      strokeWidth={2}
+      width={stage.w}
+      x={centerX}
+      y={centerY}
+    />
   );
 }

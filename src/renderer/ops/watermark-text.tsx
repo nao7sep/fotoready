@@ -1,9 +1,11 @@
 import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
+import { normalizeAngle } from "@shared/rotation";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
-import type { OpRenderer } from "./op-renderer";
-import { AngleControl, normalizeAngle } from "./_angle-controls";
-import { formatPercent, fractionToPercentSteps, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
+import type { OpRenderer, OverlayContext } from "./op-renderer";
+import { AngleControl } from "./_angle-controls";
+import { imageBoundsFromOriginalSize, rectFromStage, rectToStage, updateFractionRect, type FractionRect } from "./_overlay-primitives";
+import { formatPercent, fractionToPercentSteps, percentStepsToFraction } from "./_slider-units";
 
 type WatermarkTextParams = {
   text: string;
@@ -51,19 +53,16 @@ const BOX_COLOR_SWATCHES = [
 export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
   type: "watermark-text",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
-    const longEdge = sliderLongEdge(ctx.originalSize);
-    const imageBounds = ctx.originalSize
-      ? { maxX: ctx.originalSize.width / longEdge, maxY: ctx.originalSize.height / longEdge }
-      : { maxX: 1, maxY: 1 };
-    const normalizedBox = normalizeTextWatermarkBox(params, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE);
+    const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
+    const normalizedBox = normalizeTextWatermarkBox(params, imageBounds);
     const xMax = fractionToPercentSteps(imageBounds.maxX);
     const yMax = fractionToPercentSteps(imageBounds.maxY);
     const widthMax = fractionToPercentSteps(imageBounds.maxX);
     const heightMax = fractionToPercentSteps(imageBounds.maxY);
     const borderWidthFallback = Math.max(normalizedBox.borderWidth, DEFAULT_TEXT_WATERMARK_BORDER_WIDTH);
 
-    function updateBox(updates: Partial<WatermarkTextParams>): void {
-      onParamsChange(updateTextWatermarkBox(normalizedBox, updates, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE));
+    function updateBox(updates: Partial<FractionRect>): void {
+      onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE));
     }
 
     return (
@@ -262,100 +261,51 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
     );
   },
   Overlay({ params, selected, ctx, onParamsChange }) {
-    const normalizedBox = normalizeTextWatermarkBox(params, ctx.imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE);
+    const normalizedBox = normalizeTextWatermarkBox(params, ctx.imageBounds);
     if (!selected || !normalizedBox.text.trim()) return null;
-    const stageRect = textWatermarkToStageRect(normalizedBox, ctx);
+    const stageBox = rectToStage(normalizedBox, ctx.longEdge, ctx.placement);
     return (
       <InteractiveOverlayRect
         color="#a78bfa"
         placement={ctx.placement}
-        rect={stageRect}
+        rect={{ ...stageBox, rotation: normalizedBox.rotation }}
         rotateEnabled
         onChange={() => undefined}
-        onCommit={(next) => onParamsChange(stageRectToTextWatermark(next, ctx))}
+        onCommit={(next) => onParamsChange(commitDraggedBox(next, ctx))}
       />
     );
   }
 };
 
-function textWatermarkToStageRect(
-  params: WatermarkTextParams,
-  ctx: { longEdge: number; placement: { x: number; y: number; scale: number } }
-): { x: number; y: number; w: number; h: number; rotation: number } {
-  return {
-    x: ctx.placement.x + params.x * ctx.longEdge * ctx.placement.scale,
-    y: ctx.placement.y + params.y * ctx.longEdge * ctx.placement.scale,
-    w: params.w * ctx.longEdge * ctx.placement.scale,
-    h: params.h * ctx.longEdge * ctx.placement.scale,
-    rotation: params.rotation
-  };
-}
-
-function stageRectToTextWatermark(
-  rect: { x: number; y: number; w: number; h: number; rotation?: number },
-  ctx: { longEdge: number; placement: { x: number; y: number; scale: number }; imageBounds: { maxX: number; maxY: number } }
+function commitDraggedBox(
+  next: { x: number; y: number; w: number; h: number; rotation?: number },
+  ctx: Pick<OverlayContext, "longEdge" | "placement" | "imageBounds">
 ): Partial<WatermarkTextParams> {
   return normalizeTextWatermarkBox({
-    x: (rect.x - ctx.placement.x) / (ctx.longEdge * ctx.placement.scale),
-    y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
-    w: rect.w / (ctx.longEdge * ctx.placement.scale),
-    h: rect.h / (ctx.longEdge * ctx.placement.scale),
-    rotation: normalizeRotation(rect.rotation ?? 0)
-  }, ctx.imageBounds, MIN_TEXT_WATERMARK_BOX_SIZE);
+    ...rectFromStage(next, ctx.longEdge, ctx.placement),
+    rotation: normalizeAngle(next.rotation ?? 0)
+  }, ctx.imageBounds);
 }
 
+/**
+ * Text-watermark-specific clamp: prefers preserving box size and sliding it inward,
+ * rather than shrinking the box at its current position. Differs from the
+ * position-preserving `clampFractionRect` used by conceal/asset overlays — kept this
+ * way to match prior persisted behavior.
+ */
 function normalizeTextWatermarkBox<T extends Partial<WatermarkTextParams>>(
   params: T,
-  bounds: { maxX: number; maxY: number },
-  minSize: number
+  bounds: { maxX: number; maxY: number }
 ): T {
-  const w = clamp(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
-  const h = clamp(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
+  const minSize = MIN_TEXT_WATERMARK_BOX_SIZE;
+  const w = clampValue(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
+  const h = clampValue(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
   return {
     ...params,
     w,
     h,
-    x: clamp(params.x ?? 0, 0, Math.max(0, bounds.maxX - w)),
-    y: clamp(params.y ?? 0, 0, Math.max(0, bounds.maxY - h))
-  };
-}
-
-function updateTextWatermarkBox(
-  currentBox: WatermarkTextParams,
-  updates: Partial<WatermarkTextParams>,
-  bounds: { maxX: number; maxY: number },
-  minSize: number
-): WatermarkTextParams {
-  const normalizedBox = normalizeTextWatermarkBox(currentBox, bounds, minSize);
-  let x = normalizedBox.x;
-  let y = normalizedBox.y;
-  let w = normalizedBox.w;
-  let h = normalizedBox.h;
-
-  if (updates.x !== undefined) {
-    x = clamp(updates.x, 0, Math.max(0, bounds.maxX - w));
-  }
-  if (updates.y !== undefined) {
-    y = clamp(updates.y, 0, Math.max(0, bounds.maxY - h));
-  }
-  if (updates.w !== undefined) {
-    w = clamp(updates.w, minSize, Math.max(minSize, bounds.maxX - x));
-  } else {
-    w = clamp(w, minSize, Math.max(minSize, bounds.maxX - x));
-  }
-  if (updates.h !== undefined) {
-    h = clamp(updates.h, minSize, Math.max(minSize, bounds.maxY - y));
-  } else {
-    h = clamp(h, minSize, Math.max(minSize, bounds.maxY - y));
-  }
-
-  return {
-    ...normalizedBox,
-    ...updates,
-    x,
-    y,
-    w,
-    h
+    x: clampValue(params.x ?? 0, 0, Math.max(0, bounds.maxX - w)),
+    y: clampValue(params.y ?? 0, 0, Math.max(0, bounds.maxY - h))
   };
 }
 
@@ -394,10 +344,6 @@ function normalizeColor(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function clamp(value: number, min: number, max: number): number {
+function clampValue(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function normalizeRotation(rotation: number): number {
-  return normalizeAngle(rotation);
 }

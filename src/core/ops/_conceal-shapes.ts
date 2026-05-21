@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { CONCEAL_SHAPES, type ConcealRegion, type ConcealShape } from "@shared/types/conceal";
+import { normalizeAngle } from "@shared/rotation";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, clamp, escapeXml } from "./_shared";
 
 type PixelConcealRegion = {
@@ -20,7 +21,7 @@ export function validateConcealRegionList(value: unknown, path: string): Conceal
       y: assertFiniteNumber(record.y, `${path}[${index}].y`, { min: 0, max: 1 }),
       w: assertFiniteNumber(record.w, `${path}[${index}].w`, { min: 0, max: 1, minExclusive: true }),
       h: assertFiniteNumber(record.h, `${path}[${index}].h`, { min: 0, max: 1, minExclusive: true }),
-      rotation: normalizeRotation(assertFiniteNumber(record.rotation, `${path}[${index}].rotation`)),
+      rotation: normalizeAngle(assertFiniteNumber(record.rotation, `${path}[${index}].rotation`)),
       shape: assertOneOf(record.shape, `${path}[${index}].shape`, CONCEAL_SHAPES)
     };
   });
@@ -70,7 +71,7 @@ function projectConcealRegion(region: ConcealRegion, sourceWidth: number, source
   const height = Math.max(1, region.h * longEdge);
   const centerX = (region.x + region.w / 2) * longEdge;
   const centerY = (region.y + region.h / 2) * longEdge;
-  const rotation = normalizeRotation(region.rotation);
+  const rotation = normalizeAngle(region.rotation);
   const bounds = rotatedBounds(centerX, centerY, width, height, rotation);
   const left = clamp(Math.floor(bounds.minX), 0, Math.max(0, sourceWidth - 1));
   const top = clamp(Math.floor(bounds.minY), 0, Math.max(0, sourceHeight - 1));
@@ -123,9 +124,4 @@ function shapeSvg(region: PixelConcealRegion, fill: string): Buffer {
 
 function formatSvgNumber(value: number): string {
   return Number(value.toFixed(3)).toString();
-}
-
-function normalizeRotation(rotation: number): number {
-  const normalized = rotation % 360;
-  return normalized > 180 ? normalized - 360 : normalized <= -180 ? normalized + 360 : normalized;
 }

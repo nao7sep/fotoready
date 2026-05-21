@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import type Konva from "konva";
 import { Ellipse, Rect, Transformer } from "react-konva";
 import type { ConcealShape } from "@shared/types/conceal";
+import { wrapAngle } from "@shared/rotation";
 
 type RectShape = { x: number; y: number; w: number; h: number; rotation?: number };
 type Placement = { x: number; y: number; width: number; height: number; scale: number };
@@ -168,7 +169,7 @@ function clampStageRect(rect: RectShape, placement: Placement): RectShape {
   const minHeight = Math.min(MIN_STAGE_SIZE, placement.height);
   let width = clamp(rect.w, minWidth, placement.width);
   let height = clamp(rect.h, minHeight, placement.height);
-  const rotation = normalizeRotation(rect.rotation ?? 0);
+  const rotation = wrapAngle(rect.rotation ?? 0);
   let next = { x: rect.x, y: rect.y, w: width, h: height, rotation };
   let bounds = rotatedBounds(next);
   const scale = Math.min(
@@ -201,11 +202,6 @@ function rotatedBounds(rect: RectShape): { x: number; y: number; width: number; 
     width: extentX * 2,
     height: extentY * 2
   };
-}
-
-function normalizeRotation(rotation: number): number {
-  const normalized = rotation % 360;
-  return normalized > 180 ? normalized - 360 : normalized <= -180 ? normalized + 360 : normalized;
 }
 
 function clamp(value: number, min: number, max: number): number {

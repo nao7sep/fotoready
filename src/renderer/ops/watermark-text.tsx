@@ -1,6 +1,5 @@
 import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
-import { clamp } from "@shared/numeric";
 import { normalizeAngle } from "@shared/rotation";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import type { OpRenderer, OverlayContext } from "./op-renderer";
@@ -62,7 +61,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
     const heightMax = fractionToPercentSteps(imageBounds.maxY);
     const borderWidthFallback = Math.max(normalizedBox.borderWidth, DEFAULT_TEXT_WATERMARK_BORDER_WIDTH);
 
-    function updateBox(updates: Partial<FractionRect>): void {
+    function updateBox(updates: Partial<FractionRect & { rotation: number }>): void {
       onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, { minSize: MIN_TEXT_WATERMARK_BOX_SIZE }));
     }
 
@@ -127,7 +126,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           />
           <span className="slider-value">{formatPercent(normalizedBox.y)}</span>
         </label>
-        <AngleControl disabled={disabled} value={normalizedBox.rotation} onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))} />
+        <AngleControl disabled={disabled} value={normalizedBox.rotation} onChange={(rotation) => updateBox({ rotation: normalizeAngle(rotation) })} />
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Background</span>
           <div className="geometry-swatch-group" role="group" aria-label="Background color">
@@ -289,24 +288,24 @@ function commitDraggedBox(
 }
 
 /**
- * Text-watermark-specific clamp: prefers preserving box size and sliding it inward,
- * rather than shrinking the box at its current position. Differs from the
- * position-preserving `clampFractionRect` used by conceal/asset overlays — kept this
- * way to match prior persisted behavior.
+ * Text-watermark-specific wrapper around the shared box clamp. It supplies text defaults
+ * and preserves the rest of the text styling params.
  */
 function normalizeTextWatermarkBox<T extends Partial<WatermarkTextParams>>(
   params: T,
   bounds: { maxX: number; maxY: number }
 ): T {
   const minSize = MIN_TEXT_WATERMARK_BOX_SIZE;
-  const w = clamp(params.w ?? 0.2, minSize, Math.max(minSize, bounds.maxX));
-  const h = clamp(params.h ?? 0.06, minSize, Math.max(minSize, bounds.maxY));
+  const clamped = updateFractionRect({
+    x: params.x ?? 0,
+    y: params.y ?? 0,
+    w: params.w ?? 0.2,
+    h: params.h ?? 0.06,
+    rotation: params.rotation ?? 0
+  }, {}, bounds, { minSize });
   return {
     ...params,
-    w,
-    h,
-    x: clamp(params.x ?? 0, 0, Math.max(0, bounds.maxX - w)),
-    y: clamp(params.y ?? 0, 0, Math.max(0, bounds.maxY - h))
+    ...clamped
   };
 }
 

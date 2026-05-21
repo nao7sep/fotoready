@@ -148,7 +148,7 @@ function AssetOverlayControls({
       <AngleControl
         disabled={disabled}
         value={o.rotation}
-        onChange={(rotation) => onParamChange("rotation", normalizeAngle(rotation))}
+        onChange={(rotation) => applyBoxPatch({ rotation: normalizeAngle(rotation) })}
       />
       <label className="slider-row">
         <span>Opacity</span>
@@ -201,7 +201,21 @@ function updateAssetOverlayBox(
     { minSize: MIN_ASSET_OVERLAY_SIZE, aspectLock: lockNow ? safeAR : null }
   );
 
-  const patch: Partial<AssetOverlayParams> = { x: next.x, y: next.y, width: next.w, height: next.h };
+  const clamped = clampAssetOverlay({
+    ...current,
+    x: next.x,
+    y: next.y,
+    width: next.w,
+    height: next.h,
+    rotation: updates.rotation ?? current.rotation
+  }, bounds);
+  const patch: Partial<AssetOverlayParams> = {
+    x: clamped.x,
+    y: clamped.y,
+    width: clamped.width,
+    height: clamped.height,
+    rotation: clamped.rotation
+  };
   if (updates.lockAspectRatio !== undefined) patch.lockAspectRatio = updates.lockAspectRatio;
   return patch;
 }

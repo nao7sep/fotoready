@@ -1,5 +1,5 @@
 import type sharp from "sharp";
-import type { AssetOverlayParams } from "@shared/asset-overlay";
+import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCategory } from "@shared/types/op";
 import { assertBoolean } from "@shared/validation/common";
 import { applyTransformedOverlay, assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
@@ -52,9 +52,10 @@ export function createAssetOverlayModule(definition: {
 export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlayParams, ctx: OpApplyContext) {
   if (!params.assetPath) return image;
   const longEdge = Math.max(ctx.sourceWidth, ctx.sourceHeight);
-  const width = Math.max(1, Math.round(longEdge * params.width));
-  const height = Math.max(1, Math.round(longEdge * params.height));
-  const rendered = await renderAssetBitmap(params.assetPath, width, height, params.opacity);
+  const overlayParams = clampAssetOverlay(params, { maxX: ctx.sourceWidth / longEdge, maxY: ctx.sourceHeight / longEdge });
+  const width = Math.max(1, Math.round(longEdge * overlayParams.width));
+  const height = Math.max(1, Math.round(longEdge * overlayParams.height));
+  const rendered = await renderAssetBitmap(overlayParams.assetPath, width, height, overlayParams.opacity);
   const sharpImpl = (await import("sharp")).default;
   const overlay = sharpImpl(rendered.data, {
     raw: {
@@ -64,11 +65,11 @@ export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlay
     }
   });
   return applyTransformedOverlay(image, overlay, {
-    left: params.x * longEdge,
-    top: params.y * longEdge,
+    left: overlayParams.x * longEdge,
+    top: overlayParams.y * longEdge,
     width,
     height,
-    rotation: params.rotation
+    rotation: overlayParams.rotation
   });
 }
 

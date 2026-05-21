@@ -73,8 +73,8 @@ FotoReady re-encodes saved images and starts the metadata stage by removing embe
 Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosaic) all place a rectangle inside the image and share a single position/size helper. The convention:
 
 - All spatial fractions (`x`, `y`, `w`/`width`, `h`/`height`, paddings, border thickness, mosaic cell size) are normalized against the image's **long edge**, so "10%" represents the same physical distance on both axes regardless of orientation. On a portrait image the X / Width sliders' usable range tops out below 100% because the short axis simply cannot reach that far.
-- Each slider's full track represents the entire axis bound. The thumb refuses to advance past the point where the coupled dimension uses up the remaining room — that's the signal that, e.g., Width can't grow because X is already over there.
-- Moves preserve size and refuse to overshoot; resizes preserve position and refuse to overshoot.
+- Each slider's full track represents the entire axis bound. Moves preserve size and refuse to overshoot.
+- Resizes preserve size and slide the box inward when needed, so width/height can grow while the far edge stays inside the image.
 
 Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle. With the lock on, width and height stay in sync to the asset's visible bounds and clamping respects both axes so the ratio always holds; with it off, the asset can be stretched freely. The image's natural aspect ratio is read from the main process via Sharp, so PNG and SVG sources both report the correct ratio.
 

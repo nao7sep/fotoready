@@ -1,6 +1,6 @@
 import { DEFAULT_CONCEAL_REGION, CONCEAL_SHAPES, type ConcealRegion, type ConcealShape } from "@shared/types/conceal";
 import { normalizeAngle } from "@shared/rotation";
-import { clampFractionRect, rectFromStage, rectToStage, updateFractionRect, type FractionRect } from "./_overlay-primitives";
+import { clampFractionRect, rectFromStage, rectToStage, updateFractionRect } from "./_overlay-primitives";
 import type { OverlayPlacement } from "./op-renderer";
 
 export type StageConcealRegion = { x: number; y: number; w: number; h: number; rotation: number };
@@ -36,7 +36,7 @@ export function clampConcealRegion(region: ConcealRegion, imageBounds: { maxX: n
 }
 
 export function updateConcealRegion(region: ConcealRegion, updates: Partial<ConcealRegion>, imageBounds: { maxX: number; maxY: number }): ConcealRegion {
-  const next = updateFractionRect(region, updates as Partial<FractionRect>, imageBounds);
+  const next = updateFractionRect(region, updates, imageBounds);
   return normalizeRegion({ ...region, ...updates, ...next });
 }
 

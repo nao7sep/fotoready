@@ -30,6 +30,8 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 | User LUT directory | `~/.fotoready/luts/` |
 | Stamp directory | `~/.fotoready/stamps/` |
 
+Gemini vision uses the configured model ID from Settings. The default is `gemini-3-flash-preview`.
+
 ## Development
 
 ```sh

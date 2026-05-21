@@ -405,7 +405,11 @@ function VisionTab({
           </label>
           <label className="stacked-field">
             Model
-            <input type="text" value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })} />
+            <input
+              type="text"
+              value={settings.model}
+              onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })}
+            />
           </label>
           <NumberField label="Vision image long edge" max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
           <label className="toggle-row settings-toggle-card span-two">

@@ -161,11 +161,6 @@ export function AssetOverlayControls({
         />
         <span className="slider-value">{`${Math.round(normalizedOverlay.opacity * 100)}%`}</span>
       </label>
-      <div className="row-detail">
-        {normalizedOverlay.lockAspectRatio
-          ? `Locked to ${formatPercent(normalizedOverlay.width)} × ${formatPercent(normalizedOverlay.height)}.`
-          : `Free size: ${formatPercent(normalizedOverlay.width)} × ${formatPercent(normalizedOverlay.height)}.`}
-      </div>
     </div>
   );
 }
@@ -226,7 +221,7 @@ export function AssetOverlayRect({
       rect={stageRect}
       rotateEnabled
       onChange={() => undefined}
-      onCommit={(next) => onParamsChange(stageRectToAssetOverlay(next, ctx, aspectRatio))}
+      onCommit={(next) => onParamsChange(stageRectToAssetOverlay(next, ctx, aspectRatio, normalizedOverlay.lockAspectRatio))}
     />
   );
 }
@@ -285,7 +280,8 @@ function assetOverlayToStageRect(
 function stageRectToAssetOverlay(
   rect: { x: number; y: number; w: number; h: number; rotation?: number },
   ctx: { longEdge: number; imageBounds: { maxX: number; maxY: number }; placement: { x: number; y: number; scale: number } },
-  aspectRatio: number
+  aspectRatio: number,
+  lockAspectRatio: boolean
 ): Partial<AssetOverlayParams> {
   const width = rect.w / (ctx.placement.scale * ctx.longEdge);
   const height = rect.h / (ctx.placement.scale * ctx.longEdge);
@@ -294,8 +290,9 @@ function stageRectToAssetOverlay(
     y: (rect.y - ctx.placement.y) / (ctx.longEdge * ctx.placement.scale),
     width,
     height,
+    lockAspectRatio,
     rotation: normalizeAngle(rect.rotation ?? 0)
-  }, ctx.imageBounds, aspectRatio, MIN_ASSET_OVERLAY_SIZE);
+  }, ctx.imageBounds, lockAspectRatio ? aspectRatio : null, MIN_ASSET_OVERLAY_SIZE);
   return {
     x: normalized.x,
     y: normalized.y,

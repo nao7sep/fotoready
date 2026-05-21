@@ -79,7 +79,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     injectAuthorCopyright: false,
     preserveSourceDates: true,
     injectFields: {},
-    model: "gemini-3.1-pro",
+    model: "gemini-3-flash-preview",
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,

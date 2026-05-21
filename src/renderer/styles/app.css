@@ -1230,43 +1230,48 @@ select:disabled {
   font-size: 12px;
 }
 
-.rename-preview-row span {
+.rename-preview-cell {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.rename-preview-cell span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rename-preview-label,
+.rename-preview-status {
+  color: var(--text-muted-color);
+  font-size: 11px;
 }
 
 .rename-preview-row.blocked {
   color: var(--warning-text);
 }
 
-.rename-selection-list {
+.rename-preview-row.not-saved,
+.rename-preview-row.unchanged {
+  color: var(--text-soft-color);
+}
+
+.rename-output-dir {
   display: grid;
-  max-height: 120px;
-  overflow: auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
 }
 
-.rename-selection-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
-}
-
-.rename-selection-row:last-child {
-  border-bottom: 0;
-}
-
-.rename-selection-row span {
+.rename-output-dir > div {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: grid;
+  gap: 3px;
 }
 
 .modal-warning,

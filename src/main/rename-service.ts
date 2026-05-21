@@ -19,84 +19,137 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   const template = findTemplate(project, settings, templateId);
   assertTemplateUsable(template);
   const scopedTaskIds = taskIds?.length ? new Set(taskIds) : null;
-  const doneTasks = project.tasks
-    .filter((task): task is Task & { output: NonNullable<Task["output"]> } => task.status === "done" && task.output !== null)
+  const tasks = project.tasks
     .filter((task) => !scopedTaskIds || scopedTaskIds.has(task.id))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const savedTasks = tasks.filter((task): task is Task & { output: NonNullable<Task["output"]> } => task.output !== null);
 
   const needsSlug = template.pattern.includes("{slug}");
-  const slugMap = resolveSlugCollisions(doneTasks.map((task) => ({
+  const slugMap = resolveSlugCollisions(savedTasks.map((task) => ({
     taskId: task.id,
     candidates: slugCandidates(task),
     outputHash: task.output.outputHash
   })));
 
   const items: RenamePlanItem[] = [];
-  for (const [index, task] of doneTasks.entries()) {
-    const stagedPath = task.output.finalPath ?? task.output.stagedPath;
-    const metadata = await sharp(stagedPath).metadata();
-    const ext = outputExtension(stagedPath);
-    const slug = slugMap.get(task.id) ?? "untitled-output";
+  for (const [index, task] of tasks.entries()) {
     const original = project.originals.find((candidate) => candidate.id === task.originalId);
-    const proposedName = renderFilenameTemplate(template.pattern, {
-      slug,
-      original: original ? path.parse(original.sourcePath).name : `original-${index + 1}`,
-      w: metadata.width ?? 0,
-      h: metadata.height ?? 0,
-      ext
-    });
-    assertSafeRenderedFilename(proposedName);
-    const proposedPath = path.join(path.dirname(stagedPath), proposedName);
+    const label = original ? path.basename(original.sourcePath) : task.id;
+    if (!task.output) {
+      items.push({
+        taskId: task.id,
+        label,
+        status: "not-saved",
+        currentPath: null,
+        proposedPath: null,
+        currentName: null,
+        proposedName: null,
+        missingSlug: false,
+        issue: "Not saved"
+      });
+      continue;
+    }
+
+    const currentPath = task.output.finalPath ?? task.output.stagedPath;
     const missingSlug = needsSlug && !task.customSlug && !task.output.vision;
+    let proposedPath: string | null = null;
+    let proposedName: string | null = null;
+    let issue: string | null = missingSlug ? "Missing slug" : null;
+
+    if (!issue) {
+      try {
+        const metadata = await sharp(currentPath).metadata();
+        const ext = outputExtension(currentPath);
+        const slug = slugMap.get(task.id) ?? "untitled-output";
+        proposedName = renderFilenameTemplate(template.pattern, {
+          slug,
+          original: original ? path.parse(original.sourcePath).name : `original-${index + 1}`,
+          w: metadata.width ?? 0,
+          h: metadata.height ?? 0,
+          ext
+        });
+        assertSafeRenderedFilename(proposedName);
+        proposedPath = path.join(path.dirname(currentPath), proposedName);
+      } catch (error) {
+        issue = error instanceof Error ? error.message : String(error);
+      }
+    }
 
     items.push({
       taskId: task.id,
-      stagedPath,
+      label,
+      status: issue ? "blocked" : proposedPath === currentPath ? "unchanged" : "ready",
+      currentPath,
       proposedPath,
-      stagedName: path.basename(stagedPath),
+      currentName: path.basename(currentPath),
       proposedName,
-      missingSlug
+      missingSlug,
+      issue
     });
+  }
+
+  const proposedPathCounts = new Map<string, number>();
+  for (const item of items) {
+    if (!item.proposedPath || item.status === "blocked") continue;
+    const key = normalizePathKey(item.proposedPath);
+    proposedPathCounts.set(key, (proposedPathCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const item of items) {
+    if (!item.currentPath || !item.proposedPath || item.status === "blocked") continue;
+    if ((proposedPathCounts.get(normalizePathKey(item.proposedPath)) ?? 0) > 1) {
+      item.status = "blocked";
+      item.issue = "Name conflict";
+      continue;
+    }
+    if (item.currentPath !== item.proposedPath && await pathExists(item.proposedPath)) {
+      item.status = "blocked";
+      item.issue = "File exists";
+      continue;
+    }
+    const currentParamsPath = sidecarPathForOutput(item.currentPath);
+    const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
+    if (currentParamsPath !== proposedParamsPath && await pathExists(proposedParamsPath)) {
+      item.status = "blocked";
+      item.issue = "Sidecar exists";
+    }
   }
 
   return {
     templateId: template.id,
     items,
+    renameableCount: items.filter((item) => item.status === "ready").length,
+    blockedCount: items.filter((item) => item.status === "blocked").length,
     missingSlugCount: items.filter((item) => item.missingSlug).length
   };
 }
 
 export async function runRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<void> {
   const preview = await previewRename(project, settings, templateId, taskIds);
-  if (preview.missingSlugCount > 0) {
-    throw new Error(`${preview.missingSlugCount} task(s) need a slug or vision result before rename.`);
+  if (preview.blockedCount > 0) {
+    throw new Error(`${preview.blockedCount} task(s) cannot be renamed yet.`);
   }
 
   for (const item of preview.items) {
+    if (item.status !== "ready" && item.status !== "unchanged") continue;
     const task = project.tasks.find((candidate) => candidate.id === item.taskId);
-    if (!task?.output) {
+    if (!task?.output || !item.currentPath || !item.proposedPath) {
       continue;
     }
-    if (item.stagedPath === item.proposedPath) {
-      task.output.stagedPath = item.proposedPath;
-      task.output.finalPath = item.proposedPath;
-      task.output.stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
-      task.output.finalParamsPath = task.output.stagedParamsPath;
-      task.output.renamedAt = nowIso();
-      task.updatedAt = nowIso();
+    if (item.currentPath === item.proposedPath) {
       continue;
     }
 
     await ensureNoCollision(item.proposedPath);
     const tempPath = `${item.proposedPath}.tmp-${process.pid}`;
     try {
-      await fs.copyFile(item.stagedPath, tempPath, fs.constants.COPYFILE_EXCL);
+      await fs.copyFile(item.currentPath, tempPath, fs.constants.COPYFILE_EXCL);
       await fs.rename(tempPath, item.proposedPath);
     } catch (error) {
       await fs.rm(tempPath, { force: true });
       throw error;
     }
-    await fs.rm(item.stagedPath, { force: true });
+    await fs.rm(item.currentPath, { force: true });
     const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
     task.output.stagedPath = item.proposedPath;
@@ -146,6 +199,20 @@ function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): s
 
 function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
+}
+
+function normalizePathKey(filePath: string): string {
+  return path.resolve(filePath);
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.lstat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 async function ensureNoCollision(filePath: string): Promise<void> {

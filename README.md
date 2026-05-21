@@ -85,7 +85,7 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle.
 | Import and save | Add originals | `Cmd/Ctrl+N` |
 | Import and save | Save current pending image | `Cmd/Ctrl+S` |
 | Import and save | Save all pending images | `Cmd/Ctrl+Shift+S` |
-| Import and save | Rename saved outputs | `Cmd/Ctrl+R` |
+| Import and save | Rename all | `Cmd/Ctrl+R` |
 | Editing | Undo last pending-task edit | `Cmd/Ctrl+Z` |
 | View | Toggle histogram | `Cmd/Ctrl+H` |
 | App | Open settings | `Cmd/Ctrl+,` |

@@ -50,7 +50,7 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
       { action: "Add originals", detail: "Open the file picker to import source images or sidecars.", keys: "Cmd/Ctrl+N" },
       { action: "Save current pending image", detail: "Apply the current task's ops, queue processing, and write the output image plus sidecar.", keys: "Cmd/Ctrl+S" },
       { action: "Save all pending images", detail: "Queue every pending task for processing and output.", keys: "Cmd/Ctrl+Shift+S" },
-      { action: "Rename saved outputs", detail: "Open the rename dialog for completed tasks.", keys: "Cmd/Ctrl+R" }
+      { action: "Rename all", detail: "Review saved and unsaved tasks before renaming saved outputs.", keys: "Cmd/Ctrl+R" }
     ]
   },
   {
@@ -84,7 +84,6 @@ function App(): React.JSX.Element {
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
   const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
-  const [selectedRenameTaskIds, setSelectedRenameTaskIds] = useState<string[]>([]);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
@@ -378,7 +377,6 @@ function App(): React.JSX.Element {
         if (!confirmed) return;
       }
       await refreshProject(await api.task.delete(task.id));
-      setSelectedRenameTaskIds((current) => current.filter((id) => id !== task.id));
     } catch (error) {
       console.error(error);
       await confirmer.alert({
@@ -583,16 +581,7 @@ function App(): React.JSX.Element {
 
   async function refreshProject(snapshot: ProjectSnapshot): Promise<void> {
     setProjectSnapshot(snapshot);
-    const doneTaskIds = new Set(snapshot.project.tasks.filter((task) => task.status === "done").map((task) => task.id));
-    setSelectedRenameTaskIds((current) => current.filter((taskId) => doneTaskIds.has(taskId)));
     setQueue(await api.queues.snapshot());
-  }
-
-  function toggleRenameSelection(taskId: string, selected: boolean): void {
-    setSelectedRenameTaskIds((current) => {
-      if (selected) return current.includes(taskId) ? current : [...current, taskId];
-      return current.filter((id) => id !== taskId);
-    });
   }
 
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
@@ -805,39 +794,16 @@ function App(): React.JSX.Element {
       {renameOpen && settings ? (
         <RenameModal
           defaultTemplateId={settings.defaultTemplateId}
-          doneTasks={(project?.tasks ?? []).filter((task) => task.status === "done").map((task) => ({
-            id: task.id,
-            label: taskLabel(task, project?.originals ?? []),
-            selected: selectedRenameTaskIds.includes(task.id)
-          }))}
-          hasGeminiApiKey={hasGeminiApiKey}
+          outputDirLabel={outputDirLabel}
+          outputDirPath={project?.outputDir ?? null}
+          onClearOutputDir={clearOutputDir}
           onClose={() => setRenameOpen(false)}
-          onGenerateMissing={async (taskIds, onProgress) => {
-            const failures: string[] = [];
-            for (const [index, taskId] of taskIds.entries()) {
-              const snapshot = await api.vision.runForTask(taskId, { forceGenerateSlug: true });
-              await refreshProject(snapshot);
-              const task = snapshot.project.tasks.find((candidate) => candidate.id === taskId);
-              if (task?.error?.stage === "vision") {
-                failures.push(`${taskLabel(task, snapshot.project.originals)}: ${task.error.message}`);
-              }
-              onProgress(index + 1, taskIds.length);
-            }
-            if (failures.length > 0) {
-              throw new Error(failures.join(" "));
-            }
-          }}
-          onOpenSettings={() => {
-            setRenameOpen(false);
-            void openSettings();
-          }}
-          onPreview={(templateId, taskIds) => api.rename.preview(templateId, taskIds)}
-          onRun={async (templateId, taskIds) => {
-            await refreshProject(await api.rename.run(templateId, taskIds));
+          onPreview={(templateId) => api.rename.preview(templateId)}
+          onRun={async (templateId) => {
+            await refreshProject(await api.rename.run(templateId));
             setRenameOpen(false);
           }}
-          onTaskSelected={toggleRenameSelection}
-          selectedTaskIds={selectedRenameTaskIds}
+          onSetOutputDir={setOutputDir}
           templates={settings.filenameTemplates}
         />
       ) : null}

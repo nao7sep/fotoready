@@ -1,51 +1,40 @@
 import React, { useEffect, useState } from "react";
 import type { FilenameTemplate } from "@shared/types/settings";
-import type { RenamePreview } from "@shared/types/ipc";
+import type { RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
 import { ModalShell } from "./modal-shell";
 
 export function RenameModal({
   templates,
   defaultTemplateId,
-  doneTasks,
-  hasGeminiApiKey,
+  outputDirLabel,
+  outputDirPath,
+  onClearOutputDir,
   onClose,
-  onOpenSettings,
-  onGenerateMissing,
   onPreview,
   onRun,
-  onTaskSelected,
-  selectedTaskIds
+  onSetOutputDir
 }: {
   templates: FilenameTemplate[];
   defaultTemplateId: string;
-  doneTasks: Array<{ id: string; label: string; selected: boolean }>;
-  hasGeminiApiKey: boolean;
+  outputDirLabel: string;
+  outputDirPath: string | null;
+  onClearOutputDir(): Promise<void>;
   onClose(): void;
-  onOpenSettings(): void;
-  onGenerateMissing(taskIds: string[], onProgress: (done: number, total: number) => void): Promise<void>;
-  onPreview(templateId: string, taskIds?: string[]): Promise<RenamePreview>;
-  onRun(templateId: string, taskIds?: string[]): Promise<void>;
-  onTaskSelected(taskId: string, selected: boolean): void;
-  selectedTaskIds: string[];
+  onPreview(templateId: string): Promise<RenamePreview>;
+  onRun(templateId: string): Promise<void>;
+  onSetOutputDir(): Promise<void>;
 }): React.JSX.Element {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
-  const [scope, setScope] = useState<"all" | "selected">("all");
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [generationProgress, setGenerationProgress] = useState<{ done: number; total: number } | null>(null);
-  const canUseSelected = selectedTaskIds.length > 0;
-  const scopedTaskIds = scope === "selected" && selectedTaskIds.length > 0 ? selectedTaskIds : undefined;
-
-  useEffect(() => {
-    if (!canUseSelected && scope === "selected") setScope("all");
-  }, [canUseSelected, scope]);
+  const canRun = Boolean(preview?.items.some((item) => item.status === "ready" || item.status === "unchanged") && preview.blockedCount === 0);
 
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
     setError(null);
-    void onPreview(templateId, scopedTaskIds)
+    void onPreview(templateId)
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
@@ -59,53 +48,29 @@ export function RenameModal({
     return () => {
       cancelled = true;
     };
-  }, [onPreview, scope, selectedTaskIds, templateId]);
+  }, [onPreview, templateId]);
 
   async function confirm(): Promise<void> {
     setBusy(true);
     setError(null);
     try {
-      await onRun(templateId, scopedTaskIds);
+      await onRun(templateId);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generateMissing(): Promise<void> {
-    const missingTaskIds = preview?.items.filter((item) => item.missingSlug).map((item) => item.taskId) ?? [];
-    if (missingTaskIds.length === 0) return;
-    setBusy(true);
-    setError(null);
-    setGenerationProgress({ done: 0, total: missingTaskIds.length });
-    let nextError: string | null = null;
-    try {
-      await onGenerateMissing(missingTaskIds, (done, total) => setGenerationProgress({ done, total }));
-    } catch (caught) {
-      nextError = caught instanceof Error ? caught.message : String(caught);
-    }
-    try {
-      setPreview(await onPreview(templateId, scopedTaskIds));
-    } catch (caught) {
-      nextError ??= caught instanceof Error ? caught.message : String(caught);
-    } finally {
-      setError(nextError);
-      setGenerationProgress(null);
       setBusy(false);
     }
   }
 
   return (
     <ModalShell
-      title="Rename outputs"
+      title="Rename all"
       size="wide"
       onClose={onClose}
       footer={
         <>
           <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-action" type="button" disabled={busy || !preview?.items.length || preview.missingSlugCount > 0} onClick={() => void confirm()}>
-            Confirm rename
+          <button className="primary-action" type="button" disabled={busy || !canRun} onClick={() => void confirm()}>
+            Rename all
           </button>
         </>
       }
@@ -119,49 +84,51 @@ export function RenameModal({
         </select>
       </label>
 
-      <div className="segmented-control">
-        <button className={scope === "all" ? "active" : ""} type="button" onClick={() => setScope("all")}>All done tasks</button>
-        <button className={scope === "selected" ? "active" : ""} disabled={!canUseSelected} type="button" onClick={() => setScope("selected")}>Selected tasks</button>
-      </div>
-
-      <div className="rename-selection-list">
-        {doneTasks.length ? doneTasks.map((task) => (
-          <label className="rename-selection-row" key={task.id}>
-            <input type="checkbox" checked={task.selected} onChange={(event) => onTaskSelected(task.id, event.currentTarget.checked)} />
-            <span>{task.label}</span>
-          </label>
-        )) : <div className="ops-empty">No done tasks available</div>}
-      </div>
-
-      {preview?.missingSlugCount ? (
-        <div className="modal-warning">
-          {hasGeminiApiKey
-            ? `${preview.missingSlugCount} of ${preview.items.length} done tasks need a slug before rename.`
-            : "Gemini API key required to generate missing descriptions before rename."}
-          {hasGeminiApiKey ? (
-            <button className="toolbar-button compact-text" disabled={busy} type="button" onClick={() => void generateMissing()}>Generate now</button>
-          ) : (
-            <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
-          )}
+      <div className="rename-output-dir">
+        <div>
+          <span className="row-label">Output folder</span>
+          <span className="row-detail" title={outputDirPath ?? ""}>{outputDirLabel}</span>
         </div>
-      ) : null}
+        <button className="toolbar-button compact-text" type="button" onClick={() => void onSetOutputDir()}>{outputDirPath ? "Change..." : "Choose..."}</button>
+        {outputDirPath ? <button className="toolbar-button compact-text" type="button" onClick={() => void onClearOutputDir()}>Clear</button> : null}
+      </div>
 
-      {generationProgress ? (
-        <div className="modal-warning">Generating descriptions {generationProgress.done}/{generationProgress.total}</div>
+      {preview?.blockedCount ? (
+        <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need attention before rename.</div>
       ) : null}
 
       {error ? <div className="modal-error">{error}</div> : null}
 
       <div className="rename-preview-list">
         {preview?.items.length ? preview.items.map((item) => (
-          <div className={`rename-preview-row ${item.missingSlug ? "blocked" : ""}`} key={item.taskId}>
-            <span title={item.stagedPath}>{item.stagedName}</span>
-            <span title={item.proposedPath}>{item.missingSlug ? "Needs slug data" : item.proposedName}</span>
-          </div>
+          <RenamePreviewRow item={item} key={item.taskId} />
         )) : (
-          <div className="ops-empty">{busy ? "Preparing preview..." : "No done tasks to rename"}</div>
+          <div className="ops-empty">{busy ? "Preparing preview..." : "No tasks to rename"}</div>
         )}
       </div>
     </ModalShell>
+  );
+}
+
+function RenamePreviewRow({ item }: { item: RenamePreviewItem }): React.JSX.Element {
+  const detail = item.status === "not-saved"
+    ? "Not saved"
+    : item.status === "blocked"
+      ? item.issue ?? "Blocked"
+      : item.status === "unchanged"
+        ? "No change"
+        : "Ready";
+
+  return (
+    <div className={`rename-preview-row ${item.status}`} key={item.taskId}>
+      <div className="rename-preview-cell">
+        <span className="rename-preview-label" title={item.label}>{item.label}</span>
+        <span title={item.currentPath ?? ""}>{item.currentName ?? "Not saved"}</span>
+      </div>
+      <div className="rename-preview-cell">
+        <span className="rename-preview-status">{detail}</span>
+        <span title={item.proposedPath ?? ""}>{item.proposedName ?? "-"}</span>
+      </div>
+    </div>
   );
 }

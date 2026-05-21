@@ -53,8 +53,8 @@ export function TasksPanel({
         <button className="toolbar-button" type="button" onClick={onCancelAll} disabled={!hasQueued}>
           <X size={14} /> Cancel all
         </button>
-        <button className="toolbar-button" type="button" disabled={!tasks.some((task) => task.status === "done")} onClick={onRename}>
-          Rename…
+        <button className="toolbar-button" type="button" disabled={tasks.length === 0} onClick={onRename}>
+          Rename all...
         </button>
       </div>
     </aside>

@@ -51,16 +51,21 @@ export type OriginalThumbnail = {
 
 export type RenamePreviewItem = {
   taskId: string;
-  stagedPath: string;
-  proposedPath: string;
-  stagedName: string;
-  proposedName: string;
+  label: string;
+  status: "not-saved" | "unchanged" | "ready" | "blocked";
+  currentPath: string | null;
+  proposedPath: string | null;
+  currentName: string | null;
+  proposedName: string | null;
   missingSlug: boolean;
+  issue: string | null;
 };
 
 export type RenamePreview = {
   templateId: string;
   items: RenamePreviewItem[];
+  renameableCount: number;
+  blockedCount: number;
   missingSlugCount: number;
 };
 

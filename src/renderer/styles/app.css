@@ -511,10 +511,12 @@ select:disabled {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--surface-muted-bg);
+  overflow: hidden;
 }
 
 .preview-toolbar {
   min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -723,6 +725,8 @@ select:disabled {
 }
 
 .error-strip {
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -754,11 +758,10 @@ select:disabled {
 }
 
 .error-center-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(4, auto);
-  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 10px;
+  padding: 12px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -766,24 +769,46 @@ select:disabled {
   border-bottom: 0;
 }
 
-.error-center-row strong,
-.error-center-row span {
-  display: block;
+.error-center-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.error-center-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong-color);
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.error-center-row strong {
-  color: var(--text-strong-color);
-  font-size: 13px;
+.error-stage-badge {
+  font-size: 11px;
+  color: var(--danger-text);
+  background: var(--danger-soft-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.error-center-row span {
-  margin-top: 3px;
-  color: var(--danger-text);
+.error-center-message {
   font-size: 12px;
+  color: var(--danger-text);
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.error-center-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .histogram-overlay {
@@ -908,6 +933,7 @@ select:disabled {
   border-radius: 8px;
   background: var(--surface-raised-bg);
   cursor: pointer;
+  min-width: 0;
 }
 
 .pipeline-op-card.active {
@@ -920,7 +946,7 @@ select:disabled {
 .pipeline-op-card .modal-warning,
 .pipeline-op-card .modal-error {
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;

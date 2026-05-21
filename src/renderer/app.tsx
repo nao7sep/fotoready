@@ -635,6 +635,10 @@ function App(): React.JSX.Element {
             }}>Keyboard shortcuts</button>
             <button type="button" onClick={() => {
               setMenuOpen(false);
+              setErrorsOpen(true);
+            }}>Errors{erroredTasks.length ? ` (${erroredTasks.length})` : ""}</button>
+            <button type="button" onClick={() => {
+              setMenuOpen(false);
               setAboutOpen(true);
             }}>About FotoReady</button>
           </div>
@@ -896,18 +900,21 @@ function App(): React.JSX.Element {
       </footer>
 
       {errorsOpen ? (
-        <ModalShell title="Errors" onClose={() => setErrorsOpen(false)}>
+        <ModalShell title="Errors" size="wide" onClose={() => setErrorsOpen(false)}>
           <div className="error-center-list">
             {erroredTasks.length ? erroredTasks.map((task) => (
               <div className="error-center-row" key={task.id}>
-                <div>
-                  <strong>{taskLabel(task, project?.originals ?? [])}</strong>
-                  <span>{task.error?.stage}: {task.error?.message}</span>
+                <div className="error-center-header">
+                  <span className="error-center-title">{taskLabel(task, project?.originals ?? [])}</span>
+                  {task.error?.stage ? <span className="error-stage-badge">{task.error.stage}</span> : null}
                 </div>
-                <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
-                <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
-                <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
-                <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
+                {task.error?.message ? <p className="error-center-message">{task.error.message}</p> : null}
+                <div className="error-center-actions">
+                  <button className="toolbar-button" type="button" onClick={() => void retryTask(task.id)}>Retry</button>
+                  <button className="toolbar-button" type="button" onClick={() => void editErroredTask(task)}>Edit task</button>
+                  <button className="toolbar-button" type="button" onClick={() => void revealTaskSource(task)}>Reveal source</button>
+                  <button className="toolbar-button" type="button" onClick={() => void dismissError(task.id)}>Dismiss</button>
+                </div>
               </div>
             )) : <div className="ops-empty">No current task errors</div>}
           </div>

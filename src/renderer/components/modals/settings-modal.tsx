@@ -35,7 +35,9 @@ const metadataFieldHelp: Record<keyof MetadataFields, string> = {
 export function AppSettingsModal({
   apiKeyDraft,
   hasChanges,
+  hasGeminiApiKey,
   onApiKeyDraftChange,
+  onClearApiKey,
   onClose,
   onSaveSettings,
   settingsDraft,
@@ -44,7 +46,9 @@ export function AppSettingsModal({
 }: {
   apiKeyDraft: string;
   hasChanges: boolean;
+  hasGeminiApiKey: boolean;
   onApiKeyDraftChange(value: string): void;
+  onClearApiKey(): void;
   onClose(): void;
   onSaveSettings(): void;
   settingsDraft: GlobalSettings | null;
@@ -86,7 +90,9 @@ export function AppSettingsModal({
           {tab === "vision" ? (
             <VisionTab
               apiKeyDraft={apiKeyDraft}
+              hasGeminiApiKey={hasGeminiApiKey}
               onApiKeyDraftChange={onApiKeyDraftChange}
+              onClearApiKey={onClearApiKey}
               settings={settingsDraft}
               setSettings={setSettingsDraft}
             />
@@ -370,10 +376,12 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
 
 function VisionTab({
   apiKeyDraft,
+  hasGeminiApiKey,
   onApiKeyDraftChange,
+  onClearApiKey,
   settings,
   setSettings
-}: SettingsProps & { apiKeyDraft: string; onApiKeyDraftChange(value: string): void }): React.JSX.Element {
+}: SettingsProps & { apiKeyDraft: string; hasGeminiApiKey: boolean; onApiKeyDraftChange(value: string): void; onClearApiKey(): void }): React.JSX.Element {
   return (
     <div className="settings-section-stack">
       <section>
@@ -381,7 +389,14 @@ function VisionTab({
         <div className="settings-grid">
           <label className="stacked-field span-two">
             API key
-            <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+            {hasGeminiApiKey ? (
+              <div className="settings-path-row">
+                <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+                <button className="toolbar-button" type="button" onClick={onClearApiKey}>Clear</button>
+              </div>
+            ) : (
+              <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+            )}
           </label>
           <label className="stacked-field">
             Model

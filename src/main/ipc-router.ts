@@ -101,6 +101,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
+  ipcMain.handle("settings.clearGeminiApiKey", async () => ctx.projectSession.clearGeminiApiKey());
 
   ipcMain.handle("state.get", async () => ctx.uiState);
   ipcMain.handle("state.update", async (_event, patch: Partial<UiState>) => {

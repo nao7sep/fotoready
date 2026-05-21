@@ -508,6 +508,10 @@ export class ProjectSession {
     return this.visionQueue.hasGeminiApiKey();
   }
 
+  async clearGeminiApiKey(): Promise<void> {
+    await this.visionQueue.clearGeminiApiKey();
+  }
+
   private editableTask(taskId: string): Task {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task) {

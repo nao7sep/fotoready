@@ -22,6 +22,13 @@ export class ApiKeyStore {
     return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
   }
 
+  async delete(provider: string): Promise<void> {
+    const file = await this.readFile();
+    delete file[provider];
+    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
+    await fs.writeFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+  }
+
   async set(provider: string, value: string): Promise<void> {
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error("Secure storage encryption is not available on this system.");

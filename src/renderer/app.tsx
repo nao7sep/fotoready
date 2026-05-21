@@ -514,6 +514,12 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
+  async function clearApiKey(): Promise<void> {
+    await api.settings.clearGeminiApiKey();
+    setHasGeminiApiKey(false);
+    setApiKeyDraft("");
+  }
+
   async function requestCloseSettings(): Promise<void> {
     if (settingsDirty || apiKeyDirty) {
       const discard = await confirmer.confirm({
@@ -816,7 +822,9 @@ function App(): React.JSX.Element {
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}
           onApiKeyDraftChange={setApiKeyDraft}
+          onClearApiKey={() => void clearApiKey()}
           hasChanges={settingsDirty || apiKeyDirty}
+          hasGeminiApiKey={hasGeminiApiKey}
           onClose={() => void requestCloseSettings()}
           onSaveSettings={() => void saveSettingsDraft()}
           settingsDraft={settingsDraft}

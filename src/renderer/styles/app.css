@@ -1305,7 +1305,8 @@ select:disabled {
 
 .modal-warning .inline-action,
 .modal-warning .toolbar-button {
-  margin-left: 10px;
+  display: block;
+  margin-top: 6px;
 }
 
 .modal-error {

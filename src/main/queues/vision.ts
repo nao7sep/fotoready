@@ -24,6 +24,10 @@ export class VisionQueue {
     return this.#apiKeys.has("gemini");
   }
 
+  async clearGeminiApiKey(): Promise<void> {
+    await this.#apiKeys.delete("gemini");
+  }
+
   async runForTask(project: Project, taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);

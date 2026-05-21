@@ -1,14 +1,12 @@
 import type { AssetOverlayParams } from "@shared/asset-overlay";
-import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { applyAssetOverlay, validateAssetOverlayParams } from "./_asset-overlay";
+import { createAssetOverlayModule } from "./_asset-overlay";
 
-const watermarkImageModule: OpModule<AssetOverlayParams> = {
+registerOp(createAssetOverlayModule({
   type: "watermark-image",
   label: "Image watermark",
   pickerLabel: "Image",
   category: "Watermark",
-  previewBehavior: "show-output",
   defaultParams: {
     assetPath: "",
     x: 0.74,
@@ -16,13 +14,5 @@ const watermarkImageModule: OpModule<AssetOverlayParams> = {
     opacity: 0.7,
     width: 0.15,
     rotation: 0
-  },
-  validate(value) {
-    return validateAssetOverlayParams(value, "watermark-image.params");
-  },
-  async apply(image, params, ctx) {
-    return applyAssetOverlay(image, params, ctx);
-  }
-};
-
-registerOp(watermarkImageModule);
+  } satisfies AssetOverlayParams
+}));

@@ -8,6 +8,7 @@ import {
   updateAssetOverlay,
   type AssetOverlayParams
 } from "@shared/asset-overlay";
+import type { OpRenderer } from "./op-renderer";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
 import { formatPercent, fractionToPercentSteps, percentStepsToFraction, sliderLongEdge } from "./_slider-units";
@@ -20,7 +21,8 @@ export function AssetOverlayControls({
   onParamChange,
   onParamsChange,
   params,
-  sourceControl
+  sourceAction,
+  sourceField
 }: {
   aspectRatio: number;
   ctx: OpCardContext;
@@ -28,7 +30,8 @@ export function AssetOverlayControls({
   onParamChange<K extends keyof AssetOverlayParams>(key: K, value: AssetOverlayParams[K]): void;
   onParamsChange(patch: Partial<AssetOverlayParams>): void;
   params: AssetOverlayParams;
-  sourceControl: React.ReactNode;
+  sourceAction: React.ReactNode;
+  sourceField: React.ReactNode;
 }): React.JSX.Element {
   const longEdge = sliderLongEdge(ctx.originalSize);
   const imageBounds = ctx.originalSize
@@ -60,7 +63,8 @@ export function AssetOverlayControls({
 
   return (
     <div className="geometry-controls">
-      {sourceControl}
+      {sourceField}
+      {sourceAction}
       <label className="slider-row">
         <span>Width</span>
         <input
@@ -117,6 +121,36 @@ export function AssetOverlayControls({
       <div className="row-detail">Height follows the asset: {formatPercent(assetOverlayHeight(normalizedOverlay.width, aspectRatio))}</div>
     </div>
   );
+}
+
+export function createAssetOverlayRenderer(definition: {
+  type: string;
+  color: string;
+  renderSourceAction(props: AssetOverlayCardProps): React.ReactNode;
+  renderSourceField(props: AssetOverlayCardProps): React.ReactNode;
+}): OpRenderer<AssetOverlayParams> {
+  return {
+    type: definition.type,
+    Card(props) {
+      const aspectRatio = useLocalAssetAspectRatio(props.params.assetPath);
+      return (
+        <AssetOverlayControls
+          aspectRatio={aspectRatio}
+          ctx={props.ctx}
+          disabled={props.disabled}
+          params={props.params}
+          onParamChange={props.onParamChange}
+          onParamsChange={props.onParamsChange}
+          sourceAction={definition.renderSourceAction(props)}
+          sourceField={definition.renderSourceField(props)}
+        />
+      );
+    },
+    Overlay({ params, selected, ctx, onParamsChange }) {
+      const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
+      return <AssetOverlayRect aspectRatio={aspectRatio} color={definition.color} ctx={ctx} onParamsChange={onParamsChange} params={params} selected={selected} />;
+    }
+  };
 }
 
 export function AssetOverlayRect({
@@ -255,3 +289,5 @@ function fileUrl(assetPath: string): string {
   const absolute = normalized.startsWith("/") ? normalized : `/${normalized}`;
   return encodeURI(`file://${absolute}`).replaceAll("#", "%23");
 }
+
+type AssetOverlayCardProps = Parameters<NonNullable<OpRenderer<AssetOverlayParams>["Card"]>>[0];

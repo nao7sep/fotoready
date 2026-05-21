@@ -1,45 +1,30 @@
-import React from "react";
-import type { AssetOverlayParams } from "@shared/asset-overlay";
 import { api } from "@renderer/ipc/client";
-import type { OpRenderer } from "./op-renderer";
-import { AssetOverlayControls, AssetOverlayRect, normalizeAssetOverlayForPath, useLocalAssetAspectRatio } from "./_asset-overlay";
+import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
 
-export const watermarkImageRenderer: OpRenderer<AssetOverlayParams> = {
+export const watermarkImageRenderer = createAssetOverlayRenderer({
   type: "watermark-image",
-  Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
-    const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
+  color: "#60a5fa",
+  renderSourceField({ disabled, onParamChange, params }) {
     return (
-      <AssetOverlayControls
-        aspectRatio={aspectRatio}
-        ctx={ctx}
+      <input
+        className="compact-control"
         disabled={disabled}
-        params={params}
-        onParamChange={onParamChange}
-        onParamsChange={onParamsChange}
-        sourceControl={(
-          <div className="watermark-file-row">
-            <input
-              className="compact-control"
-              disabled={disabled}
-              placeholder="PNG or SVG file"
-              type="text"
-              value={params.assetPath}
-              onChange={(event) => onParamChange("assetPath", event.currentTarget.value)}
-            />
-            <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={async () => {
-              const picked = await api.system.pickFile({ title: "Choose watermark file", extensions: ["png", "svg"] });
-              if (!picked) return;
-              onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
-            }}>
-              Choose File...
-            </button>
-          </div>
-        )}
+        placeholder="PNG or SVG file"
+        type="text"
+        value={params.assetPath}
+        onChange={(event) => onParamChange("assetPath", event.currentTarget.value)}
       />
     );
   },
-  Overlay({ params, selected, ctx, onParamsChange }) {
-    const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
-    return <AssetOverlayRect aspectRatio={aspectRatio} color="#60a5fa" ctx={ctx} onParamsChange={onParamsChange} params={params} selected={selected} />;
+  renderSourceAction({ ctx, disabled, onParamsChange, params }) {
+    return (
+      <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={async () => {
+        const picked = await api.system.pickFile({ title: "Choose watermark file", extensions: ["png", "svg"] });
+        if (!picked) return;
+        onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
+      }}>
+        Choose File...
+      </button>
+    );
   }
-};
+});

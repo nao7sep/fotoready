@@ -1,8 +1,9 @@
 import type sharp from "sharp";
 import type { AssetOverlayParams } from "@shared/asset-overlay";
+import type { OpCategory } from "@shared/types/op";
 import { DEFAULT_ASSET_OVERLAY_ASPECT_RATIO } from "@shared/asset-overlay";
 import { applyTransformedOverlay, assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
-import type { OpApplyContext } from "./op-module";
+import type { OpApplyContext, OpModule } from "./op-module";
 
 type RenderedAssetBitmap = {
   channels: 4;
@@ -23,6 +24,25 @@ export function validateAssetOverlayParams(value: unknown, path: string): AssetO
     opacity: assertFiniteNumber(record.opacity, `${path}.opacity`, { min: 0, max: 1 }),
     width: assertFiniteNumber(record.width, `${path}.width`, { min: 0, max: 1, minExclusive: true }),
     rotation: assertFiniteNumber(record.rotation, `${path}.rotation`, { min: -180, max: 180 })
+  };
+}
+
+export function createAssetOverlayModule(definition: {
+  type: string;
+  label: string;
+  pickerLabel?: string;
+  category: OpCategory;
+  defaultParams: AssetOverlayParams;
+}): OpModule<AssetOverlayParams> {
+  return {
+    ...definition,
+    previewBehavior: "show-output",
+    validate(value) {
+      return validateAssetOverlayParams(value, `${definition.type}.params`);
+    },
+    async apply(image, params, ctx) {
+      return applyAssetOverlay(image, params, ctx);
+    }
   };
 }
 

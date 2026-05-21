@@ -1040,13 +1040,6 @@ select:disabled {
   padding: 0;
 }
 
-.watermark-file-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
 .watermark-style-row {
   display: flex;
   flex-wrap: wrap;

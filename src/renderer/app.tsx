@@ -931,15 +931,22 @@ function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): Reac
       {summary.renamed.length > 0 ? (
         <section>
           <strong>Renamed {summary.renamed.length} file{summary.renamed.length === 1 ? "" : "s"}</strong>
-          <ul className="rename-complete-list">
-            {summary.renamed.map((item, index) => (
-              <li key={`${item.from}\0${item.to}\0${index}`}>
-                <code>{item.from}</code>
-                <span aria-hidden="true">→</span>
-                <code>{item.to}</code>
-              </li>
-            ))}
-          </ul>
+          <table className="rename-complete-table">
+            <thead>
+              <tr>
+                <th scope="col">Before</th>
+                <th scope="col">After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.renamed.map((item, index) => (
+                <tr key={`${item.from}\0${item.to}\0${index}`}>
+                  <td><code>{item.from}</code></td>
+                  <td><code>{item.to}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       ) : (
         <p>No files needed renaming.</p>
@@ -947,9 +954,20 @@ function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): Reac
       {summary.skipped.length > 0 ? (
         <section>
           <strong>Skipped {summary.skipped.length} unchanged file name{summary.skipped.length === 1 ? "" : "s"}</strong>
-          <ul className="rename-complete-list">
-            {summary.skipped.map((name, index) => <li key={`${name}\0${index}`}><code>{name}</code></li>)}
-          </ul>
+          <table className="rename-complete-table compact">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.skipped.map((name, index) => (
+                <tr key={`${name}\0${index}`}>
+                  <td><code>{name}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       ) : null}
     </div>

@@ -96,7 +96,8 @@ export function RenameModal({
     try {
       await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      const message = caught instanceof Error ? caught.message : String(caught);
+      setError(`Couldn't rename files. ${message}`);
       setRunBusy(false);
     }
   }
@@ -282,7 +283,7 @@ function RenamePreviewRow({
               }}
             />
             <button
-              className="primary-action rename-preview-slug-action"
+              className="inline-action rename-preview-slug-action"
               disabled={rowDisabled}
               type="button"
               onMouseDown={() => {

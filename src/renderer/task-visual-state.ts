@@ -23,6 +23,6 @@ export function taskStateLabel(task: Task, queue: QueueSnapshot): string {
   if (task.visionRunning) return "Generating";
   if (queue.activeTaskId === task.id || task.status === "processing") return "Saving";
   if (task.status === "queued") return "Waiting to save";
-  if (task.output) return "Ready";
+  if (task.output) return task.customSlug ? "Saved, slug ready" : "Saved, missing slug";
   return "Not saved";
 }

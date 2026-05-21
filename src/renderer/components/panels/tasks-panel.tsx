@@ -42,7 +42,7 @@ export function TasksPanel({
             <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true">{statusIndicator(task)}</span>
             <span className="task-copy">
               <span className="row-title">{taskLabel(task, originals)}</span>
-              <span className="row-detail">{taskQueueDetail(task, queue)} · {task.pipeline.ops.length} ops</span>
+              <span className="row-detail">{task.pipeline.ops.length} ops · {taskQueueDetail(task, queue)}</span>
             </span>
           </button>
         ))}

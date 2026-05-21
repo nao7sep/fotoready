@@ -1155,21 +1155,31 @@ select:disabled {
   gap: 6px;
 }
 
-.rename-complete-list {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding-left: 18px;
+.rename-complete-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
 }
 
-.rename-complete-list li {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.rename-complete-table th,
+.rename-complete-table td {
+  padding: 5px 6px;
+  border: 1px solid var(--border-soft-color);
+  text-align: left;
+  vertical-align: top;
 }
 
-.rename-complete-list code {
+.rename-complete-table th {
+  color: var(--text-muted-color);
+  background: var(--surface-raised-bg);
+  font-weight: 650;
+}
+
+.rename-complete-table code {
   color: var(--text-strong-color);
   font-family: inherit;
+  overflow-wrap: anywhere;
 }
 
 .settings-tabs {

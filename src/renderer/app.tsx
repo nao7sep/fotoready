@@ -421,9 +421,10 @@ function App(): React.JSX.Element {
   async function deleteSavedOutput(task: Task): Promise<void> {
     if (!task.output) return;
     if (settings?.confirmDeleteOutputFiles) {
+      const deletePaths = savedOutputDeletePaths(task);
       const confirmed = await confirmer.confirm({
         title: "Delete saved files?",
-        message: task.output.finalPath ?? task.output.stagedPath,
+        message: deletePaths.join("\n"),
         confirmLabel: "Delete",
         danger: true
       });
@@ -498,18 +499,12 @@ function App(): React.JSX.Element {
     const task = activeTask;
     if (!task) return;
     await refreshProject(await api.task.setGenerateDescription(task.id, generateDescription));
-    if (generateDescription && task.output && hasGeminiApiKey) {
-      await runVisionForTask(task.id, { mode: "description" });
-    }
   }
 
   async function setGenerateSlug(generateSlug: boolean): Promise<void> {
     const task = activeTask;
     if (!task) return;
     await refreshProject(await api.task.setGenerateSlug(task.id, generateSlug));
-    if (generateSlug && task.output && hasGeminiApiKey) {
-      await runVisionForTask(task.id, { mode: "description-and-slug" });
-    }
   }
 
   async function setCustomSlug(customSlug: string | null): Promise<void> {
@@ -962,6 +957,14 @@ function hasWorkspaceWork(project: Project | undefined, queue: QueueSnapshot): b
 function hasFileDrag(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer) return false;
   return Array.from(dataTransfer.types).includes("Files");
+}
+
+function savedOutputDeletePaths(task: Task): string[] {
+  if (!task.output) return [];
+  return Array.from(new Set([
+    task.output.finalPath ?? task.output.stagedPath,
+    task.output.finalParamsPath ?? task.output.stagedParamsPath
+  ].filter((filePath): filePath is string => typeof filePath === "string" && filePath.length > 0)));
 }
 
 function stringifyLogArgs(args: unknown[]): string {

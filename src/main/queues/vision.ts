@@ -29,7 +29,12 @@ export class VisionQueue {
     await this.#apiKeys.delete("gemini");
   }
 
-  async runForTask(project: Project, taskId: string, options?: VisionRunOptions): Promise<void> {
+  async runForTask(
+    project: Project,
+    taskId: string,
+    options?: VisionRunOptions,
+    onProgress?: () => void | Promise<void>
+  ): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (!task.output) throw new Error("Task must be saved before vision can run.");
@@ -44,7 +49,6 @@ export class VisionQueue {
 
       const previousVision = task.output.vision;
       const previousSlugCandidates = previousVision?.slugCandidates ?? [];
-      const shouldReplaceSlug = includesSlugGeneration(mode) && (!task.customSlug || previousSlugCandidates.includes(task.customSlug));
       const provider = new GeminiVisionProvider(apiKey);
       let description = previousVision?.description ?? "";
       if (includesDescriptionGeneration(mode)) {
@@ -56,6 +60,17 @@ export class VisionQueue {
             descriptionPrompt: this.settings.visionDescriptionPrompt
           }
         );
+        if (includesSlugGeneration(mode)) {
+          task.output.vision = {
+            description,
+            slugCandidates: [],
+            model: this.settings.model,
+            ranAt: nowIso()
+          };
+          task.error = null;
+          task.updatedAt = nowIso();
+          await onProgress?.();
+        }
       } else if (!description.trim()) {
         throw new Error("Generate description first, then regenerate the slug.");
       }
@@ -71,7 +86,7 @@ export class VisionQueue {
         model: this.settings.model,
         ranAt: nowIso()
       };
-      if (shouldReplaceSlug && slugCandidates[0]) {
+      if (includesSlugGeneration(mode) && slugCandidates[0]) {
         task.customSlug = slugCandidates[0];
       }
       task.error = null;

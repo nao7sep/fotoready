@@ -295,14 +295,23 @@ function OutputControls({
   const jpegQualityMode = inferredAutoJpeg ? "auto" : "fixed";
   const fixedQuality = typeof storedQuality === "number" && !inferredAutoJpeg ? storedQuality : defaultFixedQuality;
   const qualityValue = resolvedFormat === "jpeg" && jpegQualityMode === "auto" ? assumedQuality ?? defaultFixedQuality : fixedQuality;
+  const hasSavedOutput = Boolean(task?.output);
   const vision = task?.output?.vision ?? null;
+  const description = vision?.description?.trim() ?? "";
   const generatedSlug = vision?.slugCandidates[0] ?? null;
-  const generationEnabled = Boolean(task?.generateDescription || task?.generateSlug);
+  const hasGeneratedDescription = description.length > 0;
+  const hasGeneratedSlug = Boolean(generatedSlug?.trim());
   const generationStatus = visionGenerationMode === "slug"
     ? "Generating slug..."
     : visionGenerationMode === "description-and-slug"
-      ? "Generating description and slug..."
+      ? hasGeneratedDescription && !hasGeneratedSlug
+        ? "Generating slug..."
+        : "Generating description and slug..."
       : "Generating description...";
+  const descriptionActionLabel = hasGeneratedDescription ? "Regenerate description" : "Generate description";
+  const combinedActionLabel = hasGeneratedDescription && hasGeneratedSlug ? "Regenerate description and slug" : "Generate description and slug";
+  const showSlugAction = hasGeneratedDescription;
+  const slugActionLabel = hasGeneratedSlug ? "Regenerate slug" : "Generate slug";
   return (
     <div className="output-controls">
       <label className="stacked-field">
@@ -370,47 +379,54 @@ function OutputControls({
           <span className="slider-value">{qualityValue}</span>
         </label>
       ) : null}
-      <label className="toggle-row">
-        <input
-          type="checkbox"
-          disabled={metadataDisabled || !task || Boolean(task?.generateSlug)}
-          checked={(task?.generateDescription ?? true) || Boolean(task?.generateSlug)}
-          onChange={(event) => onGenerateDescriptionChange(event.currentTarget.checked)}
-        />
-        Generate description
-      </label>
-      <label className="toggle-row">
-        <input type="checkbox" disabled={metadataDisabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
-        Generate slug
-      </label>
-      {generationEnabled && !task?.output?.vision && !hasGeminiApiKey ? (
+      {!hasSavedOutput ? (
+        <>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              disabled={metadataDisabled || !task || Boolean(task?.generateSlug)}
+              checked={(task?.generateDescription ?? true) || Boolean(task?.generateSlug)}
+              onChange={(event) => onGenerateDescriptionChange(event.currentTarget.checked)}
+            />
+            Generate description
+          </label>
+          <label className="toggle-row">
+            <input type="checkbox" disabled={metadataDisabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
+            Generate slug
+          </label>
+        </>
+      ) : null}
+      {hasSavedOutput && !hasGeminiApiKey ? (
         <div className="modal-warning">
           Gemini API key required for description and slug generation.
           <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
-      ) : generationEnabled && visionGenerating ? (
+      ) : null}
+      {hasSavedOutput && visionGenerating ? (
         <div className="modal-warning">{generationStatus}</div>
       ) : null}
-      {vision ? (
+      {hasSavedOutput ? (
         <div className="vision-description">
-          {vision.description ? (
-            <div className="vision-description-item">
-              <span>Description</span>
-              <p>{vision.description}</p>
-            </div>
-          ) : null}
-          {generatedSlug ? (
-            <div className="vision-description-item">
-              <span>Slug</span>
-              <p>{generatedSlug}</p>
-            </div>
-          ) : null}
-          <div className="vision-description-actions">
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>Regenerate description</button>
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description-and-slug")}>Regenerate description and slug</button>
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating || !vision.description.trim()} type="button" onClick={() => onGenerateVision("slug")}>Regenerate slug</button>
-            <button className="toolbar-button compact-text" disabled={metadataDisabled} type="button" onClick={onClearVision}>Clear</button>
+          <div className="vision-description-item">
+            <span>Description</span>
+            <p>{hasGeneratedDescription ? description : "Not generated"}</p>
           </div>
+          <div className="vision-description-item">
+            <span>Slug</span>
+            <p>{hasGeneratedSlug ? generatedSlug : "Not generated"}</p>
+          </div>
+          <div className="vision-description-actions">
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>{descriptionActionLabel}</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description-and-slug")}>{combinedActionLabel}</button>
+            {showSlugAction ? (
+              <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("slug")}>{slugActionLabel}</button>
+            ) : null}
+          </div>
+          {vision ? (
+            <div className="vision-description-secondary-actions">
+              <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={onClearVision}>Clear</button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       <label className="stacked-field">

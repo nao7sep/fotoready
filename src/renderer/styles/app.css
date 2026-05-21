@@ -1394,6 +1394,11 @@ select:disabled {
   gap: 6px;
 }
 
+.vision-description-secondary-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .vision-description span {
   color: var(--accent-soft-text);
   font-size: 11px;

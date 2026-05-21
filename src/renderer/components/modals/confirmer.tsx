@@ -70,7 +70,7 @@ export function ConfirmerProvider({ children }: { children: React.ReactNode }): 
       {confirmState ? (
         <ModalShell
           title={confirmState.request.title}
-          size="small"
+          size="default"
           onClose={() => closeConfirm(false)}
           footer={
             <>
@@ -94,7 +94,7 @@ export function ConfirmerProvider({ children }: { children: React.ReactNode }): 
       {alertState ? (
         <ModalShell
           title={alertState.request.title}
-          size="small"
+          size="default"
           onClose={closeAlert}
           footer={
             <button className="primary-action" type="button" autoFocus onClick={closeAlert}>OK</button>

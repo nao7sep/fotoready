@@ -423,7 +423,7 @@ export class ProjectSession {
     const task = this.metadataTask(taskId);
     if (task.status === "pending") this.recordTaskEdit(task);
     task.generateDescription = generateDescription || task.generateSlug;
-    touchTask(task);
+    touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
@@ -433,7 +433,7 @@ export class ProjectSession {
     if (task.status === "pending") this.recordTaskEdit(task);
     task.generateSlug = generateSlug;
     task.generateDescription = generateSlug ? true : task.generateDescription;
-    touchTask(task);
+    touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
@@ -442,7 +442,7 @@ export class ProjectSession {
     const task = this.metadataTask(taskId);
     if (task.status === "pending") this.recordTaskEdit(task);
     task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
-    touchTask(task);
+    touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
@@ -490,7 +490,12 @@ export class ProjectSession {
   }
 
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
-    await this.visionQueue.runForTask(this.#project, taskId, options);
+    await this.visionQueue.runForTask(this.#project, taskId, options, async () => {
+      const task = this.#project.tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      await this.writeOutputSidecarIfSaved(task);
+      await this.emitSnapshot();
+    });
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (task) await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
@@ -505,7 +510,7 @@ export class ProjectSession {
     }
     if (task.output) task.output.vision = null;
     if (task.error?.stage === "vision") task.error = null;
-    touchTask(task);
+    touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
@@ -739,6 +744,12 @@ function touchTask(task: Task): void {
   task.everEdited = true;
   task.updatedAt = nowIso();
   task.output = null;
+  task.error = null;
+}
+
+function touchTaskMetadata(task: Task): void {
+  task.everEdited = true;
+  task.updatedAt = nowIso();
   task.error = null;
 }
 

@@ -71,6 +71,7 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
 }
 
 function statusIndicator(task: Task): string {
+  if (task.error) return "x";
   if (task.visionRunning) return "◐";
   if (task.status === "processing") return "◐";
   if (task.status === "queued") return "◔";

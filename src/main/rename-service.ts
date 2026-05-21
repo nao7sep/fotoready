@@ -61,6 +61,9 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
 
     if (!issue) {
       try {
+        if (!(await pathExists(currentPath))) {
+          throw new Error("Saved output file is missing");
+        }
         const metadata = await sharp(currentPath).metadata();
         const ext = outputExtension(currentPath);
         proposedName = renderRenameTemplate(template, {
@@ -149,7 +152,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
 export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[]): Promise<void> {
   const preview = await previewRename(project, templateId, taskIds);
   if (preview.blockedCount > 0) {
-    throw new Error(`${preview.blockedCount} task(s) cannot be renamed yet.`);
+    throw new Error(blockedRenameMessage(preview));
   }
 
   for (const item of preview.items) {
@@ -200,6 +203,18 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
     task.output.stagedParamsPath = proposedParamsPath;
     task.output.finalParamsPath = proposedParamsPath;
   }
+}
+
+function blockedRenameMessage(preview: RenamePreview): string {
+  const blocked = preview.items.filter((item) => item.status === "blocked");
+  const details = blocked.map((item) => {
+    const label = item.currentName ?? item.originalName;
+    return `- ${label}: ${item.issue ?? "Needs attention"}`;
+  });
+  return [
+    `${blocked.length} task${blocked.length === 1 ? "" : "s"} cannot be renamed yet.`,
+    ...details
+  ].join("\n");
 }
 
 function resolvedRenameSlug(task: Task & { output: NonNullable<Task["output"]> }): string | null {

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
-import { renameItemVisualState } from "@renderer/task-visual-state";
+import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
 import { ModalShell } from "./modal-shell";
 
 export type RenameRunSummary = {
@@ -96,10 +96,15 @@ export function RenameModal({
     try {
       await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : String(caught);
+      const message = renameErrorMessage(caught);
       setError(`Couldn't rename files. ${message}`);
       setRunBusy(false);
     }
+  }
+
+  function renameErrorMessage(caught: unknown): string {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    return message.replace(/^Error invoking remote method 'rename\.run': Error: /, "");
   }
 
   return (
@@ -213,24 +218,12 @@ function RenamePreviewRow({
   const draftDirty = showSlugEditor && draftSlug !== initialSlug;
   const draftEmpty = showSlugEditor && draftSlug.length === 0;
   const previewVisualState = renameItemVisualState(task, item);
-  const visualState = draftEmpty
-    ? "error"
-    : draftDirty
-      ? "not-saved"
-      : previewVisualState;
+  const visualState = draftEmpty ? missingSlugVisualState(task) : previewVisualState;
   const stateText = draftEmpty
-    ? "Missing slug"
+    ? missingSlugLabel(visualState)
     : draftDirty
       ? "Editing slug"
-      : item.status === "blocked"
-        ? item.issue ?? "Needs attention"
-        : previewVisualState === "generating"
-          ? "Generating"
-          : item.status === "not-saved"
-            ? "Not saved"
-            : item.status === "unchanged"
-              ? "Renamed"
-              : "Ready to rename";
+      : renameItemStateLabel(previewVisualState, item);
   const rowDisabled = disabled || actionBusy || Boolean(task?.visionRunning);
 
   useEffect(() => {

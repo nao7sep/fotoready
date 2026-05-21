@@ -11,7 +11,7 @@ import { formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { pipelineForPreview } from "@shared/preview-pipeline";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
-import { RenameModal } from "./components/modals/rename-modal";
+import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
 import { AppSettingsModal } from "./components/modals/settings-modal";
 import { ModalShell } from "./components/modals/modal-shell";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
@@ -815,14 +815,12 @@ function App(): React.JSX.Element {
             const mode: VisionRunMode = task.output.vision?.description?.trim() ? "slug" : "description-and-slug";
             await runVisionForTask(taskId, { mode });
           }}
-          onRun={async (templateId, renamedCount) => {
+          onRun={async (templateId, summary) => {
             await refreshProject(await api.rename.run(templateId));
             setRenameOpen(false);
             await confirmer.alert({
               title: "Rename complete",
-              message: renamedCount === 0
-                ? "No files needed renaming."
-                : `Renamed ${renamedCount} file${renamedCount === 1 ? "" : "s"}.`
+              message: <RenameCompleteMessage summary={summary} />
             });
           }}
           onSetRenameSlug={async (taskId, customSlug) => {
@@ -925,6 +923,37 @@ function summarizeQueue(queue: QueueSnapshot): string {
   if (queue.errors > 0) parts.push(`${queue.errors} failed`);
   if (queue.activeTaskLabel && queue.processing > 0) parts.push(queue.activeTaskLabel);
   return parts.join(" · ");
+}
+
+function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): React.JSX.Element {
+  return (
+    <div className="rename-complete-summary">
+      {summary.renamed.length > 0 ? (
+        <section>
+          <strong>Renamed {summary.renamed.length} file{summary.renamed.length === 1 ? "" : "s"}</strong>
+          <ul className="rename-complete-list">
+            {summary.renamed.map((item, index) => (
+              <li key={`${item.from}\0${item.to}\0${index}`}>
+                <code>{item.from}</code>
+                <span aria-hidden="true">→</span>
+                <code>{item.to}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p>No files needed renaming.</p>
+      )}
+      {summary.skipped.length > 0 ? (
+        <section>
+          <strong>Skipped {summary.skipped.length} unchanged file name{summary.skipped.length === 1 ? "" : "s"}</strong>
+          <ul className="rename-complete-list">
+            {summary.skipped.map((name, index) => <li key={`${name}\0${index}`}><code>{name}</code></li>)}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
 function basename(sourcePath: string): string {

@@ -88,7 +88,7 @@ export function ConfirmerProvider({ children }: { children: React.ReactNode }): 
             </>
           }
         >
-          <p className="modal-message">{confirmState.request.message}</p>
+          <div className="modal-message">{confirmState.request.message}</div>
         </ModalShell>
       ) : null}
       {alertState ? (
@@ -100,7 +100,7 @@ export function ConfirmerProvider({ children }: { children: React.ReactNode }): 
             <button className="primary-action" type="button" autoFocus onClick={closeAlert}>OK</button>
           }
         >
-          <p className="modal-message">{alertState.request.message}</p>
+          <div className="modal-message">{alertState.request.message}</div>
         </ModalShell>
       ) : null}
     </Context.Provider>

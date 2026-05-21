@@ -5,6 +5,11 @@ import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplate
 import { renameItemVisualState } from "@renderer/task-visual-state";
 import { ModalShell } from "./modal-shell";
 
+export type RenameRunSummary = {
+  renamed: Array<{ from: string; to: string }>;
+  skipped: string[];
+};
+
 export function RenameModal({
   projectSnapshot,
   outputDirLabel,
@@ -24,7 +29,7 @@ export function RenameModal({
   onClose(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: RenameTemplateId, renamedCount: number): Promise<void>;
+  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<void>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void>;
 }): React.JSX.Element {
@@ -89,7 +94,7 @@ export function RenameModal({
     setRunBusy(true);
     setError(null);
     try {
-      await onRun(templateId, preview?.renameableCount ?? 0);
+      await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
       setRunBusy(false);
@@ -223,8 +228,8 @@ function RenamePreviewRow({
           : item.status === "not-saved"
             ? "Not saved"
             : item.status === "unchanged"
-              ? "No change"
-              : "Ready";
+              ? "Renamed"
+              : "Ready to rename";
   const rowDisabled = disabled || actionBusy || Boolean(task?.visionRunning);
 
   useEffect(() => {
@@ -277,7 +282,7 @@ function RenamePreviewRow({
               }}
             />
             <button
-              className="inline-action"
+              className="primary-action rename-preview-slug-action"
               disabled={rowDisabled}
               type="button"
               onMouseDown={() => {
@@ -292,4 +297,19 @@ function RenamePreviewRow({
       </div>
     </div>
   );
+}
+
+function renameRunSummary(preview: RenamePreview): RenameRunSummary {
+  return {
+    renamed: preview.items
+      .flatMap((item) => item.status === "ready" && item.currentName && item.proposedName
+        ? [{ from: item.currentName, to: item.proposedName }]
+        : []),
+    skipped: preview.items
+      .flatMap((item) => {
+        if (item.status !== "unchanged") return [];
+        const name = item.proposedName ?? item.currentName;
+        return name ? [name] : [];
+      })
+  };
 }

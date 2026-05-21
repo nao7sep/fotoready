@@ -1140,6 +1140,38 @@ select:disabled {
   line-height: 1.5;
 }
 
+.rename-complete-summary {
+  display: grid;
+  gap: 12px;
+  white-space: normal;
+}
+
+.rename-complete-summary p {
+  margin: 0;
+}
+
+.rename-complete-summary section {
+  display: grid;
+  gap: 6px;
+}
+
+.rename-complete-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.rename-complete-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rename-complete-list code {
+  color: var(--text-strong-color);
+  font-family: inherit;
+}
+
 .settings-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1381,6 +1413,11 @@ select:disabled {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 8px;
+}
+
+.rename-preview-slug-action {
+  justify-self: start;
+  width: fit-content;
 }
 
 .rename-preview-slug-input {

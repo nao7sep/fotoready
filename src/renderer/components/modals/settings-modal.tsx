@@ -344,7 +344,7 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.preserveSourceDates} onChange={(event) => setSettings({ ...settings, preserveSourceDates: event.currentTarget.checked })} />
-            Preserve original capture and creation timestamps when possible
+            Preserve source capture and creation timestamps unless Strip metadata is added
           </label>
         </div>
       </section>

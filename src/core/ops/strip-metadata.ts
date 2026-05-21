@@ -1,7 +1,7 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { assertArray, assertOneOf, assertParamsShape } from "./_shared";
-import { METADATA_FIELDS, type MetadataStripMode } from "@shared/types/settings";
+import { METADATA_KEEP_GROUPS, type MetadataStripMode } from "@shared/types/settings";
 
 type StripMetadataParams = {
   keep: MetadataStripMode;
@@ -14,12 +14,14 @@ const stripMetadataModule: OpModule<StripMetadataParams> = {
   category: "Metadata",
   previewBehavior: "show-output",
   metadataOnly: true,
-  defaultParams: { keep: [...METADATA_FIELDS] },
+  defaultParams: { keep: [] },
   validate(value) {
     const record = assertParamsShape(value, ["keep"], "strip-metadata.params");
-    const fields = assertArray(record.keep, "strip-metadata.params.keep").map((field, index) =>
-      assertOneOf(field, `strip-metadata.params.keep[${index}]`, METADATA_FIELDS)
-    );
+    const fields: MetadataStripMode = assertArray(record.keep, "strip-metadata.params.keep").flatMap((field, index) => {
+      if (field === "author" || field === "copyright") return ["editorial"];
+      if (field === "orientation" || field === "colorspace") return [];
+      return [assertOneOf(field, `strip-metadata.params.keep[${index}]`, METADATA_KEEP_GROUPS)];
+    }) as MetadataStripMode;
     return { keep: [...new Set(fields)] };
   },
   contributeMetadata(params, decision) {

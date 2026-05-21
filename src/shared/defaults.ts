@@ -64,7 +64,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     defaultWebpQuality: 82,
     defaultAvifQuality: 60,
     defaultPngPalette: false,
-    defaultMetadataStrip: ["author", "copyright", "orientation", "colorspace"],
+    defaultMetadataStrip: [],
     defaultGenerateDescription: true,
     defaultGenerateSlug: true,
     enableJpegQualityEstimate: true,

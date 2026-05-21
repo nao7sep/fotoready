@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
 import { clamp } from "@shared/numeric";
-import type { GlobalSettings } from "@shared/types/settings";
+import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
@@ -24,6 +24,7 @@ import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOutputFormat } from "@shared/output-format";
 import { DEFAULT_ASSET_OVERLAY_WIDTH, clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
+import { readSourceMetadataSummary } from "@adapters/exiftool";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -337,6 +338,9 @@ export class ProjectSession {
     if (opType === "watermark-text" && typeof params.fontFamily === "string" && this.settings.defaultWatermarkTextFontFamily.trim()) {
       params.fontFamily = this.settings.defaultWatermarkTextFontFamily.trim();
     }
+    if (opType === "inject-metadata" && params.fields && typeof params.fields === "object") {
+      params.fields = metadataFieldsWithValues(this.settings.injectFields);
+    }
     const original = this.#project.originals.find((item) => item.id === task.originalId) ?? null;
     if (original) {
       await initializeOpParamsForOriginal(opType, params, original);
@@ -527,6 +531,7 @@ async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: bool
   const bytes = await fs.readFile(sourcePath);
   const { format, metadata } = await inspectSourceImage(bytes);
   const jpegQualityEstimate = enableJpegQualityEstimate && format === "jpeg" ? detectJpegQuality(bytes).jpegQualityEstimate?.value ?? null : null;
+  const metadataSummary = await readSourceMetadataSummary(sourcePath);
 
   return {
     id: nanoid(),
@@ -535,6 +540,7 @@ async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: bool
     size: bytes.byteLength,
     format,
     jpegQualityEstimate,
+    metadataSummary,
     width: metadata.width ?? 0,
     height: metadata.height ?? 0,
     addedAt: nowIso()
@@ -692,4 +698,13 @@ function touchTask(task: Task): void {
   task.updatedAt = nowIso();
   task.output = null;
   task.error = null;
+}
+
+function metadataFieldsWithValues(fields: MetadataFields): MetadataFields {
+  const next: MetadataFields = {};
+  for (const key of EDITABLE_METADATA_FIELDS) {
+    const value = fields[key]?.trim();
+    if (value) next[key] = value;
+  }
+  return next;
 }

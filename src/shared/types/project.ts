@@ -1,4 +1,11 @@
 import type { Pipeline } from "./pipeline";
+import type { MetadataFields } from "./settings";
+
+export type SourceMetadataSummary = {
+  editorial: MetadataFields;
+  dates: Record<string, string>;
+  gps: Record<string, string>;
+};
 
 export type Original = {
   id: string;
@@ -7,6 +14,7 @@ export type Original = {
   size: number;
   format: string;
   jpegQualityEstimate: number | null;
+  metadataSummary: SourceMetadataSummary;
   width: number;
   height: number;
   addedAt: string;

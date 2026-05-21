@@ -1,8 +1,8 @@
 import type { OutputFormat } from "./pipeline";
 
-export const METADATA_FIELDS = ["author", "copyright", "orientation", "colorspace"] as const;
-export type MetadataField = (typeof METADATA_FIELDS)[number];
-export type MetadataStripMode = MetadataField[];
+export const METADATA_KEEP_GROUPS = ["editorial", "dates", "gps"] as const;
+export type MetadataKeepGroup = (typeof METADATA_KEEP_GROUPS)[number];
+export type MetadataStripMode = MetadataKeepGroup[];
 
 export type FilenameTemplate = {
   id: string;

@@ -8,7 +8,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 - Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
 - Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
 - Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
-- Queue/error UX with active-task reporting, source reveal, retry/dismiss actions, renderer log forwarding, and a small Vitest foundation covering template rendering, template validation, rename validation, and crop helper behavior.
+- Queue/error UX with active-task reporting, source reveal, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
 
 ## Current limitations
 
@@ -58,6 +58,15 @@ Live previews use a staged cache. For each task, FotoReady keeps a preview-sized
 Most cards preview the image after their current parameters are applied. Cards that edit an overlay against their input image, such as crop, can display the image before that op while still producing their after-op cached stage when a later card needs it. Preview image display fitting is separate from rendering: the resize card uses shrink-only fitting so small resized outputs are shown at actual preview size, while other cards fit the rendered preview into the available canvas area.
 
 Asset-backed pickers rescan their directories when opened. LUT lists reflect the current LUT folder, and stamp lists reflect `~/.fotoready/stamps/` without requiring an app restart.
+
+## Metadata model
+
+FotoReady re-encodes saved images and starts the metadata stage by removing embedded metadata from the output. It then writes back only the configured metadata:
+
+- Settings can preserve source capture/creation timestamps when no Strip metadata card is present.
+- A Strip metadata card overrides the source-retention setting for that task. Its keep groups are explicit: Editorial keeps the supported descriptive/rights/contact fields, Time keeps capture/create/modify date tags, and GPS keeps the supported GPS coordinate/direction/date tags.
+- Inject metadata writes the nine editable fields from Settings or from the card: source, description, author, contact email, contact URL, credit, copyright, rights URL, and usage terms. These fields support Unicode text; XMP is written as UTF-8, and legacy IPTC mirrors are marked UTF-8 when present.
+- Orientation, ICC/color profiles, thumbnails, camera/device data, maker notes, software history, and other metadata are not preserved by the Strip metadata card unless another save path explicitly writes them.
 
 ## Box overlays
 

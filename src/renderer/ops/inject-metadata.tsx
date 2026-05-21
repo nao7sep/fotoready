@@ -12,13 +12,12 @@ export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
       <div className="geometry-controls">
         <div className="field-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
-            <label className="stacked-field" key={field}>
+            <label className="stacked-field span-two" key={field}>
               {fieldLabel(field)}
-              <input
+              <MetadataFieldTextArea
                 disabled={disabled}
-                type={field === "contactEmail" ? "email" : field === "contactUrl" || field === "webStatement" ? "url" : "text"}
                 value={fields[field] ?? ""}
-                onChange={(e) => onParamChange("fields", updateMetadataField(fields, field, e.currentTarget.value))}
+                onChange={(value) => onParamChange("fields", updateMetadataField(fields, field, value))}
               />
             </label>
           ))}
@@ -36,6 +35,35 @@ function updateMetadataField(fields: MetadataFields, field: keyof MetadataFields
     next[field] = value;
   }
   return next;
+}
+
+function MetadataFieldTextArea({
+  disabled,
+  value,
+  onChange
+}: {
+  disabled: boolean;
+  value: string;
+  onChange(value: string): void;
+}): React.JSX.Element {
+  const ref = React.useRef<HTMLTextAreaElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    node.style.height = "0px";
+    node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      disabled={disabled}
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(event) => onChange(event.currentTarget.value)}
+    />
+  );
 }
 
 function fieldLabel(field: keyof MetadataFields): string {

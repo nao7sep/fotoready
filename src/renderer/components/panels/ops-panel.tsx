@@ -86,6 +86,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   onReloadLuts={props.onReloadLuts}
                   onReloadStamps={props.onReloadStamps}
                   onSelect={() => props.onSelectOp(op.id)}
+                  originalMetadataSummary={props.activeOriginal?.metadataSummary ?? null}
                   originalSize={props.originalSize}
                   selected={selectedOpId === op.id}
                   stamps={props.stamps}
@@ -159,6 +160,7 @@ function PipelineOpCard({
   onReloadLuts,
   onReloadStamps,
   onSelect,
+  originalMetadataSummary,
   originalSize,
   selected,
   stamps
@@ -178,6 +180,7 @@ function PipelineOpCard({
   onReloadLuts(): Promise<void>;
   onReloadStamps(): Promise<void>;
   onSelect(): void;
+  originalMetadataSummary: Original["metadataSummary"] | null;
   originalSize: { width: number; height: number } | null;
   selected: boolean;
   stamps: StampEntry[];
@@ -223,7 +226,7 @@ function PipelineOpCard({
         <Card
           params={op.params}
           disabled={disabled}
-          ctx={{ luts, stamps, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
+          ctx={{ luts, stamps, originalMetadataSummary, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
           onParamChange={(key, value) => onParamChange(String(key), value)}
           onParamsChange={(patch) => onParamsChange(patch as Record<string, unknown>)}
         />

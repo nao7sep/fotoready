@@ -582,6 +582,36 @@ select:disabled {
   line-height: 1.4;
 }
 
+.metadata-keep-section {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle-color);
+}
+
+.metadata-summary-list {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metadata-summary-row {
+  display: grid;
+  grid-template-columns: minmax(7ch, auto) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--text-muted-color);
+  font-size: 11px;
+}
+
+.metadata-summary-row strong {
+  min-width: 0;
+  color: var(--text-strong-color);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .geometry-range-field {
   min-width: 0;
 }

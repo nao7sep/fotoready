@@ -1,6 +1,6 @@
 import { DEFAULT_FILENAME_TEMPLATE_ID, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
 import { builtinFilenameTemplates } from "../defaults";
-import { EDITABLE_METADATA_FIELDS, METADATA_FIELDS, type FilenameTemplate, type GlobalSettings, type MetadataField, type MetadataFields } from "../types/settings";
+import { EDITABLE_METADATA_FIELDS, METADATA_KEEP_GROUPS, type FilenameTemplate, type GlobalSettings, type MetadataKeepGroup, type MetadataFields } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
@@ -101,9 +101,19 @@ function cloneValue<T>(value: T): T {
   return value;
 }
 
-function validateMetadataStrip(value: unknown, path: string): MetadataField[] {
-  const fields = assertArray(value, path).map((item, index) => assertOneOf(item, `${path}[${index}]`, METADATA_FIELDS));
+function validateMetadataStrip(value: unknown, path: string): MetadataKeepGroup[] {
+  const fields = assertArray(value, path).flatMap((item, index) => {
+    const migrated = migrateLegacyMetadataKeepGroup(item);
+    if (migrated) return [migrated];
+    if (item === "orientation" || item === "colorspace") return [];
+    return [assertOneOf(item, `${path}[${index}]`, METADATA_KEEP_GROUPS)];
+  });
   return [...new Set(fields)];
+}
+
+function migrateLegacyMetadataKeepGroup(value: unknown): MetadataKeepGroup | null {
+  if (value === "author" || value === "copyright") return "editorial";
+  return null;
 }
 
 function validateMetadataFields(value: unknown, path: string): MetadataFields {

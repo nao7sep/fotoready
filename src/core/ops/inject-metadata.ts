@@ -21,7 +21,7 @@ const injectMetadataModule: OpModule<InjectMetadataParams> = {
     const fields: MetadataFields = {};
     for (const key of EDITABLE_METADATA_FIELDS) {
       if (fieldsRecord[key] === undefined) continue;
-      const value = assertString(fieldsRecord[key], `inject-metadata.params.fields.${key}`).trim();
+      const value = assertString(fieldsRecord[key], `inject-metadata.params.fields.${key}`);
       if (value) fields[key] = value;
     }
     return {

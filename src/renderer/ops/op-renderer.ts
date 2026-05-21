@@ -1,5 +1,6 @@
 import type React from "react";
 import type { LutEntry, StampEntry } from "@shared/types/ipc";
+import type { SourceMetadataSummary } from "@shared/types/project";
 
 export type OverlayPlacement = {
   x: number;
@@ -22,6 +23,7 @@ export type OverlayContext = {
 export type OpCardContext = {
   luts: LutEntry[];
   stamps: StampEntry[];
+  originalMetadataSummary: SourceMetadataSummary | null;
   originalSize: { width: number; height: number } | null;
   reloadLuts?: () => Promise<void>;
   reloadStamps?: () => Promise<void>;

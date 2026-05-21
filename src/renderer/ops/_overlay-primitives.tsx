@@ -1,5 +1,6 @@
 import React from "react";
 import { Rect } from "react-konva";
+import { clampFractionBox, type FractionBox } from "@shared/box-geometry";
 import { clamp } from "@shared/numeric";
 import type { OverlayContext, OverlayPlacement } from "./op-renderer";
 
@@ -21,8 +22,7 @@ export function fitImage(imageWidth: number, imageHeight: number, frameWidth: nu
   };
 }
 
-export type FractionRect = { x: number; y: number; w: number; h: number };
-type RotatableFractionRect = FractionRect & { rotation?: number };
+export type FractionRect = FractionBox;
 
 /** A solid dashed-outline rect drawn in image space and projected onto the stage. Used by every overlay that draws a region (crop preview, conceal rect, etc.). */
 export function OverlayRect({
@@ -77,33 +77,8 @@ export function CropDarkenMask({
 }
 
 /** Clamp a fractional rect to the image bounds; used by crop + conceal overlays. */
-export function clampFractionRect(rect: RotatableFractionRect, imageBounds: { maxX: number; maxY: number }, minSize: number = 0.01): FractionRect {
-  const maxX = clamp(imageBounds.maxX, minSize, 1);
-  const maxY = clamp(imageBounds.maxY, minSize, 1);
-  let w = clamp(rect.w, minSize, maxX);
-  let h = clamp(rect.h, minSize, maxY);
-  let next = {
-    x: clamp(rect.x, 0, Math.max(0, maxX - w)),
-    y: clamp(rect.y, 0, Math.max(0, maxY - h)),
-    w,
-    h
-  };
-  const rotation = rect.rotation ?? 0;
-  let bounds = rotatedBounds(next, rotation);
-  const scale = Math.min(
-    1,
-    bounds.width > 0 ? maxX / bounds.width : 1,
-    bounds.height > 0 ? maxY / bounds.height : 1
-  );
-  if (scale < 1) {
-    w = Math.max(minSize, w * scale);
-    h = Math.max(minSize, h * scale);
-    next = { ...next, w, h };
-    bounds = rotatedBounds(next, rotation);
-  }
-  const deltaX = bounds.x < 0 ? -bounds.x : bounds.x + bounds.width > maxX ? maxX - (bounds.x + bounds.width) : 0;
-  const deltaY = bounds.y < 0 ? -bounds.y : bounds.y + bounds.height > maxY ? maxY - (bounds.y + bounds.height) : 0;
-  return { ...next, x: next.x + deltaX, y: next.y + deltaY };
+export function clampFractionRect(rect: FractionRect, imageBounds: { maxX: number; maxY: number }, minSize: number = 0.01): FractionRect {
+  return clampFractionBox(rect, imageBounds, minSize);
 }
 
 export type UpdateFractionRectOptions = {
@@ -135,8 +110,8 @@ export type UpdateFractionRectOptions = {
  *   the clamp respects both axes so the ratio always holds.
  */
 export function updateFractionRect(
-  rect: RotatableFractionRect,
-  updates: Partial<RotatableFractionRect>,
+  rect: FractionRect,
+  updates: Partial<FractionRect>,
   imageBounds: { maxX: number; maxY: number },
   options: UpdateFractionRectOptions = {}
 ): FractionRect {
@@ -193,22 +168,6 @@ export function imageBoundsFromSize(imageSize: { width: number; height: number }
 /** Same as imageBoundsFromSize but tolerates a null originalSize and falls back to a 1:1 square. */
 export function imageBoundsFromOriginalSize(originalSize: { width: number; height: number } | null): { maxX: number; maxY: number } {
   return originalSize ? imageBoundsFromSize(originalSize) : { maxX: 1, maxY: 1 };
-}
-
-function rotatedBounds(rect: FractionRect, rotation: number): { x: number; y: number; width: number; height: number } {
-  const radians = rotation * (Math.PI / 180);
-  const halfWidth = rect.w / 2;
-  const halfHeight = rect.h / 2;
-  const extentX = Math.abs(halfWidth * Math.cos(radians)) + Math.abs(halfHeight * Math.sin(radians));
-  const extentY = Math.abs(halfWidth * Math.sin(radians)) + Math.abs(halfHeight * Math.cos(radians));
-  const centerX = rect.x + rect.w / 2;
-  const centerY = rect.y + rect.h / 2;
-  return {
-    x: centerX - extentX,
-    y: centerY - extentY,
-    width: extentX * 2,
-    height: extentY * 2
-  };
 }
 
 /** Decode a `params.rects` blob into a list of FractionRects. Used by every conceal op. */

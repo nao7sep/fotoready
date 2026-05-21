@@ -14,8 +14,8 @@ export type ConcealRegion = {
 export const DEFAULT_CONCEAL_REGION: ConcealRegion = {
   x: 0.1,
   y: 0.1,
-  w: 0.25,
-  h: 0.25,
+  w: 0.18,
+  h: 0.18,
   rotation: 0,
   shape: "rectangle"
 };

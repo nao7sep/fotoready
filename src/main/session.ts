@@ -23,8 +23,10 @@ import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOutputFormat } from "@shared/output-format";
 import { DEFAULT_ASSET_OVERLAY_WIDTH, clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
+import type { BoxBounds } from "@shared/box-geometry";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
+import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -345,6 +347,7 @@ export class ProjectSession {
     if (original) {
       await initializeOpParamsForOriginal(opType, params, original);
     }
+    placeNewBoxOverlay(opType, params, original ? imageBoundsForOriginal(original) : { maxX: 1, maxY: 1 });
     task.pipeline.ops.push({
       id: nanoid(),
       type: definition.type,
@@ -630,8 +633,7 @@ function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fal
 }
 
 async function initializeOpParamsForOriginal(opType: string, params: Record<string, unknown>, original: Original): Promise<void> {
-  const longEdge = Math.max(original.width, original.height, 1);
-  const imageBounds = { maxX: original.width / longEdge, maxY: original.height / longEdge };
+  const imageBounds = imageBoundsForOriginal(original);
   if (opType === "watermark-text") {
     if (
       typeof params.x !== "number"
@@ -666,6 +668,11 @@ async function initializeOpParamsForOriginal(opType: string, params: Record<stri
   const width = DEFAULT_ASSET_OVERLAY_WIDTH;
   const height = width / Math.max(0.01, ar);
   Object.assign(params, clampAssetOverlay({ ...(params as unknown as AssetOverlayParams), width, height }, imageBounds));
+}
+
+function imageBoundsForOriginal(original: Original): BoxBounds {
+  const longEdge = Math.max(original.width, original.height, 1);
+  return { maxX: original.width / longEdge, maxY: original.height / longEdge };
 }
 
 function nextTaskOutput(

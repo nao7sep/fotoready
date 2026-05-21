@@ -355,18 +355,10 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field metadata-field span-two" key={field}>
               {fieldLabel(field)}
-              {field === "usageTerms" || field === "description" ? (
-                <AutoTextarea
-                  value={settings.injectFields[field] ?? ""}
-                  onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
-                />
-              ) : (
-                <input
-                  type={field === "contactEmail" ? "email" : field === "contactUrl" || field === "webStatement" ? "url" : "text"}
-                  value={settings.injectFields[field] ?? ""}
-                  onChange={(event) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: event.currentTarget.value } })}
-                />
-              )}
+              <AutoTextarea
+                value={settings.injectFields[field] ?? ""}
+                onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
+              />
               <span className="field-help">{metadataFieldHelp[field]}</span>
             </label>
           ))}

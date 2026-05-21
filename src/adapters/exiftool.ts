@@ -172,11 +172,21 @@ function firstString(tags: Record<string, unknown>, keys: string[]): string | un
   return undefined;
 }
 
+function cleanTagString(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  // Exiftool appends "(rawValue)" to human-readable descriptions via its PrintConv
+  // DEFAULT fallback (e.g. "Unknown ($val)", "Reserved ($val)"). When the raw value
+  // is empty the parentheses contain nothing and add no information — strip them.
+  const cleaned = trimmed.replace(/\s*\(\s*\)$/, "").trim();
+  return cleaned || undefined;
+}
+
 function tagText(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (value instanceof Date) return exifDate(value);
-  if (typeof value === "object" && "rawValue" in value && typeof value.rawValue === "string") return value.rawValue;
-  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "object" && "rawValue" in value && typeof value.rawValue === "string") return cleanTagString(value.rawValue);
+  if (typeof value === "string" && value.trim()) return cleanTagString(value.trim());
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   if (Array.isArray(value)) {
     const text = value.map(tagText).filter((item): item is string => Boolean(item)).join(", ");

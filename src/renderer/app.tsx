@@ -132,8 +132,20 @@ function App(): React.JSX.Element {
     && hasGeminiApiKey
     ? activeTask.generateSlug ? "description-and-slug" : "description"
     : null;
-  const activeTaskVisionMode = activeTask ? visionTaskModes[activeTask.id] ?? queuedVisionMode : null;
-  const activeTaskVisionGenerating = activeTaskVisionMode !== null;
+  const activeTaskVisionMode = activeTask
+    ? visionTaskModes[activeTask.id]
+      ?? queuedVisionMode
+      ?? (
+        activeTask.visionRunning
+          ? activeTask.output?.vision?.description?.trim() && activeTask.generateSlug && !(activeTask.output.vision.slugCandidates[0] ?? "").trim()
+            ? "slug"
+            : activeTask.generateSlug
+              ? "description-and-slug"
+              : "description"
+          : null
+      )
+    : null;
+  const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning || activeTaskVisionMode !== null);
   const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;

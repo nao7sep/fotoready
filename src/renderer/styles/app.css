@@ -23,6 +23,9 @@
   --accent-soft-bg: #d4eee9;
   --accent-soft-border: #8ce0d3;
   --accent-soft-text: #1c4842;
+  --info-text: #1d4ed8;
+  --info-soft-bg: #dbeafe;
+  --info-border: #93c5fd;
   --danger-text: #991b1b;
   --danger-soft-bg: #fee2e2;
   --danger-border: #fca5a5;
@@ -487,19 +490,19 @@ select:disabled {
   flex: 0 0 auto;
 }
 
-.status-dot.pending {
+.status-dot.state-before-save {
   color: #eab308;
 }
 
-.status-dot.processing {
-  color: #facc15;
+.status-dot.state-generating {
+  color: var(--info-text);
 }
 
-.status-dot.done {
-  color: #60a5fa;
+.status-dot.state-generated {
+  color: var(--accent-bg);
 }
 
-.status-dot.error {
+.status-dot.state-error {
   color: #f87171;
 }
 
@@ -1265,8 +1268,20 @@ select:disabled {
   font-size: 11px;
 }
 
-.rename-preview-state.blocked {
+.rename-preview-state.state-error {
   color: var(--danger-text);
+}
+
+.rename-preview-state.state-before-save {
+  color: var(--warning-text);
+}
+
+.rename-preview-state.state-generating {
+  color: var(--info-text);
+}
+
+.rename-preview-state.state-generated {
+  color: var(--accent-soft-text);
 }
 
 .rename-preview-dot {
@@ -1275,19 +1290,19 @@ select:disabled {
   line-height: 1;
 }
 
-.rename-preview-dot.ready {
-  color: #60a5fa;
+.rename-preview-dot.state-generated {
+  color: var(--accent-bg);
 }
 
-.rename-preview-dot.unchanged {
-  color: var(--text-soft-color);
-}
-
-.rename-preview-dot.not-saved {
+.rename-preview-dot.state-before-save {
   color: #eab308;
 }
 
-.rename-preview-dot.blocked {
+.rename-preview-dot.state-generating {
+  color: var(--info-text);
+}
+
+.rename-preview-dot.state-error {
   color: #f87171;
 }
 
@@ -1348,12 +1363,6 @@ select:disabled {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 8px;
-}
-
-.rename-preview-slug-label {
-  color: var(--text-muted-color);
-  font-size: 11px;
-  text-transform: lowercase;
 }
 
 .rename-preview-slug-input {
@@ -1428,9 +1437,9 @@ select:disabled {
   display: grid;
   gap: 8px;
   padding: 9px 10px;
-  border: 1px solid var(--accent-soft-border);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: var(--accent-soft-bg);
+  background: var(--surface-raised-bg);
 }
 
 .vision-description-item {
@@ -1450,7 +1459,7 @@ select:disabled {
 }
 
 .vision-description span {
-  color: var(--accent-soft-text);
+  color: var(--text-muted-color);
   font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
@@ -1460,10 +1469,50 @@ select:disabled {
 .vision-description p {
   user-select: text;
   margin: 0;
-  color: var(--accent-soft-text);
+  color: var(--text-color);
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.vision-description.state-before-save {
+  border-color: var(--warning-border);
+  background: var(--warning-soft-bg);
+}
+
+.vision-description.state-before-save span,
+.vision-description.state-before-save p {
+  color: var(--warning-text);
+}
+
+.vision-description.state-generating {
+  border-color: var(--info-border);
+  background: var(--info-soft-bg);
+}
+
+.vision-description.state-generating span,
+.vision-description.state-generating p {
+  color: var(--info-text);
+}
+
+.vision-description.state-generated {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+}
+
+.vision-description.state-generated span,
+.vision-description.state-generated p {
+  color: var(--accent-soft-text);
+}
+
+.vision-description.state-error {
+  border-color: var(--danger-border);
+  background: var(--danger-soft-bg);
+}
+
+.vision-description.state-error span,
+.vision-description.state-error p {
+  color: var(--danger-text);
 }
 
 .settings-summary {

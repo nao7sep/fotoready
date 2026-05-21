@@ -202,14 +202,10 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
   }
 }
 
-function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): string[] {
-  if (task.customSlug) return [normalizeSlugCandidate(task.customSlug)];
-  if (task.output.vision?.slugCandidates.length) return task.output.vision.slugCandidates;
-  return [];
-}
-
 function resolvedRenameSlug(task: Task & { output: NonNullable<Task["output"]> }): string | null {
-  return slugCandidates(task)[0] ?? null;
+  if (!task.customSlug) return null;
+  const normalized = normalizeSlugCandidate(task.customSlug);
+  return normalized || null;
 }
 
 function outputExtension(stagedPath: string): string {

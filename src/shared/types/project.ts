@@ -54,6 +54,7 @@ export type Task = {
   generateDescription: boolean;
   generateSlug: boolean;
   customSlug: string | null;
+  visionRunning: boolean;
   pipeline: Pipeline;
   status: TaskStatus;
   output: TaskOutput | null;

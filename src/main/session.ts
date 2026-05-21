@@ -28,6 +28,7 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 import type { RenameTemplateId } from "@shared/rename-template";
+import { normalizeSlugCandidate } from "@core/slug/rules";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -442,7 +443,7 @@ export class ProjectSession {
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "pending") this.recordTaskEdit(task);
-    task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
+    task.customSlug = normalizeOptionalSlug(customSlug);
     touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
@@ -491,14 +492,25 @@ export class ProjectSession {
   }
 
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
-    await this.visionQueue.runForTask(this.#project, taskId, options, async () => {
-      const task = this.#project.tasks.find((item) => item.id === taskId);
-      if (!task) return;
-      await this.writeOutputSidecarIfSaved(task);
-      await this.emitSnapshot();
-    });
     const task = this.#project.tasks.find((item) => item.id === taskId);
-    if (task) await this.writeOutputSidecarIfSaved(task);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    task.visionRunning = true;
+    if (task.error?.stage === "vision") task.error = null;
+    task.updatedAt = nowIso();
+    await this.emitSnapshot();
+    try {
+      await this.visionQueue.runForTask(this.#project, taskId, options, async () => {
+        await this.writeOutputSidecarIfSaved(task);
+        await this.emitSnapshot();
+      });
+      await this.writeOutputSidecarIfSaved(task);
+    } finally {
+      task.visionRunning = false;
+      task.updatedAt = nowIso();
+      await this.emitSnapshot();
+    }
     return this.snapshot();
   }
 
@@ -602,6 +614,7 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings): Ta
     generateDescription: settings.defaultGenerateDescription || settings.defaultGenerateSlug,
     generateSlug: settings.defaultGenerateSlug,
     customSlug: null,
+    visionRunning: false,
     pipeline,
     status: "pending",
     output: null,
@@ -617,9 +630,15 @@ function createTaskFromSidecar(original: Original, settings: GlobalSettings, sid
   task.pipeline = structuredClone(sidecar.task.pipeline);
   task.generateDescription = sidecar.task.generateDescription || sidecar.task.generateSlug;
   task.generateSlug = sidecar.task.generateSlug;
-  task.customSlug = sidecar.task.customSlug;
+  task.customSlug = normalizeOptionalSlug(sidecar.task.customSlug) ?? normalizeOptionalSlug(sidecar.task.vision?.slugCandidates[0] ?? null);
   task.everEdited = true;
   return task;
+}
+
+function normalizeOptionalSlug(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = normalizeSlugCandidate(value);
+  return normalized || null;
 }
 
 function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fallback: Task["pipeline"]["output"]): Task["pipeline"]["output"] {

@@ -2,6 +2,7 @@ import React from "react";
 import { Pencil, Save, X } from "lucide-react";
 import type { QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
+import { taskVisualState } from "@renderer/task-visual-state";
 
 export function TasksPanel({
   activeTaskId,
@@ -33,12 +34,12 @@ export function TasksPanel({
           <div className="empty-state">No tasks yet</div>
         ) : tasks.map((task) => (
           <button
-            className={`list-row task-row ${activeTaskId === task.id ? "active" : ""}`}
+            className={`list-row task-row state-${taskVisualState(task)} ${activeTaskId === task.id ? "active" : ""}`}
             key={task.id}
             type="button"
             onClick={() => onSelect(task.id)}
           >
-            <span className={`status-dot ${task.status}`} aria-hidden="true">{statusIndicator(task)}</span>
+            <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true">{statusIndicator(task)}</span>
             <span className="task-copy">
               <span className="row-title">{taskLabel(task, originals)}</span>
               <span className="row-detail">{taskQueueDetail(task, queue)} · {task.pipeline.ops.length} ops</span>
@@ -70,6 +71,7 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
 }
 
 function statusIndicator(task: Task): string {
+  if (task.visionRunning) return "◐";
   if (task.status === "processing") return "◐";
   if (task.status === "queued") return "◔";
   if (task.status === "error") return "x";
@@ -82,6 +84,7 @@ function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string
 }
 
 function taskQueueDetail(task: Task, queue: QueueSnapshot): string {
+  if (task.visionRunning) return "generating";
   if (queue.activeTaskId === task.id) return "processing now";
   if (task.status === "queued") return "queued";
   return task.status;

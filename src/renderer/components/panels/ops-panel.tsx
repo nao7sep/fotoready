@@ -6,6 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { getOpRenderer } from "@renderer/ops";
+import { taskVisualState } from "@renderer/task-visual-state";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
@@ -312,6 +313,7 @@ function OutputControls({
   const combinedActionLabel = hasGeneratedDescription && hasGeneratedSlug ? "Regenerate description and slug" : "Generate description and slug";
   const showSlugAction = hasGeneratedDescription;
   const slugActionLabel = hasGeneratedSlug ? "Regenerate slug" : "Generate slug";
+  const visionStateClass = `state-${taskVisualState(task)}`;
   return (
     <div className="output-controls">
       <label className="stacked-field">
@@ -406,7 +408,7 @@ function OutputControls({
         <div className="modal-warning">{generationStatus}</div>
       ) : null}
       {hasSavedOutput ? (
-        <div className="vision-description">
+        <div className={`vision-description ${visionStateClass}`}>
           <div className="vision-description-item">
             <span>Description</span>
             <p>{hasGeneratedDescription ? description : "Not generated"}</p>

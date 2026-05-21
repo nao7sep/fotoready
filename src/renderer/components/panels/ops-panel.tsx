@@ -23,6 +23,7 @@ type OpsPanelProps = {
   opCatalog: OpCatalogItem[];
   pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
+  visionGenerating: boolean;
   onClearVision(): void;
   onOpenSettings(): void;
   onGenerateVision(forceGenerateSlug: boolean): void;
@@ -110,6 +111,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               original={props.activeOriginal}
               settings={props.settings}
               task={activeTask}
+              visionGenerating={props.visionGenerating}
               onGenerateDescriptionChange={props.onGenerateDescriptionChange}
               onGenerateSlugChange={props.onGenerateSlugChange}
               onCustomSlugChange={props.onCustomSlugChange}
@@ -252,6 +254,7 @@ function OutputControls({
   original,
   settings,
   task,
+  visionGenerating,
   onGenerateDescriptionChange,
   onGenerateSlugChange,
   onCustomSlugChange,
@@ -266,6 +269,7 @@ function OutputControls({
   original: Original | null;
   settings: GlobalSettings | null;
   task: Task | null;
+  visionGenerating: boolean;
   onGenerateDescriptionChange(value: boolean): void;
   onGenerateSlugChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
@@ -273,31 +277,36 @@ function OutputControls({
 }): React.JSX.Element {
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
-  const jpegEstimateEnabled = settings?.enableJpegQualityEstimate ?? false;
-  const canAutoEstimateJpeg = jpegEstimateEnabled && original?.format === "jpeg" && original.jpegQualityEstimate !== null;
+  const canAutoEstimateJpeg = Boolean(settings?.enableJpegQualityEstimate && original?.format === "jpeg" && original.jpegQualityEstimate !== null);
   const flattenableFormat = resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif";
   const outputFormatOptions = availableOutputFormats();
   const storedQuality = task?.pipeline.output.quality;
   const assumedQuality = canAutoEstimateJpeg ? original?.jpegQualityEstimate ?? null : null;
+  const qualityMatchesAssumed = typeof storedQuality === "number"
+    && assumedQuality !== null
+    && Math.round(storedQuality) === Math.round(assumedQuality);
   const inferredAutoJpeg = resolvedFormat === "jpeg"
     && canAutoEstimateJpeg
-    && (storedQuality === "auto" || (settings?.jpegQualityMode === "auto" && storedQuality === assumedQuality));
+    && (storedQuality === "auto" || (settings?.jpegQualityMode === "auto" && qualityMatchesAssumed));
   const jpegQualityMode = inferredAutoJpeg ? "auto" : "fixed";
   const fixedQuality = typeof storedQuality === "number" && !inferredAutoJpeg ? storedQuality : defaultFixedQuality;
   const qualityValue = resolvedFormat === "jpeg" && jpegQualityMode === "auto" ? assumedQuality ?? defaultFixedQuality : fixedQuality;
   const generatedSlug = task?.output?.vision?.slugCandidates[0] ?? null;
   const generationEnabled = Boolean(task?.generateDescription || task?.generateSlug);
+  const generationStatus = task?.generateSlug ? "Generating description and slug..." : "Generating description...";
   return (
     <div className="output-controls">
       <label className="stacked-field">
         Format
         <select disabled={outputDisabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
-          {outputFormatOptions.map((format) => <option key={format} value={format}>{formatLabel(format)}</option>)}
+          {outputFormatOptions.map((format) => (
+            <option key={format} value={format}>
+              {format === "original" && original ? `${formatLabel(format)} (${formatLabel(resolveOutputFormat(format, original.format))})` : formatLabel(format)}
+            </option>
+          ))}
         </select>
       </label>
-      {resolvedFormat === "jpeg" ? (
-        <div className="row-detail">JPEG output always flattens transparency using the selected background color.</div>
-      ) : flattenableFormat ? (
+      {flattenableFormat ? (
         <>
           <label className="toggle-row">
             <input
@@ -352,20 +361,7 @@ function OutputControls({
           <span className="slider-value">{qualityValue}</span>
         </label>
       ) : null}
-      {resolvedFormat === "jpeg" && !canAutoEstimateJpeg ? (
-        <div className="row-detail">
-          {!jpegEstimateEnabled
-            ? "JPEG quality estimation is off in Settings."
-            : original?.format === "jpeg"
-              ? "This JPEG was loaded without a usable in-memory estimate. Reload it after enabling estimation if needed."
-              : "Source-quality mode is available only for confirmed JPEG inputs."}
-        </div>
-      ) : null}
-      <label className="stacked-field" title="Used by rename templates after save. First save still uses the app's generated staging name.">
-        Slug
-        <input disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
-      </label>
-      <label className="toggle-row" title="Generate a reusable image description after save. Saved tasks run generation immediately.">
+      <label className="toggle-row">
         <input
           type="checkbox"
           disabled={metadataDisabled || !task || Boolean(task?.generateSlug)}
@@ -374,7 +370,7 @@ function OutputControls({
         />
         Generate description
       </label>
-      <label className="toggle-row" title="Generate slug suggestions after save. Slug generation also generates a description.">
+      <label className="toggle-row">
         <input type="checkbox" disabled={metadataDisabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
         Generate slug
       </label>
@@ -383,9 +379,10 @@ function OutputControls({
           Gemini API key required for description and slug generation.
           <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
-      ) : generationEnabled && task?.output && !task.output.vision ? (
-        <button className="toolbar-button compact-text fit-content" disabled={metadataDisabled || !hasGeminiApiKey} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Generate now</button>
-      ) : task?.output?.vision && generationEnabled ? (
+      ) : generationEnabled && visionGenerating ? (
+        <div className="modal-warning">{generationStatus}</div>
+      ) : null}
+      {task?.output?.vision && generationEnabled ? (
         <div className="vision-description">
           {task.generateDescription ? (
             <div className="vision-description-item">
@@ -400,11 +397,15 @@ function OutputControls({
             </div>
           ) : null}
           <div className="vision-description-actions">
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Retry</button>
-            <button className="toolbar-button compact-text" disabled={metadataDisabled} type="button" onClick={onClearVision}>Remove</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Regenerate</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled} type="button" onClick={onClearVision}>Clear</button>
           </div>
         </div>
       ) : null}
+      <label className="stacked-field">
+        Rename slug
+        <input disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
+      </label>
     </div>
   );
 }

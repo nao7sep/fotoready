@@ -91,6 +91,7 @@ function App(): React.JSX.Element {
   const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
+  const [visionTaskIds, setVisionTaskIds] = useState<Set<string>>(() => new Set());
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
   const preview = useEditorStore((state) => state.preview);
@@ -123,6 +124,17 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
+  const activeTaskVisionGenerating = Boolean(activeTask && (
+    visionTaskIds.has(activeTask.id)
+    || (
+      queue.activeTaskId === activeTask.id
+      && activeTask.status === "done"
+      && Boolean(activeTask.output)
+      && !activeTask.output?.vision
+      && Boolean(activeTask.generateDescription || activeTask.generateSlug)
+      && hasGeminiApiKey
+    )
+  ));
   const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
@@ -457,7 +469,7 @@ function App(): React.JSX.Element {
     if (!task) return;
     await refreshProject(await api.task.setGenerateDescription(task.id, generateDescription));
     if (generateDescription && task.output && hasGeminiApiKey) {
-      await refreshProject(await api.vision.runForTask(task.id));
+      await runVisionForTask(task.id);
     }
   }
 
@@ -466,7 +478,7 @@ function App(): React.JSX.Element {
     if (!task) return;
     await refreshProject(await api.task.setGenerateSlug(task.id, generateSlug));
     if (generateSlug && task.output && hasGeminiApiKey) {
-      await refreshProject(await api.vision.runForTask(task.id, { forceGenerateSlug: true }));
+      await runVisionForTask(task.id, { forceGenerateSlug: true });
     }
   }
 
@@ -477,12 +489,25 @@ function App(): React.JSX.Element {
 
   async function generateVision(forceGenerateSlug = false): Promise<void> {
     if (!activeTask?.output) return;
-    await refreshProject(await api.vision.runForTask(activeTask.id, { forceGenerateSlug }));
+    await runVisionForTask(activeTask.id, { forceGenerateSlug });
   }
 
   async function clearVision(): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.clearVision(activeTask.id));
+  }
+
+  async function runVisionForTask(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<void> {
+    setVisionTaskIds((current) => new Set(current).add(taskId));
+    try {
+      await refreshProject(await api.vision.runForTask(taskId, options));
+    } finally {
+      setVisionTaskIds((current) => {
+        const next = new Set(current);
+        next.delete(taskId);
+        return next;
+      });
+    }
   }
 
   async function addDroppedFiles(files: FileList | File[]): Promise<void> {
@@ -752,6 +777,7 @@ function App(): React.JSX.Element {
             opCatalog={opCatalog}
             pendingRevealOpId={pendingRevealOpId}
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
+            visionGenerating={activeTaskVisionGenerating}
             onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
             onClearVision={() => void clearVision()}

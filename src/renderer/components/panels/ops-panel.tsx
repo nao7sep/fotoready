@@ -23,7 +23,9 @@ type OpsPanelProps = {
   opCatalog: OpCatalogItem[];
   pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
+  onClearVision(): void;
   onOpenSettings(): void;
+  onGenerateVision(forceGenerateSlug: boolean): void;
   onReloadLuts(): Promise<void>;
   onReloadStamps(): Promise<void>;
   onRevealOpHandled(): void;
@@ -99,9 +101,12 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
           <h3>Output</h3>
           <div className="output-fixed">
             <OutputControls
-              disabled={!activeTask || activeTask.status !== "pending"}
               hasGeminiApiKey={props.hasGeminiApiKey}
+              metadataDisabled={!activeTask || activeTask.status === "queued" || activeTask.status === "processing"}
+              onClearVision={props.onClearVision}
+              onGenerateVision={props.onGenerateVision}
               onOpenSettings={props.onOpenSettings}
+              outputDisabled={!activeTask || activeTask.status !== "pending"}
               original={props.activeOriginal}
               settings={props.settings}
               task={activeTask}
@@ -238,9 +243,12 @@ function PipelineOpCard({
 }
 
 function OutputControls({
-  disabled,
   hasGeminiApiKey,
+  metadataDisabled,
+  onClearVision,
+  onGenerateVision,
   onOpenSettings,
+  outputDisabled,
   original,
   settings,
   task,
@@ -249,9 +257,12 @@ function OutputControls({
   onCustomSlugChange,
   onOutputChange
 }: {
-  disabled: boolean;
   hasGeminiApiKey: boolean;
+  metadataDisabled: boolean;
+  onClearVision(): void;
+  onGenerateVision(forceGenerateSlug: boolean): void;
   onOpenSettings(): void;
+  outputDisabled: boolean;
   original: Original | null;
   settings: GlobalSettings | null;
   task: Task | null;
@@ -264,32 +275,117 @@ function OutputControls({
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
   const jpegEstimateEnabled = settings?.enableJpegQualityEstimate ?? false;
   const canAutoEstimateJpeg = jpegEstimateEnabled && original?.format === "jpeg" && original.jpegQualityEstimate !== null;
-  const jpegQualityMode = task?.pipeline.output.quality === "auto" && canAutoEstimateJpeg ? "auto" : "fixed";
   const flattenableFormat = resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif";
   const outputFormatOptions = availableOutputFormats();
-  const fixedQuality = task && typeof task.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality;
+  const storedQuality = task?.pipeline.output.quality;
+  const assumedQuality = canAutoEstimateJpeg ? original?.jpegQualityEstimate ?? null : null;
+  const inferredAutoJpeg = resolvedFormat === "jpeg"
+    && canAutoEstimateJpeg
+    && (storedQuality === "auto" || (settings?.jpegQualityMode === "auto" && storedQuality === assumedQuality));
+  const jpegQualityMode = inferredAutoJpeg ? "auto" : "fixed";
+  const fixedQuality = typeof storedQuality === "number" && !inferredAutoJpeg ? storedQuality : defaultFixedQuality;
+  const qualityValue = resolvedFormat === "jpeg" && jpegQualityMode === "auto" ? assumedQuality ?? defaultFixedQuality : fixedQuality;
   const generatedSlug = task?.output?.vision?.slugCandidates[0] ?? null;
+  const generationEnabled = Boolean(task?.generateDescription || task?.generateSlug);
   return (
     <div className="output-controls">
-      <label className="toggle-row" title="Generate a reusable image description after save.">
+      <label className="stacked-field">
+        Format
+        <select disabled={outputDisabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
+          {outputFormatOptions.map((format) => <option key={format} value={format}>{formatLabel(format)}</option>)}
+        </select>
+      </label>
+      {resolvedFormat === "jpeg" ? (
+        <div className="row-detail">JPEG output always flattens transparency using the selected background color.</div>
+      ) : flattenableFormat ? (
+        <>
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              disabled={outputDisabled || !task}
+              checked={task?.pipeline.output.flattenTransparency ?? false}
+              onChange={(event) => onOutputChange("flattenTransparency", event.currentTarget.checked)}
+            />
+            Flatten transparency
+          </label>
+          <label className="stacked-field">
+            Flatten background
+            <input
+              disabled={outputDisabled || !task || !task.pipeline.output.flattenTransparency}
+              type="color"
+              value={task?.pipeline.output.backgroundForTransparency ?? settings?.defaultBackgroundForTransparency ?? "#ffffff"}
+              onChange={(event) => onOutputChange("backgroundForTransparency", event.currentTarget.value)}
+            />
+          </label>
+        </>
+      ) : null}
+      {resolvedFormat === "jpeg" ? (
+        <label className="stacked-field">
+          JPEG quality mode
+          <select
+            disabled={outputDisabled || !task}
+            value={jpegQualityMode}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              onOutputChange("quality", value === "fixed" ? defaultFixedQuality : "auto");
+            }}
+          >
+            <option disabled={!canAutoEstimateJpeg} value="auto">
+              Use assumed value{assumedQuality ? ` (${assumedQuality})` : ""}
+            </option>
+            <option value="fixed">Fixed value</option>
+          </select>
+        </label>
+      ) : null}
+      {resolvedFormat && resolvedFormat !== "png" ? (
+        <label className="slider-row">
+          <span>Quality</span>
+          <input
+            disabled={outputDisabled || !task || (resolvedFormat === "jpeg" && jpegQualityMode === "auto")}
+            max={100}
+            min={1}
+            step={1}
+            type="range"
+            value={qualityValue}
+            onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
+          />
+          <span className="slider-value">{qualityValue}</span>
+        </label>
+      ) : null}
+      {resolvedFormat === "jpeg" && !canAutoEstimateJpeg ? (
+        <div className="row-detail">
+          {!jpegEstimateEnabled
+            ? "JPEG quality estimation is off in Settings."
+            : original?.format === "jpeg"
+              ? "This JPEG was loaded without a usable in-memory estimate. Reload it after enabling estimation if needed."
+              : "Source-quality mode is available only for confirmed JPEG inputs."}
+        </div>
+      ) : null}
+      <label className="stacked-field" title="Used by rename templates after save. First save still uses the app's generated staging name.">
+        Slug
+        <input disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
+      </label>
+      <label className="toggle-row" title="Generate a reusable image description after save. Saved tasks run generation immediately.">
         <input
           type="checkbox"
-          disabled={disabled || !task || Boolean(task?.generateSlug)}
+          disabled={metadataDisabled || !task || Boolean(task?.generateSlug)}
           checked={(task?.generateDescription ?? true) || Boolean(task?.generateSlug)}
           onChange={(event) => onGenerateDescriptionChange(event.currentTarget.checked)}
         />
         Generate description
       </label>
-      <label className="toggle-row" title="Generate a rename slug after save. Slug generation always needs a description first.">
-        <input type="checkbox" disabled={disabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
-        Generate rename slug
+      <label className="toggle-row" title="Generate slug suggestions after save. Slug generation also generates a description.">
+        <input type="checkbox" disabled={metadataDisabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
+        Generate slug
       </label>
-      {(task?.generateDescription || task?.generateSlug) && !task.output?.vision && !hasGeminiApiKey ? (
+      {generationEnabled && !task?.output?.vision && !hasGeminiApiKey ? (
         <div className="modal-warning">
-          Gemini API key required for description and rename slug generation.
+          Gemini API key required for description and slug generation.
           <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
-      ) : task?.output?.vision && (task.generateDescription || task.generateSlug) ? (
+      ) : generationEnabled && task?.output && !task.output.vision ? (
+        <button className="toolbar-button compact-text fit-content" disabled={metadataDisabled || !hasGeminiApiKey} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Generate now</button>
+      ) : task?.output?.vision && generationEnabled ? (
         <div className="vision-description">
           {task.generateDescription ? (
             <div className="vision-description-item">
@@ -303,87 +399,10 @@ function OutputControls({
               <p>{generatedSlug}</p>
             </div>
           ) : null}
-        </div>
-      ) : null}
-      <label className="stacked-field" title="Used by Rename after save. First save still uses the app's generated staging name.">
-        Rename slug
-        <input disabled={disabled || !task} placeholder="rename-descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
-      </label>
-      <label className="stacked-field">
-        Format
-        <select disabled={disabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
-          {outputFormatOptions.map((format) => <option key={format} value={format}>{formatLabel(format)}</option>)}
-        </select>
-      </label>
-      {task && original ? (
-        <div className="row-detail">
-          Saving as <strong>{formatLabel(resolvedFormat ?? task.pipeline.output.format)}</strong>
-          {task.pipeline.output.format === "original" && resolvedFormat !== original.format ? ` for this ${formatLabel(original.format)} source` : ""}
-        </div>
-      ) : null}
-      {resolvedFormat === "jpeg" ? (
-        <div className="row-detail">JPEG always flattens transparency using the selected background color.</div>
-      ) : flattenableFormat ? (
-        <>
-          <label className="toggle-row">
-            <input
-              type="checkbox"
-              disabled={disabled || !task}
-              checked={task?.pipeline.output.flattenTransparency ?? false}
-              onChange={(event) => onOutputChange("flattenTransparency", event.currentTarget.checked)}
-            />
-            Flatten transparency
-          </label>
-          <label className="stacked-field">
-            Flatten background
-            <input
-              disabled={disabled || !task || !task.pipeline.output.flattenTransparency}
-              type="color"
-              value={task?.pipeline.output.backgroundForTransparency ?? settings?.defaultBackgroundForTransparency ?? "#ffffff"}
-              onChange={(event) => onOutputChange("backgroundForTransparency", event.currentTarget.value)}
-            />
-          </label>
-        </>
-      ) : null}
-      {resolvedFormat && resolvedFormat !== "png" ? (
-        <label className="stacked-field">
-          Quality — <strong>{typeof task?.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality}</strong>
-          <input
-            disabled={disabled || !task || (resolvedFormat === "jpeg" && jpegQualityMode === "auto")}
-            max={100}
-            min={1}
-            step={1}
-            type="range"
-            value={fixedQuality}
-            onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
-          />
-        </label>
-      ) : null}
-      {resolvedFormat === "jpeg" ? (
-        <label className="stacked-field">
-          JPEG quality mode
-          <select
-            disabled={disabled || !task}
-            value={jpegQualityMode}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              onOutputChange("quality", value === "fixed" ? fixedQuality : "auto");
-            }}
-          >
-            <option value="fixed">Fixed</option>
-            <option disabled={!canAutoEstimateJpeg} value="auto">Assume source JPEG quality</option>
-          </select>
-        </label>
-      ) : null}
-      {resolvedFormat === "jpeg" ? (
-        <div className="row-detail">
-          {!jpegEstimateEnabled
-            ? "JPEG quality estimation is off in Settings."
-            : canAutoEstimateJpeg
-              ? `Assumed source JPEG quality: ${original?.jpegQualityEstimate ?? defaultFixedQuality}`
-              : original?.format === "jpeg"
-                ? "This JPEG was loaded without a usable in-memory estimate. Reload it after enabling estimation if needed."
-                : "Source-quality mode is available only for confirmed JPEG inputs."}
+          <div className="vision-description-actions">
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Retry</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled} type="button" onClick={onClearVision}>Remove</button>
+          </div>
         </div>
       ) : null}
     </div>

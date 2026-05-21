@@ -69,7 +69,7 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
 export async function runRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<void> {
   const preview = await previewRename(project, settings, templateId, taskIds);
   if (preview.missingSlugCount > 0) {
-    throw new Error(`${preview.missingSlugCount} task(s) need a rename slug or vision result before rename.`);
+    throw new Error(`${preview.missingSlugCount} task(s) need a slug or vision result before rename.`);
   }
 
   for (const item of preview.items) {

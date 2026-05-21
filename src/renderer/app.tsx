@@ -453,18 +453,36 @@ function App(): React.JSX.Element {
   }
 
   async function setGenerateDescription(generateDescription: boolean): Promise<void> {
-    if (!activeTask) return;
-    await refreshProject(await api.task.setGenerateDescription(activeTask.id, generateDescription));
+    const task = activeTask;
+    if (!task) return;
+    await refreshProject(await api.task.setGenerateDescription(task.id, generateDescription));
+    if (generateDescription && task.output && hasGeminiApiKey) {
+      await refreshProject(await api.vision.runForTask(task.id));
+    }
   }
 
   async function setGenerateSlug(generateSlug: boolean): Promise<void> {
-    if (!activeTask) return;
-    await refreshProject(await api.task.setGenerateSlug(activeTask.id, generateSlug));
+    const task = activeTask;
+    if (!task) return;
+    await refreshProject(await api.task.setGenerateSlug(task.id, generateSlug));
+    if (generateSlug && task.output && hasGeminiApiKey) {
+      await refreshProject(await api.vision.runForTask(task.id, { forceGenerateSlug: true }));
+    }
   }
 
   async function setCustomSlug(customSlug: string | null): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
+  }
+
+  async function generateVision(forceGenerateSlug = false): Promise<void> {
+    if (!activeTask?.output) return;
+    await refreshProject(await api.vision.runForTask(activeTask.id, { forceGenerateSlug }));
+  }
+
+  async function clearVision(): Promise<void> {
+    if (!activeTask) return;
+    await refreshProject(await api.task.clearVision(activeTask.id));
   }
 
   async function addDroppedFiles(files: FileList | File[]): Promise<void> {
@@ -736,8 +754,10 @@ function App(): React.JSX.Element {
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
             onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
+            onClearVision={() => void clearVision()}
             onGenerateDescriptionChange={(value) => void setGenerateDescription(value)}
             onGenerateSlugChange={(value) => void setGenerateSlug(value)}
+            onGenerateVision={(forceGenerateSlug) => void generateVision(forceGenerateSlug)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
             onReloadLuts={reloadLuts}

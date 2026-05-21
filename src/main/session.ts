@@ -416,28 +416,31 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  setGenerateDescription(taskId: string, generateDescription: boolean): ProjectSessionSnapshot {
-    const task = this.editableTask(taskId);
-    this.recordTaskEdit(task);
+  async setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSessionSnapshot> {
+    const task = this.metadataTask(taskId);
+    if (task.status === "pending") this.recordTaskEdit(task);
     task.generateDescription = generateDescription || task.generateSlug;
     touchTask(task);
+    await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
 
-  setGenerateSlug(taskId: string, generateSlug: boolean): ProjectSessionSnapshot {
-    const task = this.editableTask(taskId);
-    this.recordTaskEdit(task);
+  async setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSessionSnapshot> {
+    const task = this.metadataTask(taskId);
+    if (task.status === "pending") this.recordTaskEdit(task);
     task.generateSlug = generateSlug;
     task.generateDescription = generateSlug ? true : task.generateDescription;
     touchTask(task);
+    await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
 
-  setCustomSlug(taskId: string, customSlug: string | null): ProjectSessionSnapshot {
-    const task = this.editableTask(taskId);
-    this.recordTaskEdit(task);
+  async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
+    const task = this.metadataTask(taskId);
+    if (task.status === "pending") this.recordTaskEdit(task);
     task.customSlug = customSlug && customSlug.trim().length > 0 ? customSlug : null;
     touchTask(task);
+    await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
 
@@ -486,17 +489,21 @@ export class ProjectSession {
   async runVision(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<ProjectSessionSnapshot> {
     await this.visionQueue.runForTask(this.#project, taskId, options);
     const task = this.#project.tasks.find((item) => item.id === taskId);
-    const original = task ? this.#project.originals.find((item) => item.id === task.originalId) : null;
-    if (task?.output && original) {
-      const outputPath = task.output.finalPath ?? task.output.stagedPath;
-      const paramsPath = await writeTaskSidecarFile(outputPath, original, task, task.pipeline);
-      task.output.stagedPath = outputPath;
-      task.output.stagedParamsPath = paramsPath;
-      if (task.output.finalPath) {
-        task.output.finalPath = outputPath;
-        task.output.finalParamsPath = paramsPath;
-      }
+    if (task) await this.writeOutputSidecarIfSaved(task);
+    return this.snapshot();
+  }
+
+  async clearVision(taskId: string): Promise<ProjectSessionSnapshot> {
+    const task = this.metadataTask(taskId);
+    const vision = task.output?.vision ?? null;
+    if (!vision) return this.snapshot();
+    if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
+      task.customSlug = null;
     }
+    if (task.output) task.output.vision = null;
+    if (task.error?.stage === "vision") task.error = null;
+    touchTask(task);
+    await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
   }
 
@@ -521,6 +528,30 @@ export class ProjectSession {
       throw new Error("Only pending tasks can be edited. Fork this task before editing.");
     }
     return task;
+  }
+
+  private metadataTask(taskId: string): Task {
+    const task = this.#project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+    if (task.status === "queued" || task.status === "processing") {
+      throw new Error("Task metadata cannot be edited while the task is queued or processing.");
+    }
+    return task;
+  }
+
+  private async writeOutputSidecarIfSaved(task: Task): Promise<void> {
+    const original = this.#project.originals.find((item) => item.id === task.originalId);
+    if (!task.output || !original) return;
+    const outputPath = task.output.finalPath ?? task.output.stagedPath;
+    const paramsPath = await writeTaskSidecarFile(outputPath, original, task, task.pipeline);
+    task.output.stagedPath = outputPath;
+    task.output.stagedParamsPath = paramsPath;
+    if (task.output.finalPath) {
+      task.output.finalPath = outputPath;
+      task.output.finalParamsPath = paramsPath;
+    }
   }
 
   private recordTaskEdit(task: Task): void {

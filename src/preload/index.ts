@@ -52,6 +52,7 @@ const api: FotoReadyApi = {
     setGenerateDescription: (taskId, generateDescription) => ipcRenderer.invoke("task.setGenerateDescription", taskId, generateDescription),
     setGenerateSlug: (taskId, generateSlug) => ipcRenderer.invoke("task.setGenerateSlug", taskId, generateSlug),
     setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),
+    clearVision: (taskId) => ipcRenderer.invoke("task.clearVision", taskId),
     updateOutput: (taskId, key, value) => ipcRenderer.invoke("task.updateOutput", taskId, key, value)
   },
   ops: {

@@ -925,6 +925,17 @@ select:disabled {
   gap: 8px;
 }
 
+.output-controls .row-detail,
+.output-controls .stacked-field,
+.output-controls .toggle-row,
+.output-controls .slider-row {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1327,6 +1338,12 @@ select:disabled {
 .vision-description-item {
   display: grid;
   gap: 3px;
+}
+
+.vision-description-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .vision-description span {

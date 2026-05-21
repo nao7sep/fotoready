@@ -134,6 +134,7 @@ export type FotoReadyApi = {
     setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSnapshot>;
     setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
+    clearVision(taskId: string): Promise<ProjectSnapshot>;
     updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
   };
   ops: {

@@ -42,6 +42,8 @@ export class VisionQueue {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
 
+      const previousSlugCandidates = task.output.vision?.slugCandidates ?? [];
+      const shouldReplaceSlug = shouldGenerateSlug && (!task.customSlug || previousSlugCandidates.includes(task.customSlug));
       const imageBytes = await prepareVisionInput(task.output.stagedPath, this.settings.preResizeLongEdge);
       const provider = new GeminiVisionProvider(apiKey);
       const described = await provider.describe(
@@ -59,7 +61,7 @@ export class VisionQueue {
         model: this.settings.model,
         ranAt: nowIso()
       };
-      if (shouldGenerateSlug && !task.customSlug && described.slugCandidates[0]) {
+      if (shouldReplaceSlug && described.slugCandidates[0]) {
         task.customSlug = described.slugCandidates[0];
       }
       task.error = null;

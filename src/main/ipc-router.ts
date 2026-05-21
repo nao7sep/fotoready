@@ -175,6 +175,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.setGenerateDescription", async (_event, taskId: string, generateDescription: boolean) => publishResult(ctx.projectSession.setGenerateDescription(taskId, generateDescription)));
   ipcMain.handle("task.setGenerateSlug", async (_event, taskId: string, generateSlug: boolean) => publishResult(ctx.projectSession.setGenerateSlug(taskId, generateSlug)));
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
+  ipcMain.handle("task.clearVision", async (_event, taskId: string) => publishResult(ctx.projectSession.clearVision(taskId)));
   ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
 
   ipcMain.handle("assets.aspectRatio", async (_event, assetPath: string) => {

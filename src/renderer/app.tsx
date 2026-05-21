@@ -4,7 +4,7 @@ import { BarChart3, CopyPlus, Menu, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -90,7 +90,7 @@ function App(): React.JSX.Element {
   const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
-  const [visionTaskIds, setVisionTaskIds] = useState<Set<string>>(() => new Set());
+  const [visionTaskModes, setVisionTaskModes] = useState<Record<string, VisionRunMode>>({});
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
   const preview = useEditorStore((state) => state.preview);
@@ -123,17 +123,17 @@ function App(): React.JSX.Element {
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0;
-  const activeTaskVisionGenerating = Boolean(activeTask && (
-    visionTaskIds.has(activeTask.id)
-    || (
-      queue.activeTaskId === activeTask.id
-      && activeTask.status === "done"
-      && Boolean(activeTask.output)
-      && !activeTask.output?.vision
-      && Boolean(activeTask.generateDescription || activeTask.generateSlug)
-      && hasGeminiApiKey
-    )
-  ));
+  const queuedVisionMode: VisionRunMode | null = activeTask
+    && queue.activeTaskId === activeTask.id
+    && activeTask.status === "done"
+    && Boolean(activeTask.output)
+    && !activeTask.output?.vision
+    && Boolean(activeTask.generateDescription || activeTask.generateSlug)
+    && hasGeminiApiKey
+    ? activeTask.generateSlug ? "description-and-slug" : "description"
+    : null;
+  const activeTaskVisionMode = activeTask ? visionTaskModes[activeTask.id] ?? queuedVisionMode : null;
+  const activeTaskVisionGenerating = activeTaskVisionMode !== null;
   const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
@@ -499,7 +499,7 @@ function App(): React.JSX.Element {
     if (!task) return;
     await refreshProject(await api.task.setGenerateDescription(task.id, generateDescription));
     if (generateDescription && task.output && hasGeminiApiKey) {
-      await runVisionForTask(task.id);
+      await runVisionForTask(task.id, { mode: "description" });
     }
   }
 
@@ -508,7 +508,7 @@ function App(): React.JSX.Element {
     if (!task) return;
     await refreshProject(await api.task.setGenerateSlug(task.id, generateSlug));
     if (generateSlug && task.output && hasGeminiApiKey) {
-      await runVisionForTask(task.id, { forceGenerateSlug: true });
+      await runVisionForTask(task.id, { mode: "description-and-slug" });
     }
   }
 
@@ -517,9 +517,9 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
   }
 
-  async function generateVision(forceGenerateSlug = false): Promise<void> {
+  async function generateVision(mode: VisionRunMode): Promise<void> {
     if (!activeTask?.output) return;
-    await runVisionForTask(activeTask.id, { forceGenerateSlug });
+    await runVisionForTask(activeTask.id, { mode });
   }
 
   async function clearVision(): Promise<void> {
@@ -527,14 +527,15 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.clearVision(activeTask.id));
   }
 
-  async function runVisionForTask(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<void> {
-    setVisionTaskIds((current) => new Set(current).add(taskId));
+  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<void> {
+    const mode = options?.mode ?? "description";
+    setVisionTaskModes((current) => ({ ...current, [taskId]: mode }));
     try {
       await refreshProject(await api.vision.runForTask(taskId, options));
     } finally {
-      setVisionTaskIds((current) => {
-        const next = new Set(current);
-        next.delete(taskId);
+      setVisionTaskModes((current) => {
+        const next = { ...current };
+        delete next[taskId];
         return next;
       });
     }
@@ -799,12 +800,13 @@ function App(): React.JSX.Element {
             pendingRevealOpId={pendingRevealOpId}
             originalSize={activeOriginal ? { width: activeOriginal.width, height: activeOriginal.height } : null}
             visionGenerating={activeTaskVisionGenerating}
+            visionGenerationMode={activeTaskVisionMode}
             onSelectOp={selectOp}
             onAddOp={(opType) => void addOp(opType)}
             onClearVision={() => void clearVision()}
             onGenerateDescriptionChange={(value) => void setGenerateDescription(value)}
             onGenerateSlugChange={(value) => void setGenerateSlug(value)}
-            onGenerateVision={(forceGenerateSlug) => void generateVision(forceGenerateSlug)}
+            onGenerateVision={(mode) => void generateVision(mode)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
             onReloadLuts={reloadLuts}

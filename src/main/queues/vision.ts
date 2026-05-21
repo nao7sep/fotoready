@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { nowIso } from "@shared/time";
-import type { Project, TaskError, VisionResult } from "@shared/types/project";
+import type { Project, TaskError } from "@shared/types/project";
+import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
 import { ApiKeyStore } from "@adapters/api-keys";
@@ -28,13 +29,12 @@ export class VisionQueue {
     await this.#apiKeys.delete("gemini");
   }
 
-  async runForTask(project: Project, taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<void> {
+  async runForTask(project: Project, taskId: string, options?: VisionRunOptions): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Task not found: ${taskId}`);
     if (!task.output) throw new Error("Task must be saved before vision can run.");
-    const shouldGenerateSlug = options?.forceGenerateSlug === true || task.generateSlug;
-    const shouldGenerateDescription = shouldGenerateSlug || task.generateDescription;
-    if (!shouldGenerateDescription) return;
+    const mode = resolveVisionRunMode(task, options);
+    if (!mode) return;
 
     try {
       const apiKey = await this.#apiKeys.get("gemini");
@@ -42,27 +42,37 @@ export class VisionQueue {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
 
-      const previousSlugCandidates = task.output.vision?.slugCandidates ?? [];
-      const shouldReplaceSlug = shouldGenerateSlug && (!task.customSlug || previousSlugCandidates.includes(task.customSlug));
-      const imageBytes = await prepareVisionInput(task.output.stagedPath, this.settings.preResizeLongEdge);
+      const previousVision = task.output.vision;
+      const previousSlugCandidates = previousVision?.slugCandidates ?? [];
+      const shouldReplaceSlug = includesSlugGeneration(mode) && (!task.customSlug || previousSlugCandidates.includes(task.customSlug));
       const provider = new GeminiVisionProvider(apiKey);
-      const described = await provider.describe(
-        { imageBytes, mimeType: "image/jpeg" },
-        {
+      let description = previousVision?.description ?? "";
+      if (includesDescriptionGeneration(mode)) {
+        const imageBytes = await prepareVisionInput(task.output.stagedPath, this.settings.preResizeLongEdge);
+        description = await provider.describeImage(
+          { imageBytes, mimeType: "image/jpeg" },
+          {
+            model: this.settings.model,
+            descriptionPrompt: this.settings.visionDescriptionPrompt
+          }
+        );
+      } else if (!description.trim()) {
+        throw new Error("Generate description first, then regenerate the slug.");
+      }
+      const slugCandidates = includesSlugGeneration(mode)
+        ? await provider.suggestSlugs(description, {
           model: this.settings.model,
-          descriptionPrompt: this.settings.visionDescriptionPrompt,
-          slugPrompt: this.settings.visionSlugPrompt,
-          generateSlug: shouldGenerateSlug
-        }
-      );
+          slugPrompt: this.settings.visionSlugPrompt
+        })
+        : previousSlugCandidates;
       task.output.vision = {
-        description: described.description,
-        slugCandidates: described.slugCandidates,
+        description,
+        slugCandidates,
         model: this.settings.model,
         ranAt: nowIso()
       };
-      if (shouldReplaceSlug && described.slugCandidates[0]) {
-        task.customSlug = described.slugCandidates[0];
+      if (shouldReplaceSlug && slugCandidates[0]) {
+        task.customSlug = slugCandidates[0];
       }
       task.error = null;
       task.updatedAt = nowIso();
@@ -71,6 +81,21 @@ export class VisionQueue {
       task.updatedAt = nowIso();
     }
   }
+}
+
+function resolveVisionRunMode(projectTask: Project["tasks"][number], options?: VisionRunOptions): VisionRunMode | null {
+  if (options?.mode) return options.mode;
+  if (projectTask.generateSlug) return "description-and-slug";
+  if (projectTask.generateDescription) return "description";
+  return null;
+}
+
+function includesDescriptionGeneration(mode: VisionRunMode): boolean {
+  return mode === "description" || mode === "description-and-slug";
+}
+
+function includesSlugGeneration(mode: VisionRunMode): boolean {
+  return mode === "description-and-slug" || mode === "slug";
 }
 
 async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<Buffer> {

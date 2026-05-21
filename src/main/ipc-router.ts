@@ -9,7 +9,7 @@ import type { UiState } from "@shared/types/state";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
-import type { PreviewRenderOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { importLut, listLuts } from "@main/lut-catalog";
@@ -202,7 +202,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     ctx.projectSession.renderPreview(taskId, options)
   );
   ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
-  ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: { forceGenerateSlug?: boolean }) => publishResult(ctx.projectSession.runVision(taskId, options)));
+  ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
   ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));

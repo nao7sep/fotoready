@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
-import type { LutEntry, OpCatalogItem, StampEntry } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, StampEntry, VisionRunMode } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -24,9 +24,10 @@ type OpsPanelProps = {
   pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
   visionGenerating: boolean;
+  visionGenerationMode: VisionRunMode | null;
   onClearVision(): void;
   onOpenSettings(): void;
-  onGenerateVision(forceGenerateSlug: boolean): void;
+  onGenerateVision(mode: VisionRunMode): void;
   onReloadLuts(): Promise<void>;
   onReloadStamps(): Promise<void>;
   onRevealOpHandled(): void;
@@ -112,6 +113,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               settings={props.settings}
               task={activeTask}
               visionGenerating={props.visionGenerating}
+              visionGenerationMode={props.visionGenerationMode}
               onGenerateDescriptionChange={props.onGenerateDescriptionChange}
               onGenerateSlugChange={props.onGenerateSlugChange}
               onCustomSlugChange={props.onCustomSlugChange}
@@ -255,6 +257,7 @@ function OutputControls({
   settings,
   task,
   visionGenerating,
+  visionGenerationMode,
   onGenerateDescriptionChange,
   onGenerateSlugChange,
   onCustomSlugChange,
@@ -263,13 +266,14 @@ function OutputControls({
   hasGeminiApiKey: boolean;
   metadataDisabled: boolean;
   onClearVision(): void;
-  onGenerateVision(forceGenerateSlug: boolean): void;
+  onGenerateVision(mode: VisionRunMode): void;
   onOpenSettings(): void;
   outputDisabled: boolean;
   original: Original | null;
   settings: GlobalSettings | null;
   task: Task | null;
   visionGenerating: boolean;
+  visionGenerationMode: VisionRunMode | null;
   onGenerateDescriptionChange(value: boolean): void;
   onGenerateSlugChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
@@ -291,9 +295,14 @@ function OutputControls({
   const jpegQualityMode = inferredAutoJpeg ? "auto" : "fixed";
   const fixedQuality = typeof storedQuality === "number" && !inferredAutoJpeg ? storedQuality : defaultFixedQuality;
   const qualityValue = resolvedFormat === "jpeg" && jpegQualityMode === "auto" ? assumedQuality ?? defaultFixedQuality : fixedQuality;
-  const generatedSlug = task?.output?.vision?.slugCandidates[0] ?? null;
+  const vision = task?.output?.vision ?? null;
+  const generatedSlug = vision?.slugCandidates[0] ?? null;
   const generationEnabled = Boolean(task?.generateDescription || task?.generateSlug);
-  const generationStatus = task?.generateSlug ? "Generating description and slug..." : "Generating description...";
+  const generationStatus = visionGenerationMode === "slug"
+    ? "Generating slug..."
+    : visionGenerationMode === "description-and-slug"
+      ? "Generating description and slug..."
+      : "Generating description...";
   return (
     <div className="output-controls">
       <label className="stacked-field">
@@ -382,22 +391,24 @@ function OutputControls({
       ) : generationEnabled && visionGenerating ? (
         <div className="modal-warning">{generationStatus}</div>
       ) : null}
-      {task?.output?.vision && generationEnabled ? (
+      {vision ? (
         <div className="vision-description">
-          {task.generateDescription ? (
+          {vision.description ? (
             <div className="vision-description-item">
               <span>Description</span>
-              <p>{task.output.vision.description}</p>
+              <p>{vision.description}</p>
             </div>
           ) : null}
-          {task.generateSlug && generatedSlug ? (
+          {generatedSlug ? (
             <div className="vision-description-item">
               <span>Slug</span>
               <p>{generatedSlug}</p>
             </div>
           ) : null}
           <div className="vision-description-actions">
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision(Boolean(task.generateSlug))}>Regenerate</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>Regenerate description</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description-and-slug")}>Regenerate description and slug</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating || !vision.description.trim()} type="button" onClick={() => onGenerateVision("slug")}>Regenerate slug</button>
             <button className="toolbar-button compact-text" disabled={metadataDisabled} type="button" onClick={onClearVision}>Clear</button>
           </div>
         </div>

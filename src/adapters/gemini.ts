@@ -9,19 +9,17 @@ export type VisionDescribeRequest = {
 export type VisionDescribeOptions = {
   model: string;
   descriptionPrompt: string;
-  slugPrompt: string;
-  generateSlug: boolean;
 };
 
-export type VisionDescribeResult = {
-  description: string;
-  slugCandidates: string[];
+export type VisionSlugOptions = {
+  model: string;
+  slugPrompt: string;
 };
 
 export class GeminiVisionProvider {
   constructor(private readonly apiKey: string) {}
 
-  async describe(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<VisionDescribeResult> {
+  async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
     const descriptionResponse = await ai.models.generateContent({
       model: opts.model,
@@ -30,22 +28,17 @@ export class GeminiVisionProvider {
         { text: descriptionPrompt(opts.descriptionPrompt) }
       ]
     });
-    const description = parseDescription(descriptionResponse.text ?? "");
-    if (!opts.generateSlug) {
-      return {
-        description,
-        slugCandidates: []
-      };
-    }
+    return parseDescription(descriptionResponse.text ?? "");
+  }
+
+  async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
+    const ai = new GoogleGenAI({ apiKey: this.apiKey });
     const slugResponse = await ai.models.generateContent({
       model: opts.model,
       contents: [{ text: slugPrompt(description, opts.slugPrompt) }],
       config: { responseMimeType: "application/json" }
     });
-    return {
-      description,
-      slugCandidates: parseSlugs(slugResponse.text ?? "")
-    };
+    return parseSlugs(slugResponse.text ?? "");
   }
 }
 

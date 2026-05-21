@@ -42,6 +42,12 @@ export type PreviewRenderOptions = {
   mode?: PreviewRenderMode;
 };
 
+export type VisionRunMode = "description" | "description-and-slug" | "slug";
+
+export type VisionRunOptions = {
+  mode?: VisionRunMode;
+};
+
 export type OriginalThumbnail = {
   originalId: string;
   dataUrl: string;
@@ -157,7 +163,7 @@ export type FotoReadyApi = {
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {
-    runForTask(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<ProjectSnapshot>;
+    runForTask(taskId: string, options?: VisionRunOptions): Promise<ProjectSnapshot>;
   };
   rename: {
     preview(templateId?: string, taskIds?: string[]): Promise<RenamePreview>;

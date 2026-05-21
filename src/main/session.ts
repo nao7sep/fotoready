@@ -9,7 +9,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
@@ -322,7 +322,7 @@ export class ProjectSession {
     if (!(await this.visionQueue.hasGeminiApiKey())) {
       return;
     }
-    await this.runVision(taskId);
+    await this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });
   }
 
   async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {
@@ -489,7 +489,7 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async runVision(taskId: string, options?: { forceGenerateSlug?: boolean }): Promise<ProjectSessionSnapshot> {
+  async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
     await this.visionQueue.runForTask(this.#project, taskId, options);
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (task) await this.writeOutputSidecarIfSaved(task);

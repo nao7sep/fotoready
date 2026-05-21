@@ -4,7 +4,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 
 ## Status
 
-- Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list.
+- Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list. User-initiated close/quit asks for confirmation when the current workspace or a settings draft would be discarded; OS shutdown/restart bypasses that prompt.
 - Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
 - Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
 - Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
@@ -70,9 +70,10 @@ FotoReady re-encodes saved images and starts the metadata stage by removing embe
 
 ## Box overlays
 
-Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosaic) all place a rectangle inside the image and share a single position/size helper. The convention:
+Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosaic) all place a rectangle inside the image and share the same box-geometry rules. The convention:
 
-- All spatial fractions (`x`, `y`, `w`/`width`, `h`/`height`, paddings, border thickness, mosaic cell size) are normalized against the image's **long edge**, so "10%" represents the same physical distance on both axes regardless of orientation. On a portrait image the X / Width sliders' usable range tops out below 100% because the short axis simply cannot reach that far.
+- New box overlays are created at random in-bounds positions instead of a fixed corner anchor.
+- All spatial fractions (`x`, `y`, `w`/`width`, `h`/`height`, paddings, border thickness, mosaic cell size) are normalized against the image's **long edge**, so "10%" represents the same physical distance on both axes regardless of orientation. Whichever axis maps to the image's short edge can top out below 100% because that axis simply cannot reach as far as the long edge.
 - Each slider's full track represents the entire axis bound. Moves preserve size and refuse to overshoot.
 - Resizes preserve size and slide the box inward when needed, so width/height can grow while the far edge stays inside the image.
 
@@ -93,3 +94,5 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle.
 | App | Close the active dialog | `Esc` |
 
 `Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus the FotoReady sidecar file.
+`Save all pending images` queues every pending task the same way.
+`Rename all` opens a review of saved and unsaved tasks, but only saved outputs with ready or unchanged rename rows are renamed.

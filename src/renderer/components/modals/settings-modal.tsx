@@ -2,7 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import type { SystemInfo } from "@shared/types/ipc";
 import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "@shared/constants";
-import type { FilenameTemplate, GlobalSettings, MetadataFields } from "@shared/types/settings";
+import { EDITABLE_METADATA_FIELDS, type FilenameTemplate, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { validateFilenameTemplates } from "@shared/validation/filename-template";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
@@ -18,18 +18,6 @@ const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "vision", label: "Vision" },
   { id: "assets", label: "Assets" },
   { id: "app", label: "App" }
-];
-
-const metadataFieldOrder: ReadonlyArray<keyof MetadataFields> = [
-  "source",
-  "description",
-  "author",
-  "contactEmail",
-  "contactUrl",
-  "credit",
-  "copyright",
-  "webStatement",
-  "usageTerms"
 ];
 
 const metadataFieldHelp: Record<keyof MetadataFields, string> = {
@@ -364,7 +352,7 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
       <section>
         <h3>Metadata fields</h3>
         <div className="settings-grid">
-          {metadataFieldOrder.map((field) => (
+          {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field metadata-field span-two" key={field}>
               {fieldLabel(field)}
               {field === "usageTerms" || field === "description" ? (

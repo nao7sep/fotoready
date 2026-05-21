@@ -1,14 +1,12 @@
 import { DEFAULT_FILENAME_TEMPLATE_ID, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
 import { builtinFilenameTemplates } from "../defaults";
-import type { FilenameTemplate, GlobalSettings, MetadataField, MetadataFields } from "../types/settings";
+import { EDITABLE_METADATA_FIELDS, METADATA_FIELDS, type FilenameTemplate, type GlobalSettings, type MetadataField, type MetadataFields } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
-const metadataFields = ["author", "copyright", "orientation", "colorspace"] as const satisfies readonly MetadataField[];
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
-const editableMetadataFields = ["description", "author", "credit", "source", "copyright", "usageTerms", "webStatement", "contactEmail", "contactUrl"] as const satisfies readonly (keyof MetadataFields)[];
 
 export type SettingsNormalizationResult = {
   settings: GlobalSettings;
@@ -104,14 +102,14 @@ function cloneValue<T>(value: T): T {
 }
 
 function validateMetadataStrip(value: unknown, path: string): MetadataField[] {
-  const fields = assertArray(value, path).map((item, index) => assertOneOf(item, `${path}[${index}]`, metadataFields));
+  const fields = assertArray(value, path).map((item, index) => assertOneOf(item, `${path}[${index}]`, METADATA_FIELDS));
   return [...new Set(fields)];
 }
 
 function validateMetadataFields(value: unknown, path: string): MetadataFields {
   const record = assertRecord(value, path);
   const fields: MetadataFields = {};
-  for (const key of editableMetadataFields) {
+  for (const key of EDITABLE_METADATA_FIELDS) {
     if (record[key] === undefined) continue;
     fields[key] = assertString(record[key], `${path}.${key}`);
   }

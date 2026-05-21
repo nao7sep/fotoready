@@ -18,6 +18,8 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
     const activeMode = toUiMode(params.mode);
     const widthMax = maxResizeDimension(params.height);
     const heightMax = maxResizeDimension(params.width);
+    const widthSliderValue = dimensionToSliderValue(params.width, widthMax);
+    const heightSliderValue = dimensionToSliderValue(params.height, heightMax);
 
     return (
       <div className="geometry-controls">
@@ -50,16 +52,42 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
             </button>
           ))}
         </div>
+        <div className="field-grid">
+          <label className="stacked-field geometry-number-field">
+            Width
+            <input
+              disabled={disabled}
+              max={widthMax}
+              min={1}
+              step={1}
+              type="number"
+              value={params.width}
+              onChange={(event) => onParamChange("width", clampResizeDimension(event.currentTarget.valueAsNumber, params.height))}
+            />
+          </label>
+          <label className="stacked-field geometry-number-field">
+            Height
+            <input
+              disabled={disabled}
+              max={heightMax}
+              min={1}
+              step={1}
+              type="number"
+              value={params.height}
+              onChange={(event) => onParamChange("height", clampResizeDimension(event.currentTarget.valueAsNumber, params.width))}
+            />
+          </label>
+        </div>
         <label className="slider-row">
           <span>Width</span>
           <input
             disabled={disabled}
-            max={widthMax}
-            min={1}
+            max={100}
+            min={0}
             step={1}
             type="range"
-            value={params.width}
-            onChange={(event) => onParamChange("width", clampResizeDimension(event.currentTarget.valueAsNumber, params.height))}
+            value={widthSliderValue}
+            onChange={(event) => onParamChange("width", sliderValueToDimension(event.currentTarget.valueAsNumber, widthMax))}
           />
           <span className="slider-value">{`${params.width}px`}</span>
         </label>
@@ -67,12 +95,12 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
           <span>Height</span>
           <input
             disabled={disabled}
-            max={heightMax}
-            min={1}
+            max={100}
+            min={0}
             step={1}
             type="range"
-            value={params.height}
-            onChange={(event) => onParamChange("height", clampResizeDimension(event.currentTarget.valueAsNumber, params.width))}
+            value={heightSliderValue}
+            onChange={(event) => onParamChange("height", sliderValueToDimension(event.currentTarget.valueAsNumber, heightMax))}
           />
           <span className="slider-value">{`${params.height}px`}</span>
         </label>
@@ -83,6 +111,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
 };
 
 function clampResizeDimension(value: number, otherDimension: number): number {
+  if (!Number.isFinite(value)) return 1;
   return Math.max(1, Math.min(Math.round(value), maxResizeDimension(otherDimension)));
 }
 
@@ -93,4 +122,16 @@ function maxResizeDimension(otherDimension: number): number {
 function toUiMode(mode: ResizeMode): ResizeUiMode {
   if (mode === "exact") return "exact";
   return "fit";
+}
+
+function dimensionToSliderValue(value: number, max: number): number {
+  if (max <= 1) return 0;
+  const clamped = Math.max(1, Math.min(value, max));
+  return Math.round((Math.log(clamped) / Math.log(max)) * 100);
+}
+
+function sliderValueToDimension(value: number, max: number): number {
+  if (max <= 1) return 1;
+  const normalized = Math.max(0, Math.min(value, 100)) / 100;
+  return Math.max(1, Math.min(max, Math.round(Math.exp(normalized * Math.log(max)))));
 }

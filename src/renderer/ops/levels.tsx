@@ -63,9 +63,9 @@ export const levelsRenderer: OpRenderer<LevelsParams> = {
 };
 
 function gammaToSliderValue(gamma: number): number {
-  return Math.round((Math.log2(gamma) / 2) * 100);
+  return Math.round((-Math.log2(gamma) / 2) * 100);
 }
 
 function sliderValueToGamma(value: number): number {
-  return Math.pow(2, value / 50);
+  return Math.pow(2, -value / 50);
 }

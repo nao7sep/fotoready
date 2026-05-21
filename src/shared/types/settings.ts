@@ -23,6 +23,18 @@ export type MetadataFields = {
   contactUrl?: string;
 };
 
+export const EDITABLE_METADATA_FIELDS = [
+  "source",
+  "description",
+  "author",
+  "contactEmail",
+  "contactUrl",
+  "credit",
+  "copyright",
+  "webStatement",
+  "usageTerms"
+] as const satisfies readonly (keyof MetadataFields)[];
+
 export type JpegQualityMode = "auto" | "fixed";
 
 export type GlobalSettings = {

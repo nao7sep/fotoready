@@ -1,3 +1,5 @@
+import { clamp } from "@shared/numeric";
+
 export type SourceJpegFacts = {
   jpegQualityEstimate: { value: number; method: "dqt-estimate" } | null;
 };
@@ -133,8 +135,4 @@ function combinedRms(observed: Array<{ table: number[]; standard: number[] }>, q
 function scaledTable(standard: number[], quality: number): number[] {
   const scale = quality < 50 ? Math.floor(5000 / quality) : 200 - quality * 2;
   return standard.map((value) => clamp(Math.floor((value * scale + 50) / 100), 1, 255));
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

@@ -1,3 +1,5 @@
+import { clamp } from "./numeric";
+
 export type AssetOverlayParams = {
   assetPath: string;
   x: number;
@@ -28,8 +30,4 @@ function validPositive(value: number, fallback: number): number {
 
 function validFinite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

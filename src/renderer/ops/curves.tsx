@@ -4,10 +4,10 @@ import type { OpRenderer } from "./op-renderer";
 type CurvePoint = [number, number];
 type CurvesParams = { rgb: CurvePoint[] };
 
-const inputValues = [0, 64, 128, 192, 255];
+const defaultCurve: CurvePoint[] = [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]];
 const labels = ["Blacks", "Shadows", "Midtones", "Lights", "Whites"];
 const curvePresets: ReadonlyArray<{ id: string; label: string; rgb: CurvePoint[] }> = [
-  { id: "neutral", label: "Neutral", rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] },
+  { id: "neutral", label: "Neutral", rgb: defaultCurve },
   { id: "recover-dark-details", label: "Recover dark details", rgb: [[0, 0], [64, 86], [128, 144], [192, 212], [255, 255]] },
   { id: "brighten-midtones", label: "Brighten midtones", rgb: [[0, 0], [64, 92], [128, 156], [192, 218], [255, 255]] },
   { id: "add-contrast", label: "Add contrast", rgb: [[0, 0], [64, 44], [128, 128], [192, 214], [255, 255]] },
@@ -17,7 +17,7 @@ const curvePresets: ReadonlyArray<{ id: string; label: string; rgb: CurvePoint[]
 export const curvesRenderer: OpRenderer<CurvesParams> = {
   type: "curves",
   Card({ params, disabled, onParamChange }) {
-    const points: CurvePoint[] = params.rgb.length >= 2 ? params.rgb : [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]];
+    const points = params.rgb.length >= 2 ? params.rgb : defaultCurve;
     return (
       <div className="geometry-controls">
         <div className="geometry-chip-group" role="group" aria-label="Curves presets">
@@ -34,24 +34,46 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
           ))}
         </div>
         {points.map((point, index) => (
-          <label className="slider-row" key={index}>
-            <span>{labels[index] ?? `Point ${index + 1}`}</span>
-            <input
-              disabled={disabled}
-              max={255}
-              min={0}
-              step={1}
-              type="range"
-              value={point[1]}
-              onChange={(e) => onParamChange("rgb", points.map((item, i): CurvePoint => i === index ? [item[0], e.currentTarget.valueAsNumber] : item))}
-            />
-            <span className="slider-value">{`${inputValues[index] ?? point[0]}\u2192${point[1]}`}</span>
-          </label>
+          <div className="geometry-controls" key={index}>
+            <div className="geometry-status">
+              {labels[index] ?? `Point ${index + 1}`}: <strong>{Math.round(point[0])}→{Math.round(point[1])}</strong>
+            </div>
+            <label className="slider-row">
+              <span>Input</span>
+              <input
+                disabled={disabled}
+                max={255}
+                min={0}
+                step={1}
+                type="range"
+                value={point[0]}
+                onChange={(e) => onParamChange("rgb", updateCurvePoint(points, index, [e.currentTarget.valueAsNumber, point[1]]))}
+              />
+              <span className="slider-value">{Math.round(point[0])}</span>
+            </label>
+            <label className="slider-row">
+              <span>Output</span>
+              <input
+                disabled={disabled}
+                max={255}
+                min={0}
+                step={1}
+                type="range"
+                value={point[1]}
+                onChange={(e) => onParamChange("rgb", updateCurvePoint(points, index, [point[0], e.currentTarget.valueAsNumber]))}
+              />
+              <span className="slider-value">{Math.round(point[1])}</span>
+            </label>
+          </div>
         ))}
       </div>
     );
   }
 };
+
+function updateCurvePoint(points: CurvePoint[], index: number, point: CurvePoint): CurvePoint[] {
+  return points.map((item, i): CurvePoint => i === index ? point : item);
+}
 
 function sameCurve(left: CurvePoint[], right: CurvePoint[]): boolean {
   return left.length === right.length && left.every((point, index) => point[0] === right[index]?.[0] && point[1] === right[index]?.[1]);

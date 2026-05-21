@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_LUT_FOLDER } from "@shared/constants";
+import { clamp01 } from "@shared/numeric";
 import type { LutEntry } from "@shared/types/ipc";
 import { expandHomePath, importDirectoryAsset, listDirectoryAssets } from "./file-asset-catalog";
 
@@ -108,7 +109,7 @@ function pastelFade(r: number, g: number, b: number): number[] {
 }
 
 function silverFade(r: number, g: number, b: number): number[] {
-  const gray = clamp(luma(r, g, b));
+  const gray = clamp01(luma(r, g, b));
   return composeRgb(
     [gray, gray, gray],
     (rgb) => withContrast(rgb, 1.04),
@@ -182,38 +183,38 @@ function composeRgb(
 
 function withContrast([r, g, b]: [number, number, number], amount: number): [number, number, number] {
   return [
-    clamp((r - 0.5) * amount + 0.5),
-    clamp((g - 0.5) * amount + 0.5),
-    clamp((b - 0.5) * amount + 0.5)
+    clamp01((r - 0.5) * amount + 0.5),
+    clamp01((g - 0.5) * amount + 0.5),
+    clamp01((b - 0.5) * amount + 0.5)
   ];
 }
 
 function withLift([r, g, b]: [number, number, number], lift: number): [number, number, number] {
   return [
-    clamp(r * (1 - lift) + lift),
-    clamp(g * (1 - lift) + lift),
-    clamp(b * (1 - lift) + lift)
+    clamp01(r * (1 - lift) + lift),
+    clamp01(g * (1 - lift) + lift),
+    clamp01(b * (1 - lift) + lift)
   ];
 }
 
 function withBalance([r, g, b]: [number, number, number], red: number, green: number, blue: number): [number, number, number] {
-  return [clamp(r * red), clamp(g * green), clamp(b * blue)];
+  return [clamp01(r * red), clamp01(g * green), clamp01(b * blue)];
 }
 
 function withGamma([r, g, b]: [number, number, number], gamma: number): [number, number, number] {
   return [
-    clamp(Math.pow(r, 1 / gamma)),
-    clamp(Math.pow(g, 1 / gamma)),
-    clamp(Math.pow(b, 1 / gamma))
+    clamp01(Math.pow(r, 1 / gamma)),
+    clamp01(Math.pow(g, 1 / gamma)),
+    clamp01(Math.pow(b, 1 / gamma))
   ];
 }
 
 function withSaturation([r, g, b]: [number, number, number], amount: number): [number, number, number] {
   const gray = luma(r, g, b);
   return [
-    clamp(gray + (r - gray) * amount),
-    clamp(gray + (g - gray) * amount),
-    clamp(gray + (b - gray) * amount)
+    clamp01(gray + (r - gray) * amount),
+    clamp01(gray + (g - gray) * amount),
+    clamp01(gray + (b - gray) * amount)
   ];
 }
 
@@ -228,9 +229,9 @@ function splitTone(
   const shadowWeight = smoothstep(clamp01((0.62 - brightness) / 0.62)) * shadowAmount;
   const highlightWeight = smoothstep(clamp01((brightness - 0.38) / 0.62)) * highlightAmount;
   return [
-    clamp(r + shadows[0] * shadowWeight + highlights[0] * highlightWeight),
-    clamp(g + shadows[1] * shadowWeight + highlights[1] * highlightWeight),
-    clamp(b + shadows[2] * shadowWeight + highlights[2] * highlightWeight)
+    clamp01(r + shadows[0] * shadowWeight + highlights[0] * highlightWeight),
+    clamp01(g + shadows[1] * shadowWeight + highlights[1] * highlightWeight),
+    clamp01(b + shadows[2] * shadowWeight + highlights[2] * highlightWeight)
   ];
 }
 
@@ -242,18 +243,10 @@ function smoothstep(value: number): number {
   return value * value * (3 - 2 * value);
 }
 
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
 function resolveLutDir(lutFolder: string, homeDir: string): string {
   return expandHomePath(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
 }
 
 function formatCubeNumber(value: number): string {
-  return clamp(value).toFixed(6);
-}
-
-function clamp(value: number): number {
-  return Math.max(0, Math.min(1, value));
+  return clamp01(value).toFixed(6);
 }

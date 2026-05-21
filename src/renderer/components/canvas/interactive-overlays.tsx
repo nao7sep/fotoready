@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import type Konva from "konva";
 import { Ellipse, Rect, Transformer } from "react-konva";
+import { clamp } from "@shared/numeric";
 import type { ConcealShape } from "@shared/types/conceal";
 import { wrapAngle } from "@shared/rotation";
 
@@ -202,8 +203,4 @@ function rotatedBounds(rect: RectShape): { x: number; y: number; width: number; 
     width: extentX * 2,
     height: extentY * 2
   };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

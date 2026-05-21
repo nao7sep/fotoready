@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Group, Image as KonvaImage, Layer, Stage } from "react-konva";
+import { clamp } from "@shared/numeric";
 import type { Task } from "@shared/types/project";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
 import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
@@ -167,8 +168,4 @@ function readImagePixel(image: HTMLImageElement, localX: number, localY: number)
     g: pixel[1] ?? 0,
     b: pixel[2] ?? 0
   };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

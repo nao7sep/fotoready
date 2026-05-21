@@ -1,9 +1,10 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { assertParamsShape, assertRecord, assertString } from "./_shared";
+import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
 
 type InjectMetadataParams = {
-  fields: Record<string, string>;
+  fields: MetadataFields;
 };
 
 const injectMetadataModule: OpModule<InjectMetadataParams> = {
@@ -17,10 +18,14 @@ const injectMetadataModule: OpModule<InjectMetadataParams> = {
   validate(value) {
     const record = assertParamsShape(value, ["fields"], "inject-metadata.params");
     const fieldsRecord = assertRecord(record.fields, "inject-metadata.params.fields");
+    const fields: MetadataFields = {};
+    for (const key of EDITABLE_METADATA_FIELDS) {
+      if (fieldsRecord[key] === undefined) continue;
+      const value = assertString(fieldsRecord[key], `inject-metadata.params.fields.${key}`).trim();
+      if (value) fields[key] = value;
+    }
     return {
-      fields: Object.fromEntries(
-        Object.entries(fieldsRecord).map(([key, entry]) => [key, assertString(entry, `inject-metadata.params.fields.${key}`)])
-      )
+      fields
     };
   },
   contributeMetadata(params, decision) {

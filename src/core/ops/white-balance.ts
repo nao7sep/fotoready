@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape, validateOptionalSamplePoint } from "./_shared";
+import { assertFiniteNumber, assertParamsShape, materialize, validateOptionalSamplePoint } from "./_shared";
 
 type WhiteBalanceParams = {
   temperature: number;
@@ -22,11 +22,11 @@ const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
       samplePoint: validateOptionalSamplePoint(record.samplePoint, "white-balance.params.samplePoint")
     };
   },
-  apply(image, params) {
+  async apply(image, params) {
     const red = 1 + params.temperature / 500;
     const blue = 1 - params.temperature / 500;
     const green = 1 + params.tint / 700;
-    return image.linear([red, green, blue], [0, 0, 0]);
+    return materialize(image.linear([red, green, blue], [0, 0, 0]));
   }
 };
 

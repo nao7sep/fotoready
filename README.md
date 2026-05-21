@@ -93,6 +93,6 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle.
 | App | Show keyboard shortcuts | `Cmd/Ctrl+/` |
 | App | Close the active dialog | `Esc` |
 
-`Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus the FotoReady sidecar file.
+`Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus its JSON sidecar file.
 `Save all pending images` queues every pending task the same way.
-`Rename all` opens a review of saved and unsaved tasks with the current output folder, inline rename-slug editing and slug regeneration for saved rows, and conflict checks for exact paths plus duplicate `{original}` / `{slug}` identities. Only saved outputs with ready or unchanged rows are renamed.
+`Rename all` uses four built-in filename choices: `Slug + size` (default), `Slug only`, `Original + size`, and `Original only`. The modal keeps the current output folder at the top, recalculates destinations when that folder changes, shows each row's state first, and exposes inline slug editing/generation only when the selected template uses slugs. Collision checks are destination-directory aware: exact destination path and sidecar collisions always block, while semantic `{original}` / `{slug}` collisions are only treated as conflicts when those rows would land in the same destination directory. Only saved outputs with ready or unchanged rows are renamed.

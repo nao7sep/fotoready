@@ -820,9 +820,9 @@ function App(): React.JSX.Element {
         ) : null}
       </section>
 
-      {renameOpen && settings ? (
+      {renameOpen && project ? (
         <RenameModal
-          defaultTemplateId={settings.defaultTemplateId}
+          projectSnapshot={projectSnapshot}
           outputDirLabel={outputDirLabel}
           outputDirPath={project?.outputDir ?? null}
           onClearOutputDir={clearOutputDir}
@@ -842,7 +842,6 @@ function App(): React.JSX.Element {
             await refreshProject(await api.task.setCustomSlug(taskId, customSlug));
           }}
           onSetOutputDir={setOutputDir}
-          templates={settings.filenameTemplates}
         />
       ) : null}
 

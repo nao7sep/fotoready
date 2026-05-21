@@ -2,6 +2,7 @@ import type { GlobalSettings } from "./settings";
 import type { UiState } from "./state";
 import type { Project } from "./project";
 import type { OpDefinition } from "./op";
+import type { RenameTemplateId } from "../rename-template";
 
 export type QueueSnapshot = {
   done: number;
@@ -57,7 +58,7 @@ export type OriginalThumbnail = {
 
 export type RenamePreviewItem = {
   taskId: string;
-  label: string;
+  originalName: string;
   status: "not-saved" | "unchanged" | "ready" | "blocked";
   currentPath: string | null;
   proposedPath: string | null;
@@ -71,7 +72,7 @@ export type RenamePreviewItem = {
 };
 
 export type RenamePreview = {
-  templateId: string;
+  templateId: RenameTemplateId;
   usesOriginal: boolean;
   usesSlug: boolean;
   items: RenamePreviewItem[];
@@ -171,8 +172,8 @@ export type FotoReadyApi = {
     runForTask(taskId: string, options?: VisionRunOptions): Promise<ProjectSnapshot>;
   };
   rename: {
-    preview(templateId?: string, taskIds?: string[]): Promise<RenamePreview>;
-    run(templateId?: string, taskIds?: string[]): Promise<ProjectSnapshot>;
+    preview(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview>;
+    run(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSnapshot>;
   };
   luts: {
     list(): Promise<LutEntry[]>;

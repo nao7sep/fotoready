@@ -4,13 +4,6 @@ export const METADATA_KEEP_GROUPS = ["editorial", "dates", "gps"] as const;
 export type MetadataKeepGroup = (typeof METADATA_KEEP_GROUPS)[number];
 export type MetadataStripMode = MetadataKeepGroup[];
 
-export type FilenameTemplate = {
-  id: string;
-  name: string;
-  pattern: string;
-  builtin?: boolean;
-};
-
 export type MetadataFields = {
   description?: string;
   author?: string;
@@ -51,7 +44,6 @@ export type GlobalSettings = {
   injectAuthorCopyright: boolean;
   preserveSourceDates: boolean;
   injectFields: MetadataFields;
-  defaultTemplateId: string;
   defaultOutputDirectory: string;
   lutFolder: string;
   defaultWatermarkImage: string;
@@ -69,7 +61,6 @@ export type GlobalSettings = {
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;
   visionSlugPrompt: string;
-  filenameTemplates: FilenameTemplate[];
   workerPoolSize: number | null;
   previewLongEdge: number;
   previewDebounceMs: number;

@@ -1,43 +1,40 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { DEFAULT_FILENAME_TEMPLATE_ID } from "@shared/constants";
-import { builtinFilenameTemplates } from "@shared/defaults";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
-import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
+import { assertSafeRenderedFilename } from "@shared/validation/filename-template";
 import type { RenamePreview } from "@shared/types/ipc";
-import { renderFilenameTemplate } from "@core/template-render";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { sidecarPathForOutput } from "@main/task-sidecar";
-import { assertSafeRenderedFilename, validateFilenameTemplatePattern } from "@shared/validation/filename-template";
+import { findRenameTemplate, renderRenameTemplate, renameTemplateUsesOriginal, renameTemplateUsesSlug, type RenameTemplateId } from "@shared/rename-template";
+import { resolveProjectOutputDir } from "@main/output-paths";
 
 type RenamePlanItem = RenamePreview["items"][number];
 
-export async function previewRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<RenamePreview> {
-  const template = findTemplate(project, settings, templateId);
-  assertTemplateUsable(template);
+export async function previewRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview> {
+  const template = findRenameTemplate(templateId);
   const scopedTaskIds = taskIds?.length ? new Set(taskIds) : null;
   const tasks = project.tasks
     .filter((task) => !scopedTaskIds || scopedTaskIds.has(task.id))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const needsSlug = template.pattern.includes("{slug}");
-  const usesSlug = template.pattern.includes("{slug}");
-  const usesOriginal = template.pattern.includes("{original}");
+  const usesSlug = renameTemplateUsesSlug(template);
+  const usesOriginal = renameTemplateUsesOriginal(template);
+  const needsSlug = usesSlug;
   const originalConflictKeys = new Map<string, string | null>();
   const slugConflictKeys = new Map<string, string | null>();
 
   const items: RenamePlanItem[] = [];
   for (const [index, task] of tasks.entries()) {
     const original = project.originals.find((candidate) => candidate.id === task.originalId);
-    const label = original ? path.basename(original.sourcePath) : task.id;
-    const originalConflictKey = normalizeOriginalConflictKey(original?.sourcePath ?? `original-${index + 1}`);
+    const originalName = original ? path.basename(original.sourcePath) : task.id;
+    const originalConflictKey = normalizeOriginalConflictKey(original?.sourcePath ?? originalName);
     if (!task.output) {
       originalConflictKeys.set(task.id, null);
       slugConflictKeys.set(task.id, null);
       items.push({
         taskId: task.id,
-        label,
+        originalName,
         status: "not-saved",
         currentPath: null,
         proposedPath: null,
@@ -54,6 +51,7 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
 
     const savedTask = task as Task & { output: NonNullable<Task["output"]> };
     const currentPath = savedTask.output.finalPath ?? savedTask.output.stagedPath;
+    const destinationDir = original ? resolveProjectOutputDir(project.outputDir, original.sourcePath) : path.dirname(currentPath);
     const generatedSlug = savedTask.output.vision?.slugCandidates[0] ?? null;
     const effectiveSlug = resolvedRenameSlug(savedTask);
     const missingSlug = needsSlug && !effectiveSlug;
@@ -65,7 +63,7 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
       try {
         const metadata = await sharp(currentPath).metadata();
         const ext = outputExtension(currentPath);
-        proposedName = renderFilenameTemplate(template.pattern, {
+        proposedName = renderRenameTemplate(template, {
           slug: effectiveSlug ?? "untitled-output",
           original: original ? path.parse(original.sourcePath).name : `original-${index + 1}`,
           w: metadata.width ?? 0,
@@ -73,17 +71,17 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
           ext
         });
         assertSafeRenderedFilename(proposedName);
-        proposedPath = path.join(path.dirname(currentPath), proposedName);
+        proposedPath = path.join(destinationDir, proposedName);
       } catch (error) {
         issue = error instanceof Error ? error.message : String(error);
       }
     }
 
-    originalConflictKeys.set(task.id, originalConflictKey);
-    slugConflictKeys.set(task.id, effectiveSlug);
+    originalConflictKeys.set(task.id, buildSemanticConflictKey(destinationDir, originalConflictKey));
+    slugConflictKeys.set(task.id, buildSemanticConflictKey(destinationDir, effectiveSlug));
     items.push({
       taskId: task.id,
-      label,
+      originalName,
       status: issue ? "blocked" : proposedPath === currentPath ? "unchanged" : "ready",
       currentPath,
       proposedPath,
@@ -113,27 +111,27 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
     if (hasOriginalConflict || hasSlugConflict) {
       item.status = "blocked";
       item.issue = hasOriginalConflict && hasSlugConflict
-        ? "Original and slug conflict"
+        ? "Overlaps another original- and slug-based name"
         : hasOriginalConflict
-          ? "Original conflict"
-          : "Slug conflict";
+          ? "Overlaps another original-based name"
+          : "Overlaps another slug-based name";
       continue;
     }
     if ((proposedPathCounts.get(normalizePathKey(item.proposedPath)) ?? 0) > 1) {
       item.status = "blocked";
-      item.issue = "Name conflict";
+      item.issue = "Overlaps another renamed file";
       continue;
     }
     if (item.currentPath !== item.proposedPath && await pathExists(item.proposedPath)) {
       item.status = "blocked";
-      item.issue = "File exists";
+      item.issue = "A file with this name already exists";
       continue;
     }
     const currentParamsPath = sidecarPathForOutput(item.currentPath);
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
     if (currentParamsPath !== proposedParamsPath && await pathExists(proposedParamsPath)) {
       item.status = "blocked";
-      item.issue = "Sidecar exists";
+      item.issue = "A JSON sidecar with this name already exists";
     }
   }
 
@@ -148,8 +146,8 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   };
 }
 
-export async function runRename(project: Project, settings: GlobalSettings, templateId?: string, taskIds?: string[]): Promise<void> {
-  const preview = await previewRename(project, settings, templateId, taskIds);
+export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[]): Promise<void> {
+  const preview = await previewRename(project, templateId, taskIds);
   if (preview.blockedCount > 0) {
     throw new Error(`${preview.blockedCount} task(s) cannot be renamed yet.`);
   }
@@ -164,6 +162,7 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
       continue;
     }
 
+    await fs.mkdir(path.dirname(item.proposedPath), { recursive: true });
     await ensureNoCollision(item.proposedPath);
     const tempPath = `${item.proposedPath}.tmp-${process.pid}`;
     try {
@@ -203,18 +202,6 @@ export async function runRename(project: Project, settings: GlobalSettings, temp
   }
 }
 
-function findTemplate(_project: Project, settings: GlobalSettings, templateId?: string): FilenameTemplate {
-  const id = templateId ?? settings.defaultTemplateId ?? DEFAULT_FILENAME_TEMPLATE_ID;
-  return settings.filenameTemplates.find((template) => template.id === id) ?? builtinFilenameTemplates[0];
-}
-
-function assertTemplateUsable(template: FilenameTemplate): void {
-  const issues = validateFilenameTemplatePattern(template.pattern);
-  if (issues.length > 0) {
-    throw new Error(`Template "${template.name}" is invalid: ${issues[0]}`);
-  }
-}
-
 function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): string[] {
   if (task.customSlug) return [normalizeSlugCandidate(task.customSlug)];
   if (task.output.vision?.slugCandidates.length) return task.output.vision.slugCandidates;
@@ -235,6 +222,11 @@ function normalizePathKey(filePath: string): string {
 
 function normalizeOriginalConflictKey(sourcePath: string): string {
   return path.parse(sourcePath).name.trim().toLocaleLowerCase();
+}
+
+function buildSemanticConflictKey(destinationDir: string, key: string | null): string | null {
+  if (!key) return null;
+  return `${normalizePathKey(destinationDir)}::${key}`;
 }
 
 function countSemanticConflicts(

@@ -27,6 +27,7 @@ import type { BoxBounds } from "@shared/box-geometry";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
+import type { RenameTemplateId } from "@shared/rename-template";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -480,12 +481,12 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async previewRename(templateId?: string, taskIds?: string[]): Promise<RenamePreview> {
-    return previewRename(this.#project, this.settings, templateId, taskIds);
+  async previewRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview> {
+    return previewRename(this.#project, templateId, taskIds);
   }
 
-  async runRename(templateId?: string, taskIds?: string[]): Promise<ProjectSessionSnapshot> {
-    await runRename(this.#project, this.settings, templateId, taskIds);
+  async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSessionSnapshot> {
+    await runRename(this.#project, templateId, taskIds);
     return this.snapshot();
   }
 

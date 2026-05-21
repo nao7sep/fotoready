@@ -17,6 +17,7 @@ import { importStamp, listStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
+import type { RenameTemplateId } from "@shared/rename-template";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -203,8 +204,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   );
   ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
   ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
-  ipcMain.handle("rename.preview", async (_event, templateId?: string, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
-  ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
+  ipcMain.handle("rename.preview", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
+  ipcMain.handle("rename.run", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("luts.import", async (_event, filePath: string) => importLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("stamps.list", async () => listStamps(path.dirname(ctx.paths.dataDir)));

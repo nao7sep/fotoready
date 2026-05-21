@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { FilenameTemplate } from "@shared/types/settings";
-import type { RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
+import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
+import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
 import { ModalShell } from "./modal-shell";
 
 export function RenameModal({
-  templates,
-  defaultTemplateId,
+  projectSnapshot,
   outputDirLabel,
   outputDirPath,
   onClearOutputDir,
@@ -16,19 +15,18 @@ export function RenameModal({
   onSetRenameSlug,
   onSetOutputDir
 }: {
-  templates: FilenameTemplate[];
-  defaultTemplateId: string;
+  projectSnapshot: ProjectSnapshot;
   outputDirLabel: string;
   outputDirPath: string | null;
   onClearOutputDir(): Promise<void>;
   onClose(): void;
-  onPreview(templateId: string): Promise<RenamePreview>;
+  onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: string): Promise<void>;
+  onRun(templateId: RenameTemplateId): Promise<void>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void>;
 }): React.JSX.Element {
-  const [templateId, setTemplateId] = useState(defaultTemplateId);
+  const [templateId, setTemplateId] = useState<RenameTemplateId>(DEFAULT_RENAME_TEMPLATE_ID);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionTaskId, setActionTaskId] = useState<string | null>(null);
@@ -58,7 +56,7 @@ export function RenameModal({
     return () => {
       cancelled = true;
     };
-  }, [templateId, outputDirPath]);
+  }, [projectSnapshot, templateId, outputDirPath]);
 
   async function confirm(): Promise<void> {
     setBusy(true);
@@ -96,8 +94,8 @@ export function RenameModal({
 
       <label className="stacked-field">
         Template
-        <select disabled={modalBusy} value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value)}>
-          {templates.map((template) => (
+        <select disabled={modalBusy} value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value as RenameTemplateId)}>
+          {builtinRenameTemplates.map((template) => (
             <option key={template.id} value={template.id}>{template.name}</option>
           ))}
         </select>
@@ -173,10 +171,10 @@ function RenamePreviewRow({
     setSlugDraft(initialSlugValue);
   }, [initialSlugValue, item.taskId]);
 
-  const detail = item.status === "not-saved"
+  const stateText = item.status === "not-saved"
     ? "Not saved"
     : item.status === "blocked"
-      ? item.issue ?? "Blocked"
+      ? item.issue ?? "Needs attention"
       : item.status === "unchanged"
         ? "No change"
         : "Ready";
@@ -188,38 +186,46 @@ function RenamePreviewRow({
   }
 
   return (
-    <div className={`rename-preview-row ${item.status}`} key={item.taskId}>
-      <div className="rename-preview-cell">
-        <span className="rename-preview-label" title={item.label}>{item.label}</span>
-        <span title={item.currentPath ?? ""}>{item.currentName ?? "Not saved"}</span>
+    <div className={`rename-preview-row ${item.status}${showSlugEditor ? "" : " no-side"}`} key={item.taskId}>
+      <div className="rename-preview-main">
+        <span className={`rename-preview-state ${item.status}`}>
+          <span className={`rename-preview-dot ${item.status}`} aria-hidden="true">●</span>
+          <span>{stateText}</span>
+        </span>
+        <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? "Not saved yet"}</span>
+        <span className="rename-preview-meta" title={item.currentPath ?? ""}>
+          <span className="rename-preview-meta-label">Current</span>
+          <span>{item.currentName ?? "Not saved"}</span>
+        </span>
+        <span className="rename-preview-meta" title={item.originalName}>
+          <span className="rename-preview-meta-label">Original</span>
+          <span>{item.originalName}</span>
+        </span>
       </div>
-      <div className="rename-preview-cell">
-        <span className="rename-preview-status">{detail}</span>
-        <span title={item.proposedPath ?? ""}>{item.proposedName ?? "-"}</span>
+      <div className={`rename-preview-side${showSlugEditor ? "" : " hidden"}`}>
         {showSlugEditor ? (
           <div className="rename-preview-slug-editor">
-            <label className="rename-preview-slug-field">
-              <span>Rename slug</span>
-              <input
-                disabled={disabled}
-                placeholder="descriptive-slug"
-                type="text"
-                value={slugDraft}
-                onBlur={() => {
-                  if (skipBlurCommitRef.current) {
-                    skipBlurCommitRef.current = false;
-                    return;
-                  }
-                  void commitSlugDraft();
-                }}
-                onChange={(event) => setSlugDraft(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-                  event.preventDefault();
-                  void commitSlugDraft();
-                }}
-              />
-            </label>
+            <span className="rename-preview-slug-label">slug</span>
+            <input
+              className="rename-preview-slug-input"
+              disabled={disabled}
+              placeholder="descriptive-slug"
+              type="text"
+              value={slugDraft}
+              onBlur={() => {
+                if (skipBlurCommitRef.current) {
+                  skipBlurCommitRef.current = false;
+                  return;
+                }
+                void commitSlugDraft();
+              }}
+              onChange={(event) => setSlugDraft(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                void commitSlugDraft();
+              }}
+            />
             <button
               className="toolbar-button compact-text"
               disabled={disabled}
@@ -229,7 +235,7 @@ function RenamePreviewRow({
               }}
               onClick={() => void onRegenerateSlug(item.taskId)}
             >
-              {actionBusy ? "Regenerating" : "Regenerate slug"}
+              {actionBusy ? (item.generatedSlug ? "Regenerating" : "Generating") : item.generatedSlug ? "Regenerate" : "Generate"}
             </button>
           </div>
         ) : null}

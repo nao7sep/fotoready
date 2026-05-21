@@ -11,6 +11,7 @@ import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { resolveOutputFormat, outputFormatExtension } from "@shared/output-format";
 import { writeTaskSidecarFile } from "@main/task-sidecar";
+import { resolveProjectOutputDir } from "@main/output-paths";
 
 export async function processTask(
   project: Project,
@@ -170,16 +171,10 @@ function resolveQualityForSave(
 }
 
 async function stagedOutputPath(project: Project, task: Task, original: { format: string }, sourcePath: string): Promise<string> {
-  const outputDir = resolveOutputDir(project.outputDir, sourcePath);
+  const outputDir = resolveProjectOutputDir(project.outputDir, sourcePath);
   const parsed = path.parse(sourcePath);
   const ext = outputFormatExtension(resolveOutputFormat(task.pipeline.output.format, original.format));
   return path.join(outputDir, `${parsed.name}-${nanoid(8)}.${ext}`);
-}
-
-function resolveOutputDir(outputDir: string | null, sourcePath: string): string {
-  if (!outputDir || outputDir.trim().length === 0) return path.dirname(sourcePath);
-  if (path.isAbsolute(outputDir)) return outputDir;
-  return path.resolve(process.cwd(), outputDir);
 }
 
 function taskError(error: unknown): TaskError {

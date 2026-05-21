@@ -1,19 +1,15 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { nanoid } from "nanoid";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "@shared/constants";
-import { EDITABLE_METADATA_FIELDS, type FilenameTemplate, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
+import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
-import { validateFilenameTemplates } from "@shared/validation/filename-template";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
-import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { ModalShell } from "./modal-shell";
 
-type SettingsTab = "save" | "naming" | "metadata" | "vision" | "assets" | "app";
+type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
 
 const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "save", label: "Save" },
-  { id: "naming", label: "Naming" },
   { id: "metadata", label: "Metadata" },
   { id: "vision", label: "Vision" },
   { id: "assets", label: "Assets" },
@@ -56,11 +52,6 @@ export function AppSettingsModal({
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>("save");
-  const settingsPageRef = useRef<HTMLDivElement>(null);
-  const templateIssues = useMemo(
-    () => settingsDraft ? validateFilenameTemplates(settingsDraft.filenameTemplates, settingsDraft.defaultTemplateId) : [],
-    [settingsDraft]
-  );
 
   return (
     <ModalShell
@@ -70,7 +61,7 @@ export function AppSettingsModal({
       footer={
         <>
           <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-action" type="button" disabled={!settingsDraft || !hasChanges || templateIssues.length > 0} onClick={onSaveSettings}>Save</button>
+          <button className="primary-action" type="button" disabled={!settingsDraft || !hasChanges} onClick={onSaveSettings}>Save</button>
         </>
       }
     >
@@ -81,11 +72,9 @@ export function AppSettingsModal({
           </button>
         ))}
       </div>
-
       {settingsDraft ? (
-        <div className="settings-page" ref={settingsPageRef}>
+        <div className="settings-page">
           {tab === "save" ? <SaveTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
-          {tab === "naming" ? <NamingTab scrollContainerRef={settingsPageRef} settings={settingsDraft} setSettings={setSettingsDraft} templateIssues={templateIssues} /> : null}
           {tab === "metadata" ? <MetadataTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
           {tab === "vision" ? (
             <VisionTab
@@ -223,116 +212,6 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
           <NumberField label="Quality" max={100} min={1} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
           <NumberField label="Effort" max={9} min={0} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
         </div>
-      </section>
-    </div>
-  );
-}
-
-function NamingTab({
-  scrollContainerRef,
-  settings,
-  setSettings,
-  templateIssues
-}: SettingsProps & { scrollContainerRef: React.RefObject<HTMLDivElement | null>; templateIssues: ReturnType<typeof validateFilenameTemplates> }): React.JSX.Element {
-  const templateRefs = useRef(new Map<string, HTMLDivElement>());
-  const [pendingScrollTemplateId, setPendingScrollTemplateId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!pendingScrollTemplateId) return;
-    const element = templateRefs.current.get(pendingScrollTemplateId);
-    if (!element) return;
-    revealInScrollContainer(scrollContainerRef.current, element);
-    const input = element.querySelector<HTMLInputElement>('input[type="text"]');
-    input?.focus();
-    input?.select();
-    setPendingScrollTemplateId(null);
-  }, [pendingScrollTemplateId, scrollContainerRef, settings.filenameTemplates]);
-
-  function updateTemplate(templateId: string, patch: Partial<FilenameTemplate>): void {
-    setSettings({
-      ...settings,
-      filenameTemplates: settings.filenameTemplates.map((template) => template.id === templateId ? { ...template, ...patch } : template)
-    });
-  }
-
-  function addTemplate(): void {
-    const nextTemplateId = `custom-${nanoid(6)}`;
-    setSettings({
-      ...settings,
-      filenameTemplates: [
-        ...settings.filenameTemplates,
-        { id: nextTemplateId, name: "Custom template", pattern: "{original}.{ext}" }
-      ]
-    });
-    setPendingScrollTemplateId(nextTemplateId);
-  }
-
-  function removeTemplate(templateId: string): void {
-    const nextTemplates = settings.filenameTemplates.filter((template) => template.id !== templateId);
-    const nextDefaultTemplateId = settings.defaultTemplateId === templateId ? nextTemplates[0]?.id ?? settings.defaultTemplateId : settings.defaultTemplateId;
-    setSettings({ ...settings, filenameTemplates: nextTemplates, defaultTemplateId: nextDefaultTemplateId });
-  }
-
-  return (
-    <div className="settings-section-stack">
-      <section>
-        <h3>Filename templates</h3>
-        <div className="settings-summary settings-summary-inline">
-          <span>Supported placeholders: <code>{"{original} {slug} {w} {h} {ext}"}</code></span>
-          <button className="toolbar-button" type="button" onClick={addTemplate}>Add template</button>
-        </div>
-        <div className="template-settings-list">
-          {settings.filenameTemplates.map((template) => {
-            const selected = settings.defaultTemplateId === template.id;
-            const issues = templateIssues.filter((issue) => issue.templateId === template.id);
-            return (
-              <div
-                className={`template-settings-card ${selected ? "active" : ""}`}
-                key={template.id}
-                ref={(element) => {
-                  if (element) {
-                    templateRefs.current.set(template.id, element);
-                  } else {
-                    templateRefs.current.delete(template.id);
-                  }
-                }}
-              >
-                <div className="template-settings-card-header">
-                  <label className="stacked-field template-settings-name-field">
-                    Template name
-                    <input
-                      type="text"
-                      value={template.name}
-                      onChange={(event) => updateTemplate(template.id, { name: event.currentTarget.value })}
-                    />
-                  </label>
-                  <div className="template-settings-actions">
-                    <button className="toolbar-button" type="button" disabled={selected} onClick={() => setSettings({ ...settings, defaultTemplateId: template.id })}>
-                      {selected ? "Default" : "Use as default"}
-                    </button>
-                    <button className="toolbar-button" type="button" disabled={settings.filenameTemplates.length <= 1} onClick={() => removeTemplate(template.id)}>Delete</button>
-                  </div>
-                </div>
-                <label className="stacked-field">
-                  Filename pattern
-                  <input
-                    type="text"
-                    value={template.pattern}
-                    onChange={(event) => updateTemplate(template.id, { pattern: event.currentTarget.value })}
-                  />
-                </label>
-                {issues.length > 0 ? (
-                  <div className="template-settings-errors">
-                    {issues.map((issue) => <div className="modal-error" key={issue.message}>{issue.message}</div>)}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-        {templateIssues.filter((issue) => issue.templateId === null).map((issue) => (
-          <div className="modal-error" key={issue.message}>{issue.message}</div>
-        ))}
       </section>
     </div>
   );

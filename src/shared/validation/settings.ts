@@ -1,8 +1,6 @@
-import { DEFAULT_FILENAME_TEMPLATE_ID, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
-import { builtinFilenameTemplates } from "../defaults";
-import { EDITABLE_METADATA_FIELDS, METADATA_KEEP_GROUPS, type FilenameTemplate, type GlobalSettings, type MetadataKeepGroup, type MetadataFields } from "../types/settings";
+import { MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
+import { EDITABLE_METADATA_FIELDS, METADATA_KEEP_GROUPS, type GlobalSettings, type MetadataKeepGroup, type MetadataFields } from "../types/settings";
 import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
-import { validateFilenameTemplatePattern, validateFilenameTemplates } from "./filename-template";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
@@ -36,7 +34,6 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     injectAuthorCopyright: readValue(source, "injectAuthorCopyright", fallback.injectAuthorCopyright, issues, assertBoolean),
     preserveSourceDates: readValue(source, "preserveSourceDates", fallback.preserveSourceDates, issues, assertBoolean),
     injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateMetadataFields),
-    defaultTemplateId: fallback.defaultTemplateId,
     defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertString),
     lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertString),
     defaultWatermarkImage: readValue(source, "defaultWatermarkImage", fallback.defaultWatermarkImage, issues, assertString),
@@ -51,19 +48,10 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
-    filenameTemplates: normalizeFilenameTemplates(source.filenameTemplates, fallback.filenameTemplates, issues),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64, max: MAX_PREVIEW_LONG_EDGE })),
     previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
   };
-
-  const requestedTemplateId = source.defaultTemplateId;
-  settings.defaultTemplateId = normalizeDefaultTemplateId(
-    requestedTemplateId === undefined ? fallback.defaultTemplateId : requestedTemplateId,
-    settings.filenameTemplates,
-    fallback.defaultTemplateId,
-    issues
-  );
   if (settings.defaultGenerateSlug) {
     settings.defaultGenerateDescription = true;
   }
@@ -129,86 +117,4 @@ function validateMetadataFields(value: unknown, path: string): MetadataFields {
 function validateWorkerPoolSize(value: unknown, path: string): number | null {
   if (value === null) return null;
   return assertFiniteNumber(value, path, { integer: true, min: 1, max: 512 });
-}
-
-function normalizeFilenameTemplates(value: unknown, fallback: FilenameTemplate[], issues: string[]): FilenameTemplate[] {
-  const builtins = [...builtinFilenameTemplates];
-  if (value === undefined) {
-    return cloneValue(fallback.length ? fallback : builtins);
-  }
-
-  if (!Array.isArray(value)) {
-    issues.push("settings.filenameTemplates must be an array.");
-    return cloneValue(fallback.length ? fallback : builtins);
-  }
-
-  const templates: FilenameTemplate[] = [];
-  const seen = new Set<string>();
-  const seenNames = new Set<string>();
-  const seenPatterns = new Set<string>();
-
-  for (const [index, entry] of value.entries()) {
-    try {
-      const template = validateFilenameTemplate(entry, `settings.filenameTemplates[${index}]`);
-      if (seen.has(template.id)) {
-        issues.push(`settings.filenameTemplates[${index}].id duplicates "${template.id}".`);
-        continue;
-      }
-      seen.add(template.id);
-      const normalizedName = template.name.trim().toLowerCase();
-      if (seenNames.has(normalizedName)) {
-        issues.push(`settings.filenameTemplates[${index}].name duplicates "${template.name.trim()}".`);
-        continue;
-      }
-      seenNames.add(normalizedName);
-      const normalizedPattern = template.pattern.trim();
-      if (seenPatterns.has(normalizedPattern)) {
-        issues.push(`settings.filenameTemplates[${index}].pattern duplicates another template.`);
-        continue;
-      }
-      seenPatterns.add(normalizedPattern);
-      templates.push(template);
-    } catch (error) {
-      issues.push(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  const normalizedTemplates = templates;
-  for (const issue of validateFilenameTemplates(normalizedTemplates)) {
-    issues.push(issue.templateId ? `settings.filenameTemplates[${issue.templateId}] ${issue.message}` : issue.message);
-  }
-  return normalizedTemplates;
-}
-
-function validateFilenameTemplate(value: unknown, path: string): FilenameTemplate {
-  const record = assertRecord(value, path);
-  const pattern = assertNonEmptyString(record.pattern, `${path}.pattern`);
-  const patternIssues = validateFilenameTemplatePattern(pattern);
-  if (patternIssues.length > 0) {
-    throw new Error(`${path}.pattern ${patternIssues[0]}`);
-  }
-  return {
-    id: assertNonEmptyString(record.id, `${path}.id`),
-    name: assertNonEmptyString(record.name, `${path}.name`),
-    pattern
-  };
-}
-
-function normalizeDefaultTemplateId(value: unknown, templates: FilenameTemplate[], fallback: string, issues: string[]): string {
-  if (value !== undefined) {
-    try {
-      const templateId = assertNonEmptyString(value, "settings.defaultTemplateId");
-      if (templates.some((template) => template.id === templateId)) {
-        return templateId;
-      }
-      issues.push(`settings.defaultTemplateId must reference an existing template. Received "${templateId}".`);
-    } catch (error) {
-      issues.push(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  if (templates.some((template) => template.id === fallback)) {
-    return fallback;
-  }
-  return templates[0]?.id ?? DEFAULT_FILENAME_TEMPLATE_ID;
 }

@@ -473,10 +473,10 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <div className="settings-grid">
           <PathField
             allowClear
-            buttonLabel="Choose image…"
+            buttonLabel="Choose file…"
             emptyLabel="No default image watermark"
             label="Default image watermark"
-            pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png"] })}
+            pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png", "svg"] })}
             value={settings.defaultWatermarkImage}
             onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
           />

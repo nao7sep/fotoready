@@ -12,6 +12,7 @@ import { coverRenderer } from "./cover";
 import { mosaicRenderer } from "./mosaic";
 import { resizeRenderer } from "./resize";
 import { rotateRenderer } from "./rotate";
+import { stampRenderer } from "./stamp";
 import { stripMetadataRenderer } from "./strip-metadata";
 import { unsharpMaskRenderer } from "./unsharp-mask";
 import { watermarkImageRenderer } from "./watermark-image";
@@ -35,6 +36,7 @@ const allRenderers: OpRenderer[] = [
   coverRenderer as OpRenderer,
   blurRenderer as OpRenderer,
   mosaicRenderer as OpRenderer,
+  stampRenderer as OpRenderer,
   watermarkTextRenderer as OpRenderer,
   watermarkImageRenderer as OpRenderer,
   stripMetadataRenderer as OpRenderer,

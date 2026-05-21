@@ -17,6 +17,7 @@ import "./lut";
 import "./cover";
 import "./blur";
 import "./mosaic";
+import "./stamp";
 import "./watermark-text";
 import "./watermark-image";
 import "./strip-metadata";

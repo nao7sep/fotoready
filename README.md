@@ -6,7 +6,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 
 - Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list.
 - Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
-- Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
+- Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
 - Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
 - Queue/error UX with active-task reporting, source reveal, retry/dismiss actions, renderer log forwarding, and a small Vitest foundation covering template rendering, template validation, rename validation, and crop helper behavior.
 
@@ -28,6 +28,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 | Source facts cache | `~/.fotoready/cache/source-facts.json` |
 | Vision cache | `~/.fotoready/cache/vision-facts.json` |
 | User LUT directory | `~/.fotoready/luts/` |
+| Stamp directory | `~/.fotoready/stamps/` |
 
 ## Development
 
@@ -53,6 +54,8 @@ The unpacked macOS app is written to `release/mac-arm64/FotoReady.app`.
 Live previews use a staged cache. For each task, FotoReady keeps a preview-sized base image for the active original and configured preview long edge, then caches the image after each op as that stage is needed. Editing an op invalidates that op's stage and every later stage; earlier stages stay reusable. When a later card is selected, missing stages are regenerated in order from the nearest cached earlier stage.
 
 Most cards preview the image after their current parameters are applied. Cards that edit an overlay against their input image, such as crop, can display the image before that op while still producing their after-op cached stage when a later card needs it. Preview image display fitting is separate from rendering: the resize card uses shrink-only fitting so small resized outputs are shown at actual preview size, while other cards fit the rendered preview into the available canvas area.
+
+Asset-backed pickers rescan their directories when opened. LUT lists reflect the current LUT folder, and stamp lists reflect `~/.fotoready/stamps/` without requiring an app restart.
 
 ## Keyboard shortcuts
 

@@ -4,8 +4,8 @@ import { api } from "@renderer/ipc/client";
 import type { OpRenderer } from "./op-renderer";
 import { AssetOverlayControls, AssetOverlayRect, normalizeAssetOverlayForPath, useLocalAssetAspectRatio } from "./_asset-overlay";
 
-export const watermarkImageRenderer: OpRenderer<AssetOverlayParams> = {
-  type: "watermark-image",
+export const stampRenderer: OpRenderer<AssetOverlayParams> = {
+  type: "stamp",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
     return (
@@ -18,20 +18,27 @@ export const watermarkImageRenderer: OpRenderer<AssetOverlayParams> = {
         onParamsChange={onParamsChange}
         sourceControl={(
           <div className="watermark-file-row">
-            <input
+            <select
               className="compact-control"
               disabled={disabled}
-              placeholder="PNG or SVG file"
-              type="text"
               value={params.assetPath}
-              onChange={(event) => onParamChange("assetPath", event.currentTarget.value)}
-            />
+              onFocus={() => void ctx.reloadStamps?.()}
+              onPointerDown={() => void ctx.reloadStamps?.()}
+              onChange={async (event) => {
+                onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, event.currentTarget.value));
+              }}
+            >
+              <option value="">Choose a stamp</option>
+              {ctx.stamps.map((stamp) => <option key={stamp.path} value={stamp.path}>{stamp.name}</option>)}
+            </select>
             <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={async () => {
-              const picked = await api.system.pickFile({ title: "Choose watermark file", extensions: ["png", "svg"] });
+              const picked = await api.system.pickFile({ title: "Import Stamp", extensions: ["png", "svg"] });
               if (!picked) return;
-              onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
+              const imported = await api.stamps.import(picked);
+              await ctx.reloadStamps?.();
+              onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, imported.path));
             }}>
-              Choose File...
+              Import Stamp...
             </button>
           </div>
         )}
@@ -40,6 +47,6 @@ export const watermarkImageRenderer: OpRenderer<AssetOverlayParams> = {
   },
   Overlay({ params, selected, ctx, onParamsChange }) {
     const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
-    return <AssetOverlayRect aspectRatio={aspectRatio} color="#60a5fa" ctx={ctx} onParamsChange={onParamsChange} params={params} selected={selected} />;
+    return <AssetOverlayRect aspectRatio={aspectRatio} color="#38bdf8" ctx={ctx} onParamsChange={onParamsChange} params={params} selected={selected} />;
   }
 };

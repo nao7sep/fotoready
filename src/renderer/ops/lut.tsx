@@ -10,7 +10,14 @@ export const lutRenderer: OpRenderer<LutParams> = {
     const { luts } = ctx;
     return (
       <div className="geometry-controls">
-        <select className="compact-control" disabled={disabled || luts.length === 0} value={params.cubePath} onChange={(e) => onParamChange("cubePath", e.currentTarget.value)}>
+        <select
+          className="compact-control"
+          disabled={disabled || luts.length === 0}
+          value={params.cubePath}
+          onFocus={() => void ctx.reloadLuts?.()}
+          onPointerDown={() => void ctx.reloadLuts?.()}
+          onChange={(e) => onParamChange("cubePath", e.currentTarget.value)}
+        >
           <option value="">Choose a LUT</option>
           {luts.map((lut) => <option key={lut.path} value={lut.path}>{lut.name}</option>)}
         </select>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
-import type { LutEntry, OpCatalogItem } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, StampEntry } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -10,7 +10,8 @@ import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-contai
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
 const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> = {
-  Tone: ["auto-tone", "levels", "curves", "white-balance", "hsl"]
+  Tone: ["auto-tone", "levels", "curves", "white-balance", "hsl"],
+  Conceal: ["cover", "blur", "mosaic", "stamp"]
 };
 
 type OpsPanelProps = {
@@ -18,11 +19,13 @@ type OpsPanelProps = {
   activeOriginal: Original | null;
   hasGeminiApiKey: boolean;
   luts: LutEntry[];
+  stamps: StampEntry[];
   opCatalog: OpCatalogItem[];
   pendingRevealOpId: string | null;
   originalSize: { width: number; height: number } | null;
   onOpenSettings(): void;
   onReloadLuts(): Promise<void>;
+  onReloadStamps(): Promise<void>;
   onRevealOpHandled(): void;
   settings: GlobalSettings | null;
   selectedOpId: string | null;
@@ -81,9 +84,11 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   onParamsChange={(patch) => props.onOpParamsChange(op.id, patch)}
                   onRemove={() => props.onRemoveOp(op.id)}
                   onReloadLuts={props.onReloadLuts}
+                  onReloadStamps={props.onReloadStamps}
                   onSelect={() => props.onSelectOp(op.id)}
                   originalSize={props.originalSize}
                   selected={selectedOpId === op.id}
+                  stamps={props.stamps}
                 />
               )) : <div className="ops-empty">No ops in this task</div>
             ) : <div className="ops-empty">No task selected</div>}
@@ -152,9 +157,11 @@ function PipelineOpCard({
   onParamsChange,
   onRemove,
   onReloadLuts,
+  onReloadStamps,
   onSelect,
   originalSize,
-  selected
+  selected,
+  stamps
 }: {
   cardRef(element: HTMLElement | null): void;
   catalogItem: OpCatalogItem | null;
@@ -169,9 +176,11 @@ function PipelineOpCard({
   onParamsChange(patch: Record<string, unknown>): void;
   onRemove(): void;
   onReloadLuts(): Promise<void>;
+  onReloadStamps(): Promise<void>;
   onSelect(): void;
   originalSize: { width: number; height: number } | null;
   selected: boolean;
+  stamps: StampEntry[];
 }): React.JSX.Element {
   const renderer = getOpRenderer(op.type);
   const Card = renderer?.Card;
@@ -214,7 +223,7 @@ function PipelineOpCard({
         <Card
           params={op.params}
           disabled={disabled}
-          ctx={{ luts, originalSize, reloadLuts: onReloadLuts }}
+          ctx={{ luts, stamps, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
           onParamChange={(key, value) => onParamChange(String(key), value)}
           onParamsChange={(patch) => onParamsChange(patch as Record<string, unknown>)}
         />

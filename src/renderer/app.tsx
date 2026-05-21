@@ -4,7 +4,7 @@ import { BarChart3, CopyPlus, Menu, RotateCcw, Save, Trash2, X } from "lucide-re
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, SystemInfo } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -82,6 +82,7 @@ function App(): React.JSX.Element {
   const [uiState, setUiState] = useState<UiState | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
+  const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
   const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
   const [selectedRenameTaskIds, setSelectedRenameTaskIds] = useState<string[]>([]);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
@@ -155,8 +156,18 @@ function App(): React.JSX.Element {
   const previewStateKey = previewRequest?.previewStateKey ?? null;
 
   useEffect(() => {
-    void Promise.all([api.system.getInfo(), api.settings.get(), api.state.get(), api.settings.hasGeminiApiKey(), api.project.current(), api.ops.list(), api.queues.snapshot(), api.luts.list()]).then(
-      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts]) => {
+    void Promise.all([
+      api.system.getInfo(),
+      api.settings.get(),
+      api.state.get(),
+      api.settings.hasGeminiApiKey(),
+      api.project.current(),
+      api.ops.list(),
+      api.queues.snapshot(),
+      api.luts.list(),
+      api.stamps.list()
+    ]).then(
+      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts, loadedStamps]) => {
         setSystemInfo(info);
         setSettings(loadedSettings);
         setUiState(loadedState);
@@ -165,6 +176,7 @@ function App(): React.JSX.Element {
         setOpCatalog(loadedOps);
         setQueue(snapshot);
         setLutEntries(loadedLuts);
+        setStampEntries(loadedStamps);
       }
     );
   }, []);
@@ -498,6 +510,7 @@ function App(): React.JSX.Element {
     }
     setApiKeyDraft("");
     setLutEntries(await api.luts.list());
+    setStampEntries(await api.stamps.list());
     setApiKeyOpen(false);
   }
 
@@ -526,6 +539,10 @@ function App(): React.JSX.Element {
 
   async function reloadLuts(): Promise<void> {
     setLutEntries(await api.luts.list());
+  }
+
+  async function reloadStamps(): Promise<void> {
+    setStampEntries(await api.stamps.list());
   }
 
   async function updateOutput(key: string, value: unknown): Promise<void> {
@@ -740,6 +757,7 @@ function App(): React.JSX.Element {
             onCustomSlugChange={(value) => void setCustomSlug(value)}
             onOpenSettings={() => void openSettings()}
             onReloadLuts={reloadLuts}
+            onReloadStamps={reloadStamps}
             onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
             onOpEnabledChange={(opId, enabled) => void setOpEnabled(opId, enabled)}
             onOpParamChange={(opId, key, value) => void updateOpParam(opId, key, value)}
@@ -749,6 +767,7 @@ function App(): React.JSX.Element {
             onRevealOpHandled={() => setPendingRevealOpId(null)}
             settings={settings}
             selectedOpId={selectedOpId}
+            stamps={stampEntries}
           />
         ) : null}
       </section>

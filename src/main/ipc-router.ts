@@ -12,6 +12,7 @@ import type { PreviewRenderOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { importLut, listLuts } from "@main/lut-catalog";
+import { importStamp, listStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
@@ -194,5 +195,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("rename.run", async (_event, templateId?: string, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("luts.import", async (_event, filePath: string) => importLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
+  ipcMain.handle("stamps.list", async () => listStamps(path.dirname(ctx.paths.dataDir)));
+  ipcMain.handle("stamps.import", async (_event, filePath: string) => importStamp(filePath, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

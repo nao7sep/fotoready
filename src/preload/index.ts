@@ -71,6 +71,10 @@ const api: FotoReadyApi = {
     list: () => ipcRenderer.invoke("luts.list"),
     import: (filePath) => ipcRenderer.invoke("luts.import", filePath)
   },
+  stamps: {
+    list: () => ipcRenderer.invoke("stamps.list"),
+    import: (filePath) => ipcRenderer.invoke("stamps.import", filePath)
+  },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
   },

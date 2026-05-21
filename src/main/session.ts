@@ -21,6 +21,8 @@ import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSide
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { applyOutputSettingChange } from "@shared/validation/pipeline";
 import { resolveOutputFormat } from "@shared/output-format";
+import { MIN_ASSET_OVERLAY_WIDTH, normalizeAssetOverlay } from "@shared/asset-overlay";
+import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -319,7 +321,7 @@ export class ProjectSession {
     await this.runVision(taskId);
   }
 
-  addOp(taskId: string, opType: string): ProjectSessionSnapshot {
+  async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     const definition = getOpDefinition(opType);
     if (!definition) {
@@ -328,15 +330,15 @@ export class ProjectSession {
     this.recordTaskEdit(task);
 
     const params = structuredClone(definition.defaultParams);
-    if (opType === "watermark-image" && typeof params.pngPath === "string" && !params.pngPath && this.settings.defaultWatermarkImage) {
-      params.pngPath = this.settings.defaultWatermarkImage;
+    if (opType === "watermark-image" && typeof params.assetPath === "string" && !params.assetPath && this.settings.defaultWatermarkImage) {
+      params.assetPath = this.settings.defaultWatermarkImage;
     }
     if (opType === "watermark-text" && typeof params.fontFamily === "string" && this.settings.defaultWatermarkTextFontFamily.trim()) {
       params.fontFamily = this.settings.defaultWatermarkTextFontFamily.trim();
     }
     const original = this.#project.originals.find((item) => item.id === task.originalId) ?? null;
     if (original) {
-      initializeOpParamsForOriginal(opType, params, original);
+      await initializeOpParamsForOriginal(opType, params, original);
     }
     task.pipeline.ops.push({
       id: nanoid(),
@@ -585,24 +587,40 @@ function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fal
   };
 }
 
-function initializeOpParamsForOriginal(opType: string, params: Record<string, unknown>, original: Original): void {
-  if (opType !== "watermark-text") return;
+async function initializeOpParamsForOriginal(opType: string, params: Record<string, unknown>, original: Original): Promise<void> {
   const longEdge = Math.max(original.width, original.height, 1);
   const imageBounds = { maxX: original.width / longEdge, maxY: original.height / longEdge };
+  if (opType === "watermark-text") {
+    if (
+      typeof params.x !== "number"
+      || typeof params.y !== "number"
+      || typeof params.w !== "number"
+      || typeof params.h !== "number"
+    ) {
+      return;
+    }
+    const w = clamp(params.w, 0.02, Math.max(0.02, imageBounds.maxX));
+    const h = clamp(params.h, 0.02, Math.max(0.02, imageBounds.maxY));
+    params.w = w;
+    params.h = h;
+    params.x = clamp(params.x, 0, Math.max(0, imageBounds.maxX - w));
+    params.y = clamp(params.y, 0, Math.max(0, imageBounds.maxY - h));
+    return;
+  }
+  if (opType !== "watermark-image" && opType !== "stamp") return;
   if (
-    typeof params.x !== "number"
+    typeof params.assetPath !== "string"
+    || typeof params.x !== "number"
     || typeof params.y !== "number"
-    || typeof params.w !== "number"
-    || typeof params.h !== "number"
+    || typeof params.width !== "number"
+    || typeof params.opacity !== "number"
+    || typeof params.rotation !== "number"
   ) {
     return;
   }
-  const w = clamp(params.w, 0.02, Math.max(0.02, imageBounds.maxX));
-  const h = clamp(params.h, 0.02, Math.max(0.02, imageBounds.maxY));
-  params.w = w;
-  params.h = h;
-  params.x = clamp(params.x, 0, Math.max(0, imageBounds.maxX - w));
-  params.y = clamp(params.y, 0, Math.max(0, imageBounds.maxY - h));
+  const aspectRatio = params.assetPath ? await readAssetAspectRatio(params.assetPath) : null;
+  const normalized = normalizeAssetOverlay(params, imageBounds, aspectRatio, MIN_ASSET_OVERLAY_WIDTH);
+  Object.assign(params, normalized);
 }
 
 function nextTaskOutput(

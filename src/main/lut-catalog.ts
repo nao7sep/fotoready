@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { DEFAULT_LUT_FOLDER } from "@shared/constants";
 import type { LutEntry } from "@shared/types/ipc";
+import { expandHomePath, importDirectoryAsset, listDirectoryAssets } from "./file-asset-catalog";
 
 const BUILT_INS = [
   { name: "clean-contrast", transform: (r: number, g: number, b: number) => cleanContrast(r, g, b) },
@@ -19,32 +20,23 @@ const BUILT_INS = [
 export async function listLuts(lutFolder: string, homeDir: string): Promise<LutEntry[]> {
   const dir = resolveLutDir(lutFolder, homeDir);
   await ensureBuiltInLuts(dir);
-  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const entries = await listDirectoryAssets(dir, [".cube"]);
   return entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".cube"))
     .map((entry) => ({
-      name: path.basename(entry.name, path.extname(entry.name)),
-      path: path.join(dir, entry.name),
-      builtin: BUILT_INS.some((builtIn) => `${builtIn.name}.cube` === entry.name)
+      name: entry.name,
+      path: entry.path,
+      builtin: BUILT_INS.some((builtIn) => builtIn.name === entry.name)
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function importLut(filePath: string, lutFolder: string, homeDir: string): Promise<LutEntry> {
-  if (path.extname(filePath).toLowerCase() !== ".cube") {
-    throw new Error("Only .cube LUT files can be imported.");
-  }
   const dir = resolveLutDir(lutFolder, homeDir);
   await ensureBuiltInLuts(dir);
-  const absoluteSource = path.resolve(filePath);
-  const desiredBase = path.basename(absoluteSource, path.extname(absoluteSource));
-  const targetPath = await uniqueCubePath(dir, desiredBase);
-  if (absoluteSource !== targetPath) {
-    await fs.copyFile(absoluteSource, targetPath);
-  }
+  const imported = await importDirectoryAsset(filePath, dir, [".cube"], "lut");
   return {
-    name: path.basename(targetPath, path.extname(targetPath)),
-    path: targetPath,
+    name: imported.name,
+    path: imported.path,
     builtin: false
   };
 }
@@ -255,23 +247,7 @@ function clamp01(value: number): number {
 }
 
 function resolveLutDir(lutFolder: string, homeDir: string): string {
-  return expandHome(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
-}
-
-async function uniqueCubePath(dir: string, baseName: string): Promise<string> {
-  const safeBase = baseName.trim().length > 0 ? baseName : "lut";
-  let attempt = 0;
-  while (attempt < 1000) {
-    const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
-    const candidate = path.join(dir, `${safeBase}${suffix}.cube`);
-    try {
-      await fs.access(candidate);
-      attempt += 1;
-    } catch {
-      return candidate;
-    }
-  }
-  throw new Error("Could not find a free LUT filename.");
+  return expandHomePath(lutFolder.trim().length > 0 ? lutFolder : DEFAULT_LUT_FOLDER, homeDir);
 }
 
 function formatCubeNumber(value: number): string {
@@ -280,10 +256,4 @@ function formatCubeNumber(value: number): string {
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
-}
-
-function expandHome(input: string, homeDir: string): string {
-  if (input === "~") return homeDir;
-  if (input.startsWith("~/")) return path.join(homeDir, input.slice(2));
-  return input;
 }

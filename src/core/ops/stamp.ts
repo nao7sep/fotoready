@@ -3,26 +3,25 @@ import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { applyAssetOverlay, validateAssetOverlayParams } from "./_asset-overlay";
 
-const watermarkImageModule: OpModule<AssetOverlayParams> = {
-  type: "watermark-image",
-  label: "Image watermark",
-  pickerLabel: "Image",
-  category: "Watermark",
+const stampModule: OpModule<AssetOverlayParams> = {
+  type: "stamp",
+  label: "Stamp",
+  category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: {
     assetPath: "",
-    x: 0.74,
-    y: 0.82,
-    opacity: 0.7,
-    width: 0.15,
+    x: 0.72,
+    y: 0.78,
+    opacity: 1,
+    width: 0.18,
     rotation: 0
   },
   validate(value) {
-    return validateAssetOverlayParams(value, "watermark-image.params");
+    return validateAssetOverlayParams(value, "stamp.params");
   },
   async apply(image, params, ctx) {
     return applyAssetOverlay(image, params, ctx);
   }
 };
 
-registerOp(watermarkImageModule);
+registerOp(stampModule);

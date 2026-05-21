@@ -70,6 +70,12 @@ export type LutEntry = {
   builtin: boolean;
 };
 
+export type StampEntry = {
+  name: string;
+  path: string;
+  format: "png" | "svg";
+};
+
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
 export type TaskDeleteOptions = {
@@ -146,6 +152,10 @@ export type FotoReadyApi = {
   luts: {
     list(): Promise<LutEntry[]>;
     import(filePath: string): Promise<LutEntry>;
+  };
+  stamps: {
+    list(): Promise<StampEntry[]>;
+    import(filePath: string): Promise<StampEntry>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

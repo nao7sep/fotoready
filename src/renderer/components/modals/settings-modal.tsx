@@ -29,7 +29,7 @@ const metadataFieldHelp: Record<keyof MetadataFields, string> = {
   usageTerms: "Plain-language reuse terms, restrictions, or required attribution wording.",
   contactEmail: "Email address for licensing, takedown, or reuse questions.",
   contactUrl: "Contact page or profile for image-rights questions.",
-  description: "Reusable image description for search, databases, alt-like summaries, or later slug generation."
+  description: "Reusable image description for search, databases, alt-like summaries, or later rename slug generation."
 };
 
 export function AppSettingsModal({
@@ -429,7 +429,7 @@ function VisionTab({
                 });
               }}
             />
-            Generate slug for new tasks after save
+            Generate rename slug for new tasks after save
           </label>
         </div>
       </section>

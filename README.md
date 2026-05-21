@@ -5,10 +5,10 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 ## Status
 
 - Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list.
-- Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
+- Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run, output-sidecar save/import flows, and opt-in Gemini description/rename-slug generation.
 - Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
 - Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
-- Queue/error UX with active-task reporting, source reveal, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
+- Queue/error UX with active-task reporting, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
 
 ## Current limitations
 

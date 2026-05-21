@@ -268,6 +268,7 @@ function OutputControls({
   const flattenableFormat = resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif";
   const outputFormatOptions = availableOutputFormats();
   const fixedQuality = task && typeof task.pipeline.output.quality === "number" ? task.pipeline.output.quality : defaultFixedQuality;
+  const generatedSlug = task?.output?.vision?.slugCandidates[0] ?? null;
   return (
     <div className="output-controls">
       <label className="toggle-row" title="Generate a reusable image description after save.">
@@ -279,24 +280,34 @@ function OutputControls({
         />
         Generate description
       </label>
-      <label className="toggle-row" title="Generate slug suggestions after save. Slug generation always needs a description first.">
+      <label className="toggle-row" title="Generate a rename slug after save. Slug generation always needs a description first.">
         <input type="checkbox" disabled={disabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
-        Generate slug
+        Generate rename slug
       </label>
       {(task?.generateDescription || task?.generateSlug) && !task.output?.vision && !hasGeminiApiKey ? (
         <div className="modal-warning">
-          Gemini API key required for description and slug generation.
+          Gemini API key required for description and rename slug generation.
           <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
         </div>
-      ) : task?.output?.vision ? (
+      ) : task?.output?.vision && (task.generateDescription || task.generateSlug) ? (
         <div className="vision-description">
-          <span>{task.generateSlug ? "Generated description and slug source" : "Generated description"}</span>
-          <p>{task.output.vision.description}</p>
+          {task.generateDescription ? (
+            <div className="vision-description-item">
+              <span>Description</span>
+              <p>{task.output.vision.description}</p>
+            </div>
+          ) : null}
+          {task.generateSlug && generatedSlug ? (
+            <div className="vision-description-item">
+              <span>Slug</span>
+              <p>{generatedSlug}</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
-      <label className="stacked-field">
-        Custom slug
-        <input disabled={disabled || !task} placeholder="manual-descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
+      <label className="stacked-field" title="Used by Rename after save. First save still uses the app's generated staging name.">
+        Rename slug
+        <input disabled={disabled || !task} placeholder="rename-descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
       </label>
       <label className="stacked-field">
         Format

@@ -59,6 +59,9 @@ export class VisionQueue {
         model: this.settings.model,
         ranAt: nowIso()
       };
+      if (shouldGenerateSlug && !task.customSlug && described.slugCandidates[0]) {
+        task.customSlug = described.slugCandidates[0];
+      }
       task.error = null;
       task.updatedAt = nowIso();
     } catch (error) {

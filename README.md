@@ -95,4 +95,4 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle.
 
 `Save current pending image` queues processing for the selected pending task, applies its current ops, and writes the output image plus the FotoReady sidecar file.
 `Save all pending images` queues every pending task the same way.
-`Rename all` opens a review of saved and unsaved tasks, but only saved outputs with ready or unchanged rename rows are renamed.
+`Rename all` opens a review of saved and unsaved tasks with the current output folder, inline rename-slug editing and slug regeneration for saved rows, and conflict checks for exact paths plus duplicate `{original}` / `{slug}` identities. Only saved outputs with ready or unchanged rows are renamed.

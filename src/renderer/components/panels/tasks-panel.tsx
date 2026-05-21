@@ -1,5 +1,5 @@
 import React from "react";
-import { Save, X } from "lucide-react";
+import { Pencil, Save, X } from "lucide-react";
 import type { QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 
@@ -54,7 +54,7 @@ export function TasksPanel({
           <X size={14} /> Cancel all
         </button>
         <button className="toolbar-button" type="button" disabled={tasks.length === 0} onClick={onRename}>
-          Rename all...
+          <Pencil size={14} /> Rename all
         </button>
       </div>
     </aside>

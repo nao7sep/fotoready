@@ -64,11 +64,16 @@ export type RenamePreviewItem = {
   currentName: string | null;
   proposedName: string | null;
   missingSlug: boolean;
+  customSlug: string | null;
+  generatedSlug: string | null;
+  effectiveSlug: string | null;
   issue: string | null;
 };
 
 export type RenamePreview = {
   templateId: string;
+  usesOriginal: boolean;
+  usesSlug: boolean;
   items: RenamePreviewItem[];
   renameableCount: number;
   blockedCount: number;

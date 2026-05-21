@@ -656,7 +656,7 @@ function App(): React.JSX.Element {
         <div className="output-badge">
           <span className="output-badge-label" title={project?.outputDir ?? ""}>Output: {outputDirLabel}</span>
           <button className="output-badge-button" type="button" onClick={() => void setOutputDir()}>
-            {project?.outputDir ? "Change…" : "Choose…"}
+            {project?.outputDir ? "Change" : "Choose"}
           </button>
           {project?.outputDir ? (
             <button className="output-badge-button icon" type="button" title="Clear (save next to source)" onClick={() => void clearOutputDir()}>
@@ -833,9 +833,18 @@ function App(): React.JSX.Element {
           onClearOutputDir={clearOutputDir}
           onClose={() => setRenameOpen(false)}
           onPreview={(templateId) => api.rename.preview(templateId)}
+          onRegenerateSlug={async (taskId) => {
+            const task = project?.tasks.find((candidate) => candidate.id === taskId);
+            if (!task?.output) return;
+            const mode: VisionRunMode = task.output.vision?.description?.trim() ? "slug" : "description-and-slug";
+            await runVisionForTask(taskId, { mode });
+          }}
           onRun={async (templateId) => {
             await refreshProject(await api.rename.run(templateId));
             setRenameOpen(false);
+          }}
+          onSetRenameSlug={async (taskId, customSlug) => {
+            await refreshProject(await api.task.setCustomSlug(taskId, customSlug));
           }}
           onSetOutputDir={setOutputDir}
           templates={settings.filenameTemplates}

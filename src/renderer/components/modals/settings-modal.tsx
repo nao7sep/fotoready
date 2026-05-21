@@ -118,7 +118,7 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
         <div className="settings-grid">
           <PathField
             allowClear
-            buttonLabel="Choose folder…"
+            buttonLabel="Choose folder"
             emptyLabel="Same folder as original"
             label="Folder"
             pick={async () => window.api.system.pickDirectory({ title: "Choose Output Folder" })}
@@ -458,7 +458,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <h3>LUTs</h3>
         <PathField
           allowClear
-          buttonLabel="Choose folder…"
+          buttonLabel="Choose folder"
           emptyLabel={`Default (${DEFAULT_LUT_FOLDER})`}
           label="LUT folder"
           pick={async () => window.api.system.pickDirectory({ title: "Choose LUT Folder" })}
@@ -472,7 +472,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <div className="settings-grid">
           <PathField
             allowClear
-            buttonLabel="Choose file…"
+            buttonLabel="Choose file"
             emptyLabel="No default image watermark"
             label="Default image watermark"
             pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png", "svg"] })}

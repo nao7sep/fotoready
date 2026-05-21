@@ -23,7 +23,7 @@ export const watermarkImageRenderer = createAssetOverlayRenderer({
         if (!picked) return;
         onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
       }}>
-        Choose File...
+        Choose file
       </button>
     );
   }

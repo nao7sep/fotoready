@@ -1236,7 +1236,7 @@ select:disabled {
   gap: 3px;
 }
 
-.rename-preview-cell span {
+.rename-preview-cell > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1268,10 +1268,53 @@ select:disabled {
   border-radius: 8px;
 }
 
-.rename-output-dir > div {
+.rename-output-dir-copy {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+.rename-output-dir-label {
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rename-output-dir-value {
+  color: var(--text-strong-color);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rename-preview-slug-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.rename-preview-slug-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.rename-preview-slug-field span {
+  color: var(--text-muted-color);
+  font-size: 11px;
+}
+
+.rename-preview-slug-field input {
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border-strong-color);
+  border-radius: 6px;
+  color: var(--text-strong-color);
+  background: var(--surface-muted-bg);
+  padding: 0 7px;
 }
 
 .modal-warning,

@@ -8,7 +8,6 @@ import type { Project, Task } from "@shared/types/project";
 import type { FilenameTemplate, GlobalSettings } from "@shared/types/settings";
 import type { RenamePreview } from "@shared/types/ipc";
 import { renderFilenameTemplate } from "@core/template-render";
-import { resolveSlugCollisions } from "@core/slug/collision-resolve";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { sidecarPathForOutput } from "@main/task-sidecar";
 import { assertSafeRenderedFilename, validateFilenameTemplatePattern } from "@shared/validation/filename-template";
@@ -22,20 +21,20 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
   const tasks = project.tasks
     .filter((task) => !scopedTaskIds || scopedTaskIds.has(task.id))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const savedTasks = tasks.filter((task): task is Task & { output: NonNullable<Task["output"]> } => task.output !== null);
-
   const needsSlug = template.pattern.includes("{slug}");
-  const slugMap = resolveSlugCollisions(savedTasks.map((task) => ({
-    taskId: task.id,
-    candidates: slugCandidates(task),
-    outputHash: task.output.outputHash
-  })));
+  const usesSlug = template.pattern.includes("{slug}");
+  const usesOriginal = template.pattern.includes("{original}");
+  const originalConflictKeys = new Map<string, string | null>();
+  const slugConflictKeys = new Map<string, string | null>();
 
   const items: RenamePlanItem[] = [];
   for (const [index, task] of tasks.entries()) {
     const original = project.originals.find((candidate) => candidate.id === task.originalId);
     const label = original ? path.basename(original.sourcePath) : task.id;
+    const originalConflictKey = normalizeOriginalConflictKey(original?.sourcePath ?? `original-${index + 1}`);
     if (!task.output) {
+      originalConflictKeys.set(task.id, null);
+      slugConflictKeys.set(task.id, null);
       items.push({
         taskId: task.id,
         label,
@@ -45,13 +44,19 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
         currentName: null,
         proposedName: null,
         missingSlug: false,
+        customSlug: task.customSlug,
+        generatedSlug: null,
+        effectiveSlug: null,
         issue: "Not saved"
       });
       continue;
     }
 
-    const currentPath = task.output.finalPath ?? task.output.stagedPath;
-    const missingSlug = needsSlug && !task.customSlug && !task.output.vision;
+    const savedTask = task as Task & { output: NonNullable<Task["output"]> };
+    const currentPath = savedTask.output.finalPath ?? savedTask.output.stagedPath;
+    const generatedSlug = savedTask.output.vision?.slugCandidates[0] ?? null;
+    const effectiveSlug = resolvedRenameSlug(savedTask);
+    const missingSlug = needsSlug && !effectiveSlug;
     let proposedPath: string | null = null;
     let proposedName: string | null = null;
     let issue: string | null = missingSlug ? "Missing slug" : null;
@@ -60,9 +65,8 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
       try {
         const metadata = await sharp(currentPath).metadata();
         const ext = outputExtension(currentPath);
-        const slug = slugMap.get(task.id) ?? "untitled-output";
         proposedName = renderFilenameTemplate(template.pattern, {
-          slug,
+          slug: effectiveSlug ?? "untitled-output",
           original: original ? path.parse(original.sourcePath).name : `original-${index + 1}`,
           w: metadata.width ?? 0,
           h: metadata.height ?? 0,
@@ -75,6 +79,8 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
       }
     }
 
+    originalConflictKeys.set(task.id, originalConflictKey);
+    slugConflictKeys.set(task.id, effectiveSlug);
     items.push({
       taskId: task.id,
       label,
@@ -84,10 +90,15 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
       currentName: path.basename(currentPath),
       proposedName,
       missingSlug,
+      customSlug: task.customSlug,
+      generatedSlug,
+      effectiveSlug,
       issue
     });
   }
 
+  const originalConflictCounts = countSemanticConflicts(items, originalConflictKeys, usesOriginal);
+  const slugConflictCounts = countSemanticConflicts(items, slugConflictKeys, usesSlug);
   const proposedPathCounts = new Map<string, number>();
   for (const item of items) {
     if (!item.proposedPath || item.status === "blocked") continue;
@@ -97,6 +108,17 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
 
   for (const item of items) {
     if (!item.currentPath || !item.proposedPath || item.status === "blocked") continue;
+    const hasOriginalConflict = usesOriginal && (originalConflictCounts.get(item.taskId) ?? 0) > 1;
+    const hasSlugConflict = usesSlug && (slugConflictCounts.get(item.taskId) ?? 0) > 1;
+    if (hasOriginalConflict || hasSlugConflict) {
+      item.status = "blocked";
+      item.issue = hasOriginalConflict && hasSlugConflict
+        ? "Original and slug conflict"
+        : hasOriginalConflict
+          ? "Original conflict"
+          : "Slug conflict";
+      continue;
+    }
     if ((proposedPathCounts.get(normalizePathKey(item.proposedPath)) ?? 0) > 1) {
       item.status = "blocked";
       item.issue = "Name conflict";
@@ -117,6 +139,8 @@ export async function previewRename(project: Project, settings: GlobalSettings, 
 
   return {
     templateId: template.id,
+    usesOriginal,
+    usesSlug,
     items,
     renameableCount: items.filter((item) => item.status === "ready").length,
     blockedCount: items.filter((item) => item.status === "blocked").length,
@@ -197,12 +221,41 @@ function slugCandidates(task: Task & { output: NonNullable<Task["output"]> }): s
   return [];
 }
 
+function resolvedRenameSlug(task: Task & { output: NonNullable<Task["output"]> }): string | null {
+  return slugCandidates(task)[0] ?? null;
+}
+
 function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
 }
 
 function normalizePathKey(filePath: string): string {
   return path.resolve(filePath);
+}
+
+function normalizeOriginalConflictKey(sourcePath: string): string {
+  return path.parse(sourcePath).name.trim().toLocaleLowerCase();
+}
+
+function countSemanticConflicts(
+  items: RenamePlanItem[],
+  keysByTaskId: Map<string, string | null>,
+  enabled: boolean
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!enabled) return counts;
+  for (const item of items) {
+    if (!item.currentPath) continue;
+    const key = keysByTaskId.get(item.taskId);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const countsByTaskId = new Map<string, number>();
+  for (const item of items) {
+    const key = keysByTaskId.get(item.taskId);
+    countsByTaskId.set(item.taskId, key ? (counts.get(key) ?? 0) : 0);
+  }
+  return countsByTaskId;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

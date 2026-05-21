@@ -27,7 +27,7 @@ export const lutRenderer: OpRenderer<LutParams> = {
           const imported = await api.luts.import(picked);
           await ctx.reloadLuts?.();
           onParamChange("cubePath", imported.path);
-        }}>Import LUT...</button>
+        }}>Import LUT</button>
         <label className="slider-row">
           <span>Strength</span>
           <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.strength} onChange={(e) => onParamChange("strength", e.currentTarget.valueAsNumber)} />

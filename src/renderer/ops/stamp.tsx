@@ -30,7 +30,7 @@ export const stampRenderer = createAssetOverlayRenderer({
         await ctx.reloadStamps?.();
         onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, imported.path));
       }}>
-        Import Stamp...
+        Import stamp
       </button>
     );
   }

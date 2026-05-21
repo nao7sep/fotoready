@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { FilenameTemplate } from "@shared/types/settings";
 import type { RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
 import { ModalShell } from "./modal-shell";
@@ -11,7 +11,9 @@ export function RenameModal({
   onClearOutputDir,
   onClose,
   onPreview,
+  onRegenerateSlug,
   onRun,
+  onSetRenameSlug,
   onSetOutputDir
 }: {
   templates: FilenameTemplate[];
@@ -21,20 +23,25 @@ export function RenameModal({
   onClearOutputDir(): Promise<void>;
   onClose(): void;
   onPreview(templateId: string): Promise<RenamePreview>;
+  onRegenerateSlug(taskId: string): Promise<void>;
   onRun(templateId: string): Promise<void>;
+  onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void>;
 }): React.JSX.Element {
   const [templateId, setTemplateId] = useState(defaultTemplateId);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actionTaskId, setActionTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const modalBusy = busy || actionTaskId !== null;
   const canRun = Boolean(preview?.items.some((item) => item.status === "ready" || item.status === "unchanged") && preview.blockedCount === 0);
 
   useEffect(() => {
     let cancelled = false;
-    setBusy(true);
-    setError(null);
-    void onPreview(templateId)
+    async function loadPreview(): Promise<void> {
+      setBusy(true);
+      setError(null);
+      await onPreview(templateId)
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
@@ -44,11 +51,14 @@ export function RenameModal({
       .finally(() => {
         if (!cancelled) setBusy(false);
       });
+    }
+
+    void loadPreview();
 
     return () => {
       cancelled = true;
     };
-  }, [onPreview, templateId]);
+  }, [templateId, outputDirPath]);
 
   async function confirm(): Promise<void> {
     setBusy(true);
@@ -69,29 +79,29 @@ export function RenameModal({
       footer={
         <>
           <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-action" type="button" disabled={busy || !canRun} onClick={() => void confirm()}>
+          <button className="primary-action" type="button" disabled={modalBusy || !canRun} onClick={() => void confirm()}>
             Rename all
           </button>
         </>
       }
     >
+      <div className="rename-output-dir">
+        <div className="rename-output-dir-copy">
+          <span className="rename-output-dir-label">Output folder</span>
+          <span className="rename-output-dir-value" title={outputDirPath ?? ""}>{outputDirLabel}</span>
+        </div>
+        <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void onSetOutputDir()}>{outputDirPath ? "Change" : "Choose"}</button>
+        {outputDirPath ? <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void onClearOutputDir()}>Clear</button> : null}
+      </div>
+
       <label className="stacked-field">
         Template
-        <select value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value)}>
+        <select disabled={modalBusy} value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value)}>
           {templates.map((template) => (
             <option key={template.id} value={template.id}>{template.name}</option>
           ))}
         </select>
       </label>
-
-      <div className="rename-output-dir">
-        <div>
-          <span className="row-label">Output folder</span>
-          <span className="row-detail" title={outputDirPath ?? ""}>{outputDirLabel}</span>
-        </div>
-        <button className="toolbar-button compact-text" type="button" onClick={() => void onSetOutputDir()}>{outputDirPath ? "Change..." : "Choose..."}</button>
-        {outputDirPath ? <button className="toolbar-button compact-text" type="button" onClick={() => void onClearOutputDir()}>Clear</button> : null}
-      </div>
 
       {preview?.blockedCount ? (
         <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need attention before rename.</div>
@@ -101,7 +111,37 @@ export function RenameModal({
 
       <div className="rename-preview-list">
         {preview?.items.length ? preview.items.map((item) => (
-          <RenamePreviewRow item={item} key={item.taskId} />
+          <RenamePreviewRow
+            actionBusy={actionTaskId === item.taskId}
+            disabled={modalBusy}
+            item={item}
+            key={item.taskId}
+            onRegenerateSlug={async (taskId) => {
+              setActionTaskId(taskId);
+              setError(null);
+              try {
+                await onRegenerateSlug(taskId);
+                setPreview(await onPreview(templateId));
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : String(caught));
+              } finally {
+                setActionTaskId(null);
+              }
+            }}
+            onSetRenameSlug={async (taskId, customSlug) => {
+              setActionTaskId(taskId);
+              setError(null);
+              try {
+                await onSetRenameSlug(taskId, customSlug);
+                setPreview(await onPreview(templateId));
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : String(caught));
+              } finally {
+                setActionTaskId(null);
+              }
+            }}
+            showSlugEditor={Boolean(preview.usesSlug && item.currentPath)}
+          />
         )) : (
           <div className="ops-empty">{busy ? "Preparing preview..." : "No tasks to rename"}</div>
         )}
@@ -110,7 +150,29 @@ export function RenameModal({
   );
 }
 
-function RenamePreviewRow({ item }: { item: RenamePreviewItem }): React.JSX.Element {
+function RenamePreviewRow({
+  actionBusy,
+  disabled,
+  item,
+  onRegenerateSlug,
+  onSetRenameSlug,
+  showSlugEditor
+}: {
+  actionBusy: boolean;
+  disabled: boolean;
+  item: RenamePreviewItem;
+  onRegenerateSlug(taskId: string): Promise<void>;
+  onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
+  showSlugEditor: boolean;
+}): React.JSX.Element {
+  const initialSlugValue = item.customSlug ?? item.generatedSlug ?? "";
+  const [slugDraft, setSlugDraft] = useState(initialSlugValue);
+  const skipBlurCommitRef = useRef(false);
+
+  useEffect(() => {
+    setSlugDraft(initialSlugValue);
+  }, [initialSlugValue, item.taskId]);
+
   const detail = item.status === "not-saved"
     ? "Not saved"
     : item.status === "blocked"
@@ -118,6 +180,12 @@ function RenamePreviewRow({ item }: { item: RenamePreviewItem }): React.JSX.Elem
       : item.status === "unchanged"
         ? "No change"
         : "Ready";
+
+  async function commitSlugDraft(): Promise<void> {
+    const trimmed = slugDraft.trim();
+    if (trimmed === initialSlugValue.trim()) return;
+    await onSetRenameSlug(item.taskId, trimmed.length > 0 ? trimmed : null);
+  }
 
   return (
     <div className={`rename-preview-row ${item.status}`} key={item.taskId}>
@@ -128,6 +196,43 @@ function RenamePreviewRow({ item }: { item: RenamePreviewItem }): React.JSX.Elem
       <div className="rename-preview-cell">
         <span className="rename-preview-status">{detail}</span>
         <span title={item.proposedPath ?? ""}>{item.proposedName ?? "-"}</span>
+        {showSlugEditor ? (
+          <div className="rename-preview-slug-editor">
+            <label className="rename-preview-slug-field">
+              <span>Rename slug</span>
+              <input
+                disabled={disabled}
+                placeholder="descriptive-slug"
+                type="text"
+                value={slugDraft}
+                onBlur={() => {
+                  if (skipBlurCommitRef.current) {
+                    skipBlurCommitRef.current = false;
+                    return;
+                  }
+                  void commitSlugDraft();
+                }}
+                onChange={(event) => setSlugDraft(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  void commitSlugDraft();
+                }}
+              />
+            </label>
+            <button
+              className="toolbar-button compact-text"
+              disabled={disabled}
+              type="button"
+              onMouseDown={() => {
+                skipBlurCommitRef.current = true;
+              }}
+              onClick={() => void onRegenerateSlug(item.taskId)}
+            >
+              {actionBusy ? "Regenerating" : "Regenerate slug"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import sharp from "sharp";
+import PQueue from "p-queue";
 import { nowIso } from "@shared/time";
-import type { Project, TaskError } from "@shared/types/project";
+import type { Project, Task, TaskError } from "@shared/types/project";
 import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRunMode } from "@shared/vision-run-mode";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -10,12 +11,18 @@ import { GeminiVisionProvider } from "@adapters/gemini";
 
 export class VisionQueue {
   #apiKeys: ApiKeyStore;
+  #queue: PQueue;
+  #currentConcurrency: number;
+  #pendingTaskIds: Set<string> = new Set();
+  #cancelledTaskIds: Set<string> = new Set();
 
   constructor(
     paths: AppPaths,
     private readonly settings: GlobalSettings
   ) {
     this.#apiKeys = new ApiKeyStore(paths.apiKeysPath);
+    this.#currentConcurrency = Math.max(1, settings.visionConcurrency);
+    this.#queue = new PQueue({ concurrency: this.#currentConcurrency });
   }
 
   async setGeminiApiKey(value: string): Promise<void> {
@@ -42,12 +49,53 @@ export class VisionQueue {
     const mode = resolveVisionRunMode(task, options);
     if (!mode) return;
 
+    if (this.#pendingTaskIds.has(taskId)) return;
+    this.#pendingTaskIds.add(taskId);
+    this.#syncConcurrency();
+    await this.#queue.add(async () => {
+      this.#pendingTaskIds.delete(taskId);
+      if (this.#cancelledTaskIds.delete(taskId)) return;
+      await this.#runForTaskInner(task, mode, onProgress);
+    });
+  }
+
+  cancelTask(taskId: string): boolean {
+    if (!this.#pendingTaskIds.has(taskId)) return false;
+    this.#cancelledTaskIds.add(taskId);
+    return true;
+  }
+
+  cancelAll(): string[] {
+    const ids = Array.from(this.#pendingTaskIds);
+    for (const id of ids) this.#cancelledTaskIds.add(id);
+    return ids;
+  }
+
+  #syncConcurrency(): void {
+    const desired = Math.max(1, this.settings.visionConcurrency);
+    if (desired !== this.#currentConcurrency) {
+      this.#queue.concurrency = desired;
+      this.#currentConcurrency = desired;
+    }
+  }
+
+  async #runForTaskInner(
+    task: Task,
+    mode: VisionRunMode,
+    onProgress?: () => void | Promise<void>
+  ): Promise<void> {
+    if (!task.output) return;
     try {
       const apiKey = await this.#apiKeys.get("gemini");
       if (!apiKey) {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
 
+      const callOptions = {
+        timeoutMs: this.settings.visionTimeoutMs,
+        maxRetries: this.settings.visionMaxRetries,
+        initialBackoffMs: this.settings.visionInitialBackoffMs
+      };
       const previousVision = task.output.vision;
       const previousSlugCandidates = previousVision?.slugCandidates ?? [];
       const provider = new GeminiVisionProvider(apiKey);
@@ -58,7 +106,8 @@ export class VisionQueue {
           { imageBytes, mimeType: "image/jpeg" },
           {
             model: this.settings.model,
-            descriptionPrompt: this.settings.visionDescriptionPrompt
+            descriptionPrompt: this.settings.visionDescriptionPrompt,
+            ...callOptions
           }
         );
         if (includesSlugGeneration(mode)) {
@@ -78,7 +127,8 @@ export class VisionQueue {
       const slugCandidates = includesSlugGeneration(mode)
         ? await provider.suggestSlugs(description, {
           model: this.settings.model,
-          slugPrompt: this.settings.visionSlugPrompt
+          slugPrompt: this.settings.visionSlugPrompt,
+          ...callOptions
         })
         : previousSlugCandidates;
       task.output.vision = {

@@ -48,6 +48,10 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
+    visionConcurrency: readValue(source, "visionConcurrency", fallback.visionConcurrency, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 32 })),
+    visionTimeoutMs: readValue(source, "visionTimeoutMs", fallback.visionTimeoutMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1000, max: 600000 })),
+    visionMaxRetries: readValue(source, "visionMaxRetries", fallback.visionMaxRetries, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 10 })),
+    visionInitialBackoffMs: readValue(source, "visionInitialBackoffMs", fallback.visionInitialBackoffMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 30000 })),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64, max: MAX_PREVIEW_LONG_EDGE })),
     previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))

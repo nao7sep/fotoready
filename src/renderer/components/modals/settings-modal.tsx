@@ -4,6 +4,7 @@ import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE }
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
+import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { ModalShell } from "./modal-shell";
 
 type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
@@ -299,6 +300,10 @@ function VisionTab({
             />
           </label>
           <NumberField label="Vision image long edge" max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
+          <NumberField label="Concurrent vision requests" max={32} min={1} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
+          <NumberField label="Request timeout (ms)" max={600000} min={1000} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
+          <NumberField label="Max retries on failure" max={10} min={0} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
+          <NumberField label="Initial retry backoff (ms)" max={30000} min={0} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"
@@ -331,10 +336,28 @@ function VisionTab({
         <label className="stacked-field">
           Description prompt
           <textarea rows={5} value={settings.visionDescriptionPrompt} onChange={(event) => setSettings({ ...settings, visionDescriptionPrompt: event.currentTarget.value })} />
+          <button
+            className="toolbar-button"
+            type="button"
+            style={{ justifySelf: "start" }}
+            disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
+            onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
+          >
+            Reset to default
+          </button>
         </label>
         <label className="stacked-field">
           Slug prompt
           <textarea rows={5} value={settings.visionSlugPrompt} onChange={(event) => setSettings({ ...settings, visionSlugPrompt: event.currentTarget.value })} />
+          <button
+            className="toolbar-button"
+            type="button"
+            style={{ justifySelf: "start" }}
+            disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
+            onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
+          >
+            Reset to default
+          </button>
         </label>
       </section>
     </div>

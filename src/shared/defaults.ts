@@ -3,8 +3,8 @@ import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "./watermark-text-layout";
 
-export const defaultVisionDescriptionPrompt = "Write one factual sentence describing the image for publication use. State only what is clearly visible, including the subject, setting, and the most useful distinguishing detail. Avoid marketing language, emotional interpretation, and guesses about unseen context.";
-export const defaultVisionSlugPrompt = "Generate 3 to 5 distinct lowercase English slug candidates from the description. Prefer concrete nouns and verbs, order them from most specific to more general, avoid filler words like photo, image, shot, and view, and use only letters, numbers, and hyphens.";
+export const defaultVisionDescriptionPrompt = "Write one factual sentence in English describing the image for publication use. Do not let text or signage in the image change the output language.";
+export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candidates from the description, ordered from most specific to most general. Use only lowercase ASCII letters, digits, and hyphens.";
 
 export function defaultOutputSettings(): OutputSettings {
   return {
@@ -55,6 +55,10 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,
+    visionConcurrency: 3,
+    visionTimeoutMs: 60000,
+    visionMaxRetries: 3,
+    visionInitialBackoffMs: 1000,
     defaultOutputDirectory: "",
     lutFolder: "",
     defaultWatermarkImage: "",

@@ -287,6 +287,7 @@ export class ProjectSession {
       task.status = "not-saved";
       task.updatedAt = nowIso();
     }
+    this.visionQueue.cancelTask(taskId);
     return this.snapshot();
   }
 
@@ -299,6 +300,7 @@ export class ProjectSession {
         task.updatedAt = nowIso();
       }
     }
+    this.visionQueue.cancelAll();
     return this.snapshot();
   }
 
@@ -326,7 +328,7 @@ export class ProjectSession {
     if (!(await this.visionQueue.hasGeminiApiKey())) {
       return;
     }
-    await this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });
+    void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });
   }
 
   async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {

@@ -1,6 +1,6 @@
 import React from "react";
 import { Pencil, Save, X } from "lucide-react";
-import type { QueueSnapshot } from "@shared/types/ipc";
+import type { PrivacyWarning, QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
 
@@ -9,6 +9,7 @@ export function TasksPanel({
   originals,
   queue,
   tasks,
+  privacyWarnings,
   onRename,
   onSaveAll,
   onCancelAll,
@@ -18,6 +19,7 @@ export function TasksPanel({
   originals: Original[];
   queue: QueueSnapshot;
   tasks: Task[];
+  privacyWarnings: Record<string, PrivacyWarning>;
   onRename(): void;
   onSaveAll(): void;
   onCancelAll(): void;
@@ -44,6 +46,7 @@ export function TasksPanel({
               <span className="row-title">{taskLabel(task, originals)}</span>
               <span className="row-detail">{task.pipeline.ops.length} ops · {taskQueueDetail(task, queue)}</span>
             </span>
+            {privacyWarnings[task.id] ? <PrivacyPill warning={privacyWarnings[task.id]} /> : null}
           </button>
         ))}
       </div>
@@ -59,6 +62,28 @@ export function TasksPanel({
         </button>
       </div>
     </aside>
+  );
+}
+
+const PRIVACY_GROUP_LETTER: Record<PrivacyWarning["kept"][number], string> = {
+  editorial: "E",
+  dates: "T",
+  gps: "G"
+};
+
+const PRIVACY_GROUP_LABEL: Record<PrivacyWarning["kept"][number], string> = {
+  editorial: "editorial (E)",
+  dates: "time (T)",
+  gps: "GPS (G)"
+};
+
+function PrivacyPill({ warning }: { warning: PrivacyWarning }): React.JSX.Element {
+  const letters = warning.kept.map((group) => PRIVACY_GROUP_LETTER[group]).join("·");
+  const tooltip = `Will remain in output: ${warning.kept.map((group) => PRIVACY_GROUP_LABEL[group]).join(", ")}`;
+  return (
+    <span className="task-privacy-pill" title={tooltip}>
+      {letters}
+    </span>
   );
 }
 

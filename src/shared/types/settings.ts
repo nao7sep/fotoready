@@ -35,14 +35,11 @@ export type GlobalSettings = {
   defaultWebpQuality: number;
   defaultAvifQuality: number;
   defaultPngPalette: boolean;
-  defaultMetadataStrip: MetadataStripMode;
   defaultGenerateDescription: boolean;
   defaultGenerateSlug: boolean;
   enableJpegQualityEstimate: boolean;
   defaultFlattenTransparency: boolean;
   defaultBackgroundForTransparency: string;
-  injectAuthorCopyright: boolean;
-  preserveSourceDates: boolean;
   injectFields: MetadataFields;
   defaultOutputDirectory: string;
   lutFolder: string;

@@ -480,6 +480,23 @@ select:disabled {
   color: var(--text-strong-color);
 }
 
+.task-row .task-copy {
+  flex: 1 1 auto;
+}
+
+.task-privacy-pill {
+  flex: 0 0 auto;
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #d97706;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
 .row-detail {
   margin-top: 3px;
   font-size: 11px;

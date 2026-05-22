@@ -3,10 +3,10 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
-import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
+import type { GlobalSettings } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
-import { copySourceMetadataGroups, injectMetadata, stripMetadata, writeOutputDates } from "@adapters/exiftool";
-import { getOpModule, type MetadataDecision } from "@core/ops/catalog";
+import { applyMetadataToOutput } from "@adapters/exiftool";
+import { metadataPolicy } from "@main/metadata-policy";
 import { sha256Bytes } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { resolveOutputFormat, outputFormatExtension } from "@shared/output-format";
@@ -88,53 +88,19 @@ async function processOutputPipeline(
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
   const policy = metadataPolicy(task, settings);
   try {
-    await stripMetadata(outputPath);
+    await applyMetadataToOutput({
+      outputPath,
+      sourcePath,
+      stripActive: policy.stripActive,
+      keep: policy.keep,
+      injectFields: policy.injectFields,
+      savedAt
+    });
   } catch (error) {
-    throw new Error(`Failed to strip metadata from the output file. ${errorMessage(error)}`);
-  }
-  if (policy.preserveSourceDates) {
-    try {
-      await writeOutputDates(outputPath, sourcePath, true, savedAt);
-    } catch (error) {
-      throw new Error(`Failed to write output dates. ${errorMessage(error)}`);
-    }
-  }
-  if (policy.keep.length > 0) {
-    try {
-      await copySourceMetadataGroups(outputPath, sourcePath, policy.keep);
-    } catch (error) {
-      throw new Error(`Failed to copy retained metadata to the output file. ${errorMessage(error)}`);
-    }
-  }
-  if (Object.keys(policy.injectFields).length > 0) {
-    try {
-      await injectMetadata(outputPath, policy.injectFields);
-    } catch (error) {
-      throw new Error(`Failed to write metadata to the output file. ${errorMessage(error)}`);
-    }
+    throw new Error(`Failed to write metadata to the output file. ${errorMessage(error)}`);
   }
   const bytes = await fs.readFile(outputPath);
   return { outputHash: sha256Bytes(bytes) };
-}
-
-function metadataPolicy(task: Task, settings: GlobalSettings): { keep: MetadataStripMode; injectFields: MetadataFields; preserveSourceDates: boolean } {
-  const decision: MetadataDecision = {
-    keep: null,
-    inject: settings.injectAuthorCopyright ? { ...settings.injectFields } : {}
-  };
-
-  for (const op of task.pipeline.ops) {
-    if (!op.enabled) continue;
-    const module = getOpModule(op.type);
-    module?.contributeMetadata?.(op.params, decision);
-  }
-
-  const keep = decision.keep ?? settings.defaultMetadataStrip;
-  return {
-    keep,
-    injectFields: decision.inject,
-    preserveSourceDates: decision.keep ? false : settings.preserveSourceDates
-  };
 }
 
 function resolvePipelineForSave(

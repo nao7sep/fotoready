@@ -30,10 +30,13 @@ import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 import type { RenameTemplateId } from "@shared/rename-template";
 import { normalizeSlugCandidate } from "@core/slug/rules";
+import { computePrivacyWarning } from "@main/privacy-warning";
+import type { PrivacyWarning } from "@shared/types/ipc";
 
 export type ProjectSessionSnapshot = {
   project: Project;
   activeTaskId: string | null;
+  privacyWarnings: Record<string, PrivacyWarning>;
 };
 
 export class ProjectSession {
@@ -57,8 +60,20 @@ export class ProjectSession {
   snapshot(): ProjectSessionSnapshot {
     return {
       project: this.#project,
-      activeTaskId: this.#activeTaskId
+      activeTaskId: this.#activeTaskId,
+      privacyWarnings: this.#computePrivacyWarnings()
     };
+  }
+
+  #computePrivacyWarnings(): Record<string, PrivacyWarning> {
+    const out: Record<string, PrivacyWarning> = {};
+    for (const task of this.#project.tasks) {
+      const original = this.#project.originals.find((item) => item.id === task.originalId);
+      if (!original) continue;
+      const warning = computePrivacyWarning(task, original, this.settings);
+      if (warning) out[task.id] = warning;
+    }
+    return out;
   }
 
   setSnapshotListener(listener: (snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>): void {

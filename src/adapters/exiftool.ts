@@ -3,6 +3,8 @@ import { exiftool, type WriteTags } from "exiftool-vendored";
 import type { SourceMetadataSummary } from "@shared/types/project";
 import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 
+const APP_SOFTWARE_TAG = "FotoReady";
+
 const DATE_TAGS = ["DateTimeOriginal", "CreateDate", "ModifyDate"] as const;
 const GPS_TAGS = [
   "GPSLatitude",
@@ -24,32 +26,89 @@ const GPS_TAGS = [
   "GPSDestBearingRef"
 ] as const;
 
-export async function stripMetadata(outputPath: string): Promise<void> {
-  await exiftool.deleteAllTags(outputPath);
-  await removeExiftoolOriginal(outputPath);
+const EDITORIAL_TAGS = [
+  "EXIF:Artist", "IPTC:By-line", "XMP-dc:Creator",
+  "EXIF:Copyright", "IPTC:CopyrightNotice", "XMP-dc:Rights",
+  "XMP-xmpRights:WebStatement", "XMP-xmpRights:UsageTerms",
+  "IPTC:Credit", "XMP-photoshop:Credit",
+  "IPTC:Source", "XMP-photoshop:Source",
+  "XMP-iptcCore:CiEmailWork", "XMP-iptcCore:CiUrlWork",
+  "EXIF:ImageDescription", "IPTC:Caption-Abstract", "XMP-dc:Description"
+] as const;
+
+// Fields that no longer describe the output after this app re-encodes the image.
+// Always cleared regardless of strip policy.
+const ALWAYS_STALE_TAGS = {
+  ThumbnailImage: null,
+  PreviewImage: null,
+  JpgFromRaw: null,
+  Orientation: null,
+  ImageWidth: null,
+  ImageHeight: null,
+  ExifImageWidth: null,
+  ExifImageHeight: null,
+  PixelXDimension: null,
+  PixelYDimension: null,
+  ICC_Profile: null,
+  "MakerNotes:all": null
+} as unknown as WriteTags;
+
+export type ApplyMetadataInput = {
+  outputPath: string;
+  sourcePath: string;
+  stripActive: boolean;
+  keep: MetadataStripMode;
+  injectFields: MetadataFields;
+  savedAt: Date;
+};
+
+/**
+ * Sets the output file's metadata for a save. Default: copy all source metadata, clear
+ * fields that are no longer accurate after re-encoding, and stamp this app as Software.
+ * When `stripActive`, additionally strip every group not in `keep`.
+ * `injectFields` are written last and win over any same-named source values.
+ */
+export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<void> {
+  const { outputPath, sourcePath, stripActive, keep, injectFields, savedAt } = input;
+  const modifyDate = exifDate(savedAt);
+
+  // Pass 1: copy every tag from the source. The explicit Software/ModifyDate writes are
+  // there so the write call has at least one direct -TAG= argument; exiftool then applies
+  // the -TagsFromFile copy first and our explicit overrides last on the same invocation.
   await exiftool.write(
     outputPath,
     {
-      "GPS:all": null,
-      ThumbnailImage: null,
-      PreviewImage: null,
-      JpgFromRaw: null
+      Software: APP_SOFTWARE_TAG,
+      ModifyDate: modifyDate
     } as WriteTags,
-    ["-overwrite_original"]
+    ["-TagsFromFile", sourcePath, "-all:all", "-overwrite_original"]
   );
-}
+  await removeExiftoolOriginal(outputPath);
 
-export async function copySourceMetadataGroups(outputPath: string, sourcePath: string, keep: MetadataStripMode): Promise<void> {
-  if (!keep.includes("editorial") && !keep.includes("dates") && !keep.includes("gps")) return;
-  const sourceTags = await exiftool.read(sourcePath);
-  if (keep.includes("editorial")) {
-    await injectMetadata(outputPath, metadataFieldsFromTags(sourceTags as Record<string, unknown>));
+  // Pass 2: clear always-stale tags + any user-requested strip groups.
+  const cleanup: Record<string, string | null> = { ...(ALWAYS_STALE_TAGS as Record<string, null>) };
+  if (stripActive) {
+    if (!keep.includes("editorial")) {
+      for (const tag of EDITORIAL_TAGS) cleanup[tag] = null;
+    }
+    if (!keep.includes("dates")) {
+      cleanup.DateTimeOriginal = null;
+      cleanup.CreateDate = null;
+    }
+    if (!keep.includes("gps")) {
+      cleanup["GPS:all"] = null;
+    }
   }
-  if (keep.includes("dates")) {
-    await writeDateTags(outputPath, sourceTags as Record<string, unknown>);
-  }
-  if (keep.includes("gps")) {
-    await writeGpsTags(outputPath, sourceTags as Record<string, unknown>);
+  // Re-stamp Software/ModifyDate in case Pass 1's copy clobbered them via maker notes etc.
+  cleanup.Software = APP_SOFTWARE_TAG;
+  cleanup.ModifyDate = modifyDate;
+
+  await exiftool.write(outputPath, cleanup as unknown as WriteTags, ["-overwrite_original"]);
+  await removeExiftoolOriginal(outputPath);
+
+  // Pass 3: inject user-configured fields.
+  if (Object.keys(injectFields).length > 0) {
+    await injectMetadata(outputPath, injectFields);
   }
 }
 
@@ -66,20 +125,6 @@ export async function injectMetadata(outputPath: string, fields: MetadataFields)
   const tags = metadataFieldsToTags(fields);
   if (Object.keys(tags).length === 0) return;
   await exiftool.write(outputPath, tags, ["-overwrite_original"]);
-}
-
-export async function writeOutputDates(outputPath: string, sourcePath: string, preserveSourceDates: boolean, savedAt: Date): Promise<void> {
-  const sourceDates = preserveSourceDates ? await readSourceDates(sourcePath) : null;
-  const modifyDate = exifDate(savedAt);
-  await exiftool.write(
-    outputPath,
-    {
-      DateTimeOriginal: sourceDates?.dateTimeOriginal ?? modifyDate,
-      CreateDate: sourceDates?.createDate ?? sourceDates?.dateTimeOriginal ?? modifyDate,
-      ModifyDate: modifyDate
-    } as WriteTags,
-    ["-overwrite_original"]
-  );
   await removeExiftoolOriginal(outputPath);
 }
 
@@ -141,25 +186,6 @@ function emptyMetadataSummary(): SourceMetadataSummary {
   return { editorial: {}, dates: {}, gps: {} };
 }
 
-async function writeDateTags(outputPath: string, tags: Record<string, unknown>): Promise<void> {
-  const dateTags = Object.fromEntries(DATE_TAGS.flatMap((key) => {
-    const value = tagDate(tags[key]);
-    return value ? [[key, value]] : [];
-  })) as WriteTags;
-  if (Object.keys(dateTags).length === 0) return;
-  await exiftool.write(outputPath, dateTags, ["-overwrite_original"]);
-  await removeExiftoolOriginal(outputPath);
-}
-
-async function writeGpsTags(outputPath: string, tags: Record<string, unknown>): Promise<void> {
-  const gpsTags = Object.fromEntries(
-    GPS_TAGS.flatMap((key) => tags[key] === undefined || tags[key] === null ? [] : [[key, tags[key]]])
-  ) as WriteTags;
-  if (Object.keys(gpsTags).length === 0) return;
-  await exiftool.write(outputPath, gpsTags, ["-overwrite_original"]);
-  await removeExiftoolOriginal(outputPath);
-}
-
 function firstString(tags: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
     const value = tags[key];
@@ -203,18 +229,6 @@ function dateLabel(key: (typeof DATE_TAGS)[number]): string {
 
 function gpsLabel(key: (typeof GPS_TAGS)[number]): string {
   return key.replace(/^GPS/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
-}
-
-async function readSourceDates(sourcePath: string): Promise<{ dateTimeOriginal?: string; createDate?: string }> {
-  try {
-    const tags = await exiftool.read(sourcePath);
-    return {
-      dateTimeOriginal: tagDate(tags.DateTimeOriginal),
-      createDate: tagDate(tags.CreateDate)
-    };
-  } catch {
-    return {};
-  }
 }
 
 function tagDate(value: unknown): string | undefined {

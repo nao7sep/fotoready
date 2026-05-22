@@ -222,21 +222,8 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Metadata handling</h3>
-        <div className="settings-grid">
-          <label className="toggle-row settings-toggle-card span-two">
-            <input type="checkbox" checked={settings.injectAuthorCopyright} onChange={(event) => setSettings({ ...settings, injectAuthorCopyright: event.currentTarget.checked })} />
-            Write these metadata fields to saved files when the format supports them
-          </label>
-          <label className="toggle-row settings-toggle-card span-two">
-            <input type="checkbox" checked={settings.preserveSourceDates} onChange={(event) => setSettings({ ...settings, preserveSourceDates: event.currentTarget.checked })} />
-            Preserve source capture and creation timestamps unless Strip metadata is added
-          </label>
-        </div>
-      </section>
-
-      <section>
-        <h3>Metadata fields</h3>
+        <h3>Defaults</h3>
+        <p className="row-detail">Used by the Inject metadata op.</p>
         <div className="settings-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field metadata-field span-two" key={field}>

@@ -34,6 +34,9 @@ export type OpModule<P extends Record<string, unknown> = Record<string, unknown>
 
 /** Aggregated outcome of the metadata-only ops, consumed by processing.ts. */
 export type MetadataDecision = {
-  keep: MetadataStripMode | null;
+  /** Set to true when any strip-metadata card is present and enabled. */
+  stripActive: boolean;
+  /** Groups to retain when stripActive is true. */
+  keep: MetadataStripMode;
   inject: MetadataFields;
 };

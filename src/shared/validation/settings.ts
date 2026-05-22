@@ -1,6 +1,6 @@
 import { MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "../constants";
-import { EDITABLE_METADATA_FIELDS, METADATA_KEEP_GROUPS, type GlobalSettings, type MetadataKeepGroup, type MetadataFields } from "../types/settings";
-import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
+import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "../types/settings";
+import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
@@ -25,14 +25,11 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     defaultWebpQuality: readValue(source, "defaultWebpQuality", fallback.defaultWebpQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     defaultAvifQuality: readValue(source, "defaultAvifQuality", fallback.defaultAvifQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
     defaultPngPalette: readValue(source, "defaultPngPalette", fallback.defaultPngPalette, issues, assertBoolean),
-    defaultMetadataStrip: readValue(source, "defaultMetadataStrip", fallback.defaultMetadataStrip, issues, validateMetadataStrip),
     defaultGenerateDescription: readValue(source, "defaultGenerateDescription", fallback.defaultGenerateDescription, issues, assertBoolean),
     defaultGenerateSlug: readValue(source, "defaultGenerateSlug", fallback.defaultGenerateSlug, issues, assertBoolean),
     enableJpegQualityEstimate: readValue(source, "enableJpegQualityEstimate", fallback.enableJpegQualityEstimate, issues, assertBoolean),
     defaultFlattenTransparency: readValue(source, "defaultFlattenTransparency", fallback.defaultFlattenTransparency, issues, assertBoolean),
     defaultBackgroundForTransparency: readValue(source, "defaultBackgroundForTransparency", fallback.defaultBackgroundForTransparency, issues, assertNonEmptyString),
-    injectAuthorCopyright: readValue(source, "injectAuthorCopyright", fallback.injectAuthorCopyright, issues, assertBoolean),
-    preserveSourceDates: readValue(source, "preserveSourceDates", fallback.preserveSourceDates, issues, assertBoolean),
     injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateMetadataFields),
     defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertString),
     lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertString),
@@ -91,21 +88,6 @@ function cloneValue<T>(value: T): T {
     return structuredClone(value);
   }
   return value;
-}
-
-function validateMetadataStrip(value: unknown, path: string): MetadataKeepGroup[] {
-  const fields = assertArray(value, path).flatMap((item, index) => {
-    const migrated = migrateLegacyMetadataKeepGroup(item);
-    if (migrated) return [migrated];
-    if (item === "orientation" || item === "colorspace") return [];
-    return [assertOneOf(item, `${path}[${index}]`, METADATA_KEEP_GROUPS)];
-  });
-  return [...new Set(fields)];
-}
-
-function migrateLegacyMetadataKeepGroup(value: unknown): MetadataKeepGroup | null {
-  if (value === "author" || value === "copyright") return "editorial";
-  return null;
 }
 
 function validateMetadataFields(value: unknown, path: string): MetadataFields {

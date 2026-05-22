@@ -684,6 +684,7 @@ function App(): React.JSX.Element {
             originals={project?.originals ?? []}
             queue={queue}
             tasks={project?.tasks ?? []}
+            privacyWarnings={projectSnapshot?.privacyWarnings ?? {}}
             onRename={() => setRenameOpen(true)}
             onSaveAll={() => void saveAll()}
             onCancelAll={() => void cancelAll()}

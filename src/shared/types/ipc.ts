@@ -25,9 +25,14 @@ export type SystemInfo = {
   cpuCount: number;
 };
 
+export type PrivacyWarning = {
+  kept: ("editorial" | "dates" | "gps")[];
+};
+
 export type ProjectSnapshot = {
   project: Project;
   activeTaskId: string | null;
+  privacyWarnings: Record<string, PrivacyWarning>;
 };
 
 export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "pickerLabel" | "category" | "defaultParams" | "previewBehavior" | "metadataOnly">;

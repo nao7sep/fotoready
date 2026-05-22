@@ -25,6 +25,7 @@ const stripMetadataModule: OpModule<StripMetadataParams> = {
     return { keep: [...new Set(fields)] };
   },
   contributeMetadata(params, decision) {
+    decision.stripActive = true;
     decision.keep = params.keep;
   }
 };

@@ -61,12 +61,13 @@ Asset-backed pickers rescan their directories when opened. LUT lists reflect the
 
 ## Metadata model
 
-FotoReady re-encodes saved images and starts the metadata stage by removing embedded metadata from the output. It then writes back only the configured metadata:
+FotoReady re-encodes saved images. By default, **all source metadata is preserved** on the output, minus fields that no longer describe the re-encoded file (thumbnails, previews, orientation, dimensions, ICC profile, maker notes). The tasks panel shows a privacy pill (E·T·G) when source editorial / time / GPS data will survive into the output.
 
-- Settings can preserve source capture/creation timestamps when no Strip metadata card is present.
-- A Strip metadata card overrides the source-retention setting for that task. Its keep groups are explicit: Editorial keeps the supported descriptive/rights/contact fields, Time keeps capture/create/modify date tags, and GPS keeps the supported GPS coordinate/direction/date tags.
-- Inject metadata writes the nine editable fields from Settings or from the card: source, description, author, contact email, contact URL, credit, copyright, rights URL, and usage terms. These fields support Unicode text; XMP is written as UTF-8, and legacy IPTC mirrors are marked UTF-8 when present.
-- Orientation, ICC/color profiles, thumbnails, camera/device data, maker notes, software history, and other metadata are not preserved by the Strip metadata card unless another save path explicitly writes them.
+- **Strip metadata** card is opt-in. When added, every group is stripped except those explicitly kept: Editorial (descriptive/rights/contact fields), Time (capture/create date tags), and GPS (coordinates/direction/date).
+- **Inject metadata** card writes the nine editable fields from Settings or from the card: source, description, author, contact email, contact URL, credit, copyright, rights URL, and usage terms. Injected values win over any same-named source values. Text is Unicode; XMP is UTF-8 and legacy IPTC mirrors are marked UTF-8.
+- **Output stamps** (Settings → Metadata): two booleans, both on by default.
+  - *Software tag* — writes `Software: FotoReady` on every save.
+  - *ModifyDate* — writes the save time to EXIF `ModifyDate`. The EXIF format has no timezone field, so this is the machine's **local wall-clock time** with no offset recorded. Treat it as date-resolution information; the hour/minute reveals when you were at the machine. Turn it off if that's a concern.
 
 ## Box overlays
 

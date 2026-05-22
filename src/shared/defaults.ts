@@ -60,6 +60,8 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     lutFolder: "",
     defaultWatermarkImage: "",
     defaultWatermarkTextFontFamily: DEFAULT_TEXT_WATERMARK_FONT_FAMILY,
+    writeSoftwareTag: true,
+    writeModifyDate: true,
     workerPoolSize,
     previewLongEdge: 1024,
     previewDebounceMs: 150

@@ -1,5 +1,6 @@
 import React from "react";
 import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
+import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import type { OpRenderer } from "./op-renderer";
 
 type InjectMetadataParams = { fields: MetadataFields };
@@ -13,7 +14,7 @@ export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
         <div className="field-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field span-two" key={field}>
-              {fieldLabel(field)}
+              {metadataFieldLabel(field)}
               <MetadataFieldTextArea
                 disabled={disabled}
                 value={fields[field] ?? ""}
@@ -66,10 +67,3 @@ function MetadataFieldTextArea({
   );
 }
 
-function fieldLabel(field: keyof MetadataFields): string {
-  if (field === "webStatement") return "Rights URL";
-  if (field === "usageTerms") return "Usage terms";
-  if (field === "contactEmail") return "Contact email";
-  if (field === "contactUrl") return "Contact URL";
-  return field.replace(/^./, (letter) => letter.toUpperCase());
-}

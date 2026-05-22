@@ -62,6 +62,8 @@ export type GlobalSettings = {
   visionTimeoutMs: number;
   visionMaxRetries: number;
   visionInitialBackoffMs: number;
+  writeSoftwareTag: boolean;
+  writeModifyDate: boolean;
   workerPoolSize: number | null;
   previewLongEdge: number;
   previewDebounceMs: number;

@@ -1,10 +1,9 @@
 import type { Original, Task } from "@shared/types/project";
-import type { GlobalSettings } from "@shared/types/settings";
 import type { PrivacyWarning } from "@shared/types/ipc";
 import { metadataPolicy } from "@main/metadata-policy";
 
-export function computePrivacyWarning(task: Task, original: Original, settings: GlobalSettings): PrivacyWarning | null {
-  const policy = metadataPolicy(task, settings);
+export function computePrivacyWarning(task: Task, original: Original): PrivacyWarning | null {
+  const policy = metadataPolicy(task);
   const summary = original.metadataSummary;
   const kept: PrivacyWarning["kept"] = [];
 

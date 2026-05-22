@@ -1,6 +1,6 @@
 import { getOpModule, type MetadataDecision } from "@core/ops/catalog";
 import type { Task } from "@shared/types/project";
-import type { GlobalSettings, MetadataFields, MetadataStripMode } from "@shared/types/settings";
+import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 
 export type MetadataPolicy = {
   /** When true, output is stripped to only the groups listed in `keep`. When false, source metadata is preserved (stale fields aside). */
@@ -9,7 +9,7 @@ export type MetadataPolicy = {
   injectFields: MetadataFields;
 };
 
-export function metadataPolicy(task: Task, settings: GlobalSettings): MetadataPolicy {
+export function metadataPolicy(task: Task): MetadataPolicy {
   const decision: MetadataDecision = {
     stripActive: false,
     keep: [],

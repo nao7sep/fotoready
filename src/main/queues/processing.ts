@@ -86,7 +86,7 @@ async function processOutputPipeline(
 }
 
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {
-  const policy = metadataPolicy(task, settings);
+  const policy = metadataPolicy(task);
   try {
     await applyMetadataToOutput({
       outputPath,
@@ -94,7 +94,9 @@ async function applyMetadataPolicy(outputPath: string, sourcePath: string, task:
       stripActive: policy.stripActive,
       keep: policy.keep,
       injectFields: policy.injectFields,
-      savedAt
+      savedAt,
+      writeSoftwareTag: settings.writeSoftwareTag,
+      writeModifyDate: settings.writeModifyDate
     });
   } catch (error) {
     throw new Error(`Failed to write metadata to the output file. ${errorMessage(error)}`);

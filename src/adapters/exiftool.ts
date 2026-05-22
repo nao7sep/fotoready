@@ -5,7 +5,10 @@ import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 
 const APP_SOFTWARE_TAG = "FotoReady";
 
-const DATE_TAGS = ["DateTimeOriginal", "CreateDate", "ModifyDate"] as const;
+// Tags shown in the source-metadata summary. ModifyDate is intentionally excluded:
+// this app re-stamps it on every save, so it never carries source content into output
+// and should not contribute to the privacy warning.
+const DATE_TAGS = ["DateTimeOriginal", "CreateDate"] as const;
 const GPS_TAGS = [
   "GPSLatitude",
   "GPSLatitudeRef",
@@ -60,27 +63,30 @@ export type ApplyMetadataInput = {
   keep: MetadataStripMode;
   injectFields: MetadataFields;
   savedAt: Date;
+  writeSoftwareTag: boolean;
+  writeModifyDate: boolean;
 };
 
 /**
  * Sets the output file's metadata for a save. Default: copy all source metadata, clear
- * fields that are no longer accurate after re-encoding, and stamp this app as Software.
+ * fields that are no longer accurate after re-encoding, and optionally stamp this app
+ * as Software / set ModifyDate to the save time (both opt-out via settings).
  * When `stripActive`, additionally strip every group not in `keep`.
  * `injectFields` are written last and win over any same-named source values.
  */
 export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<void> {
-  const { outputPath, sourcePath, stripActive, keep, injectFields, savedAt } = input;
+  const { outputPath, sourcePath, stripActive, keep, injectFields, savedAt, writeSoftwareTag, writeModifyDate } = input;
   const modifyDate = exifDate(savedAt);
 
-  // Pass 1: copy every tag from the source. The explicit Software/ModifyDate writes are
-  // there so the write call has at least one direct -TAG= argument; exiftool then applies
-  // the -TagsFromFile copy first and our explicit overrides last on the same invocation.
+  // Pass 1: copy every tag from the source. Use a no-op write target (just the args)
+  // when both stamps are off — exiftool-vendored requires the tags object, but it can
+  // be empty as long as the args carry the -TagsFromFile copy.
+  const pass1Tags: Record<string, string> = {};
+  if (writeSoftwareTag) pass1Tags.Software = APP_SOFTWARE_TAG;
+  if (writeModifyDate) pass1Tags.ModifyDate = modifyDate;
   await exiftool.write(
     outputPath,
-    {
-      Software: APP_SOFTWARE_TAG,
-      ModifyDate: modifyDate
-    } as WriteTags,
+    pass1Tags as WriteTags,
     ["-TagsFromFile", sourcePath, "-all:all", "-overwrite_original"]
   );
   await removeExiftoolOriginal(outputPath);
@@ -99,9 +105,10 @@ export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<
       cleanup["GPS:all"] = null;
     }
   }
-  // Re-stamp Software/ModifyDate in case Pass 1's copy clobbered them via maker notes etc.
-  cleanup.Software = APP_SOFTWARE_TAG;
-  cleanup.ModifyDate = modifyDate;
+  // Re-stamp or clear Software/ModifyDate. When off, explicitly null so any source
+  // value doesn't leak through. When on, re-stamp in case Pass 1's copy clobbered them.
+  cleanup.Software = writeSoftwareTag ? APP_SOFTWARE_TAG : null;
+  cleanup.ModifyDate = writeModifyDate ? modifyDate : null;
 
   await exiftool.write(outputPath, cleanup as unknown as WriteTags, ["-overwrite_original"]);
   await removeExiftoolOriginal(outputPath);
@@ -223,8 +230,7 @@ function tagText(value: unknown): string | undefined {
 
 function dateLabel(key: (typeof DATE_TAGS)[number]): string {
   if (key === "DateTimeOriginal") return "Captured";
-  if (key === "CreateDate") return "Created";
-  return "Modified";
+  return "Created";
 }
 
 function gpsLabel(key: (typeof GPS_TAGS)[number]): string {

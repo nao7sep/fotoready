@@ -1,6 +1,7 @@
 import React from "react";
 import { METADATA_KEEP_GROUPS, type MetadataKeepGroup } from "@shared/types/settings";
 import type { SourceMetadataSummary } from "@shared/types/project";
+import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import type { OpRenderer } from "./op-renderer";
 
 type StripMetadataParams = { keep: MetadataKeepGroup[] };
@@ -64,15 +65,7 @@ function MetadataGroupSummary({
 function metadataSummaryItems(group: MetadataKeepGroup, summary: SourceMetadataSummary | null): Array<[string, string]> {
   if (!summary) return [];
   if (group === "editorial") {
-    return Object.entries(summary.editorial).flatMap(([key, value]) => value ? [[fieldLabel(key), value]] : []);
+    return Object.entries(summary.editorial).flatMap(([key, value]) => value ? [[metadataFieldLabel(key as keyof typeof summary.editorial), value]] : []);
   }
   return Object.entries(summary[group]).filter((entry): entry is [string, string] => Boolean(entry[1]));
-}
-
-function fieldLabel(field: string): string {
-  if (field === "webStatement") return "Rights URL";
-  if (field === "usageTerms") return "Usage terms";
-  if (field === "contactEmail") return "Contact email";
-  if (field === "contactUrl") return "Contact URL";
-  return field.replace(/^./, (letter) => letter.toUpperCase());
 }

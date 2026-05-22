@@ -70,7 +70,7 @@ export class ProjectSession {
     for (const task of this.#project.tasks) {
       const original = this.#project.originals.find((item) => item.id === task.originalId);
       if (!original) continue;
-      const warning = computePrivacyWarning(task, original, this.settings);
+      const warning = computePrivacyWarning(task, original);
       if (warning) out[task.id] = warning;
     }
     return out;

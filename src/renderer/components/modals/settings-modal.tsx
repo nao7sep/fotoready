@@ -5,6 +5,7 @@ import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } fr
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
+import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
 
 type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
@@ -222,12 +223,25 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
   return (
     <div className="settings-section-stack">
       <section>
+        <h3>Output stamps</h3>
+        <div className="settings-grid">
+          <label className="toggle-row settings-toggle-card span-two">
+            <input type="checkbox" checked={settings.writeSoftwareTag} onChange={(event) => setSettings({ ...settings, writeSoftwareTag: event.currentTarget.checked })} />
+            Write Software tag (FotoReady)
+          </label>
+          <label className="toggle-row settings-toggle-card span-two">
+            <input type="checkbox" checked={settings.writeModifyDate} onChange={(event) => setSettings({ ...settings, writeModifyDate: event.currentTarget.checked })} />
+            Write ModifyDate (save time, local clock)
+          </label>
+        </div>
+      </section>
+      <section>
         <h3>Defaults</h3>
         <p className="row-detail">Used by the Inject metadata op.</p>
         <div className="settings-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field metadata-field span-two" key={field}>
-              {fieldLabel(field)}
+              {metadataFieldLabel(field)}
               <AutoTextarea
                 value={settings.injectFields[field] ?? ""}
                 onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
@@ -602,14 +616,6 @@ function getNumberFieldIssue(value: string, min: number, max: number): string | 
   if (parsed === null) return "Enter a whole number.";
   if (parsed < min || parsed > max) return `Must be between ${min.toLocaleString()} and ${max.toLocaleString()}.`;
   return null;
-}
-
-function fieldLabel(field: keyof MetadataFields): string {
-  if (field === "webStatement") return "Rights URL";
-  if (field === "usageTerms") return "Usage terms";
-  if (field === "contactEmail") return "Contact email";
-  if (field === "contactUrl") return "Contact URL";
-  return field.replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function buildConcurrencyOptions(cpuCount: number): Array<{ value: string; label: string }> {

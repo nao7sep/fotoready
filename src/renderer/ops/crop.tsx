@@ -44,7 +44,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
       const aspectRatio = resolveAspectRatio(nextAspectId, originalAspectRatio);
       if (!aspectRatio) return;
       const nextRect = fitAspect(currentRect, aspectRatio, imageBounds);
-      onParamsChange({ ...nextRect, aspectLock: nextAspectId });
+      onParamsChange({ ...cropRectParams(nextRect), aspectLock: nextAspectId });
     }
 
     function updateCustomAspect(nextWidth: string, nextHeight: string): void {
@@ -52,7 +52,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
       const height = parseCustomAspectPart(nextHeight);
       if (width === null || height === null) return;
       const nextRect = fitAspect(currentRect, width / height, imageBounds);
-      onParamsChange({ ...nextRect, aspectLock: `${width}:${height}` });
+      onParamsChange({ ...cropRectParams(nextRect), aspectLock: `${width}:${height}` });
     }
 
     return (
@@ -134,13 +134,17 @@ export const cropRenderer: OpRenderer<CropParams> = {
           onCommit={(nextRect) => {
             const committed = rectFromStage(nextRect, ctx.longEdge, ctx.placement);
             setDraft(null);
-            onParamsChange(committed);
+            onParamsChange(cropRectParams(committed));
           }}
         />
       </>
     );
   }
 };
+
+function cropRectParams(rect: FractionRect): Pick<CropParams, "x" | "y" | "w" | "h"> {
+  return { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+}
 
 function identifyAspect(aspectLock: CropAspectLock, originalAspectRatio: number | null): CropAspectOptionId | "custom" {
   if (aspectLock === null || aspectLock === undefined) return "free";
@@ -180,11 +184,11 @@ function fitAspect(rect: FractionRect, aspectRatio: number, imageBounds: { maxX:
   const targetArea = Math.max(0.0001, next.w * next.h);
   let width = Math.sqrt(targetArea * aspectRatio);
   let height = width / aspectRatio;
-  const maxWidth = 2 * Math.min(centerX, imageBounds.maxX - centerX);
-  const maxHeight = 2 * Math.min(centerY, imageBounds.maxY - centerY);
-  const scale = Math.min(1, maxWidth / width || 1, maxHeight / height || 1);
-  width *= scale;
-  height *= scale;
+  const maxWidth = Math.max(0.0001, 2 * Math.min(centerX, imageBounds.maxX - centerX));
+  const maxHeight = Math.max(0.0001, 2 * Math.min(centerY, imageBounds.maxY - centerY));
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+  width = Math.max(0.0001, width * scale);
+  height = Math.max(0.0001, height * scale);
   return clampFractionRect({ x: centerX - width / 2, y: centerY - height / 2, w: width, h: height }, imageBounds);
 }
 

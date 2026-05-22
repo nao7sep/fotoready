@@ -105,6 +105,10 @@ export type TaskDeleteOptions = {
   deleteFinalOutput?: boolean;
 };
 
+export type TaskEditOptions = {
+  historyGroup?: string;
+};
+
 export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
@@ -150,14 +154,14 @@ export type FotoReadyApi = {
     removeOp(taskId: string, opId: string): Promise<ProjectSnapshot>;
     moveOp(taskId: string, opId: string, toIndex: number): Promise<ProjectSnapshot>;
     setOpEnabled(taskId: string, opId: string, enabled: boolean): Promise<ProjectSnapshot>;
-    updateOpParam(taskId: string, opId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
-    updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>): Promise<ProjectSnapshot>;
+    updateOpParam(taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<ProjectSnapshot>;
+    updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<ProjectSnapshot>;
     undo(taskId: string): Promise<ProjectSnapshot>;
     setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSnapshot>;
     setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSnapshot>;
     setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
     clearVision(taskId: string): Promise<ProjectSnapshot>;
-    updateOutput(taskId: string, key: string, value: unknown): Promise<ProjectSnapshot>;
+    updateOutput(taskId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<ProjectSnapshot>;
   };
   ops: {
     list(): Promise<OpCatalogItem[]>;

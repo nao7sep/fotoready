@@ -9,7 +9,7 @@ import type { UiState } from "@shared/types/state";
 import { APP_NAME } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
-import type { PreviewRenderOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { importLut, listLuts } from "@main/lut-catalog";
@@ -168,16 +168,20 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("task.removeOp", async (_event, taskId: string, opId: string) => publishResult(ctx.projectSession.removeOp(taskId, opId)));
   ipcMain.handle("task.moveOp", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
   ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));
-  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOpParam(taskId, opId, key, value)));
-  ipcMain.handle("task.updateOpParams", async (_event, taskId: string, opId: string, patch: Record<string, unknown>) =>
-    publishResult(ctx.projectSession.updateOpParams(taskId, opId, patch))
+  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions) =>
+    publishResult(ctx.projectSession.updateOpParam(taskId, opId, key, value, options))
+  );
+  ipcMain.handle("task.updateOpParams", async (_event, taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions) =>
+    publishResult(ctx.projectSession.updateOpParams(taskId, opId, patch, options))
   );
   ipcMain.handle("task.undo", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
   ipcMain.handle("task.setGenerateDescription", async (_event, taskId: string, generateDescription: boolean) => publishResult(ctx.projectSession.setGenerateDescription(taskId, generateDescription)));
   ipcMain.handle("task.setGenerateSlug", async (_event, taskId: string, generateSlug: boolean) => publishResult(ctx.projectSession.setGenerateSlug(taskId, generateSlug)));
   ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
   ipcMain.handle("task.clearVision", async (_event, taskId: string) => publishResult(ctx.projectSession.clearVision(taskId)));
-  ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown) => publishResult(ctx.projectSession.updateOutput(taskId, key, value)));
+  ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown, options?: TaskEditOptions) =>
+    publishResult(ctx.projectSession.updateOutput(taskId, key, value, options))
+  );
 
   ipcMain.handle("assets.aspectRatio", async (_event, assetPath: string) => {
     if (typeof assetPath !== "string" || !assetPath) return 1;

@@ -269,12 +269,25 @@ function VisionTab({
           <label className="stacked-field span-two">
             API key
             {hasGeminiApiKey ? (
-              <div className="settings-path-row">
-                <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
-                <button className="toolbar-button" type="button" onClick={onClearApiKey}>Clear</button>
-              </div>
+              <>
+                <span className="field-help">Gemini API key is saved.</span>
+                <div className="settings-path-row">
+                  <input
+                    autoFocus
+                    placeholder="Type a new key to replace it"
+                    type="password"
+                    value={apiKeyDraft}
+                    onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)}
+                  />
+                  <button className="toolbar-button" type="button" onClick={onClearApiKey}>Clear</button>
+                </div>
+                <span className="field-help">Leave this blank to keep the saved key. Type a new key to replace it.</span>
+              </>
             ) : (
-              <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+              <>
+                <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+                <span className="field-help">No Gemini API key is saved.</span>
+              </>
             )}
           </label>
           <label className="stacked-field">

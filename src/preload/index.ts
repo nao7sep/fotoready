@@ -46,14 +46,14 @@ const api: FotoReadyApi = {
     removeOp: (taskId, opId) => ipcRenderer.invoke("task.removeOp", taskId, opId),
     moveOp: (taskId, opId, toIndex) => ipcRenderer.invoke("task.moveOp", taskId, opId, toIndex),
     setOpEnabled: (taskId, opId, enabled) => ipcRenderer.invoke("task.setOpEnabled", taskId, opId, enabled),
-    updateOpParam: (taskId, opId, key, value) => ipcRenderer.invoke("task.updateOpParam", taskId, opId, key, value),
-    updateOpParams: (taskId, opId, patch) => ipcRenderer.invoke("task.updateOpParams", taskId, opId, patch),
+    updateOpParam: (taskId, opId, key, value, options) => ipcRenderer.invoke("task.updateOpParam", taskId, opId, key, value, options),
+    updateOpParams: (taskId, opId, patch, options) => ipcRenderer.invoke("task.updateOpParams", taskId, opId, patch, options),
     undo: (taskId) => ipcRenderer.invoke("task.undo", taskId),
     setGenerateDescription: (taskId, generateDescription) => ipcRenderer.invoke("task.setGenerateDescription", taskId, generateDescription),
     setGenerateSlug: (taskId, generateSlug) => ipcRenderer.invoke("task.setGenerateSlug", taskId, generateSlug),
     setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),
     clearVision: (taskId) => ipcRenderer.invoke("task.clearVision", taskId),
-    updateOutput: (taskId, key, value) => ipcRenderer.invoke("task.updateOutput", taskId, key, value)
+    updateOutput: (taskId, key, value, options) => ipcRenderer.invoke("task.updateOutput", taskId, key, value, options)
   },
   ops: {
     list: () => ipcRenderer.invoke("ops.list")

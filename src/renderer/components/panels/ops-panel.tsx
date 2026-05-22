@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
-import type { LutEntry, OpCatalogItem, StampEntry, VisionRunMode } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, StampEntry, TaskEditOptions, VisionRunMode } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
 import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -40,9 +40,9 @@ type OpsPanelProps = {
   onCustomSlugChange(value: string | null): void;
   onMoveOp(opId: string, toIndex: number): void;
   onOpEnabledChange(opId: string, enabled: boolean): void;
-  onOpParamChange(opId: string, key: string, value: unknown): void;
-  onOpParamsChange(opId: string, patch: Record<string, unknown>): void;
-  onOutputChange(key: string, value: unknown): void;
+  onOpParamChange(opId: string, key: string, value: unknown, options?: TaskEditOptions): void;
+  onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void;
+  onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
   onRemoveOp(opId: string): void;
   onSelectOp(opId: string): void;
 };
@@ -85,8 +85,8 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   opCount={activeTask.pipeline.ops.length}
                   onEnabledChange={(enabled) => props.onOpEnabledChange(op.id, enabled)}
                   onMove={(toIndex) => props.onMoveOp(op.id, toIndex)}
-                  onParamChange={(key, value) => props.onOpParamChange(op.id, key, value)}
-                  onParamsChange={(patch) => props.onOpParamsChange(op.id, patch)}
+                  onParamChange={(key, value, options) => props.onOpParamChange(op.id, key, value, options)}
+                  onParamsChange={(patch, options) => props.onOpParamsChange(op.id, patch, options)}
                   onRemove={() => props.onRemoveOp(op.id)}
                   onReloadLuts={props.onReloadLuts}
                   onReloadStamps={props.onReloadStamps}
@@ -154,6 +154,48 @@ function sortOpsForSection(opCatalog: OpCatalogItem[], section: (typeof ADD_OP_S
   });
 }
 
+function useContinuousControlHistoryScope(scope: string): {
+  onBlurCapture(event: React.FocusEvent<HTMLElement>): void;
+  onFocusCapture(event: React.FocusEvent<HTMLElement>): void;
+  onPointerDownCapture(event: React.PointerEvent<HTMLElement>): void;
+  onPointerEndCapture(event: React.PointerEvent<HTMLElement>): void;
+  options(): TaskEditOptions | undefined;
+} {
+  const nextGroupId = useRef(0);
+  const activeGroup = useRef<string | null>(null);
+
+  function begin(): void {
+    nextGroupId.current += 1;
+    activeGroup.current = `${scope}:${nextGroupId.current}`;
+  }
+
+  function end(): void {
+    activeGroup.current = null;
+  }
+
+  return {
+    onBlurCapture(event) {
+      if (isContinuousInput(event.target)) end();
+    },
+    onFocusCapture(event) {
+      if (isContinuousInput(event.target) && activeGroup.current === null) begin();
+    },
+    onPointerDownCapture(event) {
+      if (isContinuousInput(event.target)) begin();
+    },
+    onPointerEndCapture(event) {
+      if (isContinuousInput(event.target)) end();
+    },
+    options() {
+      return activeGroup.current ? { historyGroup: activeGroup.current } : undefined;
+    }
+  };
+}
+
+function isContinuousInput(target: EventTarget | null): target is HTMLInputElement {
+  return target instanceof HTMLInputElement && (target.type === "range" || target.type === "color");
+}
+
 function PipelineOpCard({
   cardRef,
   catalogItem,
@@ -184,8 +226,8 @@ function PipelineOpCard({
   opCount: number;
   onEnabledChange(enabled: boolean): void;
   onMove(toIndex: number): void;
-  onParamChange(key: string, value: unknown): void;
-  onParamsChange(patch: Record<string, unknown>): void;
+  onParamChange(key: string, value: unknown, options?: TaskEditOptions): void;
+  onParamsChange(patch: Record<string, unknown>, options?: TaskEditOptions): void;
   onRemove(): void;
   onReloadLuts(): Promise<void>;
   onReloadStamps(): Promise<void>;
@@ -197,9 +239,19 @@ function PipelineOpCard({
 }): React.JSX.Element {
   const renderer = getOpRenderer(op.type);
   const Card = renderer?.Card;
+  const continuousHistory = useContinuousControlHistoryScope(`op:${op.id}`);
 
   return (
-    <section className={`pipeline-op-card ${selected ? "active" : ""}`} ref={cardRef} onClick={onSelect}>
+    <section
+      className={`pipeline-op-card ${selected ? "active" : ""}`}
+      ref={cardRef}
+      onBlurCapture={continuousHistory.onBlurCapture}
+      onClick={onSelect}
+      onFocusCapture={continuousHistory.onFocusCapture}
+      onPointerCancelCapture={continuousHistory.onPointerEndCapture}
+      onPointerDownCapture={continuousHistory.onPointerDownCapture}
+      onPointerUpCapture={continuousHistory.onPointerEndCapture}
+    >
       <div className="op-card-header">
         <label className="toggle-row">
           <input
@@ -237,8 +289,8 @@ function PipelineOpCard({
           params={op.params}
           disabled={disabled}
           ctx={{ luts, stamps, originalMetadataSummary, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
-          onParamChange={(key, value) => onParamChange(String(key), value)}
-          onParamsChange={(patch) => onParamsChange(patch as Record<string, unknown>)}
+          onParamChange={(key, value, options) => onParamChange(String(key), value, options ?? continuousHistory.options())}
+          onParamsChange={(patch, options) => onParamsChange(patch as Record<string, unknown>, options ?? continuousHistory.options())}
         />
       ) : (
         <div className="row-detail">No editable parameters.</div>
@@ -278,8 +330,9 @@ function OutputControls({
   onGenerateDescriptionChange(value: boolean): void;
   onGenerateSlugChange(value: boolean): void;
   onCustomSlugChange(value: string | null): void;
-  onOutputChange(key: string, value: unknown): void;
+  onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
 }): React.JSX.Element {
+  const continuousHistory = useContinuousControlHistoryScope("output");
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
   const canAutoEstimateJpeg = Boolean(settings?.enableJpegQualityEstimate && original?.format === "jpeg" && original.jpegQualityEstimate !== null);
@@ -317,7 +370,14 @@ function OutputControls({
   const slugActionLabel = hasGeneratedSlug ? "Regenerate slug" : "Generate slug";
   const visionStateClass = `state-${taskVisualState(task)}`;
   return (
-    <div className="output-controls">
+    <div
+      className="output-controls"
+      onBlurCapture={continuousHistory.onBlurCapture}
+      onFocusCapture={continuousHistory.onFocusCapture}
+      onPointerCancelCapture={continuousHistory.onPointerEndCapture}
+      onPointerDownCapture={continuousHistory.onPointerDownCapture}
+      onPointerUpCapture={continuousHistory.onPointerEndCapture}
+    >
       <label className="stacked-field">
         Format
         <select disabled={outputDisabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
@@ -378,7 +438,7 @@ function OutputControls({
             step={1}
             type="range"
             value={qualityValue}
-            onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber)}
+            onChange={(event) => onOutputChange("quality", event.currentTarget.valueAsNumber, continuousHistory.options())}
           />
           <span className="slider-value">{qualityValue}</span>
         </label>

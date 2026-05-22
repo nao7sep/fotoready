@@ -4,7 +4,7 @@ import { BarChart3, CopyPlus, Menu, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -476,14 +476,14 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.setOpEnabled(activeTask.id, opId, enabled));
   }
 
-  async function updateOpParam(opId: string, key: string, value: unknown): Promise<void> {
+  async function updateOpParam(opId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParam(activeTask.id, opId, key, value));
+    await refreshProject(await api.task.updateOpParam(activeTask.id, opId, key, value, options));
   }
 
-  async function updateOpParams(opId: string, patch: Record<string, unknown>): Promise<void> {
+  async function updateOpParams(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch));
+    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch, options));
   }
 
   async function setGenerateDescription(generateDescription: boolean): Promise<void> {
@@ -583,9 +583,9 @@ function App(): React.JSX.Element {
     setStampEntries(await api.stamps.list());
   }
 
-  async function updateOutput(key: string, value: unknown): Promise<void> {
+  async function updateOutput(key: string, value: unknown, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOutput(activeTask.id, key, value));
+    await refreshProject(await api.task.updateOutput(activeTask.id, key, value, options));
   }
 
   async function refreshProject(snapshot: ProjectSnapshot): Promise<void> {
@@ -734,7 +734,7 @@ function App(): React.JSX.Element {
           <div className="canvas-frame">
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
-              onOpParamsChange={(opId, patch) => void updateOpParams(opId, patch)}
+              onOpParamsChange={(opId, patch, options) => void updateOpParams(opId, patch, options)}
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
               previewState={previewState}
@@ -789,9 +789,9 @@ function App(): React.JSX.Element {
             onReloadStamps={reloadStamps}
             onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
             onOpEnabledChange={(opId, enabled) => void setOpEnabled(opId, enabled)}
-            onOpParamChange={(opId, key, value) => void updateOpParam(opId, key, value)}
-            onOpParamsChange={(opId, patch) => void updateOpParams(opId, patch)}
-            onOutputChange={(key, value) => void updateOutput(key, value)}
+            onOpParamChange={(opId, key, value, options) => void updateOpParam(opId, key, value, options)}
+            onOpParamsChange={(opId, patch, options) => void updateOpParams(opId, patch, options)}
+            onOutputChange={(key, value, options) => void updateOutput(key, value, options)}
             onRemoveOp={(opId) => void removeOp(opId)}
             onRevealOpHandled={() => setPendingRevealOpId(null)}
             settings={settings}

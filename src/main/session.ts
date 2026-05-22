@@ -9,7 +9,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
@@ -40,6 +40,7 @@ export class ProjectSession {
   #project: Project;
   #activeTaskId: string | null = null;
   #taskUndoHistory = new Map<string, Task[]>();
+  #lastTaskUndoHistoryGroup = new Map<string, string | null>();
   #previewService: PreviewService;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
 
@@ -400,22 +401,28 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  updateOpParam(taskId: string, opId: string, key: string, value: unknown): ProjectSessionSnapshot {
+  updateOpParam(taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamChange(task.pipeline.ops[opIndex], key, value, getOpModule);
-    this.recordTaskEdit(task);
+    if (JSON.stringify(task.pipeline.ops[opIndex].params) === JSON.stringify(nextOp.params)) {
+      return this.snapshot();
+    }
+    this.recordTaskEdit(task, options);
     this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     return this.snapshot();
   }
 
-  updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>): ProjectSessionSnapshot {
+  updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
-    this.recordTaskEdit(task);
+    if (JSON.stringify(task.pipeline.ops[opIndex].params) === JSON.stringify(nextOp.params)) {
+      return this.snapshot();
+    }
+    this.recordTaskEdit(task, options);
     this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
@@ -450,14 +457,18 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  updateOutput(taskId: string, key: string, value: unknown): ProjectSessionSnapshot {
+  updateOutput(taskId: string, key: string, value: unknown, options?: TaskEditOptions): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const original = this.#project.originals.find((item) => item.id === task.originalId);
     if (!original) {
       throw new Error(`Original not found for task: ${task.id}`);
     }
-    this.recordTaskEdit(task);
-    task.pipeline.output = nextTaskOutput(task.pipeline.output, key, value, this.settings, original.format);
+    const nextOutput = nextTaskOutput(task.pipeline.output, key, value, this.settings, original.format);
+    if (JSON.stringify(task.pipeline.output) === JSON.stringify(nextOutput)) {
+      return this.snapshot();
+    }
+    this.recordTaskEdit(task, options);
+    task.pipeline.output = nextOutput;
     touchTask(task);
     return this.snapshot();
   }
@@ -479,6 +490,7 @@ export class ProjectSession {
     }
 
     this.#project.tasks[index] = previous;
+    this.#lastTaskUndoHistoryGroup.delete(taskId);
     this.#previewService.invalidateTask(taskId);
     return this.snapshot();
   }
@@ -580,11 +592,17 @@ export class ProjectSession {
     }
   }
 
-  private recordTaskEdit(task: Task): void {
+  private recordTaskEdit(task: Task, options?: TaskEditOptions): void {
+    const historyGroup = typeof options?.historyGroup === "string" && options.historyGroup.length > 0 ? options.historyGroup : null;
+    if (historyGroup && this.#lastTaskUndoHistoryGroup.get(task.id) === historyGroup) {
+      return;
+    }
+
     const history = this.#taskUndoHistory.get(task.id) ?? [];
     history.push(structuredClone(task));
     if (history.length > 50) history.shift();
     this.#taskUndoHistory.set(task.id, history);
+    this.#lastTaskUndoHistoryGroup.set(task.id, historyGroup);
   }
 }
 

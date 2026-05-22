@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Group, Image as KonvaImage, Layer, Stage } from "react-konva";
 import { clamp } from "@shared/numeric";
 import type { Task } from "@shared/types/project";
+import type { TaskEditOptions } from "@shared/types/ipc";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
 import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
 
@@ -28,7 +29,7 @@ export function EditorCanvas({
   fallbackLabel: string;
   originalAspectRatio: number | null;
   selectedOpId: string | null;
-  onOpParamsChange(opId: string, patch: Record<string, unknown>): void;
+  onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void;
 }): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 1, height: 1 });

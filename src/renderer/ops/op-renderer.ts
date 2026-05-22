@@ -1,5 +1,5 @@
 import type React from "react";
-import type { LutEntry, StampEntry } from "@shared/types/ipc";
+import type { LutEntry, StampEntry, TaskEditOptions } from "@shared/types/ipc";
 import type { SourceMetadataSummary } from "@shared/types/project";
 
 export type OverlayPlacement = {
@@ -33,8 +33,8 @@ export type OpCardProps<P extends Record<string, unknown>> = {
   params: P;
   disabled: boolean;
   ctx: OpCardContext;
-  onParamChange<K extends keyof P>(key: K, value: P[K]): void;
-  onParamsChange(patch: Partial<P>): void;
+  onParamChange<K extends keyof P>(key: K, value: P[K], options?: TaskEditOptions): void;
+  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void;
 };
 
 export type OpOverlayProps<P extends Record<string, unknown>> = {
@@ -42,7 +42,7 @@ export type OpOverlayProps<P extends Record<string, unknown>> = {
   opId: string;
   selected: boolean;
   ctx: OverlayContext;
-  onParamsChange(patch: Partial<P>): void;
+  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void;
 };
 
 export type ImageClickHandler<P extends Record<string, unknown>> = (
@@ -50,7 +50,7 @@ export type ImageClickHandler<P extends Record<string, unknown>> = (
   localY: number,
   params: P,
   ctx: OverlayContext,
-  onParamsChange: (patch: Partial<P>) => void
+  onParamsChange: (patch: Partial<P>, options?: TaskEditOptions) => void
 ) => void;
 
 /**

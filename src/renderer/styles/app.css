@@ -27,7 +27,8 @@
   --brand-secondary-soft-bg: #dbeafe;
   --brand-secondary-soft-border: #93c5fd;
   --brand-secondary-soft-text: #1e40af;
-  --brand-chrome-bg: #fff7ed;
+  --brand-chrome-bg: var(--brand-primary);
+  --brand-header-border: #c2410c;
   --brand-chrome-border: #fed7aa;
   --brand-status-bg: #ffedd5;
   --brand-status-text: #7c2d12;
@@ -115,9 +116,9 @@ textarea {
 
 .top-bar {
   position: relative;
-  border-bottom-color: var(--brand-chrome-border);
+  border-bottom-color: var(--brand-header-border);
   background: var(--brand-chrome-bg);
-  box-shadow: inset 0 -2px 0 var(--brand-primary-soft-border);
+  box-shadow: inset 0 -1px 0 var(--brand-header-border);
 }
 
 .status-bar {
@@ -127,6 +128,104 @@ textarea {
   color: var(--brand-status-text);
   background: var(--brand-status-bg);
   font-size: 12px;
+}
+
+.status-zone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.status-zone-left {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.status-zone-right {
+  flex: 0 0 auto;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.status-chip-muted {
+  color: var(--brand-primary-soft-text);
+  background: var(--brand-primary-soft-bg);
+  border-color: var(--brand-primary-soft-border);
+}
+
+.status-chip-idle {
+  color: var(--idle-text);
+  background: var(--idle-soft-bg);
+  border-color: var(--idle-border);
+}
+
+.status-chip-active {
+  color: var(--accent-text);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.status-chip-info {
+  color: var(--info-text);
+  background: var(--info-soft-bg);
+  border-color: var(--info-border);
+}
+
+.status-chip-danger {
+  color: var(--danger-text);
+  background: var(--danger-soft-bg);
+  border-color: var(--danger-border);
+}
+
+.status-chip-warning {
+  color: var(--warning-text);
+  background: var(--warning-soft-bg);
+  border-color: var(--warning-border);
+}
+
+.status-chip-ok {
+  color: var(--accent-soft-text);
+  background: var(--accent-soft-bg);
+  border-color: var(--accent-soft-border);
+}
+
+.status-chip-link {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.status-chip-link:hover {
+  filter: brightness(0.95);
+}
+
+.status-active-label {
+  font-style: italic;
+  color: var(--text-muted-color);
+  font-size: 11px;
+  min-width: 0;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-version {
+  color: var(--text-soft-color);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding-left: 4px;
 }
 
 .toolbar-button,
@@ -235,13 +334,11 @@ select:disabled {
 }
 
 .app-title {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--accent-text);
-  padding: 5px 9px;
-  border-radius: 6px;
-  background: var(--brand-primary);
+  padding: 0 4px;
 }
 
 .output-badge {
@@ -390,7 +487,7 @@ select:disabled {
 .originals-panel.drag-active .drop-target {
   border-color: var(--brand-primary);
   color: var(--brand-primary-text);
-  background: #ffedd5;
+  background: var(--brand-status-bg);
 }
 
 .empty-state {
@@ -530,8 +627,8 @@ select:disabled {
   display: inline-block;
   padding: 1px 7px;
   border-radius: 8px;
-  background: #d97706;
-  color: #fff;
+  background: var(--brand-primary);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;

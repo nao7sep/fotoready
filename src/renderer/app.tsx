@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BarChart3, CopyPlus, Menu, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -899,8 +899,13 @@ function App(): React.JSX.Element {
       ) : null}
 
       <footer className="status-bar">
-        <span className="queue-summary">{summarizeQueue(queue)}</span>
-        <span className="top-bar-spacer" />
+        <StatusBar
+          queue={queue}
+          privacyWarnings={projectSnapshot?.privacyWarnings ?? null}
+          hasGeminiApiKey={systemInfo ? hasGeminiApiKey : null}
+          appVersion={systemInfo?.version ?? null}
+          onOpenSettings={() => void openSettings()}
+        />
       </footer>
     </main>
   );
@@ -916,14 +921,62 @@ function WorkspaceSplitter({
   return <button aria-label={label} className="workspace-splitter" type="button" onPointerDown={onPointerDown} />;
 }
 
-/** Build a short, sparse summary for the status bar. Hides zero-count categories. */
-function summarizeQueue(queue: QueueSnapshot): string {
-  const parts = [`${queue.saved}/${queue.total}`];
-  if (queue.processing > 0) parts.push(`${queue.processing} running`);
-  if (queue.queued > 0) parts.push(`${queue.queued} queued`);
-  if (queue.errors > 0) parts.push(`${queue.errors} failed`);
-  if (queue.activeTaskLabel && queue.processing > 0) parts.push(queue.activeTaskLabel);
-  return parts.join(" · ");
+function StatusBar({
+  queue,
+  privacyWarnings,
+  hasGeminiApiKey,
+  appVersion,
+  onOpenSettings
+}: {
+  queue: QueueSnapshot;
+  privacyWarnings: Record<string, PrivacyWarning> | null;
+  hasGeminiApiKey: boolean | null;
+  appVersion: string | null;
+  onOpenSettings(): void;
+}): React.JSX.Element {
+  const privacyCount = privacyWarnings ? Object.keys(privacyWarnings).length : 0;
+  const idle = queue.processing === 0 && queue.queued === 0 && queue.errors === 0;
+  return (
+    <>
+      <div className="status-zone status-zone-left">
+        {queue.total === 0 ? (
+          <span className="status-chip status-chip-muted">No tasks</span>
+        ) : (
+          <>
+            <span className="status-chip status-chip-muted">{queue.total} {queue.total === 1 ? "task" : "tasks"}</span>
+            <span className="status-chip status-chip-muted">{queue.saved}/{queue.total} saved</span>
+          </>
+        )}
+        {queue.processing > 0 ? <span className="status-chip status-chip-active">{queue.processing} running</span> : null}
+        {queue.queued > 0 ? <span className="status-chip status-chip-info">{queue.queued} queued</span> : null}
+        {queue.errors > 0 ? <span className="status-chip status-chip-danger">{queue.errors} failed</span> : null}
+        {queue.activeTaskLabel ? <span className="status-active-label" title={queue.activeTaskLabel}>{queue.activeTaskLabel}</span> : null}
+        {idle && queue.total > 0 ? <span className="status-chip status-chip-idle">Idle</span> : null}
+      </div>
+      <span className="top-bar-spacer" />
+      <div className="status-zone status-zone-right">
+        {privacyCount > 0 ? (
+          <span
+            className="status-chip status-chip-warning"
+            title={`${privacyCount} ${privacyCount === 1 ? "task has" : "tasks have"} source metadata that will remain in the saved file. Add a Strip metadata card to remove.`}
+          >
+            <AlertTriangle size={12} /> {privacyCount} with private metadata
+          </span>
+        ) : null}
+        {hasGeminiApiKey !== null ? (
+          <button
+            className={`status-chip status-chip-link ${hasGeminiApiKey ? "status-chip-ok" : "status-chip-muted"}`}
+            type="button"
+            onClick={onOpenSettings}
+            title={hasGeminiApiKey ? "Gemini API key is set. Click to open Settings." : "Gemini API key is not set. Click to open Settings."}
+          >
+            <KeyRound size={12} /> Gemini{hasGeminiApiKey ? "" : ": no API key"}
+          </button>
+        ) : null}
+        {appVersion ? <span className="status-version">v{appVersion}</span> : null}
+      </div>
+    </>
+  );
 }
 
 function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): React.JSX.Element {

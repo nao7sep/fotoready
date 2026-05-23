@@ -1,5 +1,5 @@
-import React from "react";
-import { api } from "@renderer/ipc/client";
+import React, { useState } from "react";
+import { LutPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import type { OpRenderer } from "./op-renderer";
 
 type LutParams = { cubePath: string; strength: number };
@@ -7,33 +7,42 @@ type LutParams = { cubePath: string; strength: number };
 export const lutRenderer: OpRenderer<LutParams> = {
   type: "lut",
   Card({ params, disabled, ctx, onParamChange }) {
-    const { luts } = ctx;
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const selected = ctx.luts.find((lut) => lut.path === params.cubePath) ?? null;
     return (
       <div className="geometry-controls">
-        <select
-          className="compact-control"
-          disabled={disabled || luts.length === 0}
-          value={params.cubePath}
-          onFocus={() => void ctx.reloadLuts?.()}
-          onPointerDown={() => void ctx.reloadLuts?.()}
-          onChange={(e) => onParamChange("cubePath", e.currentTarget.value)}
-        >
-          <option value="">Choose a LUT</option>
-          {luts.map((lut) => <option key={lut.path} value={lut.path}>{lut.name}</option>)}
-        </select>
-        <button className="toolbar-button" disabled={disabled} type="button" onClick={async () => {
-          const picked = await api.system.pickFile({ title: "Choose Cube LUT", extensions: ["cube"] });
-          if (!picked) return;
-          const imported = await api.luts.import(picked);
-          await ctx.reloadLuts?.();
-          onParamChange("cubePath", imported.path);
-        }}>Import LUT</button>
+        <div className="asset-source-row">
+          <span className="asset-source-label">LUT</span>
+          <span className="asset-source-value" title={selected?.path ?? params.cubePath}>{selected?.name ?? fileLabel(params.cubePath) ?? "No LUT selected"}</span>
+        </div>
+        <button className="toolbar-button" disabled={disabled} type="button" onClick={() => {
+          void ctx.reloadLuts?.();
+          setPickerOpen(true);
+        }}>Choose LUT...</button>
         <label className="slider-row">
           <span>Strength</span>
           <input disabled={disabled} max={1} min={0} step={0.05} type="range" value={params.strength} onChange={(e) => onParamChange("strength", e.currentTarget.valueAsNumber)} />
           <span className="slider-value">{`${Math.round(params.strength * 100)}%`}</span>
         </label>
+        {pickerOpen ? (
+          <LutPickerModal
+            luts={ctx.luts}
+            selectedPath={params.cubePath}
+            strength={params.strength}
+            targetOpId={ctx.opId}
+            taskId={ctx.activeTaskId}
+            onClose={() => setPickerOpen(false)}
+            onReload={ctx.reloadLuts ?? (() => Promise.resolve())}
+            onUse={(path) => onParamChange("cubePath", path)}
+          />
+        ) : null}
       </div>
     );
   }
 };
+
+function fileLabel(filePath: string): string | null {
+  if (!filePath) return null;
+  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+  return fileName.replace(/\.[^.]+$/, "");
+}

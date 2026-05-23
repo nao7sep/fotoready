@@ -9,7 +9,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, LutPreviewEntry, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
@@ -325,6 +325,10 @@ export class ProjectSession {
 
   async renderPreview(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult> {
     return this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options);
+  }
+
+  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number): Promise<LutPreviewEntry[]> {
+    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, 256, options, strength);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {

@@ -8,6 +8,7 @@ const api: FotoReadyApi = {
     log: (level, message, detail) => ipcRenderer.invoke("system.log", level, message, detail),
     openExternal: (url) => ipcRenderer.invoke("system.openExternal", url),
     pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
+    pickFiles: (options) => ipcRenderer.invoke("system.pickFiles", options),
     pickDirectory: (options) => ipcRenderer.invoke("system.pickDirectory", options),
     revealInFolder: (filePath) => ipcRenderer.invoke("system.revealInFolder", filePath)
   },
@@ -59,7 +60,8 @@ const api: FotoReadyApi = {
     list: () => ipcRenderer.invoke("ops.list")
   },
   assets: {
-    aspectRatio: (assetPath) => ipcRenderer.invoke("assets.aspectRatio", assetPath)
+    aspectRatio: (assetPath) => ipcRenderer.invoke("assets.aspectRatio", assetPath),
+    thumbnail: (assetPath, longEdge) => ipcRenderer.invoke("assets.thumbnail", assetPath, longEdge)
   },
   preview: {
     render: (taskId, options) => ipcRenderer.invoke("preview.render", taskId, options),
@@ -74,11 +76,16 @@ const api: FotoReadyApi = {
   },
   luts: {
     list: () => ipcRenderer.invoke("luts.list"),
-    import: (filePath) => ipcRenderer.invoke("luts.import", filePath)
+    import: (filePaths) => ipcRenderer.invoke("luts.import", filePaths),
+    delete: (filePath) => ipcRenderer.invoke("luts.delete", filePath),
+    restoreBuiltIns: () => ipcRenderer.invoke("luts.restoreBuiltIns"),
+    preview: (taskId, options, strength) => ipcRenderer.invoke("luts.preview", taskId, options, strength)
   },
   stamps: {
     list: () => ipcRenderer.invoke("stamps.list"),
-    import: (filePath) => ipcRenderer.invoke("stamps.import", filePath)
+    import: (filePaths) => ipcRenderer.invoke("stamps.import", filePaths),
+    delete: (filePath) => ipcRenderer.invoke("stamps.delete", filePath),
+    restoreBuiltIns: () => ipcRenderer.invoke("stamps.restoreBuiltIns")
   },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")

@@ -21,7 +21,9 @@ export type OverlayContext = {
 };
 
 export type OpCardContext = {
+  activeTaskId: string | null;
   luts: LutEntry[];
+  opId: string;
   stamps: StampEntry[];
   originalMetadataSummary: SourceMetadataSummary | null;
   originalSize: { width: number; height: number } | null;

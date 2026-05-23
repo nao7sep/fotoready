@@ -1,37 +1,51 @@
-import { api } from "@renderer/ipc/client";
+import React, { useState } from "react";
+import { StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
+import type { OpCardProps } from "./op-renderer";
+import type { AssetOverlayParams } from "@shared/asset-overlay";
 
 export const stampRenderer = createAssetOverlayRenderer({
   type: "stamp",
   color: "#38bdf8",
-  renderSourceField({ ctx, disabled, onParamsChange, params }) {
+  renderSourceField({ ctx, params }) {
+    const selected = ctx.stamps.find((stamp) => stamp.path === params.assetPath) ?? null;
     return (
-      <select
-        className="compact-control"
-        disabled={disabled}
-        value={params.assetPath}
-        onFocus={() => void ctx.reloadStamps?.()}
-        onPointerDown={() => void ctx.reloadStamps?.()}
-        onChange={async (event) => {
-          onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, event.currentTarget.value));
-        }}
-      >
-        <option value="">Choose a stamp</option>
-        {ctx.stamps.map((stamp) => <option key={stamp.path} value={stamp.path}>{stamp.name}</option>)}
-      </select>
+      <div className="asset-source-row">
+        <span className="asset-source-label">Stamp</span>
+        <span className="asset-source-value" title={selected?.path ?? params.assetPath}>{selected?.name ?? fileLabel(params.assetPath) ?? "No stamp selected"}</span>
+      </div>
     );
   },
-  renderSourceAction({ ctx, disabled, onParamsChange, params }) {
-    return (
-      <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={async () => {
-        const picked = await api.system.pickFile({ title: "Import Stamp", extensions: ["png", "svg"] });
-        if (!picked) return;
-        const imported = await api.stamps.import(picked);
-        await ctx.reloadStamps?.();
-        onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, imported.path));
-      }}>
-        Import stamp
-      </button>
-    );
+  renderSourceAction(props) {
+    return <StampSourceAction {...props} />;
   }
 });
+
+function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProps<AssetOverlayParams>): React.JSX.Element {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <>
+      <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => {
+        void ctx.reloadStamps?.();
+        setPickerOpen(true);
+      }}>
+        Choose stamp...
+      </button>
+      {pickerOpen ? (
+        <StampPickerModal
+          selectedPath={params.assetPath}
+          stamps={ctx.stamps}
+          onClose={() => setPickerOpen(false)}
+          onReload={ctx.reloadStamps ?? (() => Promise.resolve())}
+          onUse={async (path) => onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, path))}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function fileLabel(filePath: string): string | null {
+  if (!filePath) return null;
+  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
+  return fileName.replace(/\.[^.]+$/, "");
+}

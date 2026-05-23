@@ -1,5 +1,6 @@
 import path from "node:path";
 import os from "node:os";
+import sharp from "sharp";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/session";
@@ -12,8 +13,8 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
-import { importLut, listLuts } from "@main/lut-catalog";
-import { importStamp, listStamps } from "@main/stamp-catalog";
+import { deleteLut, importLuts, listLuts, restoreBuiltInLuts } from "@main/lut-catalog";
+import { deleteStamp, importStamps, listStamps, restoreBuiltInStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
@@ -78,6 +79,19 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+  ipcMain.handle("system.pickFiles", async (event, options: { title: string; extensions: string[] }) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const dialogOptions: OpenDialogOptions = {
+      title: options.title,
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "Supported files", extensions: options.extensions },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    };
+    const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+    return result.canceled ? [] : result.filePaths;
   });
   ipcMain.handle("system.pickDirectory", async (event, options: { title: string }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
@@ -192,6 +206,19 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       return 1;
     }
   });
+  ipcMain.handle("assets.thumbnail", async (_event, assetPath: string, longEdge?: number) => {
+    const size = Number.isFinite(longEdge) ? Math.max(32, Math.min(512, Math.round(longEdge ?? 160))) : 160;
+    const { data, info } = await sharp(assetPath, { limitInputPixels: false })
+      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
+      .ensureAlpha()
+      .png()
+      .toBuffer({ resolveWithObject: true });
+    return {
+      dataUrl: `data:image/png;base64,${data.toString("base64")}`,
+      width: info.width,
+      height: info.height
+    };
+  });
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
       type,
@@ -210,9 +237,17 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
   ipcMain.handle("rename.preview", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   ipcMain.handle("rename.run", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
-  ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("luts.import", async (_event, filePath: string) => importLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("stamps.list", async () => listStamps(path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("stamps.import", async (_event, filePath: string) => importStamp(filePath, path.dirname(ctx.paths.dataDir)));
+  ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.import", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.delete", async (_event, filePath: string) => deleteLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.restoreBuiltIns", async () => restoreBuiltInLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number) => {
+    const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
+    return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength);
+  });
+  ipcMain.handle("stamps.list", async () => listStamps(path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  ipcMain.handle("stamps.delete", async (_event, filePath: string) => deleteStamp(filePath, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  ipcMain.handle("stamps.restoreBuiltIns", async () => restoreBuiltInStamps(path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

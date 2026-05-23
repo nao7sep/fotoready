@@ -83,6 +83,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   luts={props.luts}
                   op={op}
                   opCount={activeTask.pipeline.ops.length}
+                  taskId={activeTask.id}
                   onEnabledChange={(enabled) => props.onOpEnabledChange(op.id, enabled)}
                   onMove={(toIndex) => props.onMoveOp(op.id, toIndex)}
                   onParamChange={(key, value, options) => props.onOpParamChange(op.id, key, value, options)}
@@ -203,6 +204,7 @@ function PipelineOpCard({
   index,
   op,
   opCount,
+  taskId,
   onEnabledChange,
   luts,
   onMove,
@@ -224,6 +226,7 @@ function PipelineOpCard({
   luts: LutEntry[];
   op: OpInstance;
   opCount: number;
+  taskId: string;
   onEnabledChange(enabled: boolean): void;
   onMove(toIndex: number): void;
   onParamChange(key: string, value: unknown, options?: TaskEditOptions): void;
@@ -288,7 +291,7 @@ function PipelineOpCard({
         <Card
           params={op.params}
           disabled={disabled}
-          ctx={{ luts, stamps, originalMetadataSummary, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
+          ctx={{ activeTaskId: taskId, luts, opId: op.id, stamps, originalMetadataSummary, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
           onParamChange={(key, value, options) => onParamChange(String(key), value, options ?? continuousHistory.options())}
           onParamsChange={(patch, options) => onParamsChange(patch as Record<string, unknown>, options ?? continuousHistory.options())}
         />

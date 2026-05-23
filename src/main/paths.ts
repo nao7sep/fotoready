@@ -1,5 +1,6 @@
 import path from "node:path";
 import os from "node:os";
+import { app } from "electron";
 import { DATA_DIR_NAME } from "@shared/constants";
 
 export type AppPaths = {
@@ -9,6 +10,9 @@ export type AppPaths = {
   apiKeysPath: string;
   logsDir: string;
   lutsDir: string;
+  stampsDir: string;
+  bundledLutsDir: string;
+  bundledStampsDir: string;
 };
 
 export function getDataDir(): string {
@@ -23,6 +27,15 @@ export function getAppPaths(): AppPaths {
     statePath: path.join(dataDir, "state.json"),
     apiKeysPath: path.join(dataDir, "api-keys.enc"),
     logsDir: path.join(dataDir, "logs"),
-    lutsDir: path.join(dataDir, "luts")
+    lutsDir: path.join(dataDir, "luts"),
+    stampsDir: path.join(dataDir, "stamps"),
+    bundledLutsDir: bundledResourceDir("luts"),
+    bundledStampsDir: bundledResourceDir("stamps")
   };
+}
+
+function bundledResourceDir(name: string): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, name)
+    : path.join(process.cwd(), "resources", name);
 }

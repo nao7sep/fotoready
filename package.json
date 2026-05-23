@@ -52,6 +52,16 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/luts",
+        "to": "luts"
+      },
+      {
+        "from": "resources/stamps",
+        "to": "stamps"
+      }
+    ],
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "icon": "build/icon.icns",

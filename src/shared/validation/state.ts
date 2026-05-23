@@ -7,7 +7,14 @@ export type UiStateNormalizationResult = {
 };
 
 export function defaultUiState(): UiState {
-  return { showHistogram: false, histogramPosition: null };
+  return {
+    showHistogram: false,
+    histogramPosition: null,
+    builtInAssetsSeeded: {
+      luts: false,
+      stamps: false
+    }
+  };
 }
 
 export function normalizeUiState(input: unknown, fallback: UiState): UiStateNormalizationResult {
@@ -18,7 +25,8 @@ export function normalizeUiState(input: unknown, fallback: UiState): UiStateNorm
 
   const state: UiState = {
     showHistogram: readBoolean(input, "showHistogram", fallback.showHistogram, issues),
-    histogramPosition: readPoint(input.histogramPosition, fallback.histogramPosition, issues)
+    histogramPosition: readPoint(input.histogramPosition, fallback.histogramPosition, issues),
+    builtInAssetsSeeded: readBuiltInAssetsSeeded(input.builtInAssetsSeeded, fallback.builtInAssetsSeeded, issues)
   };
   return { state, issues };
 }
@@ -45,5 +53,23 @@ function readPoint(value: unknown, fallback: { x: number; y: number } | null, is
   } catch (error) {
     issues.push(error instanceof Error ? error.message : String(error));
     return fallback === null ? null : { ...fallback };
+  }
+}
+
+function readBuiltInAssetsSeeded(
+  value: unknown,
+  fallback: UiState["builtInAssetsSeeded"],
+  issues: string[]
+): UiState["builtInAssetsSeeded"] {
+  if (value === undefined) return { ...fallback };
+  try {
+    const record = assertRecord(value, "state.builtInAssetsSeeded");
+    return {
+      luts: record.luts === undefined ? fallback.luts : assertBoolean(record.luts, "state.builtInAssetsSeeded.luts"),
+      stamps: record.stamps === undefined ? fallback.stamps : assertBoolean(record.stamps, "state.builtInAssetsSeeded.stamps")
+    };
+  } catch (error) {
+    issues.push(error instanceof Error ? error.message : String(error));
+    return { ...fallback };
   }
 }

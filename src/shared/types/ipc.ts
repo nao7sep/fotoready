@@ -62,6 +62,12 @@ export type OriginalThumbnail = {
   height: number;
 };
 
+export type AssetThumbnail = {
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
 export type RenamePreviewItem = {
   taskId: string;
   originalName: string;
@@ -97,6 +103,18 @@ export type StampEntry = {
   name: string;
   path: string;
   format: "png" | "svg";
+  builtin: boolean;
+};
+
+export type AssetRestoreResult = {
+  restored: string[];
+  skipped: string[];
+};
+
+export type LutPreviewEntry = LutEntry & {
+  dataUrl: string;
+  width: number;
+  height: number;
 };
 
 export type CloseRequest = {
@@ -121,6 +139,7 @@ export type FotoReadyApi = {
     log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
     openExternal(url: string): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
+    pickFiles(options: { title: string; extensions: string[] }): Promise<string[]>;
     pickDirectory(options: { title: string }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
   };
@@ -173,6 +192,7 @@ export type FotoReadyApi = {
   };
   assets: {
     aspectRatio(assetPath: string): Promise<number>;
+    thumbnail(assetPath: string, longEdge?: number): Promise<AssetThumbnail>;
   };
   preview: {
     render(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult>;
@@ -187,11 +207,16 @@ export type FotoReadyApi = {
   };
   luts: {
     list(): Promise<LutEntry[]>;
-    import(filePath: string): Promise<LutEntry>;
+    import(filePaths: string[]): Promise<LutEntry[]>;
+    delete(filePath: string): Promise<void>;
+    restoreBuiltIns(): Promise<AssetRestoreResult>;
+    preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number): Promise<LutPreviewEntry[]>;
   };
   stamps: {
     list(): Promise<StampEntry[]>;
-    import(filePath: string): Promise<StampEntry>;
+    import(filePaths: string[]): Promise<StampEntry[]>;
+    delete(filePath: string): Promise<void>;
+    restoreBuiltIns(): Promise<AssetRestoreResult>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

@@ -27,7 +27,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 | Logs | `~/.fotoready/logs/` |
 | Source facts cache | `~/.fotoready/cache/source-facts.json` |
 | Vision cache | `~/.fotoready/cache/vision-facts.json` |
-| User LUT directory | `~/.fotoready/luts/` |
+| LUT directory | `~/.fotoready/luts/` |
 | Stamp directory | `~/.fotoready/stamps/` |
 
 Gemini vision uses the configured model ID from Settings. The default is `gemini-3-flash-preview`.
@@ -57,7 +57,7 @@ Live previews use a staged cache. For each task, FotoReady keeps a preview-sized
 
 Most cards preview the image after their current parameters are applied. Cards that edit an overlay against their input image, such as crop, can display the image before that op while still producing their after-op cached stage when a later card needs it. Preview image display fitting is separate from rendering: the resize card uses shrink-only fitting so small resized outputs are shown at actual preview size, while other cards fit the rendered preview into the available canvas area.
 
-Asset-backed pickers rescan their directories when opened. LUT lists reflect the current LUT folder, and stamp lists reflect `~/.fotoready/stamps/` without requiring an app restart.
+Asset-backed pickers rescan their directories when opened. LUT lists reflect the current LUT folder, and stamp lists reflect `~/.fotoready/stamps/` without requiring an app restart. Built-in LUTs and stamps are copied into those folders on first run; Restore built-ins fills missing built-in files without overwriting existing filenames. Built-ins are identified by filename, so a same-name user file may be treated as built-in until it is renamed or removed outside the app.
 
 ## Metadata model
 

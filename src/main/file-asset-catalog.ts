@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
 export type DirectoryAsset = {
@@ -7,8 +8,17 @@ export type DirectoryAsset = {
   path: string;
 };
 
+export type RestoreDirectoryAssetsResult = {
+  restored: string[];
+  skipped: string[];
+};
+
 export async function listDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
   await fs.mkdir(dir, { recursive: true });
+  return readDirectoryAssets(dir, extensions);
+}
+
+export async function readDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
   const allowed = new Set(extensions.map((extension) => extension.toLowerCase()));
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
   return entries
@@ -45,10 +55,71 @@ export async function importDirectoryAsset(
   };
 }
 
+export async function importDirectoryAssets(
+  filePaths: readonly string[],
+  dir: string,
+  extensions: readonly string[],
+  defaultBaseName: string
+): Promise<DirectoryAsset[]> {
+  const imported: DirectoryAsset[] = [];
+  for (const filePath of filePaths) {
+    imported.push(await importDirectoryAsset(filePath, dir, extensions, defaultBaseName));
+  }
+  return imported;
+}
+
+export async function restoreDirectoryAssets(
+  sourceDir: string,
+  targetDir: string,
+  extensions: readonly string[]
+): Promise<RestoreDirectoryAssetsResult> {
+  await fs.mkdir(targetDir, { recursive: true });
+  const sourceEntries = await readDirectoryAssets(sourceDir, extensions);
+  const restored: string[] = [];
+  const skipped: string[] = [];
+  for (const entry of sourceEntries) {
+    const targetPath = path.join(targetDir, `${entry.name}${entry.extension}`);
+    try {
+      await fs.copyFile(entry.path, targetPath, fsConstants.COPYFILE_EXCL);
+      restored.push(entry.name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        skipped.push(entry.name);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { restored, skipped };
+}
+
+export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {
+  const target = assertDirectoryAssetPath(filePath, dir, extensions);
+  await fs.unlink(target);
+}
+
 export function expandHomePath(input: string, homeDir: string): string {
   if (input === "~") return homeDir;
   if (input.startsWith("~/")) return path.join(homeDir, input.slice(2));
   return input;
+}
+
+export function assetNameSet(entries: readonly DirectoryAsset[]): Set<string> {
+  return new Set(entries.map((entry) => entry.name));
+}
+
+export function assertDirectoryAssetPath(filePath: string, dir: string, extensions: readonly string[]): string {
+  const resolvedDir = path.resolve(dir);
+  const resolvedPath = path.resolve(filePath);
+  const relative = path.relative(resolvedDir, resolvedPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Asset is outside the library folder.");
+  }
+  const extension = path.extname(resolvedPath).toLowerCase();
+  if (!extensions.map((item) => item.toLowerCase()).includes(extension)) {
+    throw new Error(`Only ${extensions.join(", ")} files can be managed here.`);
+  }
+  return resolvedPath;
 }
 
 async function uniqueAssetPath(dir: string, baseName: string, extension: string, defaultBaseName: string): Promise<string> {

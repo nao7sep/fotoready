@@ -2,7 +2,7 @@ import sharp from "sharp";
 import type { OpInstance } from "@shared/types/op";
 import type { Pipeline } from "@shared/types/pipeline";
 import type { Original, Project, Task } from "@shared/types/project";
-import type { OriginalThumbnail, PreviewRenderOptions, PreviewResult } from "@shared/types/ipc";
+import type { LutEntry, LutPreviewEntry, OriginalThumbnail, PreviewRenderOptions, PreviewResult } from "@shared/types/ipc";
 import { getOpModule } from "@core/ops/catalog";
 import { loadCubeLut } from "@adapters/cube-loader";
 import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
@@ -90,6 +90,64 @@ export class PreviewService {
       width: metadata.width ?? original.width,
       height: metadata.height ?? original.height
     };
+  }
+
+  async renderLutPreviews(
+    project: Project,
+    taskId: string,
+    luts: LutEntry[],
+    previewLongEdge: number,
+    options: PreviewRenderOptions | undefined,
+    strength: number
+  ): Promise<LutPreviewEntry[]> {
+    const task = project.tasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    const original = project.originals.find((item) => item.id === task.originalId);
+    if (!original) {
+      throw new Error(`Original not found for task: ${taskId}`);
+    }
+
+    const base = await this.renderStage(original, task, previewLongEdge, previewTargetStageIndex(task, options));
+    const opPipeline: Pipeline = {
+      ...task.pipeline,
+      ops: []
+    };
+    const previews: LutPreviewEntry[] = [];
+    for (const lut of luts) {
+      const result = await runPipelineFromRaw(
+        {
+          ...opPipeline,
+          ops: [{
+            id: `lut-preview:${lut.path}`,
+            type: "lut",
+            enabled: true,
+            params: {
+              cubePath: lut.path,
+              strength
+            }
+          }]
+        },
+        { bytes: Buffer.from(base.data), width: base.width, height: base.height },
+        { resolveLut: loadCubeLut }
+      );
+      const png = await sharp(result.bytes, {
+        raw: {
+          width: result.width,
+          height: result.height,
+          channels: 4
+        }
+      }).png().toBuffer();
+      previews.push({
+        ...lut,
+        dataUrl: `data:image/png;base64,${png.toString("base64")}`,
+        width: result.width,
+        height: result.height
+      });
+    }
+    return previews;
   }
 
   private async renderStage(original: Original, task: Task, previewLongEdge: number, targetStageIndex: number): Promise<PreviewBitmap> {

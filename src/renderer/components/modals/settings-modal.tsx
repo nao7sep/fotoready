@@ -8,7 +8,7 @@ import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
 
-type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
+export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
 
 const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "save", label: "Save" },
@@ -31,29 +31,35 @@ const metadataFieldHelp: Record<keyof MetadataFields, string> = {
 };
 
 export function AppSettingsModal({
+  apiKeyClearRequested,
   apiKeyDraft,
   hasChanges,
   hasGeminiApiKey,
+  initialTab,
   onApiKeyDraftChange,
   onClearApiKey,
+  onKeepApiKey,
   onClose,
   onSaveSettings,
   settingsDraft,
   setSettingsDraft,
   systemInfo
 }: {
+  apiKeyClearRequested: boolean;
   apiKeyDraft: string;
   hasChanges: boolean;
   hasGeminiApiKey: boolean;
+  initialTab: SettingsTab;
   onApiKeyDraftChange(value: string): void;
   onClearApiKey(): void;
+  onKeepApiKey(): void;
   onClose(): void;
   onSaveSettings(): void;
   settingsDraft: GlobalSettings | null;
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
-  const [tab, setTab] = useState<SettingsTab>("save");
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
 
   return (
     <ModalShell
@@ -81,9 +87,11 @@ export function AppSettingsModal({
           {tab === "vision" ? (
             <VisionTab
               apiKeyDraft={apiKeyDraft}
+              apiKeyClearRequested={apiKeyClearRequested}
               hasGeminiApiKey={hasGeminiApiKey}
               onApiKeyDraftChange={onApiKeyDraftChange}
               onClearApiKey={onClearApiKey}
+              onKeepApiKey={onKeepApiKey}
               settings={settingsDraft}
               setSettings={setSettingsDraft}
             />
@@ -257,12 +265,21 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
 
 function VisionTab({
   apiKeyDraft,
+  apiKeyClearRequested,
   hasGeminiApiKey,
   onApiKeyDraftChange,
   onClearApiKey,
+  onKeepApiKey,
   settings,
   setSettings
-}: SettingsProps & { apiKeyDraft: string; hasGeminiApiKey: boolean; onApiKeyDraftChange(value: string): void; onClearApiKey(): void }): React.JSX.Element {
+}: SettingsProps & {
+  apiKeyDraft: string;
+  apiKeyClearRequested: boolean;
+  hasGeminiApiKey: boolean;
+  onApiKeyDraftChange(value: string): void;
+  onClearApiKey(): void;
+  onKeepApiKey(): void;
+}): React.JSX.Element {
   return (
     <div className="settings-section-stack">
       <section>
@@ -270,7 +287,7 @@ function VisionTab({
         <div className="settings-grid">
           <label className="stacked-field span-two">
             API key
-            {hasGeminiApiKey ? (
+            {hasGeminiApiKey && !apiKeyClearRequested ? (
               <>
                 <span className="field-help">Gemini API key is saved.</span>
                 <div className="settings-path-row">
@@ -284,6 +301,14 @@ function VisionTab({
                   <button className="toolbar-button" type="button" onClick={onClearApiKey}>Clear</button>
                 </div>
                 <span className="field-help">Leave this blank to keep the saved key. Type a new key to replace it.</span>
+              </>
+            ) : hasGeminiApiKey && apiKeyClearRequested ? (
+              <>
+                <div className="settings-path-row">
+                  <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+                  <button className="toolbar-button" type="button" onClick={onKeepApiKey}>Keep key</button>
+                </div>
+                <span className="field-help">Gemini API key will be cleared when you save. Type a new key to replace it instead.</span>
               </>
             ) : (
               <>

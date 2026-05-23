@@ -12,7 +12,7 @@ import { pipelineForPreview } from "@shared/preview-pipeline";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
-import { AppSettingsModal } from "./components/modals/settings-modal";
+import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
 import { ModalShell } from "./components/modals/modal-shell";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -86,7 +86,9 @@ function App(): React.JSX.Element {
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
   const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
   const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [apiKeyClearRequested, setApiKeyClearRequested] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("save");
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [globalDropActive, setGlobalDropActive] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
@@ -122,7 +124,7 @@ function App(): React.JSX.Element {
   const showHistogram = uiState?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
-  const apiKeyDirty = apiKeyDraft.trim().length > 0;
+  const apiKeyDirty = apiKeyDraft.trim().length > 0 || apiKeyClearRequested;
   const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
   const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning);
   const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
@@ -525,14 +527,20 @@ function App(): React.JSX.Element {
     await addOriginalPaths(sourcePaths);
   }
 
-  async function openSettings(): Promise<void> {
+  function openSettings(initialTab: SettingsTab = "save"): void {
+    setSettingsInitialTab(initialTab);
     setSettingsDraft(settings);
+    setApiKeyClearRequested(false);
     setApiKeyOpen(true);
   }
 
   async function saveSettingsDraft(): Promise<void> {
     if (!settingsDraft) return;
-    if (apiKeyDraft.trim()) {
+    if (apiKeyClearRequested) {
+      await api.settings.clearGeminiApiKey();
+      setHasGeminiApiKey(false);
+      setApiKeyClearRequested(false);
+    } else if (apiKeyDraft.trim()) {
       await api.settings.setGeminiApiKey(apiKeyDraft.trim());
       setHasGeminiApiKey(await api.settings.hasGeminiApiKey());
       setApiKeyDraft("");
@@ -546,10 +554,18 @@ function App(): React.JSX.Element {
     setApiKeyOpen(false);
   }
 
-  async function clearApiKey(): Promise<void> {
-    await api.settings.clearGeminiApiKey();
-    setHasGeminiApiKey(false);
+  function updateApiKeyDraft(value: string): void {
+    setApiKeyDraft(value);
+    if (value.trim()) setApiKeyClearRequested(false);
+  }
+
+  function requestClearApiKey(): void {
     setApiKeyDraft("");
+    setApiKeyClearRequested(true);
+  }
+
+  function keepSavedApiKey(): void {
+    setApiKeyClearRequested(false);
   }
 
   async function requestCloseSettings(): Promise<void> {
@@ -563,6 +579,7 @@ function App(): React.JSX.Element {
       if (!discard) return;
     }
     setApiKeyDraft("");
+    setApiKeyClearRequested(false);
     setApiKeyOpen(false);
   }
 
@@ -785,7 +802,7 @@ function App(): React.JSX.Element {
             onGenerateSlugChange={(value) => void setGenerateSlug(value)}
             onGenerateVision={(mode) => void generateVision(mode)}
             onCustomSlugChange={(value) => void setCustomSlug(value)}
-            onOpenSettings={() => void openSettings()}
+            onOpenSettings={() => void openSettings("vision")}
             onReloadLuts={reloadLuts}
             onReloadStamps={reloadStamps}
             onMoveOp={(opId, toIndex) => void moveOp(opId, toIndex)}
@@ -834,10 +851,13 @@ function App(): React.JSX.Element {
       {apiKeyOpen ? (
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}
-          onApiKeyDraftChange={setApiKeyDraft}
-          onClearApiKey={() => void clearApiKey()}
+          apiKeyClearRequested={apiKeyClearRequested}
+          onApiKeyDraftChange={updateApiKeyDraft}
+          onClearApiKey={requestClearApiKey}
+          onKeepApiKey={keepSavedApiKey}
           hasChanges={settingsDirty || apiKeyDirty}
           hasGeminiApiKey={hasGeminiApiKey}
+          initialTab={settingsInitialTab}
           onClose={() => void requestCloseSettings()}
           onSaveSettings={() => void saveSettingsDraft()}
           settingsDraft={settingsDraft}
@@ -903,8 +923,7 @@ function App(): React.JSX.Element {
           queue={queue}
           privacyWarnings={projectSnapshot?.privacyWarnings ?? null}
           hasGeminiApiKey={systemInfo ? hasGeminiApiKey : null}
-          appVersion={systemInfo?.version ?? null}
-          onOpenSettings={() => void openSettings()}
+          onOpenSettings={() => void openSettings("vision")}
         />
       </footer>
     </main>
@@ -925,13 +944,11 @@ function StatusBar({
   queue,
   privacyWarnings,
   hasGeminiApiKey,
-  appVersion,
   onOpenSettings
 }: {
   queue: QueueSnapshot;
   privacyWarnings: Record<string, PrivacyWarning> | null;
   hasGeminiApiKey: boolean | null;
-  appVersion: string | null;
   onOpenSettings(): void;
 }): React.JSX.Element {
   const privacyCount = privacyWarnings ? Object.keys(privacyWarnings).length : 0;
@@ -963,17 +980,16 @@ function StatusBar({
             <AlertTriangle size={12} /> {privacyCount} with private metadata
           </span>
         ) : null}
-        {hasGeminiApiKey !== null ? (
+        {hasGeminiApiKey === false ? (
           <button
-            className={`status-chip status-chip-link ${hasGeminiApiKey ? "status-chip-ok" : "status-chip-muted"}`}
+            className="status-chip status-chip-link status-chip-muted"
             type="button"
             onClick={onOpenSettings}
-            title={hasGeminiApiKey ? "Gemini API key is set. Click to open Settings." : "Gemini API key is not set. Click to open Settings."}
+            title="Gemini API key is not set. Click to open Settings."
           >
-            <KeyRound size={12} /> Gemini{hasGeminiApiKey ? "" : ": no API key"}
+            <KeyRound size={12} /> Gemini: no API key
           </button>
         ) : null}
-        {appVersion ? <span className="status-version">v{appVersion}</span> : null}
       </div>
     </>
   );

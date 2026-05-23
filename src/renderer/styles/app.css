@@ -30,7 +30,7 @@
   --brand-chrome-bg: var(--brand-primary);
   --brand-header-border: #c2410c;
   --brand-chrome-border: #fed7aa;
-  --brand-status-bg: #ffedd5;
+  --brand-status-bg: #fff7ed;
   --brand-status-text: #7c2d12;
   --accent-bg: #2f7d6f;
   --accent-text: #ffffff;
@@ -161,14 +161,14 @@ textarea {
 
 .status-chip-muted {
   color: var(--brand-primary-soft-text);
-  background: var(--brand-primary-soft-bg);
+  background: var(--brand-status-bg);
   border-color: var(--brand-primary-soft-border);
 }
 
 .status-chip-idle {
-  color: var(--idle-text);
-  background: var(--idle-soft-bg);
-  border-color: var(--idle-border);
+  color: var(--brand-primary-soft-text);
+  background: #ffedd5;
+  border-color: var(--brand-primary-soft-border);
 }
 
 .status-chip-active {
@@ -190,15 +190,9 @@ textarea {
 }
 
 .status-chip-warning {
-  color: var(--warning-text);
-  background: var(--warning-soft-bg);
-  border-color: var(--warning-border);
-}
-
-.status-chip-ok {
-  color: var(--accent-soft-text);
-  background: var(--accent-soft-bg);
-  border-color: var(--accent-soft-border);
+  color: var(--accent-text);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .status-chip-link {
@@ -212,20 +206,13 @@ textarea {
 
 .status-active-label {
   font-style: italic;
-  color: var(--text-muted-color);
+  color: var(--brand-primary-soft-text);
   font-size: 11px;
   min-width: 0;
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.status-version {
-  color: var(--text-soft-color);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  padding-left: 4px;
 }
 
 .toolbar-button,
@@ -274,7 +261,7 @@ textarea {
   color: var(--text-color);
   background: transparent;
   text-align: left;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .app-menu button:hover {
@@ -334,7 +321,7 @@ select:disabled {
 }
 
 .app-title {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--accent-text);
@@ -454,7 +441,7 @@ select:disabled {
 .panel-header h2,
 .op-section h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   letter-spacing: 0;
 }
@@ -1360,7 +1347,7 @@ select:disabled {
   color: var(--text-color);
   background: var(--button-bg);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .settings-tabs button.active {
@@ -1926,7 +1913,7 @@ select:disabled {
 }
 
 .hsl-band .slider-row {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .hsl-band .slider-row .slider-value {
@@ -2004,10 +1991,10 @@ select:disabled {
 
 kbd {
   display: inline-block;
-  padding: 4px 7px;
+  padding: 3px 6px;
   border: 1px solid var(--border-strong-color);
   border-radius: 5px;
   color: var(--text-strong-color);
   background: var(--button-bg);
-  font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

@@ -1660,7 +1660,7 @@ select:disabled {
 
 .asset-picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--asset-picker-preview-size, 132px), 1fr));
   gap: 10px;
   min-height: 0;
   outline: none;

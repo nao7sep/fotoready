@@ -22,6 +22,7 @@ export type OverlayContext = {
 
 export type OpCardContext = {
   activeTaskId: string | null;
+  assetPickerPreviewLongEdge: number;
   luts: LutEntry[];
   opId: string;
   stamps: StampEntry[];

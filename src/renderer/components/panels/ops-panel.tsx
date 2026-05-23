@@ -4,6 +4,7 @@ import type { LutEntry, OpCatalogItem, StampEntry, TaskEditOptions, VisionRunMod
 import type { OpInstance } from "@shared/types/op";
 import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
+import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
@@ -76,6 +77,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                       opRefs.current.delete(op.id);
                     }
                   }}
+                  assetPickerPreviewLongEdge={props.settings?.assetPickerPreviewLongEdge ?? DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE}
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={activeTask.status !== "not-saved"}
                   index={index}
@@ -198,6 +200,7 @@ function isContinuousInput(target: EventTarget | null): target is HTMLInputEleme
 }
 
 function PipelineOpCard({
+  assetPickerPreviewLongEdge,
   cardRef,
   catalogItem,
   disabled,
@@ -219,6 +222,7 @@ function PipelineOpCard({
   selected,
   stamps
 }: {
+  assetPickerPreviewLongEdge: number;
   cardRef(element: HTMLElement | null): void;
   catalogItem: OpCatalogItem | null;
   disabled: boolean;
@@ -291,7 +295,17 @@ function PipelineOpCard({
         <Card
           params={op.params}
           disabled={disabled}
-          ctx={{ activeTaskId: taskId, luts, opId: op.id, stamps, originalMetadataSummary, originalSize, reloadLuts: onReloadLuts, reloadStamps: onReloadStamps }}
+          ctx={{
+            activeTaskId: taskId,
+            assetPickerPreviewLongEdge,
+            luts,
+            opId: op.id,
+            stamps,
+            originalMetadataSummary,
+            originalSize,
+            reloadLuts: onReloadLuts,
+            reloadStamps: onReloadStamps
+          }}
           onParamChange={(key, value, options) => onParamChange(String(key), value, options ?? continuousHistory.options())}
           onParamsChange={(patch, options) => onParamsChange(patch as Record<string, unknown>, options ?? continuousHistory.options())}
         />

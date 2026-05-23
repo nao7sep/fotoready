@@ -66,5 +66,6 @@ export type GlobalSettings = {
   writeModifyDate: boolean;
   workerPoolSize: number | null;
   previewLongEdge: number;
+  assetPickerPreviewLongEdge: number;
   previewDebounceMs: number;
 };

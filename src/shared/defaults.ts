@@ -1,6 +1,7 @@
 import type { GlobalSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
+import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "./constants";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "./watermark-text-layout";
 
 export const defaultVisionDescriptionPrompt = "Write one factual sentence in English describing the image for publication use. Do not let text or signage in the image change the output language.";
@@ -64,6 +65,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     writeModifyDate: true,
     workerPoolSize,
     previewLongEdge: 1024,
+    assetPickerPreviewLongEdge: DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE,
     previewDebounceMs: 150
   };
 }

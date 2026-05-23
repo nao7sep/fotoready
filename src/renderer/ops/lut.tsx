@@ -27,6 +27,7 @@ export const lutRenderer: OpRenderer<LutParams> = {
         {pickerOpen ? (
           <LutPickerModal
             luts={ctx.luts}
+            previewLongEdge={ctx.assetPickerPreviewLongEdge}
             selectedPath={params.cubePath}
             strength={params.strength}
             targetOpId={ctx.opId}

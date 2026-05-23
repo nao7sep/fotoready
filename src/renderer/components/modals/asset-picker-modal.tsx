@@ -15,6 +15,7 @@ type AssetPickerModalProps<T extends PickerEntry> = {
   entries: T[];
   extensions: string[];
   importTitle: string;
+  previewLongEdge: number;
   title: string;
   restoreLabel: string;
   selectedPath: string;
@@ -31,6 +32,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   entries,
   extensions,
   importTitle,
+  previewLongEdge,
   title,
   restoreLabel,
   selectedPath,
@@ -156,7 +158,7 @@ export function AssetPickerModal<T extends PickerEntry>({
         </>
       }
     >
-      <div className="asset-picker">
+      <div className="asset-picker" style={{ "--asset-picker-preview-size": `${previewLongEdge}px` } as React.CSSProperties}>
         {loading ? <div className="modal-warning">Preparing previews...</div> : null}
         <div className="asset-picker-grid" ref={gridRef} tabIndex={0} onKeyDown={handleGridKeyDown}>
           {entries.length > 0 ? entries.map((entry) => (
@@ -184,6 +186,7 @@ export function AssetPickerModal<T extends PickerEntry>({
 
 export function LutPickerModal({
   luts,
+  previewLongEdge,
   selectedPath,
   strength,
   taskId,
@@ -193,6 +196,7 @@ export function LutPickerModal({
   onUse
 }: {
   luts: LutEntry[];
+  previewLongEdge: number;
   selectedPath: string;
   strength: number;
   taskId: string | null;
@@ -225,7 +229,7 @@ export function LutPickerModal({
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [luts, previewOptions, strength, taskId]);
+  }, [luts, previewLongEdge, previewOptions, strength, taskId]);
 
   const entries: PickerEntry[] = (previews.length > 0 ? previews : luts).map((entry) => ({
     ...entry,
@@ -237,6 +241,7 @@ export function LutPickerModal({
       extensions={["cube"]}
       importTitle="Import LUTs"
       loading={loading}
+      previewLongEdge={previewLongEdge}
       restoreLabel="Restore built-in LUTs"
       selectedPath={selectedPath}
       title="Choose LUT"
@@ -252,12 +257,14 @@ export function LutPickerModal({
 
 export function StampPickerModal({
   selectedPath,
+  previewLongEdge,
   stamps,
   onClose,
   onReload,
   onUse
 }: {
   selectedPath: string;
+  previewLongEdge: number;
   stamps: StampEntry[];
   onClose(): void;
   onReload(): Promise<void>;
@@ -268,7 +275,7 @@ export function StampPickerModal({
     let cancelled = false;
     void Promise.all(stamps.map(async (stamp) => {
       try {
-        const thumbnail = await api.assets.thumbnail(stamp.path, 180);
+        const thumbnail = await api.assets.thumbnail(stamp.path, previewLongEdge);
         return [stamp.path, thumbnail.dataUrl] as const;
       } catch {
         return [stamp.path, ""] as const;
@@ -277,7 +284,7 @@ export function StampPickerModal({
       if (!cancelled) setPreviewMap(Object.fromEntries(items));
     });
     return () => { cancelled = true; };
-  }, [stamps]);
+  }, [previewLongEdge, stamps]);
 
   const entries = stamps.map((stamp) => ({
     ...stamp,
@@ -288,6 +295,7 @@ export function StampPickerModal({
       entries={entries}
       extensions={["png", "svg"]}
       importTitle="Import stamps"
+      previewLongEdge={previewLongEdge}
       restoreLabel="Restore built-in stamps"
       selectedPath={selectedPath}
       title="Choose stamp"

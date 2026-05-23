@@ -208,8 +208,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   ipcMain.handle("assets.thumbnail", async (_event, assetPath: string, longEdge?: number) => {
     const size = Number.isFinite(longEdge) ? Math.max(32, Math.min(512, Math.round(longEdge ?? 160))) : 160;
+    const isSvg = path.extname(assetPath).toLowerCase() === ".svg";
     const { data, info } = await sharp(assetPath, { limitInputPixels: false })
-      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: true })
+      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: !isSvg })
       .ensureAlpha()
       .png()
       .toBuffer({ resolveWithObject: true });

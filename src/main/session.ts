@@ -328,7 +328,7 @@ export class ProjectSession {
   }
 
   async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number): Promise<LutPreviewEntry[]> {
-    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, 256, options, strength);
+    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, this.settings.assetPickerPreviewLongEdge, options, strength);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {

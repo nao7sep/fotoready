@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
-import { DEFAULT_LUT_FOLDER, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE } from "@shared/constants";
+import { DEFAULT_LUT_FOLDER, MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
@@ -463,6 +463,17 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           />
           <div className="row-detail">
             Sets the working size for live previews and the histogram. Lower values feel lighter; higher values make inspection more faithful.
+          </div>
+          <NumberField
+            className="span-two"
+            label="Asset picker preview size"
+            max={MAX_ASSET_PICKER_PREVIEW_LONG_EDGE}
+            min={MIN_ASSET_PICKER_PREVIEW_LONG_EDGE}
+            value={settings.assetPickerPreviewLongEdge}
+            onChange={(value) => setSettings({ ...settings, assetPickerPreviewLongEdge: value })}
+          />
+          <div className="row-detail">
+            Sets the thumbnail size for LUT and stamp picker modals. Smaller values fit more choices on compact screens.
           </div>
           <NumberField
             className="span-two"

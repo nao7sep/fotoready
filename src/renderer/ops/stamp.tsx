@@ -33,6 +33,7 @@ function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProp
       </button>
       {pickerOpen ? (
         <StampPickerModal
+          previewLongEdge={ctx.assetPickerPreviewLongEdge}
           selectedPath={params.assetPath}
           stamps={ctx.stamps}
           onClose={() => setPickerOpen(false)}

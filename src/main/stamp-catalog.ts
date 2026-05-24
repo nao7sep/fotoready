@@ -13,8 +13,8 @@ import {
 
 const STAMP_EXTENSIONS = [".png", ".svg"] as const;
 
-export async function listStamps(homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
-  const dir = resolveStampDir(homeDir);
+export async function listStamps(stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
+  const dir = resolveStampDir(stampFolder, homeDir);
   const builtInNames = await builtInStampNames(bundledStampsDir);
   const entries = await listDirectoryAssets(dir, STAMP_EXTENSIONS);
   return entries.map((entry) => ({
@@ -25,8 +25,8 @@ export async function listStamps(homeDir: string, bundledStampsDir: string): Pro
   }));
 }
 
-export async function importStamps(filePaths: readonly string[], homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
-  const dir = resolveStampDir(homeDir);
+export async function importStamps(filePaths: readonly string[], stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
+  const dir = resolveStampDir(stampFolder, homeDir);
   const builtInNames = await builtInStampNames(bundledStampsDir);
   const entries = await importDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS, "stamp");
   return entries.map((entry) => ({
@@ -37,23 +37,23 @@ export async function importStamps(filePaths: readonly string[], homeDir: string
   }));
 }
 
-export async function deleteStamp(filePath: string, homeDir: string, bundledStampsDir: string): Promise<void> {
+export async function deleteStamp(filePath: string, stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<void> {
   const builtInNames = await builtInStampNames(bundledStampsDir);
   const entryName = path.basename(filePath, path.extname(filePath));
   if (builtInNames.has(entryName)) {
     throw new Error("Built-in stamps cannot be deleted.");
   }
-  await deleteDirectoryAsset(filePath, resolveStampDir(homeDir), STAMP_EXTENSIONS);
+  await deleteDirectoryAsset(filePath, resolveStampDir(stampFolder, homeDir), STAMP_EXTENSIONS);
 }
 
-export async function restoreBuiltInStamps(homeDir: string, bundledStampsDir: string): Promise<AssetRestoreResult> {
-  return restoreDirectoryAssets(bundledStampsDir, resolveStampDir(homeDir), STAMP_EXTENSIONS);
+export async function restoreBuiltInStamps(stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<AssetRestoreResult> {
+  return restoreDirectoryAssets(bundledStampsDir, resolveStampDir(stampFolder, homeDir), STAMP_EXTENSIONS);
 }
 
 export async function builtInStampNames(bundledStampsDir: string): Promise<Set<string>> {
   return assetNameSet(await readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS));
 }
 
-export function resolveStampDir(homeDir: string): string {
-  return expandHomePath(DEFAULT_STAMP_FOLDER, homeDir);
+export function resolveStampDir(stampFolder: string, homeDir: string): string {
+  return expandHomePath(stampFolder.trim().length > 0 ? stampFolder : DEFAULT_STAMP_FOLDER, homeDir);
 }

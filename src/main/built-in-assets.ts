@@ -18,7 +18,7 @@ export async function seedBuiltInAssets(paths: AppPaths, settings: GlobalSetting
   }
 
   if (!next.builtInAssetsSeeded.stamps) {
-    await restoreBuiltInStamps(homeDir, paths.bundledStampsDir);
+    await restoreBuiltInStamps(settings.stampFolder, homeDir, paths.bundledStampsDir);
     next = {
       ...next,
       builtInAssetsSeeded: { ...next.builtInAssetsSeeded, stamps: true }

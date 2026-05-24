@@ -43,6 +43,7 @@ export type GlobalSettings = {
   injectFields: MetadataFields;
   defaultOutputDirectory: string;
   lutFolder: string;
+  stampFolder: string;
   defaultWatermarkImage: string;
   defaultWatermarkTextFontFamily: string;
   confirmDeleteOriginals: boolean;

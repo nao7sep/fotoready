@@ -59,6 +59,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     visionInitialBackoffMs: 1000,
     defaultOutputDirectory: "",
     lutFolder: "",
+    stampFolder: "",
     defaultWatermarkImage: "",
     defaultWatermarkTextFontFamily: DEFAULT_TEXT_WATERMARK_FONT_FAMILY,
     writeSoftwareTag: true,

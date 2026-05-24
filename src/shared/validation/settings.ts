@@ -33,6 +33,7 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     injectFields: readValue(source, "injectFields", fallback.injectFields, issues, validateMetadataFields),
     defaultOutputDirectory: readValue(source, "defaultOutputDirectory", fallback.defaultOutputDirectory, issues, assertString),
     lutFolder: readValue(source, "lutFolder", fallback.lutFolder, issues, assertString),
+    stampFolder: readValue(source, "stampFolder", fallback.stampFolder, issues, assertString),
     defaultWatermarkImage: readValue(source, "defaultWatermarkImage", fallback.defaultWatermarkImage, issues, assertString),
     defaultWatermarkTextFontFamily: readValue(source, "defaultWatermarkTextFontFamily", fallback.defaultWatermarkTextFontFamily, issues, assertNonEmptyString),
     jpegQualityMode: readValue(source, "jpegQualityMode", fallback.jpegQualityMode, issues, (value, path) => assertOneOf(value, path, jpegQualityModes)),

@@ -47,6 +47,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   const confirmer = useConfirmer();
   const gridRef = useRef<HTMLDivElement>(null);
   const [selectionPath, setSelectionPath] = useState(selectedPath);
+  const [error, setError] = useState<string | null>(null);
   const selectedIndex = entries.findIndex((entry) => entry.path === selectionPath);
   const selectedEntry = selectedIndex >= 0 ? entries[selectedIndex] : null;
 
@@ -67,25 +68,40 @@ export function AssetPickerModal<T extends PickerEntry>({
   }
 
   async function useEntry(entry: T): Promise<void> {
-    await onUse(entry);
-    onClose();
+    try {
+      setError(null);
+      await onUse(entry);
+      onClose();
+    } catch (entryError) {
+      setError(errorMessage(entryError));
+    }
   }
 
   async function importAssets(): Promise<void> {
-    const filePaths = await api.system.pickFiles({ title: importTitle, extensions });
-    if (filePaths.length === 0) return;
-    const imported = await onImport(filePaths);
-    await onRefresh();
-    if (imported[0]) setSelectionPath(imported[0].path);
+    try {
+      setError(null);
+      const filePaths = await api.system.pickFiles({ title: importTitle, extensions });
+      if (filePaths.length === 0) return;
+      const imported = await onImport(filePaths);
+      await onRefresh();
+      if (imported[0]) setSelectionPath(imported[0].path);
+    } catch (importError) {
+      setError(errorMessage(importError));
+    }
   }
 
   async function restoreBuiltIns(): Promise<void> {
-    const result = await onRestoreBuiltIns();
-    await onRefresh();
-    await confirmer.alert({
-      title: restoreLabel,
-      message: <RestoreResultMessage result={result} />
-    });
+    try {
+      setError(null);
+      const result = await onRestoreBuiltIns();
+      await onRefresh();
+      await confirmer.alert({
+        title: restoreLabel,
+        message: <RestoreResultMessage result={result} />
+      });
+    } catch (restoreError) {
+      setError(errorMessage(restoreError));
+    }
   }
 
   async function deleteSelected(): Promise<void> {
@@ -97,12 +113,17 @@ export function AssetPickerModal<T extends PickerEntry>({
       danger: true
     });
     if (!confirmed) return;
-    const deletedPath = selectedEntry.path;
-    await onDelete(selectedEntry);
-    if (deletedPath === selectedPath) await onUse(null);
-    await onRefresh();
-    const nextEntry = entries[selectedIndex + 1] ?? entries[selectedIndex - 1] ?? entries[0] ?? null;
-    setSelectionPath(nextEntry?.path === deletedPath ? "" : nextEntry?.path ?? "");
+    try {
+      setError(null);
+      const deletedPath = selectedEntry.path;
+      await onDelete(selectedEntry);
+      if (deletedPath === selectedPath) await onUse(null);
+      await onRefresh();
+      const nextEntry = entries[selectedIndex + 1] ?? entries[selectedIndex - 1] ?? entries[0] ?? null;
+      setSelectionPath(nextEntry?.path === deletedPath ? "" : nextEntry?.path ?? "");
+    } catch (deleteError) {
+      setError(errorMessage(deleteError));
+    }
   }
 
   function moveSelection(delta: number): void {
@@ -160,6 +181,7 @@ export function AssetPickerModal<T extends PickerEntry>({
     >
       <div className="asset-picker" style={{ "--asset-picker-preview-size": `${previewLongEdge}px` } as React.CSSProperties}>
         {loading ? <div className="modal-warning">Preparing previews...</div> : null}
+        {error ? <div className="modal-error">{error}</div> : null}
         <div className="asset-picker-grid" ref={gridRef} tabIndex={0} onKeyDown={handleGridKeyDown}>
           {entries.length > 0 ? entries.map((entry) => (
             <button
@@ -182,6 +204,10 @@ export function AssetPickerModal<T extends PickerEntry>({
       </div>
     </ModalShell>
   );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function LutPickerModal({

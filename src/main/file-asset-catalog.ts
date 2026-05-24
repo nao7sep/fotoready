@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 export type DirectoryAsset = {
@@ -43,6 +44,15 @@ export async function importDirectoryAsset(
   }
   await fs.mkdir(dir, { recursive: true });
   const absoluteSource = path.resolve(filePath);
+  const sourceHash = await fileSha256(absoluteSource);
+  const existing = await readDirectoryAssets(dir, extensions);
+  for (const candidate of existing) {
+    if (candidate.extension !== extension) continue;
+    const candidateHash = await fileSha256(candidate.path).catch(() => null);
+    if (candidateHash === sourceHash) {
+      return candidate;
+    }
+  }
   const desiredBase = path.basename(absoluteSource, path.extname(absoluteSource));
   const targetPath = await uniqueAssetPath(dir, desiredBase, extension, defaultBaseName);
   if (absoluteSource !== targetPath) {
@@ -104,8 +114,16 @@ export function expandHomePath(input: string, homeDir: string): string {
   return input;
 }
 
-export function assetNameSet(entries: readonly DirectoryAsset[]): Set<string> {
-  return new Set(entries.map((entry) => entry.name));
+export async function builtInAssetKeySet(entries: readonly DirectoryAsset[]): Promise<Set<string>> {
+  const keys = await Promise.all(entries.map(async (entry) => assetIdentityKey(entry)));
+  return new Set(keys);
+}
+
+export async function isMatchingBuiltInAsset(filePath: string, builtInKeys: ReadonlySet<string>): Promise<boolean> {
+  const extension = path.extname(filePath).toLowerCase();
+  const name = path.basename(filePath, path.extname(filePath));
+  const hash = await fileSha256(filePath).catch(() => null);
+  return hash !== null && builtInKeys.has(assetIdentityKeyFromParts(name, extension, hash));
 }
 
 export function assertDirectoryAssetPath(filePath: string, dir: string, extensions: readonly string[]): string {
@@ -136,4 +154,18 @@ async function uniqueAssetPath(dir: string, baseName: string, extension: string,
     }
   }
   throw new Error("Could not find a free asset filename.");
+}
+
+async function assetIdentityKey(entry: DirectoryAsset): Promise<string> {
+  return assetIdentityKeyFromParts(entry.name, entry.extension, await fileSha256(entry.path));
+}
+
+function assetIdentityKeyFromParts(name: string, extension: string, hash: string): string {
+  return `${name}${extension.toLowerCase()}:${hash}`;
+}
+
+async function fileSha256(filePath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await fs.readFile(filePath))
+    .digest("hex");
 }

@@ -9,6 +9,8 @@ export async function seedBuiltInAssets(paths: AppPaths, settings: GlobalSetting
   const homeDir = pathsHomeDir(paths);
   let next = uiState;
 
+  // New bundled assets after first run are opt-in: only the Restore built-ins button
+  // should copy them into the user's library.
   if (!next.builtInAssetsSeeded.luts) {
     await restoreBuiltInLuts(settings.lutFolder, homeDir, paths.bundledLutsDir);
     next = {

@@ -17,7 +17,7 @@ const assetBitmapCache = new Map<string, RenderedAssetBitmap>();
 const ASSET_ASPECT_SAMPLE_WIDTH = 1024;
 
 export function validateAssetOverlayParams(value: unknown, path: string): AssetOverlayParams {
-  const record = assertParamsShape(value, ["assetPath", "x", "y", "width", "height", "lockAspectRatio", "opacity", "rotation"], path);
+  const record = assertParamsShape(value, ["assetPath", "x", "y", "width", "height", "lockAspectRatio", "flipHorizontal", "flipVertical", "opacity", "rotation"], path);
   return {
     assetPath: assertString(record.assetPath, `${path}.assetPath`),
     x: assertFiniteNumber(record.x, `${path}.x`, { min: 0, max: 1 }),
@@ -25,6 +25,8 @@ export function validateAssetOverlayParams(value: unknown, path: string): AssetO
     width: assertFiniteNumber(record.width, `${path}.width`, { min: 0, max: 1, minExclusive: true }),
     height: assertFiniteNumber(record.height, `${path}.height`, { min: 0, max: 1, minExclusive: true }),
     lockAspectRatio: assertBoolean(record.lockAspectRatio, `${path}.lockAspectRatio`),
+    flipHorizontal: record.flipHorizontal === undefined ? false : assertBoolean(record.flipHorizontal, `${path}.flipHorizontal`),
+    flipVertical: record.flipVertical === undefined ? false : assertBoolean(record.flipVertical, `${path}.flipVertical`),
     opacity: assertFiniteNumber(record.opacity, `${path}.opacity`, { min: 0, max: 1 }),
     rotation: assertFiniteNumber(record.rotation, `${path}.rotation`, { min: -180, max: 180 })
   };
@@ -55,7 +57,14 @@ export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlay
   const overlayParams = clampAssetOverlay(params, { maxX: ctx.sourceWidth / longEdge, maxY: ctx.sourceHeight / longEdge });
   const width = Math.max(1, Math.round(longEdge * overlayParams.width));
   const height = Math.max(1, Math.round(longEdge * overlayParams.height));
-  const rendered = await renderAssetBitmap(overlayParams.assetPath, width, height, overlayParams.opacity);
+  const rendered = await renderAssetBitmap(
+    overlayParams.assetPath,
+    width,
+    height,
+    overlayParams.opacity,
+    overlayParams.flipHorizontal,
+    overlayParams.flipVertical
+  );
   const sharpImpl = (await import("sharp")).default;
   const overlay = sharpImpl(rendered.data, {
     raw: {
@@ -88,10 +97,17 @@ export async function readAssetAspectRatio(assetPath: string): Promise<number> {
   return aspectRatio;
 }
 
-async function renderAssetBitmap(assetPath: string, width: number, height: number, opacity: number): Promise<RenderedAssetBitmap> {
+async function renderAssetBitmap(
+  assetPath: string,
+  width: number,
+  height: number,
+  opacity: number,
+  flipHorizontal: boolean,
+  flipVertical: boolean
+): Promise<RenderedAssetBitmap> {
   const aspectRatio = await readAssetAspectRatio(assetPath);
   const sampleWidth = Math.max(width, Math.round(height * aspectRatio));
-  const key = `${normalizeAssetCacheKey(assetPath)}|${sampleWidth}|${opacity.toFixed(4)}`;
+  const key = `${normalizeAssetCacheKey(assetPath)}|${sampleWidth}|${opacity.toFixed(4)}|${flipHorizontal ? "h" : "-"}${flipVertical ? "v" : "-"}`;
   const cached = assetBitmapCache.get(key);
   if (cached) {
     return {
@@ -104,16 +120,47 @@ async function renderAssetBitmap(assetPath: string, width: number, height: numbe
   for (let index = 3; index < pixels.length; index += rendered.info.channels) {
     pixels[index] = Math.round((pixels[index] ?? 255) * opacity);
   }
+  const flipped = await transformAssetPixels(pixels, rendered.info, flipHorizontal, flipVertical);
   const bitmap = {
     channels: 4 as const,
-    data: pixels,
-    height: rendered.info.height,
-    width: rendered.info.width
+    data: flipped.data,
+    height: flipped.info.height,
+    width: flipped.info.width
   };
   assetBitmapCache.set(key, bitmap);
   return {
     ...bitmap,
     data: Buffer.from(bitmap.data)
+  };
+}
+
+async function transformAssetPixels(
+  pixels: Buffer,
+  info: { width: number; height: number; channels: 4 },
+  flipHorizontal: boolean,
+  flipVertical: boolean
+): Promise<{ data: Buffer; info: { width: number; height: number; channels: 4 } }> {
+  if (!flipHorizontal && !flipVertical) {
+    return { data: pixels, info };
+  }
+  const sharpImpl = (await import("sharp")).default;
+  let image = sharpImpl(pixels, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: info.channels
+    }
+  });
+  if (flipHorizontal) image = image.flop();
+  if (flipVertical) image = image.flip();
+  const transformed = await image.raw().toBuffer({ resolveWithObject: true });
+  return {
+    data: Buffer.from(transformed.data),
+    info: {
+      width: transformed.info.width,
+      height: transformed.info.height,
+      channels: 4
+    }
   };
 }
 

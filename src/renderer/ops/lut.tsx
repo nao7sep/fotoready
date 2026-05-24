@@ -11,8 +11,7 @@ export const lutRenderer: OpRenderer<LutParams> = {
     const selected = ctx.luts.find((lut) => lut.path === params.cubePath) ?? null;
     return (
       <div className="geometry-controls">
-        <div className="asset-source-row">
-          <span className="asset-source-label">LUT</span>
+        <div className="asset-source-row asset-source-row-value-only">
           <span className="asset-source-value" title={selected?.path ?? params.cubePath}>{selected?.name ?? fileLabel(params.cubePath) ?? "No LUT selected"}</span>
         </div>
         <button className="toolbar-button" disabled={disabled} type="button" onClick={() => {

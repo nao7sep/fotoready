@@ -78,7 +78,7 @@ Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosa
 - Each slider's full track represents the entire axis bound. Moves preserve size and refuse to overshoot.
 - Resizes preserve size and slide the box inward when needed, so width/height can grow while the far edge stays inside the image.
 
-Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle. With the lock on, width and height stay in sync to the asset's visible bounds and clamping respects both axes so the ratio always holds; with it off, the asset can be stretched freely. The image's natural aspect ratio is read from the main process via Sharp, so PNG and SVG sources both report the correct ratio.
+Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle plus horizontal and vertical flip toggles. With the lock on, width and height stay in sync to the asset's visible bounds and clamping respects both axes so the ratio always holds; with it off, the asset can be stretched freely. The image's natural aspect ratio is read from the main process via Sharp, so PNG and SVG sources both report the correct ratio.
 
 ## Keyboard shortcuts
 

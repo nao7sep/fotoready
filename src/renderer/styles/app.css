@@ -1164,6 +1164,10 @@ select:disabled {
   background: var(--surface-bg);
 }
 
+.asset-source-row-value-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .asset-source-label {
   color: var(--text-muted-color);
   font-size: 11px;
@@ -1662,6 +1666,8 @@ select:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--asset-picker-preview-size), 1fr));
   gap: 10px;
+  align-content: start;
+  align-items: start;
   min-height: 0;
   outline: none;
 }

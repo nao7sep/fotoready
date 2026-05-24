@@ -4,6 +4,7 @@ import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_ass
 export const watermarkImageRenderer = createAssetOverlayRenderer({
   type: "watermark-image",
   color: "#60a5fa",
+  flipControlsPlacement: "after-angle",
   renderSourceField({ disabled, onParamChange, params }) {
     return (
       <input

@@ -14,6 +14,8 @@ registerOp(createAssetOverlayModule({
     width: DEFAULT_ASSET_OVERLAY_WIDTH,
     height: DEFAULT_ASSET_OVERLAY_WIDTH,
     lockAspectRatio: true,
+    flipHorizontal: false,
+    flipVertical: false,
     opacity: 0.7,
     rotation: 0
   } satisfies AssetOverlayParams

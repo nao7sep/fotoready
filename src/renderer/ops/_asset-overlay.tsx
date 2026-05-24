@@ -17,6 +17,7 @@ type AssetOverlayCardProps = Parameters<NonNullable<OpRenderer<AssetOverlayParam
 export function createAssetOverlayRenderer(definition: {
   type: string;
   color: string;
+  flipControlsPlacement?: "after-source" | "after-angle";
   renderSourceAction(props: AssetOverlayCardProps): React.ReactNode;
   renderSourceField(props: AssetOverlayCardProps): React.ReactNode;
 }): OpRenderer<AssetOverlayParams> {
@@ -32,6 +33,7 @@ export function createAssetOverlayRenderer(definition: {
           onParamChange={props.onParamChange}
           onParamsChange={props.onParamsChange}
           params={props.params}
+          flipControlsPlacement={definition.flipControlsPlacement}
           sourceAction={definition.renderSourceAction(props)}
           sourceField={definition.renderSourceField(props)}
         />
@@ -60,6 +62,7 @@ function AssetOverlayControls({
   onParamChange,
   onParamsChange,
   params,
+  flipControlsPlacement,
   sourceAction,
   sourceField
 }: {
@@ -69,6 +72,7 @@ function AssetOverlayControls({
   onParamChange<K extends keyof AssetOverlayParams>(key: K, value: AssetOverlayParams[K]): void;
   onParamsChange(patch: Partial<AssetOverlayParams>): void;
   params: AssetOverlayParams;
+  flipControlsPlacement?: "after-source" | "after-angle";
   sourceAction: React.ReactNode;
   sourceField: React.ReactNode;
 }): React.JSX.Element {
@@ -84,6 +88,9 @@ function AssetOverlayControls({
     <div className="geometry-controls">
       {sourceField}
       {sourceAction}
+      {flipControlsPlacement === "after-source" ? (
+        <AssetOverlayFlipControls disabled={disabled} params={o} onParamChange={onParamChange} />
+      ) : null}
       <label className="slider-row">
         <span>X</span>
         <input
@@ -150,6 +157,9 @@ function AssetOverlayControls({
         value={o.rotation}
         onChange={(rotation) => applyBoxPatch({ rotation: normalizeAngle(rotation) })}
       />
+      {flipControlsPlacement === "after-angle" ? (
+        <AssetOverlayFlipControls disabled={disabled} params={o} onParamChange={onParamChange} />
+      ) : null}
       <label className="slider-row">
         <span>Opacity</span>
         <input
@@ -162,6 +172,39 @@ function AssetOverlayControls({
           onChange={(e) => onParamChange("opacity", e.currentTarget.valueAsNumber)}
         />
         <span className="slider-value">{`${Math.round(o.opacity * 100)}%`}</span>
+      </label>
+    </div>
+  );
+}
+
+function AssetOverlayFlipControls({
+  disabled,
+  params,
+  onParamChange
+}: {
+  disabled: boolean;
+  params: AssetOverlayParams;
+  onParamChange<K extends keyof AssetOverlayParams>(key: K, value: AssetOverlayParams[K]): void;
+}): React.JSX.Element {
+  return (
+    <div className="field-grid">
+      <label className="toggle-row span-two">
+        <input
+          checked={params.flipHorizontal}
+          disabled={disabled}
+          type="checkbox"
+          onChange={(event) => onParamChange("flipHorizontal", event.currentTarget.checked)}
+        />
+        <span>Flip horizontally</span>
+      </label>
+      <label className="toggle-row span-two">
+        <input
+          checked={params.flipVertical}
+          disabled={disabled}
+          type="checkbox"
+          onChange={(event) => onParamChange("flipVertical", event.currentTarget.checked)}
+        />
+        <span>Flip vertically</span>
       </label>
     </div>
   );

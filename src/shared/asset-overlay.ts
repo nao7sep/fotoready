@@ -7,6 +7,8 @@ export type AssetOverlayParams = {
   width: number;
   height: number;
   lockAspectRatio: boolean;
+  flipHorizontal: boolean;
+  flipVertical: boolean;
   opacity: number;
   rotation: number;
 };
@@ -25,7 +27,17 @@ export function clampAssetOverlay(params: AssetOverlayParams, bounds: OverlayIma
     h: params.height,
     rotation
   }, bounds, MIN_ASSET_OVERLAY_SIZE);
-  return { ...params, x: box.x, y: box.y, width: box.w, height: box.h, rotation };
+  return {
+    ...params,
+    x: box.x,
+    y: box.y,
+    width: box.w,
+    height: box.h,
+    lockAspectRatio: params.lockAspectRatio === true,
+    flipHorizontal: params.flipHorizontal === true,
+    flipVertical: params.flipVertical === true,
+    rotation
+  };
 }
 
 function validFinite(value: number, fallback: number): number {

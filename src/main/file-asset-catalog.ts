@@ -1,12 +1,16 @@
 import fs from "node:fs/promises";
-import { createReadStream } from "node:fs";
-import { createHash } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
 export type DirectoryAsset = {
   extension: string;
-  name: string;
+  fileName: string;
   path: string;
+};
+
+export type DirectoryAssetImportResult = {
+  entry: DirectoryAsset;
+  status: "imported" | "skipped-name-conflict";
 };
 
 export type RestoreDirectoryAssetsResult = {
@@ -24,59 +28,59 @@ export async function readDirectoryAssets(dir: string, extensions: readonly stri
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
   return entries
     .filter((entry) => entry.isFile() && allowed.has(path.extname(entry.name).toLowerCase()))
-    .map((entry) => ({
-      extension: path.extname(entry.name).toLowerCase(),
-      name: path.basename(entry.name, path.extname(entry.name)),
-      path: path.join(dir, entry.name)
-    }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .map((entry) => directoryAssetFromFileName(dir, entry.name))
+    .sort((left, right) => compareAssetFileNames(left.fileName, right.fileName));
 }
 
 export async function importDirectoryAsset(
   filePath: string,
   dir: string,
-  extensions: readonly string[],
-  defaultBaseName: string
-): Promise<DirectoryAsset> {
+  extensions: readonly string[]
+): Promise<DirectoryAssetImportResult> {
   const extension = path.extname(filePath).toLowerCase();
   if (!extensions.map((item) => item.toLowerCase()).includes(extension)) {
     throw new Error(`Only ${extensions.join(", ")} files can be imported.`);
   }
   await fs.mkdir(dir, { recursive: true });
   const absoluteSource = path.resolve(filePath);
-  const sourceHash = await fileSha256(absoluteSource);
+  const sourceFileName = path.basename(absoluteSource);
   const existing = await readDirectoryAssets(dir, extensions);
-  const existingHashes = await Promise.all(existing.map(async (entry) => ({
-    entry,
-    hash: await fileSha256(entry.path).catch(() => null)
-  })));
-  const duplicate = existingHashes.find((item) => item.hash === sourceHash);
-  if (duplicate) return duplicate.entry;
+  const duplicate = existing.find((entry) => isSameAssetFileName(entry.fileName, sourceFileName));
+  if (duplicate) {
+    return {
+      entry: duplicate,
+      status: "skipped-name-conflict"
+    };
+  }
 
-  const desiredBase = path.basename(absoluteSource, path.extname(absoluteSource));
-  const targetPath = await reserveUniqueAssetPath(dir, desiredBase, extension, defaultBaseName);
-  if (absoluteSource !== targetPath) {
-    try {
-      await fs.copyFile(absoluteSource, targetPath);
-    } catch (error) {
-      await fs.unlink(targetPath).catch(() => undefined);
-      throw error;
+  const targetPath = path.join(dir, sourceFileName);
+  try {
+    await fs.copyFile(absoluteSource, targetPath, fsConstants.COPYFILE_EXCL);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      return {
+        entry: directoryAssetFromFileName(dir, sourceFileName),
+        status: "skipped-name-conflict"
+      };
     }
+    throw error;
   }
   return {
-    extension,
-    name: path.basename(targetPath, path.extname(targetPath)),
-    path: targetPath
+    entry: directoryAssetFromFileName(dir, sourceFileName),
+    status: "imported"
   };
 }
 
 export async function importDirectoryAssets(
   filePaths: readonly string[],
   dir: string,
-  extensions: readonly string[],
-  defaultBaseName: string
-): Promise<DirectoryAsset[]> {
-  return Promise.all(filePaths.map((filePath) => importDirectoryAsset(filePath, dir, extensions, defaultBaseName)));
+  extensions: readonly string[]
+): Promise<DirectoryAssetImportResult[]> {
+  const results: DirectoryAssetImportResult[] = [];
+  for (const filePath of filePaths) {
+    results.push(await importDirectoryAsset(filePath, dir, extensions));
+  }
+  return results;
 }
 
 export async function restoreDirectoryAssets(
@@ -87,28 +91,23 @@ export async function restoreDirectoryAssets(
   await fs.mkdir(targetDir, { recursive: true });
   const sourceEntries = await readDirectoryAssets(sourceDir, extensions);
   const existingEntries = await readDirectoryAssets(targetDir, extensions);
-  const existingHashes = new Set(
-    (await Promise.all(existingEntries.map((entry) => fileSha256(entry.path).catch(() => null))))
-      .filter((hash): hash is string => hash !== null)
-  );
+  const existingFileNames = new Set(existingEntries.map((entry) => normalizeAssetFileName(entry.fileName)));
   const restored: string[] = [];
   const skipped: string[] = [];
   for (const entry of sourceEntries) {
-    const sourceHash = await fileSha256(entry.path).catch(() => null);
-    if (sourceHash !== null && existingHashes.has(sourceHash)) {
-      skipped.push(`${entry.name}${entry.extension}`);
+    if (existingFileNames.has(normalizeAssetFileName(entry.fileName))) {
+      skipped.push(entry.fileName);
       continue;
     }
-    const targetPath = path.join(targetDir, `${entry.name}${entry.extension}`);
+    const targetPath = path.join(targetDir, entry.fileName);
     try {
-      const handle = await fs.open(targetPath, "wx");
-      await handle.close();
-      await fs.copyFile(entry.path, targetPath);
-      if (sourceHash !== null) existingHashes.add(sourceHash);
-      restored.push(`${entry.name}${entry.extension}`);
+      await fs.copyFile(entry.path, targetPath, fsConstants.COPYFILE_EXCL);
+      existingFileNames.add(normalizeAssetFileName(entry.fileName));
+      restored.push(entry.fileName);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        skipped.push(`${entry.name}${entry.extension}`);
+        existingFileNames.add(normalizeAssetFileName(entry.fileName));
+        skipped.push(entry.fileName);
         continue;
       }
       throw error;
@@ -120,7 +119,12 @@ export async function restoreDirectoryAssets(
 export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {
   const target = assertDirectoryAssetPath(filePath, dir, extensions);
   await fs.unlink(target);
-  hashCache.delete(target);
+}
+
+export async function deleteDirectoryAssets(filePaths: readonly string[], dir: string, extensions: readonly string[]): Promise<void> {
+  for (const filePath of filePaths) {
+    await deleteDirectoryAsset(filePath, dir, extensions);
+  }
 }
 
 export function expandHomePath(input: string, homeDir: string): string {
@@ -129,16 +133,18 @@ export function expandHomePath(input: string, homeDir: string): string {
   return input;
 }
 
-export async function builtInAssetKeySet(entries: readonly DirectoryAsset[]): Promise<Set<string>> {
-  const keys = await Promise.all(entries.map(async (entry) => assetIdentityKey(entry)));
-  return new Set(keys);
+export function builtInAssetNameSet(entries: readonly DirectoryAsset[]): Set<string> {
+  return new Set(entries.map((entry) => normalizeAssetFileName(entry.fileName)));
 }
 
-export async function isMatchingBuiltInAsset(filePath: string, builtInKeys: ReadonlySet<string>): Promise<boolean> {
-  const extension = path.extname(filePath).toLowerCase();
-  const name = path.basename(filePath, path.extname(filePath));
-  const hash = await fileSha256(filePath).catch(() => null);
-  return hash !== null && builtInKeys.has(assetIdentityKeyFromParts(name, extension, hash));
+export function isMatchingBuiltInAsset(filePath: string, builtInFileNames: ReadonlySet<string>): boolean {
+  return builtInFileNames.has(normalizeAssetFileName(path.basename(filePath)));
+}
+
+export function matchingBuiltInAssetFileNames(filePaths: readonly string[], builtInFileNames: ReadonlySet<string>): string[] {
+  return filePaths
+    .map((filePath) => path.basename(filePath))
+    .filter((fileName) => builtInFileNames.has(normalizeAssetFileName(fileName)));
 }
 
 export function assertDirectoryAssetPath(filePath: string, dir: string, extensions: readonly string[]): string {
@@ -155,56 +161,23 @@ export function assertDirectoryAssetPath(filePath: string, dir: string, extensio
   return resolvedPath;
 }
 
-async function reserveUniqueAssetPath(dir: string, baseName: string, extension: string, defaultBaseName: string): Promise<string> {
-  const safeBase = baseName.trim().length > 0 ? baseName : defaultBaseName;
-  for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
-    const candidate = path.join(dir, `${safeBase}${suffix}${extension}`);
-    try {
-      const handle = await fs.open(candidate, "wx");
-      await handle.close();
-      return candidate;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
-      throw error;
-    }
-  }
-  throw new Error("Could not find a free asset filename.");
+function directoryAssetFromFileName(dir: string, fileName: string): DirectoryAsset {
+  const extension = path.extname(fileName).toLowerCase();
+  return {
+    extension,
+    fileName,
+    path: path.join(dir, fileName)
+  };
 }
 
-async function assetIdentityKey(entry: DirectoryAsset): Promise<string> {
-  return assetIdentityKeyFromParts(entry.name, entry.extension, await fileSha256(entry.path));
+function compareAssetFileNames(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
-function assetIdentityKeyFromParts(name: string, extension: string, hash: string): string {
-  return `${name}${extension.toLowerCase()}:${hash}`;
+function isSameAssetFileName(left: string, right: string): boolean {
+  return normalizeAssetFileName(left) === normalizeAssetFileName(right);
 }
 
-type HashCacheEntry = {
-  size: number;
-  mtimeMs: number;
-  hash: string;
-};
-
-const hashCache = new Map<string, HashCacheEntry>();
-
-async function fileSha256(filePath: string): Promise<string> {
-  const stat = await fs.stat(filePath);
-  const cached = hashCache.get(filePath);
-  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-    return cached.hash;
-  }
-  const hash = await streamSha256(filePath);
-  hashCache.set(filePath, { size: stat.size, mtimeMs: stat.mtimeMs, hash });
-  return hash;
-}
-
-function streamSha256(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(filePath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.once("end", () => resolve(hash.digest("hex")));
-    stream.once("error", reject);
-  });
+function normalizeAssetFileName(fileName: string): string {
+  return fileName.toLowerCase();
 }

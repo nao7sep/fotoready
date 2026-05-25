@@ -111,6 +111,12 @@ export type AssetRestoreResult = {
   skipped: string[];
 };
 
+export type AssetImportResult = {
+  fileName: string;
+  path: string;
+  status: "imported" | "skipped-name-conflict";
+};
+
 export type LutPreviewEntry = LutEntry & {
   dataUrl: string;
   width: number;
@@ -207,15 +213,15 @@ export type FotoReadyApi = {
   };
   luts: {
     list(): Promise<LutEntry[]>;
-    import(filePaths: string[]): Promise<LutEntry[]>;
-    delete(filePath: string): Promise<void>;
+    import(filePaths: string[]): Promise<AssetImportResult[]>;
+    delete(filePaths: string[]): Promise<void>;
     restoreBuiltIns(): Promise<AssetRestoreResult>;
     preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]>;
   };
   stamps: {
     list(): Promise<StampEntry[]>;
-    import(filePaths: string[]): Promise<StampEntry[]>;
-    delete(filePath: string): Promise<void>;
+    import(filePaths: string[]): Promise<AssetImportResult[]>;
+    delete(filePaths: string[]): Promise<void>;
     restoreBuiltIns(): Promise<AssetRestoreResult>;
   };
   queues: {

@@ -1,12 +1,13 @@
 import { DEFAULT_STAMP_FOLDER } from "@shared/constants";
-import type { AssetRestoreResult, StampEntry } from "@shared/types/ipc";
+import type { AssetImportResult, AssetRestoreResult, StampEntry } from "@shared/types/ipc";
 import {
-  builtInAssetKeySet,
-  deleteDirectoryAsset,
+  builtInAssetNameSet,
+  deleteDirectoryAssets,
   expandHomePath,
   importDirectoryAssets,
   isMatchingBuiltInAsset,
   listDirectoryAssets,
+  matchingBuiltInAssetFileNames,
   readDirectoryAssets,
   restoreDirectoryAssets
 } from "./file-asset-catalog";
@@ -15,42 +16,41 @@ const STAMP_EXTENSIONS = [".png", ".svg"] as const;
 
 export async function listStamps(stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
   const dir = resolveStampDir(stampFolder, homeDir);
-  const builtInKeys = await builtInStampKeys(bundledStampsDir);
+  const builtInFileNames = await builtInStampNames(bundledStampsDir);
   const entries = await listDirectoryAssets(dir, STAMP_EXTENSIONS);
-  return Promise.all(entries.map(async (entry) => ({
-    builtin: await isMatchingBuiltInAsset(entry.path, builtInKeys),
+  return entries.map((entry) => ({
+    builtin: isMatchingBuiltInAsset(entry.path, builtInFileNames),
     format: entry.extension.slice(1) as StampEntry["format"],
-    name: entry.name,
+    name: entry.fileName,
     path: entry.path
-  })));
+  }));
 }
 
-export async function importStamps(filePaths: readonly string[], stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
+export async function importStamps(filePaths: readonly string[], stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<AssetImportResult[]> {
   const dir = resolveStampDir(stampFolder, homeDir);
-  const builtInKeys = await builtInStampKeys(bundledStampsDir);
-  const entries = await importDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS, "stamp");
-  return Promise.all(entries.map(async (entry) => ({
-    builtin: await isMatchingBuiltInAsset(entry.path, builtInKeys),
-    format: entry.extension.slice(1) as StampEntry["format"],
-    name: entry.name,
-    path: entry.path
-  })));
+  const entries = await importDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS);
+  return entries.map((result) => ({
+    fileName: result.entry.fileName,
+    path: result.entry.path,
+    status: result.status
+  }));
 }
 
-export async function deleteStamp(filePath: string, stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<void> {
-  const builtInKeys = await builtInStampKeys(bundledStampsDir);
-  if (await isMatchingBuiltInAsset(filePath, builtInKeys)) {
-    throw new Error("Built-in stamps cannot be deleted.");
+export async function deleteStamps(filePaths: readonly string[], stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<void> {
+  const builtInFileNames = await builtInStampNames(bundledStampsDir);
+  const matches = matchingBuiltInAssetFileNames(filePaths, builtInFileNames);
+  if (matches.length > 0) {
+    throw new Error(`Built-in stamps cannot be deleted: ${matches.join(", ")}`);
   }
-  await deleteDirectoryAsset(filePath, resolveStampDir(stampFolder, homeDir), STAMP_EXTENSIONS);
+  await deleteDirectoryAssets(filePaths, resolveStampDir(stampFolder, homeDir), STAMP_EXTENSIONS);
 }
 
 export async function restoreBuiltInStamps(stampFolder: string, homeDir: string, bundledStampsDir: string): Promise<AssetRestoreResult> {
   return restoreDirectoryAssets(bundledStampsDir, resolveStampDir(stampFolder, homeDir), STAMP_EXTENSIONS);
 }
 
-export async function builtInStampKeys(bundledStampsDir: string): Promise<Set<string>> {
-  return builtInAssetKeySet(await readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS));
+export async function builtInStampNames(bundledStampsDir: string): Promise<Set<string>> {
+  return builtInAssetNameSet(await readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS));
 }
 
 export function resolveStampDir(stampFolder: string, homeDir: string): string {

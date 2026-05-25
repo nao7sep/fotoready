@@ -77,14 +77,14 @@ const api: FotoReadyApi = {
   luts: {
     list: () => ipcRenderer.invoke("luts.list"),
     import: (filePaths) => ipcRenderer.invoke("luts.import", filePaths),
-    delete: (filePath) => ipcRenderer.invoke("luts.delete", filePath),
+    delete: (filePaths) => ipcRenderer.invoke("luts.delete", filePaths),
     restoreBuiltIns: () => ipcRenderer.invoke("luts.restoreBuiltIns"),
     preview: (taskId, options, strength, previewLongEdge) => ipcRenderer.invoke("luts.preview", taskId, options, strength, previewLongEdge)
   },
   stamps: {
     list: () => ipcRenderer.invoke("stamps.list"),
     import: (filePaths) => ipcRenderer.invoke("stamps.import", filePaths),
-    delete: (filePath) => ipcRenderer.invoke("stamps.delete", filePath),
+    delete: (filePaths) => ipcRenderer.invoke("stamps.delete", filePaths),
     restoreBuiltIns: () => ipcRenderer.invoke("stamps.restoreBuiltIns")
   },
   queues: {

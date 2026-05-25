@@ -1,20 +1,16 @@
 import { api } from "@renderer/ipc/client";
 import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
+import { fileNameFromPath } from "@shared/file-path";
 
 export const watermarkImageRenderer = createAssetOverlayRenderer({
   type: "watermark-image",
   color: "#60a5fa",
   flipControlsPlacement: "after-angle",
-  renderSourceField({ disabled, onParamChange, params }) {
+  renderSourceField({ params }) {
     return (
-      <input
-        className="compact-control"
-        disabled={disabled}
-        placeholder="PNG or SVG file"
-        type="text"
-        value={params.assetPath}
-        onChange={(event) => onParamChange("assetPath", event.currentTarget.value)}
-      />
+      <div className="asset-source-row asset-source-row-value-only">
+        <span className="asset-source-value" title={params.assetPath}>{fileLabel(params.assetPath) ?? "No file selected"}</span>
+      </div>
     );
   },
   renderSourceAction({ ctx, disabled, onParamsChange, params }) {
@@ -29,3 +25,8 @@ export const watermarkImageRenderer = createAssetOverlayRenderer({
     );
   }
 });
+
+function fileLabel(filePath: string): string | null {
+  if (!filePath) return null;
+  return fileNameFromPath(filePath);
+}

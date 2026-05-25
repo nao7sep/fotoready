@@ -13,8 +13,8 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
-import { deleteLut, importLuts, listLuts, restoreBuiltInLuts } from "@main/lut-catalog";
-import { deleteStamp, importStamps, listStamps, restoreBuiltInStamps } from "@main/stamp-catalog";
+import { deleteLuts, importLuts, listLuts, restoreBuiltInLuts } from "@main/lut-catalog";
+import { deleteStamps, importStamps, listStamps, restoreBuiltInStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
@@ -240,7 +240,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("rename.run", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.import", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.delete", async (_event, filePath: string) => deleteLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.delete", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.restoreBuiltIns", async () => restoreBuiltInLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
     const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
@@ -248,7 +248,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   ipcMain.handle("stamps.list", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  ipcMain.handle("stamps.delete", async (_event, filePath: string) => deleteStamp(filePath, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  ipcMain.handle("stamps.delete", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("stamps.restoreBuiltIns", async () => restoreBuiltInStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

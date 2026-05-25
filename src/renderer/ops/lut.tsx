@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { LutPickerModal } from "@renderer/components/modals/asset-picker-modal";
+import { fileNameFromPath } from "@shared/file-path";
 import type { OpRenderer } from "./op-renderer";
 
 type LutParams = { cubePath: string; strength: number };
@@ -43,6 +44,5 @@ export const lutRenderer: OpRenderer<LutParams> = {
 
 function fileLabel(filePath: string): string | null {
   if (!filePath) return null;
-  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-  return fileName.replace(/\.[^.]+$/, "");
+  return fileNameFromPath(filePath);
 }

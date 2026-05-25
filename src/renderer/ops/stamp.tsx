@@ -3,6 +3,7 @@ import { StampPickerModal } from "@renderer/components/modals/asset-picker-modal
 import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
 import type { OpCardProps } from "./op-renderer";
 import type { AssetOverlayParams } from "@shared/asset-overlay";
+import { fileNameFromPath } from "@shared/file-path";
 
 export const stampRenderer = createAssetOverlayRenderer({
   type: "stamp",
@@ -47,6 +48,5 @@ function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProp
 
 function fileLabel(filePath: string): string | null {
   if (!filePath) return null;
-  const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
-  return fileName.replace(/\.[^.]+$/, "");
+  return fileNameFromPath(filePath);
 }

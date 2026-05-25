@@ -79,7 +79,7 @@ const api: FotoReadyApi = {
     import: (filePaths) => ipcRenderer.invoke("luts.import", filePaths),
     delete: (filePath) => ipcRenderer.invoke("luts.delete", filePath),
     restoreBuiltIns: () => ipcRenderer.invoke("luts.restoreBuiltIns"),
-    preview: (taskId, options, strength) => ipcRenderer.invoke("luts.preview", taskId, options, strength)
+    preview: (taskId, options, strength, previewLongEdge) => ipcRenderer.invoke("luts.preview", taskId, options, strength, previewLongEdge)
   },
   stamps: {
     list: () => ipcRenderer.invoke("stamps.list"),

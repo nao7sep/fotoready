@@ -65,6 +65,7 @@ export function AppSettingsModal({
     <ModalShell
       title="Settings"
       size="default"
+      tall
       onClose={onClose}
       footer={
         <>
@@ -504,6 +505,19 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           />
           <div className="row-detail">
             Automatic uses this machine&apos;s CPU count to choose a sensible worker count at runtime. This Mac currently reports {cpuCount} logical cores.
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Window</h3>
+        <div className="settings-grid">
+          <label className="toggle-row settings-toggle-card span-two">
+            <input type="checkbox" checked={settings.maximizeOnStartup} onChange={(event) => setSettings({ ...settings, maximizeOnStartup: event.currentTarget.checked })} />
+            Maximize window on startup
+          </label>
+          <div className="row-detail">
+            Opens the app at the size of a manual window maximize (no fullscreen). The menu bar and dock stay visible.
           </div>
         </div>
       </section>

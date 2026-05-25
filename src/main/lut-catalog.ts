@@ -17,12 +17,11 @@ export async function listLuts(lutFolder: string, homeDir: string, bundledLutsDi
   const dir = resolveLutDir(lutFolder, homeDir);
   const builtInKeys = await builtInLutKeys(bundledLutsDir);
   const entries = await listDirectoryAssets(dir, LUT_EXTENSIONS);
-  const luts = await Promise.all(entries.map(async (entry) => ({
-      name: entry.name,
-      path: entry.path,
-      builtin: await isMatchingBuiltInAsset(entry.path, builtInKeys)
-    })));
-  return luts.sort((a, b) => a.name.localeCompare(b.name));
+  return Promise.all(entries.map(async (entry) => ({
+    name: entry.name,
+    path: entry.path,
+    builtin: await isMatchingBuiltInAsset(entry.path, builtInKeys)
+  })));
 }
 
 export async function importLuts(filePaths: readonly string[], lutFolder: string, homeDir: string, bundledLutsDir: string): Promise<LutEntry[]> {

@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
@@ -46,17 +46,22 @@ export async function importDirectoryAsset(
   const absoluteSource = path.resolve(filePath);
   const sourceHash = await fileSha256(absoluteSource);
   const existing = await readDirectoryAssets(dir, extensions);
-  for (const candidate of existing) {
-    if (candidate.extension !== extension) continue;
-    const candidateHash = await fileSha256(candidate.path).catch(() => null);
-    if (candidateHash === sourceHash) {
-      return candidate;
-    }
-  }
+  const existingHashes = await Promise.all(existing.map(async (entry) => ({
+    entry,
+    hash: await fileSha256(entry.path).catch(() => null)
+  })));
+  const duplicate = existingHashes.find((item) => item.hash === sourceHash);
+  if (duplicate) return duplicate.entry;
+
   const desiredBase = path.basename(absoluteSource, path.extname(absoluteSource));
-  const targetPath = await uniqueAssetPath(dir, desiredBase, extension, defaultBaseName);
+  const targetPath = await reserveUniqueAssetPath(dir, desiredBase, extension, defaultBaseName);
   if (absoluteSource !== targetPath) {
-    await fs.copyFile(absoluteSource, targetPath);
+    try {
+      await fs.copyFile(absoluteSource, targetPath);
+    } catch (error) {
+      await fs.unlink(targetPath).catch(() => undefined);
+      throw error;
+    }
   }
   return {
     extension,
@@ -71,11 +76,7 @@ export async function importDirectoryAssets(
   extensions: readonly string[],
   defaultBaseName: string
 ): Promise<DirectoryAsset[]> {
-  const imported: DirectoryAsset[] = [];
-  for (const filePath of filePaths) {
-    imported.push(await importDirectoryAsset(filePath, dir, extensions, defaultBaseName));
-  }
-  return imported;
+  return Promise.all(filePaths.map((filePath) => importDirectoryAsset(filePath, dir, extensions, defaultBaseName)));
 }
 
 export async function restoreDirectoryAssets(
@@ -85,16 +86,29 @@ export async function restoreDirectoryAssets(
 ): Promise<RestoreDirectoryAssetsResult> {
   await fs.mkdir(targetDir, { recursive: true });
   const sourceEntries = await readDirectoryAssets(sourceDir, extensions);
+  const existingEntries = await readDirectoryAssets(targetDir, extensions);
+  const existingHashes = new Set(
+    (await Promise.all(existingEntries.map((entry) => fileSha256(entry.path).catch(() => null))))
+      .filter((hash): hash is string => hash !== null)
+  );
   const restored: string[] = [];
   const skipped: string[] = [];
   for (const entry of sourceEntries) {
+    const sourceHash = await fileSha256(entry.path).catch(() => null);
+    if (sourceHash !== null && existingHashes.has(sourceHash)) {
+      skipped.push(`${entry.name}${entry.extension}`);
+      continue;
+    }
     const targetPath = path.join(targetDir, `${entry.name}${entry.extension}`);
     try {
-      await fs.copyFile(entry.path, targetPath, fsConstants.COPYFILE_EXCL);
-      restored.push(entry.name);
+      const handle = await fs.open(targetPath, "wx");
+      await handle.close();
+      await fs.copyFile(entry.path, targetPath);
+      if (sourceHash !== null) existingHashes.add(sourceHash);
+      restored.push(`${entry.name}${entry.extension}`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        skipped.push(entry.name);
+        skipped.push(`${entry.name}${entry.extension}`);
         continue;
       }
       throw error;
@@ -106,6 +120,7 @@ export async function restoreDirectoryAssets(
 export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {
   const target = assertDirectoryAssetPath(filePath, dir, extensions);
   await fs.unlink(target);
+  hashCache.delete(target);
 }
 
 export function expandHomePath(input: string, homeDir: string): string {
@@ -140,17 +155,18 @@ export function assertDirectoryAssetPath(filePath: string, dir: string, extensio
   return resolvedPath;
 }
 
-async function uniqueAssetPath(dir: string, baseName: string, extension: string, defaultBaseName: string): Promise<string> {
+async function reserveUniqueAssetPath(dir: string, baseName: string, extension: string, defaultBaseName: string): Promise<string> {
   const safeBase = baseName.trim().length > 0 ? baseName : defaultBaseName;
-  let attempt = 0;
-  while (attempt < 1000) {
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
     const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
     const candidate = path.join(dir, `${safeBase}${suffix}${extension}`);
     try {
-      await fs.access(candidate);
-      attempt += 1;
-    } catch {
+      const handle = await fs.open(candidate, "wx");
+      await handle.close();
       return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+      throw error;
     }
   }
   throw new Error("Could not find a free asset filename.");
@@ -164,8 +180,31 @@ function assetIdentityKeyFromParts(name: string, extension: string, hash: string
   return `${name}${extension.toLowerCase()}:${hash}`;
 }
 
+type HashCacheEntry = {
+  size: number;
+  mtimeMs: number;
+  hash: string;
+};
+
+const hashCache = new Map<string, HashCacheEntry>();
+
 async function fileSha256(filePath: string): Promise<string> {
-  return createHash("sha256")
-    .update(await fs.readFile(filePath))
-    .digest("hex");
+  const stat = await fs.stat(filePath);
+  const cached = hashCache.get(filePath);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    return cached.hash;
+  }
+  const hash = await streamSha256(filePath);
+  hashCache.set(filePath, { size: stat.size, mtimeMs: stat.mtimeMs, hash });
+  return hash;
+}
+
+function streamSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.once("end", () => resolve(hash.digest("hex")));
+    stream.once("error", reject);
+  });
 }

@@ -327,8 +327,8 @@ export class ProjectSession {
     return this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options);
   }
 
-  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number): Promise<LutPreviewEntry[]> {
-    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, this.settings.assetPickerPreviewLongEdge, options, strength);
+  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]> {
+    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength);
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {

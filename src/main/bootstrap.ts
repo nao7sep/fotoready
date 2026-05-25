@@ -60,7 +60,10 @@ export async function bootstrap(): Promise<void> {
   });
   installCloseGuard(win);
 
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    if (settings.maximizeOnStartup) win.maximize();
+    win.show();
+  });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     await win.loadURL(process.env.ELECTRON_RENDERER_URL);

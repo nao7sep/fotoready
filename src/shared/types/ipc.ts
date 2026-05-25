@@ -210,7 +210,7 @@ export type FotoReadyApi = {
     import(filePaths: string[]): Promise<LutEntry[]>;
     delete(filePath: string): Promise<void>;
     restoreBuiltIns(): Promise<AssetRestoreResult>;
-    preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number): Promise<LutPreviewEntry[]>;
+    preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]>;
   };
   stamps: {
     list(): Promise<StampEntry[]>;

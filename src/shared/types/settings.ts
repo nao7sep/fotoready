@@ -69,4 +69,5 @@ export type GlobalSettings = {
   previewLongEdge: number;
   assetPickerPreviewLongEdge: number;
   previewDebounceMs: number;
+  maximizeOnStartup: boolean;
 };

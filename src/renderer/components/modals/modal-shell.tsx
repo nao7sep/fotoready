@@ -15,12 +15,14 @@ const modalStack: symbol[] = [];
 export function ModalShell({
   title,
   size = "default",
+  tall = false,
   onClose,
   footer,
   children
 }: {
   title: string;
   size?: ModalSize;
+  tall?: boolean;
   onClose(): void;
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -73,7 +75,7 @@ export function ModalShell({
         if (event.target === event.currentTarget) requestClose();
       }}
     >
-      <section className={`modal modal-${size}`} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <section className={`modal modal-${size}${tall ? " modal-tall" : ""}`} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="modal-header">
           <h2 id={titleId}>{title}</h2>
           <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={requestClose}>

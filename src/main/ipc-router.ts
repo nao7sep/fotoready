@@ -242,9 +242,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("luts.import", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.delete", async (_event, filePath: string) => deleteLut(filePath, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.restoreBuiltIns", async () => restoreBuiltInLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number) => {
+  ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
     const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
-    return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength);
+    return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
   });
   ipcMain.handle("stamps.list", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));

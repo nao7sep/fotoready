@@ -1308,18 +1308,19 @@ select:disabled {
   width: min(860px, calc(100vw - 80px));
 }
 
+.modal-tall {
+  height: min(85vh, calc(100vh - 80px));
+  min-height: min(500px, calc(100vh - 80px));
+  max-height: none;
+}
+
 .modal-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 18px 0;
+  padding: 16px 18px;
   overflow: auto;
   min-height: 0;
-}
-
-.modal-body::after {
-  content: "";
-  flex: 0 0 16px;
 }
 
 .modal-message {
@@ -1395,6 +1396,7 @@ select:disabled {
 }
 
 .settings-page {
+  flex: 1 1 0;
   min-height: 360px;
   overflow: auto;
 }
@@ -1461,10 +1463,9 @@ select:disabled {
 }
 
 .rename-preview-list {
+  flex: 1 1 0;
   min-height: 180px;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
 }
 
 .rename-preview-row {
@@ -1643,6 +1644,18 @@ select:disabled {
   font-size: 12px;
 }
 
+.modal-error.dismissable {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modal-error.dismissable .icon-button {
+  flex-shrink: 0;
+  color: inherit;
+}
+
 .modal-warning {
   color: var(--warning-text);
   background: var(--warning-soft-bg);
@@ -1662,9 +1675,17 @@ select:disabled {
 }
 
 .asset-picker {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  flex: 1 1 0;
   min-height: 360px;
+}
+
+.asset-picker-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
 }
 
 .asset-picker-grid {
@@ -1673,7 +1694,6 @@ select:disabled {
   gap: 10px;
   align-content: start;
   align-items: start;
-  min-height: 0;
   outline: none;
 }
 

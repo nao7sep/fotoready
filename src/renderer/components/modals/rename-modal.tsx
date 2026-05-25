@@ -111,6 +111,7 @@ export function RenameModal({
     <ModalShell
       title="Rename all"
       size="wide"
+      tall
       onClose={onClose}
       footer={
         <>

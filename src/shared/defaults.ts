@@ -67,7 +67,8 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     workerPoolSize,
     previewLongEdge: 1024,
     assetPickerPreviewLongEdge: DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE,
-    previewDebounceMs: 150
+    previewDebounceMs: 150,
+    maximizeOnStartup: true
   };
 }
 

@@ -21,5 +21,10 @@ export function computePrivacyWarning(task: Task, original: Original): PrivacyWa
 }
 
 function hasAny(record: Record<string, unknown> | undefined): boolean {
-  return !!record && Object.keys(record).length > 0;
+  if (!record) return false;
+  return Object.values(record).some((value) => {
+    if (typeof value === "string") return value.trim().length > 0;
+    if (Array.isArray(value)) return value.some((item) => Boolean(item));
+    return value !== undefined && value !== null;
+  });
 }

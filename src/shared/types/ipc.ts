@@ -106,11 +106,6 @@ export type StampEntry = {
   builtin: boolean;
 };
 
-export type AssetRestoreResult = {
-  restored: string[];
-  skipped: string[];
-};
-
 export type AssetImportResult = {
   fileName: string;
   path: string;
@@ -215,14 +210,12 @@ export type FotoReadyApi = {
     list(): Promise<LutEntry[]>;
     import(filePaths: string[]): Promise<AssetImportResult[]>;
     delete(filePaths: string[]): Promise<void>;
-    restoreBuiltIns(): Promise<AssetRestoreResult>;
     preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]>;
   };
   stamps: {
     list(): Promise<StampEntry[]>;
     import(filePaths: string[]): Promise<AssetImportResult[]>;
     delete(filePaths: string[]): Promise<void>;
-    restoreBuiltIns(): Promise<AssetRestoreResult>;
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;

@@ -32,6 +32,7 @@ import type { RenameTemplateId } from "@shared/rename-template";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { computePrivacyWarning } from "@main/privacy-warning";
 import type { PrivacyWarning } from "@shared/types/ipc";
+import type { AppLogger } from "@main/logger";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -51,7 +52,8 @@ export class ProjectSession {
     private readonly settings: GlobalSettings,
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
-    private readonly workerPool: PipelineWorkerPool
+    private readonly workerPool: PipelineWorkerPool,
+    private readonly logger?: AppLogger
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
     this.#previewService = new PreviewService(workerPool);
@@ -277,8 +279,8 @@ export class ProjectSession {
     task.error = null;
     task.updatedAt = nowIso();
 
-    void this.processingQueue.enqueueTask(this.#project, taskId).catch(() => {
-      /* errors are surfaced via task.error in processTask */
+    void this.processingQueue.enqueueTask(this.#project, taskId).catch((error) => {
+      this.logger?.error({ mod: "session", taskId, err: error }, "failed to enqueue or process save task");
     });
 
     return this.snapshot();
@@ -673,9 +675,9 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings): Ta
 function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: Awaited<ReturnType<typeof loadTaskSidecars>>[number]["sidecar"]): Task {
   const task = createTaskForOriginal(original, settings);
   task.pipeline = structuredClone(sidecar.task.pipeline);
-  task.generateDescription = sidecar.task.generateDescription || sidecar.task.generateSlug;
+  task.generateDescription = sidecar.task.generateDescription;
   task.generateSlug = sidecar.task.generateSlug;
-  task.customSlug = normalizeOptionalSlug(sidecar.task.customSlug) ?? normalizeOptionalSlug(sidecar.task.vision?.slugCandidates[0] ?? null);
+  task.customSlug = normalizeOptionalSlug(sidecar.task.customSlug);
   task.everEdited = true;
   return task;
 }

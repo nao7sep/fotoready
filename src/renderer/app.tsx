@@ -115,6 +115,9 @@ function App(): React.JSX.Element {
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
   const globalDragDepthRef = useRef(0);
+  const currentOriginalIdsRef = useRef(new Set<string>());
+  const originalThumbnailIdsRef = useRef(new Set<string>());
+  const originalThumbnailRequestsRef = useRef(new Set<string>());
   const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
 
   const project = projectSnapshot?.project;
@@ -320,28 +323,42 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const originals = project?.originals ?? [];
-    const missing = originals.filter((original) => !originalThumbnails[original.id]);
+    const originalIds = new Set(originals.map((original) => original.id));
+    currentOriginalIdsRef.current = originalIds;
+    originalThumbnailIdsRef.current.forEach((id) => {
+      if (!originalIds.has(id)) originalThumbnailIdsRef.current.delete(id);
+    });
+    originalThumbnailRequestsRef.current.forEach((id) => {
+      if (!originalIds.has(id)) originalThumbnailRequestsRef.current.delete(id);
+    });
+    setOriginalThumbnails((current) => {
+      const next = Object.fromEntries(Object.entries(current).filter(([id]) => originalIds.has(id)));
+      return Object.keys(next).length === Object.keys(current).length ? current : next;
+    });
+
+    const missing = originals.filter((original) =>
+      !originalThumbnailIdsRef.current.has(original.id) && !originalThumbnailRequestsRef.current.has(original.id)
+    );
     if (missing.length === 0) return;
 
-    let cancelled = false;
     for (const original of missing) {
+      originalThumbnailRequestsRef.current.add(original.id);
       void api.preview.originalThumbnail(original.id)
         .then((thumbnail) => {
-          if (!cancelled) {
-            setOriginalThumbnails((current) => ({ ...current, [thumbnail.originalId]: thumbnail.dataUrl }));
-          }
+          originalThumbnailRequestsRef.current.delete(thumbnail.originalId);
+          if (!currentOriginalIdsRef.current.has(thumbnail.originalId)) return;
+          originalThumbnailIdsRef.current.add(thumbnail.originalId);
+          setOriginalThumbnails((current) => ({ ...current, [thumbnail.originalId]: thumbnail.dataUrl }));
         })
-        .catch(() => {
-          if (!cancelled) {
-            setOriginalThumbnails((current) => ({ ...current, [original.id]: "" }));
-          }
+        .catch((thumbnailError) => {
+          console.warn("Failed to load original thumbnail", original.id, thumbnailError);
+          originalThumbnailRequestsRef.current.delete(original.id);
+          if (!currentOriginalIdsRef.current.has(original.id)) return;
+          originalThumbnailIdsRef.current.add(original.id);
+          setOriginalThumbnails((current) => ({ ...current, [original.id]: "" }));
         });
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [project?.originals, originalThumbnails]);
+  }, [project?.originals]);
 
   async function addOriginals(): Promise<void> {
     await refreshProject(await api.project.addOriginalsFromDialog());
@@ -381,6 +398,8 @@ function App(): React.JSX.Element {
       delete next[originalId];
       return next;
     });
+    originalThumbnailIdsRef.current.delete(originalId);
+    originalThumbnailRequestsRef.current.delete(originalId);
   }
 
   async function selectTask(taskId: string): Promise<void> {

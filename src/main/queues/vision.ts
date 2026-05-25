@@ -6,6 +6,7 @@ import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRunMode } from "@shared/vision-run-mode";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
+import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider } from "@adapters/gemini";
 
@@ -18,9 +19,10 @@ export class VisionQueue {
 
   constructor(
     paths: AppPaths,
-    private readonly settings: GlobalSettings
+    private readonly settings: GlobalSettings,
+    private readonly logger?: AppLogger
   ) {
-    this.#apiKeys = new ApiKeyStore(paths.apiKeysPath);
+    this.#apiKeys = new ApiKeyStore(paths.apiKeysPath, logger);
     this.#currentConcurrency = Math.max(1, settings.visionConcurrency);
     this.#queue = new PQueue({ concurrency: this.#currentConcurrency });
   }
@@ -145,6 +147,12 @@ export class VisionQueue {
     } catch (error) {
       task.error = visionError(error);
       task.updatedAt = nowIso();
+      this.logger?.error({
+        mod: "vision",
+        taskId: task.id,
+        mode,
+        err: error
+      }, "vision task failed");
     }
   }
 }

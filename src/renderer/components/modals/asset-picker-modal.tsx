@@ -3,7 +3,6 @@ import { X } from "lucide-react";
 import { fileNameFromPath } from "@shared/file-path";
 import type {
   AssetImportResult,
-  AssetRestoreResult,
   LutEntry,
   LutPreviewEntry,
   PreviewRenderOptions,
@@ -26,14 +25,12 @@ type AssetPickerModalProps<T extends PickerEntry> = {
   importTitle: string;
   previewLongEdge: number;
   title: string;
-  restoreLabel: string;
   selectedPath: string;
   loading?: boolean;
   onClose(): void;
   onDelete(entries: T[]): Promise<void>;
   onImport(filePaths: string[]): Promise<AssetImportResult[]>;
   onRefresh(): Promise<void>;
-  onRestoreBuiltIns(): Promise<AssetRestoreResult>;
   onUse(entry: T | null): void | Promise<void>;
 };
 
@@ -43,14 +40,12 @@ export function AssetPickerModal<T extends PickerEntry>({
   importTitle,
   previewLongEdge,
   title,
-  restoreLabel,
   selectedPath,
   loading = false,
   onClose,
   onDelete,
   onImport,
   onRefresh,
-  onRestoreBuiltIns,
   onUse
 }: AssetPickerModalProps<T>): React.JSX.Element {
   const confirmer = useConfirmer();
@@ -188,20 +183,6 @@ export function AssetPickerModal<T extends PickerEntry>({
     }
   }
 
-  async function restoreBuiltIns(): Promise<void> {
-    try {
-      setNotice(null);
-      const result = await onRestoreBuiltIns();
-      await onRefresh();
-      await confirmer.alert({
-        title: restoreLabel,
-        message: <RestoreResultMessage result={result} />
-      });
-    } catch (restoreError) {
-      pushError(errorMessage(restoreError));
-    }
-  }
-
   async function deleteSelected(): Promise<void> {
     if (!canDeleteSelected) return;
     const deletedEntries = selectedEntries;
@@ -212,10 +193,10 @@ export function AssetPickerModal<T extends PickerEntry>({
     const confirmed = await confirmer.confirm({
       title: "Remove from library?",
       message: deletedEntries.length === 1
-        ? `Remove "${deletedEntries[0].name}" from the library? This deletes the copied asset file.`
+        ? `Remove "${deletedEntries[0].name}" from the library? This deletes the imported asset file.`
         : (
           <AssetFileListMessage
-            intro={`Remove these ${deletedEntries.length} items from the library? This deletes the copied asset files.`}
+            intro={`Remove these ${deletedEntries.length} items from the library? This deletes the imported asset files.`}
             names={deletedEntries.map((entry) => entry.name)}
           />
         ),
@@ -346,7 +327,6 @@ export function AssetPickerModal<T extends PickerEntry>({
       footer={
         <>
           <button className="toolbar-button" type="button" onClick={importAssets}>Import...</button>
-          <button className="toolbar-button" type="button" onClick={restoreBuiltIns}>Restore built-ins</button>
           <span className="top-bar-spacer" />
           <button
             className="toolbar-button"
@@ -516,14 +496,12 @@ export function LutPickerModal({
       importTitle="Import LUTs"
       loading={loading}
       previewLongEdge={previewLongEdge}
-      restoreLabel="Restore built-in LUTs"
       selectedPath={selectedPath}
       title="Choose LUT"
       onClose={onClose}
       onDelete={(entriesToDelete) => api.luts.delete(entriesToDelete.map((entry) => entry.path))}
       onImport={(filePaths) => api.luts.import(filePaths)}
       onRefresh={onReload}
-      onRestoreBuiltIns={() => api.luts.restoreBuiltIns()}
       onUse={(entry) => onUse(entry?.path ?? "")}
     />
   );
@@ -553,15 +531,20 @@ export function StampPickerModal({
       return;
     }
     setLoading(true);
-    void Promise.all(stamps.map(async (stamp) => {
+    setPreviewMap({});
+    void runWithConcurrency(stamps, 6, async (stamp) => {
+      if (cancelled) return;
       try {
         const thumbnail = await api.assets.thumbnail(stamp.path, previewLongEdge);
-        return [stamp.path, thumbnail.dataUrl] as const;
-      } catch {
-        return [stamp.path, ""] as const;
+        if (!cancelled) {
+          setPreviewMap((current) => ({ ...current, [stamp.path]: thumbnail.dataUrl }));
+        }
+      } catch (thumbnailError) {
+        console.warn("Failed to load stamp thumbnail", stamp.path, thumbnailError);
+        if (!cancelled) {
+          setPreviewMap((current) => ({ ...current, [stamp.path]: "" }));
+        }
       }
-    })).then((items) => {
-      if (!cancelled) setPreviewMap(Object.fromEntries(items));
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
@@ -580,31 +563,14 @@ export function StampPickerModal({
       importTitle="Import stamps"
       loading={loading}
       previewLongEdge={previewLongEdge}
-      restoreLabel="Restore built-in stamps"
       selectedPath={selectedPath}
       title="Choose stamp"
       onClose={onClose}
       onDelete={(entriesToDelete) => api.stamps.delete(entriesToDelete.map((entry) => entry.path))}
       onImport={(filePaths) => api.stamps.import(filePaths)}
       onRefresh={onReload}
-      onRestoreBuiltIns={() => api.stamps.restoreBuiltIns()}
       onUse={(entry) => onUse(entry?.path ?? "")}
     />
-  );
-}
-
-function RestoreResultMessage({ result }: { result: AssetRestoreResult }): React.JSX.Element {
-  return (
-    <div className="restore-result">
-      <p>Restored {result.restored.length} built-in item{result.restored.length === 1 ? "" : "s"}.</p>
-      {result.restored.length > 0 ? <AssetFileNameList names={result.restored} /> : null}
-      {result.skipped.length > 0 ? (
-        <>
-          <p>Skipped {result.skipped.length} item{result.skipped.length === 1 ? "" : "s"} because those file names are already taken in the library.</p>
-          <AssetFileNameList names={result.skipped} />
-        </>
-      ) : null}
-    </div>
   );
 }
 
@@ -629,4 +595,17 @@ function AssetFileNameList({ names }: { names: string[] }): React.JSX.Element {
       {names.map((name) => <li key={name}>{name}</li>)}
     </ul>
   );
+}
+
+async function runWithConcurrency<T>(items: readonly T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let nextIndex = 0;
+  const workerCount = Math.min(limit, items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex];
+      nextIndex += 1;
+      await worker(item);
+    }
+  });
+  await Promise.all(workers);
 }

@@ -1,11 +1,18 @@
 import { safeStorage } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { utcStamp } from "@shared/time";
 
 type ApiKeyFile = Record<string, string>;
+type LoggerLike = {
+  warn(fields: Record<string, unknown>, message: string): void;
+};
 
 export class ApiKeyStore {
-  constructor(private readonly filePath: string) {}
+  constructor(
+    private readonly filePath: string,
+    private readonly logger?: LoggerLike
+  ) {}
 
   async has(provider: string): Promise<boolean> {
     const file = await this.readFile();
@@ -42,9 +49,33 @@ export class ApiKeyStore {
 
   private async readFile(): Promise<ApiKeyFile> {
     try {
-      return JSON.parse(await fs.readFile(this.filePath, "utf8")) as ApiKeyFile;
-    } catch {
+      const parsed = JSON.parse(await fs.readFile(this.filePath, "utf8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        const backupPath = await this.backupInvalidFile();
+        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath, backupPath }, "api key file was not a JSON object; ignoring it");
+        return {};
+      }
+      const entries = Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string");
+      if (entries.length !== Object.keys(parsed).length) {
+        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath }, "api key file contained non-string entries; ignoring those entries");
+      }
+      return Object.fromEntries(entries);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        const backupPath = await this.backupInvalidFile();
+        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath, backupPath, err: error }, "api key file was unreadable; ignoring it");
+      }
       return {};
+    }
+  }
+
+  private async backupInvalidFile(): Promise<string | null> {
+    const backupPath = `${this.filePath}.${utcStamp()}.invalid`;
+    try {
+      await fs.copyFile(this.filePath, backupPath);
+      return backupPath;
+    } catch {
+      return null;
     }
   }
 }

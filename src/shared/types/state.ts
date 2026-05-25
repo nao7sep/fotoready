@@ -7,8 +7,4 @@
 export type UiState = {
   showHistogram: boolean;
   histogramPosition: { x: number; y: number } | null;
-  builtInAssetsSeeded: {
-    luts: boolean;
-    stamps: boolean;
-  };
 };

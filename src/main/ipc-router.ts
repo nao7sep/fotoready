@@ -1,6 +1,5 @@
 import path from "node:path";
 import os from "node:os";
-import sharp from "sharp";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/session";
@@ -13,8 +12,9 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
-import { deleteLuts, importLuts, listLuts, restoreBuiltInLuts } from "@main/lut-catalog";
-import { deleteStamps, importStamps, listStamps, restoreBuiltInStamps } from "@main/stamp-catalog";
+import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
+import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
+import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
@@ -30,6 +30,7 @@ export type RouterContext = {
 };
 
 export function registerIpcHandlers(ctx: RouterContext): void {
+  const assetThumbnailCache = new AssetThumbnailCache();
   const publishSnapshots = () => {
     const project = ctx.projectSession.snapshot();
     const queue = ctx.projectSession.queueSnapshot();
@@ -207,18 +208,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     }
   });
   ipcMain.handle("assets.thumbnail", async (_event, assetPath: string, longEdge?: number) => {
-    const size = Number.isFinite(longEdge) ? Math.max(32, Math.min(512, Math.round(longEdge ?? 160))) : 160;
-    const isSvg = path.extname(assetPath).toLowerCase() === ".svg";
-    const { data, info } = await sharp(assetPath, { limitInputPixels: false })
-      .resize({ width: size, height: size, fit: "inside", withoutEnlargement: !isSvg })
-      .ensureAlpha()
-      .png()
-      .toBuffer({ resolveWithObject: true });
-    return {
-      dataUrl: `data:image/png;base64,${data.toString("base64")}`,
-      width: info.width,
-      height: info.height
-    };
+    return assetThumbnailCache.get(assetPath, longEdge);
   });
   ipcMain.handle("ops.list", async () =>
     listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
@@ -240,15 +230,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("rename.run", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
   ipcMain.handle("luts.import", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.delete", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.restoreBuiltIns", async () => restoreBuiltInLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  ipcMain.handle("luts.delete", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
     const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
     return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
   });
   ipcMain.handle("stamps.list", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  ipcMain.handle("stamps.delete", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  ipcMain.handle("stamps.restoreBuiltIns", async () => restoreBuiltInStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  ipcMain.handle("stamps.delete", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
 }

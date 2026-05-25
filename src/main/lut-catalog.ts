@@ -1,33 +1,42 @@
+import path from "node:path";
 import { DEFAULT_LUT_FOLDER } from "@shared/constants";
-import type { AssetImportResult, AssetRestoreResult, LutEntry } from "@shared/types/ipc";
+import type { AssetImportResult, LutEntry } from "@shared/types/ipc";
 import {
-  builtInAssetNameSet,
+  compareAssetFileNames,
   deleteDirectoryAssets,
   expandHomePath,
   importDirectoryAssets,
-  isMatchingBuiltInAsset,
+  isDirectoryAssetPath,
   listDirectoryAssets,
-  matchingBuiltInAssetFileNames,
-  readDirectoryAssets,
-  restoreDirectoryAssets
+  readDirectoryAssets
 } from "./file-asset-catalog";
 
 const LUT_EXTENSIONS = [".cube"] as const;
 
 export async function listLuts(lutFolder: string, homeDir: string, bundledLutsDir: string): Promise<LutEntry[]> {
   const dir = resolveLutDir(lutFolder, homeDir);
-  const builtInFileNames = await builtInLutNames(bundledLutsDir);
-  const entries = await listDirectoryAssets(dir, LUT_EXTENSIONS);
-  return entries.map((entry) => ({
-    name: entry.fileName,
-    path: entry.path,
-    builtin: isMatchingBuiltInAsset(entry.path, builtInFileNames)
-  }));
+  const [builtInEntries, userEntries] = await Promise.all([
+    readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS),
+    listDirectoryAssets(dir, LUT_EXTENSIONS)
+  ]);
+  return [
+    ...builtInEntries.map((entry) => ({
+      name: entry.fileName,
+      path: entry.path,
+      builtin: true
+    })),
+    ...userEntries.map((entry) => ({
+      name: entry.fileName,
+      path: entry.path,
+      builtin: false
+    }))
+  ].sort((left, right) => compareAssetFileNames(left.name, right.name));
 }
 
 export async function importLuts(filePaths: readonly string[], lutFolder: string, homeDir: string, bundledLutsDir: string): Promise<AssetImportResult[]> {
   const dir = resolveLutDir(lutFolder, homeDir);
-  const imported = await importDirectoryAssets(filePaths, dir, LUT_EXTENSIONS);
+  const builtInEntries = await readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS);
+  const imported = await importDirectoryAssets(filePaths, dir, LUT_EXTENSIONS, builtInEntries);
   return imported.map((result) => ({
     fileName: result.entry.fileName,
     path: result.entry.path,
@@ -35,23 +44,13 @@ export async function importLuts(filePaths: readonly string[], lutFolder: string
   }));
 }
 
-export async function deleteLuts(filePaths: readonly string[], lutFolder: string, homeDir: string, bundledLutsDir: string): Promise<void> {
+export async function deleteLuts(filePaths: readonly string[], lutFolder: string, homeDir: string): Promise<void> {
   const dir = resolveLutDir(lutFolder, homeDir);
-  const builtInFileNames = await builtInLutNames(bundledLutsDir);
-  const matches = matchingBuiltInAssetFileNames(filePaths, builtInFileNames);
+  const matches = filePaths.filter((filePath) => !isDirectoryAssetPath(filePath, dir, LUT_EXTENSIONS));
   if (matches.length > 0) {
-    throw new Error(`Built-in LUTs cannot be deleted: ${matches.join(", ")}`);
+    throw new Error(`Built-in LUTs cannot be deleted: ${matches.map((filePath) => path.basename(filePath)).join(", ")}`);
   }
   await deleteDirectoryAssets(filePaths, dir, LUT_EXTENSIONS);
-}
-
-export async function restoreBuiltInLuts(lutFolder: string, homeDir: string, bundledLutsDir: string): Promise<AssetRestoreResult> {
-  const result = await restoreDirectoryAssets(bundledLutsDir, resolveLutDir(lutFolder, homeDir), LUT_EXTENSIONS);
-  return result;
-}
-
-export async function builtInLutNames(bundledLutsDir: string): Promise<Set<string>> {
-  return builtInAssetNameSet(await readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS));
 }
 
 export function resolveLutDir(lutFolder: string, homeDir: string): string {

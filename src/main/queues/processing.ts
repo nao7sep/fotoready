@@ -12,13 +12,15 @@ import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { resolveOutputFormat, outputFormatExtension } from "@shared/output-format";
 import { writeTaskSidecarFile } from "@main/task-sidecar";
 import { resolveProjectOutputDir } from "@main/output-paths";
+import type { AppLogger } from "@main/logger";
 
 export async function processTask(
   project: Project,
   taskId: string,
   settings: GlobalSettings,
   onUpdate: (() => void | Promise<void>) | undefined,
-  workerPool: PipelineWorkerPool
+  workerPool: PipelineWorkerPool,
+  logger?: AppLogger
 ): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
@@ -68,6 +70,13 @@ export async function processTask(
     task.status = "error";
     task.error = taskError(error);
     task.updatedAt = nowIso();
+    logger?.error({
+      mod: "processing",
+      taskId: task.id,
+      originalId: original.id,
+      sourcePath: original.sourcePath,
+      err: error
+    }, "task processing failed");
     await onUpdate?.();
   }
 }

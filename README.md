@@ -27,8 +27,8 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 | Logs | `~/.fotoready/logs/` |
 | Source facts cache | `~/.fotoready/cache/source-facts.json` |
 | Vision cache | `~/.fotoready/cache/vision-facts.json` |
-| LUT directory | Configurable; defaults to `~/.fotoready/luts/` |
-| Stamp directory | Configurable; defaults to `~/.fotoready/stamps/` |
+| Imported LUT directory | Configurable; defaults to `~/.fotoready/luts/` |
+| Imported stamp directory | Configurable; defaults to `~/.fotoready/stamps/` |
 
 Gemini vision uses the configured model ID from Settings. The default is `gemini-3-flash-preview`.
 
@@ -57,7 +57,7 @@ Live previews use a staged cache. For each task, FotoReady keeps a preview-sized
 
 Most cards preview the image after their current parameters are applied. Cards that edit an overlay against their input image, such as crop, can display the image before that op while still producing their after-op cached stage when a later card needs it. Preview image display fitting is separate from rendering: the resize card uses shrink-only fitting so small resized outputs are shown at actual preview size, while other cards fit the rendered preview into the available canvas area.
 
-Asset-backed pickers rescan their directories when opened. LUT and stamp lists reflect their configured folders without requiring an app restart, and they are sorted alphabetically by filename. The asset picker preview size is configurable in Settings → App; LUT previews render the current image at that size, PNG stamps are shrunk to fit, and SVG stamps are rasterized to fit. Built-in LUTs and stamps are copied into those folders on first run. After that, newly bundled built-ins are opt-in and are copied only when the user clicks Restore built-ins; restore fills missing filenames without overwriting anything already using that filename. A library item is treated as built-in when its filename matches a bundled asset name.
+Asset-backed pickers rescan bundled app resources and the configured imported-asset folders when opened. Built-in and imported LUTs/stamps are shown together, marked by source, and sorted alphabetically by filename. The asset picker preview size is configurable in Settings → App; LUT previews render the current image at that size, PNG stamps are shrunk to fit, and SVG stamps are rasterized to fit. Built-in LUTs and stamps are loaded directly from packaged app resources, not copied into the user folders. Imported files are skipped when their filenames already match either a built-in asset or an imported asset.
 
 ## Metadata model
 

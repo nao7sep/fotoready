@@ -5,6 +5,7 @@ import type { QueueSnapshot } from "@shared/types/ipc";
 import { processTask } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
+import type { AppLogger } from "@main/logger";
 
 export class ProcessingQueue {
   #queue: PQueue;
@@ -18,6 +19,7 @@ export class ProcessingQueue {
     workerPoolSize: number,
     private readonly settings: GlobalSettings,
     private readonly workerPool: PipelineWorkerPool,
+    private readonly logger?: AppLogger,
     onUpdate: (() => void | Promise<void>) | null = null
   ) {
     this.#onUpdate = onUpdate;
@@ -47,8 +49,11 @@ export class ProcessingQueue {
       this.#activeTaskIds.add(taskId);
       await this.#onUpdate?.();
       try {
-        await processTask(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool);
+        await processTask(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool, this.logger);
         await this.#afterTaskProcessed?.(taskId);
+      } catch (error) {
+        this.logger?.error({ mod: "processing.queue", taskId, err: error }, "queued task failed outside task processor");
+        throw error;
       } finally {
         this.#activeTaskIds.delete(taskId);
         await this.#onUpdate?.();

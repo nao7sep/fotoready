@@ -397,12 +397,12 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Asset folders</h3>
+        <h3>Imported asset folders</h3>
         <PathField
           allowClear
           buttonLabel="Choose folder"
           emptyLabel={`Default (${DEFAULT_LUT_FOLDER})`}
-          label="LUT folder"
+          label="Imported LUT folder"
           pick={async () => window.api.system.pickDirectory({ title: "Choose LUT Folder" })}
           value={settings.lutFolder}
           onChange={(value) => setSettings({ ...settings, lutFolder: value })}
@@ -411,7 +411,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
           allowClear
           buttonLabel="Choose folder"
           emptyLabel={`Default (${DEFAULT_STAMP_FOLDER})`}
-          label="Stamp folder"
+          label="Imported stamp folder"
           pick={async () => window.api.system.pickDirectory({ title: "Choose Stamp Folder" })}
           value={settings.stampFolder}
           onChange={(value) => setSettings({ ...settings, stampFolder: value })}

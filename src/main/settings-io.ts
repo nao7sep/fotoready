@@ -4,6 +4,8 @@ import path from "node:path";
 import { defaultGlobalSettings } from "@shared/defaults";
 import type { GlobalSettings } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
+import { utcStamp } from "@shared/time";
+import type { AppLogger } from "./logger";
 
 function defaults(): GlobalSettings {
   return defaultGlobalSettings(null);
@@ -13,20 +15,20 @@ export function resolveWorkerPoolSize(workerPoolSize: number | null): number {
   return workerPoolSize ?? Math.min(8, os.cpus().length);
 }
 
-export async function loadSettings(settingsPath: string): Promise<GlobalSettings> {
+export async function loadSettings(settingsPath: string, logger?: AppLogger): Promise<GlobalSettings> {
   try {
     const raw = await fs.readFile(settingsPath, "utf8");
     const { settings, issues } = normalizeGlobalSettings(JSON.parse(raw), defaults());
-    for (const issue of issues) {
-      console.warn(`Settings file contained invalid data; using fallback value: ${issue}`);
-    }
     if (issues.length > 0) {
+      const backupPath = await backupInvalidFile(settingsPath);
+      logger?.warn({ mod: "settings", settingsPath, backupPath, issues }, "settings file contained invalid data; using fallback values");
       await saveSettings(settingsPath, settings);
     }
     return settings;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`Settings file was unreadable; using defaults: ${(error as Error).message}`);
+      const backupPath = await backupInvalidFile(settingsPath);
+      logger?.warn({ mod: "settings", settingsPath, backupPath, err: error }, "settings file was unreadable; using defaults");
     }
 
     const settings = defaults();
@@ -39,4 +41,14 @@ export async function saveSettings(settingsPath: string, settings: GlobalSetting
   const normalized = normalizeGlobalSettings(settings, defaults()).settings;
   await fs.mkdir(path.dirname(settingsPath), { recursive: true });
   await fs.writeFile(settingsPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+}
+
+async function backupInvalidFile(filePath: string): Promise<string | null> {
+  const backupPath = `${filePath}.${utcStamp()}.invalid`;
+  try {
+    await fs.copyFile(filePath, backupPath);
+    return backupPath;
+  } catch {
+    return null;
+  }
 }

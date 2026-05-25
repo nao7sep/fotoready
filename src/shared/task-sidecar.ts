@@ -5,6 +5,7 @@ export type TaskSidecar = {
   version: 1;
   original: {
     fileName: string;
+    sourceHash?: string;
     size: number;
     format: string;
     width: number;

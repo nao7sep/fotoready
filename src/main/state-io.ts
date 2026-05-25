@@ -2,21 +2,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState } from "@shared/validation/state";
+import { utcStamp } from "@shared/time";
+import type { AppLogger } from "./logger";
 
-export async function loadState(statePath: string): Promise<UiState> {
+export async function loadState(statePath: string, logger?: AppLogger): Promise<UiState> {
   try {
     const raw = await fs.readFile(statePath, "utf8");
     const { state, issues } = normalizeUiState(JSON.parse(raw), defaultUiState());
-    for (const issue of issues) {
-      console.warn(`State file contained invalid data; using fallback value: ${issue}`);
-    }
     if (issues.length > 0) {
+      const backupPath = await backupInvalidFile(statePath);
+      logger?.warn({ mod: "state", statePath, backupPath, issues }, "state file contained invalid data; using fallback values");
       await saveState(statePath, state);
     }
     return state;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`State file was unreadable; using defaults: ${(error as Error).message}`);
+      const backupPath = await backupInvalidFile(statePath);
+      logger?.warn({ mod: "state", statePath, backupPath, err: error }, "state file was unreadable; using defaults");
     }
     const state = defaultUiState();
     await saveState(statePath, state);
@@ -28,4 +30,14 @@ export async function saveState(statePath: string, state: UiState): Promise<void
   const normalized = normalizeUiState(state, defaultUiState()).state;
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+}
+
+async function backupInvalidFile(filePath: string): Promise<string | null> {
+  const backupPath = `${filePath}.${utcStamp()}.invalid`;
+  try {
+    await fs.copyFile(filePath, backupPath);
+    return backupPath;
+  } catch {
+    return null;
+  }
 }

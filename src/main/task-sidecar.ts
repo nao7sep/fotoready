@@ -19,6 +19,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
   const payload = createTaskSidecar({
     original: {
       fileName: path.basename(original.sourcePath),
+      sourceHash: original.sourceHash,
       size: original.size,
       format: original.format,
       width: original.width,
@@ -60,13 +61,16 @@ export function isTaskSidecarPath(filePath: string): boolean {
 
 export function matchingTaskSidecar(original: Original, sidecars: LoadedTaskSidecar[]): LoadedTaskSidecar | null {
   const fileName = path.basename(original.sourcePath).toLowerCase();
-  return sidecars.find(({ sidecar }) =>
-    sidecar.original.fileName.toLowerCase() === fileName
-    && sidecar.original.size === original.size
-    && sidecar.original.format.toLowerCase() === original.format.toLowerCase()
-    && sidecar.original.width === original.width
-    && sidecar.original.height === original.height
-  ) ?? null;
+  return sidecars.find(({ sidecar }) => {
+    if (sidecar.original.sourceHash) {
+      return sidecar.original.sourceHash === original.sourceHash;
+    }
+    return sidecar.original.fileName.toLowerCase() === fileName
+      && sidecar.original.size === original.size
+      && sidecar.original.format.toLowerCase() === original.format.toLowerCase()
+      && sidecar.original.width === original.width
+      && sidecar.original.height === original.height;
+  }) ?? null;
 }
 
 function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
@@ -78,6 +82,7 @@ function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
     version: 1,
     original: {
       fileName: String(sidecar.original.fileName),
+      sourceHash: typeof sidecar.original.sourceHash === "string" && sidecar.original.sourceHash.trim() ? sidecar.original.sourceHash : undefined,
       size: Number(sidecar.original.size),
       format: String(sidecar.original.format),
       width: Number(sidecar.original.width),

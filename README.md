@@ -90,8 +90,8 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle 
 | Import and save | Rename all | `Cmd/Ctrl+R` |
 | Editing | Undo last not-saved edit | `Cmd/Ctrl+Z` |
 | View | Toggle histogram | `Cmd/Ctrl+H` |
-| App | Open settings | `Cmd/Ctrl+,` |
-| App | Show keyboard shortcuts | `Cmd/Ctrl+/` |
+| App | Open settings | `Cmd/Ctrl+Comma` |
+| App | Show keyboard shortcuts | `Cmd/Ctrl+Slash` |
 | App | Close the active dialog | `Esc` |
 
 `Save current not-saved image` queues saving for the selected not-saved task, applies its current ops, and writes the output image plus its JSON sidecar file.

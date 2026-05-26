@@ -69,8 +69,8 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
   {
     title: "App",
     items: [
-      { action: "Open settings", keys: "Cmd/Ctrl+," },
-      { action: "Show keyboard shortcuts", keys: "Cmd/Ctrl+/" },
+      { action: "Open settings", keys: "Cmd/Ctrl+Comma" },
+      { action: "Show keyboard shortcuts", keys: "Cmd/Ctrl+Slash" },
       { action: "Close the active dialog", keys: "Esc" }
     ]
   }

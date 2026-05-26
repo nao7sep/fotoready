@@ -2,6 +2,7 @@ import type sharp from "sharp";
 import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCategory } from "@shared/types/op";
 import { assertBoolean } from "@shared/validation/common";
+import { MAX_INPUT_PIXELS } from "@runtime/decode";
 import { applyTransformedOverlay, assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
 import type { OpApplyContext, OpModule } from "./op-module";
 
@@ -170,7 +171,7 @@ async function renderTrimmedAssetBitmap(
   allowEnlargement: boolean
 ): Promise<{ data: Buffer; info: { width: number; height: number; channels: 4 } }> {
   const sharpImpl = (await import("sharp")).default;
-  const rendered = await sharpImpl(assetPath, { limitInputPixels: false })
+  const rendered = await sharpImpl(assetPath, { limitInputPixels: MAX_INPUT_PIXELS })
     .resize({ width, withoutEnlargement: !allowEnlargement })
     .ensureAlpha()
     .raw()

@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
@@ -6,7 +7,7 @@ import type { ProjectSession } from "@main/session";
 import type { AppLogger } from "@main/logger";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import { APP_NAME } from "@shared/constants";
+import { APP_NAME, IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
@@ -49,6 +50,20 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     publishSnapshots();
   });
 
+  let settingsChain: Promise<unknown> = Promise.resolve();
+  const serializeSettings = <T>(fn: () => Promise<T>): Promise<T> => {
+    const next = settingsChain.then(fn, fn);
+    settingsChain = next.catch(() => {});
+    return next;
+  };
+
+  let stateChain: Promise<unknown> = Promise.resolve();
+  const serializeState = <T>(fn: () => Promise<T>): Promise<T> => {
+    const next = stateChain.then(fn, fn);
+    stateChain = next.catch(() => {});
+    return next;
+  };
+
   ipcMain.handle("system.getInfo", async () => ({
     appName: APP_NAME,
     version: ctx.version,
@@ -59,7 +74,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     ctx.logger[level]({ mod: "renderer", detail: detail ?? null }, message);
   });
   ipcMain.handle("system.revealInFolder", async (_event, filePath: string) => {
-    shell.showItemInFolder(filePath);
+    if (typeof filePath !== "string" || filePath.length === 0) return;
+    const resolved = path.resolve(filePath);
+    try {
+      await fs.lstat(resolved);
+    } catch (error) {
+      ctx.logger.warn({ mod: "main.ipc", filePath: resolved, err: String(error) }, "revealInFolder skipped: path does not exist");
+      return;
+    }
+    shell.showItemInFolder(resolved);
   });
   ipcMain.handle("system.openExternal", async (_event, url: string) => {
     const target = new URL(url);
@@ -106,14 +129,16 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   ipcMain.handle("settings.get", async () => ctx.settings);
   ipcMain.handle("settings.update", async (_event, patch: Partial<GlobalSettings>) => {
-    const nextCandidate = isRecord(patch) ? { ...ctx.settings, ...patch } : ctx.settings;
-    const { settings, issues } = normalizeGlobalSettings(nextCandidate, ctx.settings);
-    for (const issue of issues) {
-      ctx.logger.warn({ mod: "main.ipc", issue }, "settings patch contained invalid data");
-    }
-    await saveSettings(ctx.paths.settingsPath, settings);
-    Object.assign(ctx.settings, settings);
-    return ctx.settings;
+    return serializeSettings(async () => {
+      const nextCandidate = isRecord(patch) ? { ...ctx.settings, ...patch } : ctx.settings;
+      const { settings, issues } = normalizeGlobalSettings(nextCandidate, ctx.settings);
+      for (const issue of issues) {
+        ctx.logger.warn({ mod: "main.ipc", issue }, "settings patch contained invalid data");
+      }
+      await saveSettings(ctx.paths.settingsPath, settings);
+      Object.assign(ctx.settings, settings);
+      return ctx.settings;
+    });
   });
   ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
   ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
@@ -121,14 +146,16 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   ipcMain.handle("state.get", async () => ctx.uiState);
   ipcMain.handle("state.update", async (_event, patch: Partial<UiState>) => {
-    const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
-    const { state, issues } = normalizeUiState(candidate, ctx.uiState);
-    for (const issue of issues) {
-      ctx.logger.warn({ mod: "main.ipc", issue }, "state patch contained invalid data");
-    }
-    await saveState(ctx.paths.statePath, state);
-    Object.assign(ctx.uiState, state);
-    return ctx.uiState;
+    return serializeState(async () => {
+      const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
+      const { state, issues } = normalizeUiState(candidate, ctx.uiState);
+      for (const issue of issues) {
+        ctx.logger.warn({ mod: "main.ipc", issue }, "state patch contained invalid data");
+      }
+      await saveState(ctx.paths.statePath, state);
+      Object.assign(ctx.uiState, state);
+      return ctx.uiState;
+    });
   });
 
   ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
@@ -151,7 +178,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       title: "Add Originals",
       properties: ["openFile", "multiSelections"],
       filters: [
-        { name: "Images and FotoReady parameters", extensions: ["jpg", "jpeg", "png", "webp", "avif", "heic", "gif", "tif", "tiff", "json"] },
+        { name: "Images and FotoReady parameters", extensions: [...IMPORT_FILE_EXTENSIONS] },
         { name: "All Files", extensions: ["*"] }
       ]
     };
@@ -163,14 +190,17 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
     return publishResult(ctx.projectSession.addOriginals(result.filePaths));
   });
-  ipcMain.handle("project.addOriginals", async (_event, sourcePaths: string[]) => publishResult(ctx.projectSession.addOriginals(sourcePaths)));
+  ipcMain.handle("project.addOriginals", async (_event, sourcePaths: string[]) => {
+    const normalized = normalizeAddOriginalsPaths(sourcePaths, ctx.logger);
+    return publishResult(ctx.projectSession.addOriginals(normalized));
+  });
   ipcMain.handle("project.removeOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.removeOriginal(originalId)));
   ipcMain.handle("project.selectOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.selectOriginal(originalId)));
 
   ipcMain.handle("task.select", async (_event, taskId: string) => publishResult(ctx.projectSession.selectTask(taskId)));
   ipcMain.handle("task.fork", async (_event, taskId: string) => publishResult(ctx.projectSession.forkTask(taskId)));
-  ipcMain.handle("task.delete", async (_event, taskId: string, options?: { deleteStagedOutput?: boolean; deleteFinalOutput?: boolean }) =>
-    publishResult(ctx.projectSession.deleteTask(taskId, options))
+  ipcMain.handle("task.delete", async (_event, taskId: string) =>
+    publishResult(ctx.projectSession.deleteTask(taskId))
   );
   ipcMain.handle("task.deleteSavedOutput", async (_event, taskId: string) => publishResult(ctx.projectSession.deleteSavedOutput(taskId)));
   ipcMain.handle("task.dismissError", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
@@ -239,4 +269,24 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
   ipcMain.handle("stamps.delete", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir)));
   ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
+}
+
+function normalizeAddOriginalsPaths(sourcePaths: unknown, logger: AppLogger): string[] {
+  if (!Array.isArray(sourcePaths)) return [];
+  const allowed = new Set<string>(IMPORT_FILE_EXTENSIONS.map((extension) => `.${extension}`));
+  const seen = new Set<string>();
+  const accepted: string[] = [];
+  for (const entry of sourcePaths) {
+    if (typeof entry !== "string" || entry.trim().length === 0) continue;
+    const resolved = path.resolve(entry);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    const extension = path.extname(resolved).toLowerCase();
+    if (!allowed.has(extension)) {
+      logger.warn({ mod: "main.ipc", filePath: resolved, extension }, "addOriginals rejected unsupported extension");
+      continue;
+    }
+    accepted.push(resolved);
+  }
+  return accepted;
 }

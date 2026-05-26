@@ -124,11 +124,6 @@ export type CloseRequest = {
 
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
-export type TaskDeleteOptions = {
-  deleteStagedOutput?: boolean;
-  deleteFinalOutput?: boolean;
-};
-
 export type TaskEditOptions = {
   historyGroup?: string;
 };
@@ -167,7 +162,7 @@ export type FotoReadyApi = {
   task: {
     select(taskId: string): Promise<ProjectSnapshot>;
     fork(taskId: string): Promise<ProjectSnapshot>;
-    delete(taskId: string, options?: TaskDeleteOptions): Promise<ProjectSnapshot>;
+    delete(taskId: string): Promise<ProjectSnapshot>;
     deleteSavedOutput(taskId: string): Promise<ProjectSnapshot>;
     dismissError(taskId: string): Promise<ProjectSnapshot>;
     retry(taskId: string): Promise<ProjectSnapshot>;

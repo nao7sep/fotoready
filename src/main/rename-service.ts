@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import { assertSafeRenderedFilename } from "@shared/validation/filename-template";
@@ -158,51 +159,64 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
   for (const item of preview.items) {
     if (item.status !== "ready" && item.status !== "unchanged") continue;
     const task = project.tasks.find((candidate) => candidate.id === item.taskId);
-    if (!task?.output || !item.currentPath || !item.proposedPath) {
-      continue;
-    }
-    if (item.currentPath === item.proposedPath) {
-      continue;
-    }
+    if (!task?.output || !item.currentPath || !item.proposedPath) continue;
+    if (item.currentPath === item.proposedPath) continue;
 
     await fs.mkdir(path.dirname(item.proposedPath), { recursive: true });
     await ensureNoCollision(item.proposedPath);
-    const tempPath = `${item.proposedPath}.tmp-${process.pid}`;
-    try {
-      await fs.copyFile(item.currentPath, tempPath, fs.constants.COPYFILE_EXCL);
-      await fs.rename(tempPath, item.proposedPath);
-    } catch (error) {
-      await fs.rm(tempPath, { force: true });
-      throw error;
-    }
-    await fs.rm(item.currentPath, { force: true });
+
     const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
-    task.output.stagedPath = item.proposedPath;
-    task.output.finalPath = item.proposedPath;
-    task.output.renamedAt = nowIso();
-    task.updatedAt = nowIso();
+    const sidecarMoveNeeded = Boolean(stagedParamsPath) && stagedParamsPath !== proposedParamsPath;
+    if (sidecarMoveNeeded) {
+      await ensureNoCollision(proposedParamsPath);
+    }
 
-    if (stagedParamsPath !== proposedParamsPath) {
+    await moveFile(item.currentPath, item.proposedPath);
+
+    if (sidecarMoveNeeded) {
       try {
-        await ensureNoCollision(proposedParamsPath);
-        await fs.rename(stagedParamsPath, proposedParamsPath);
-        task.output.stagedParamsPath = proposedParamsPath;
-        task.output.finalParamsPath = proposedParamsPath;
+        await moveFile(stagedParamsPath, proposedParamsPath);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          task.output.stagedParamsPath = proposedParamsPath;
-          task.output.finalParamsPath = proposedParamsPath;
-          continue;
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          try {
+            await moveFile(item.proposedPath, item.currentPath);
+          } catch {
+            // Image is already at proposedPath; rollback failed. Surface the original error;
+            // the user will see the rename failed and the on-disk state will be visible.
+          }
+          throw error;
         }
-        task.output.stagedParamsPath = stagedParamsPath;
-        task.output.finalParamsPath = stagedParamsPath;
-        throw error;
       }
     }
+
+    task.output.stagedPath = item.proposedPath;
+    task.output.finalPath = item.proposedPath;
     task.output.stagedParamsPath = proposedParamsPath;
     task.output.finalParamsPath = proposedParamsPath;
+    task.output.renamedAt = nowIso();
+    task.updatedAt = nowIso();
   }
+}
+
+async function moveFile(from: string, to: string): Promise<void> {
+  try {
+    await fs.rename(from, to);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EXDEV") {
+      throw error;
+    }
+  }
+  const tempPath = `${to}.tmp.${process.pid}.${nanoid(8)}`;
+  try {
+    await fs.copyFile(from, tempPath, fs.constants.COPYFILE_EXCL);
+    await fs.rename(tempPath, to);
+  } catch (innerError) {
+    await fs.rm(tempPath, { force: true });
+    throw innerError;
+  }
+  await fs.rm(from, { force: true });
 }
 
 function blockedRenameMessage(preview: RenamePreview): string {

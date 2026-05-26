@@ -8,6 +8,7 @@ import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
 import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
+import { atomicWriteFile } from "@adapters/atomic-file";
 
 export type LoadedTaskSidecar = {
   path: string;
@@ -31,7 +32,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
     pipeline,
     vision: task.output?.vision ?? null
   });
-  await fs.writeFile(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  await atomicWriteFile(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`);
   return sidecarPath;
 }
 

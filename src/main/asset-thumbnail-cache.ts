@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { AssetThumbnail } from "@shared/types/ipc";
+import { MAX_INPUT_PIXELS } from "@runtime/decode";
 
 const MAX_THUMBNAIL_CACHE_ENTRIES = 512;
 
@@ -57,7 +58,7 @@ async function thumbnailCacheKey(assetPath: string, longEdge: number): Promise<s
 
 async function renderThumbnail(assetPath: string, longEdge: number): Promise<AssetThumbnail> {
   const isSvg = path.extname(assetPath).toLowerCase() === ".svg";
-  const { data, info } = await sharp(assetPath, { limitInputPixels: false })
+  const { data, info } = await sharp(assetPath, { limitInputPixels: MAX_INPUT_PIXELS })
     .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: !isSvg })
     .ensureAlpha()
     .png()

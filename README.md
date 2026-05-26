@@ -1,84 +1,50 @@
 # FotoReady
 
-FotoReady is a cross-platform desktop photo editor for blogging and publication workflows.
+A cross-platform desktop photo editor for blogging and publication workflows. Stack non-destructive edits on each image, control exactly what metadata survives the re-encode, and batch-rename outputs with collision-safe templates.
 
-## Status
+FotoReady is built on Electron and runs on macOS, Windows, and Linux.
 
-- Session-only desktop workflow with in-memory originals and tasks. There is no project file format or recent-project list. User-initiated close/quit asks for confirmation when the current workspace or a settings draft would be discarded; OS shutdown/restart bypasses that prompt.
-- Main/renderer IPC for drag-anywhere image import, task editing, previewing, queued processing, retry/delete flows, rename preview/run with completion confirmation, output-sidecar save/import flows, and opt-in Gemini description/slug generation.
-- Sharp/Piscina runtime with crop/rotate/resize/tone/LUT/conceal/stamp/watermark ops, staged preview caching, same-as-original output defaults, JPEG quality assumption from in-memory JPEG bytes only when enabled, transparency flatten controls, metadata strip and inject ops, and safer unsupported-format handling.
-- Mouse-first geometry editing: reorderable op cards with draggable crop on the preview, crop/rotate/resize controls living in each card, rotate slider, resize presets, custom size controls, histogram feedback, and white-balance neutral-point sampling from the preview.
-- Queue/error UX with active-task reporting, consistent Not saved / Saved / Description generated / Slug generated / Needs attention task states, transient Saving / Waiting to save / Generating description / Generating description and slug / Generating slug labels during active work, retry/dismiss actions, renderer log forwarding, import-boundary checks, and a TypeScript production build check.
+## Features
 
-## Current limitations
+- **Stackable, non-destructive edits.** Reorderable op cards for crop, rotate, flip, resize, levels, curves, white balance, auto tone, HSL, LUTs, denoise, unsharp mask, conceal (cover / blur / mosaic), stamp, text and image watermarks, and metadata strip/inject. Most ops have on-canvas controls.
+- **Live preview.** Each op renders against a preview-sized staged cache, so dragging a slider updates immediately even on large originals.
+- **Format-aware output.** JPEG, WebP, AVIF, PNG, or "same as original". Quality, chroma subsampling, progressive encoding, AVIF effort, WebP method, PNG palette, and transparency flattening are all configurable per task or as defaults. For JPEG re-encodes, the output can automatically adopt the estimated quality of the source so files don't grow or shrink unintentionally.
+- **Metadata you control.** Source metadata is preserved by default; a privacy pill flags any editorial, timestamp, or GPS data that would survive into the output. Opt-in Strip and Inject cards let you remove unwanted fields and overwrite author / copyright / contact / etc. The app records its own `Software` and `ModifyDate` tags by default (both can be turned off).
+- **Batch rename.** Four built-in templates (`Slug + size`, `Slug only`, `Original + size`, `Original only`) with conflict detection across templates and destination directories, per-row slug overrides, and collision-safe rename runs.
+- **AI assist (opt-in).** Generate descriptions and URL slugs with Gemini, using a key you store locally and encrypted with the OS keychain. Images are downscaled to a long edge of 1024 px before being sent, to keep latency and cost predictable.
+- **Drag in, drag out.** Drop image files or output `.json` sidecars anywhere in the window. The sidecar format lets you re-import a previously processed task with its pipeline intact.
+- **Safe deletes.** Removing a saved output, an imported LUT, or an imported stamp moves it to the OS trash. Source files are never touched.
+- **Close protection.** If you have unsaved settings or an in-progress workspace, the app intercepts close and quit and asks before discarding. Power events (OS shutdown / restart) bypass the prompt.
 
-- macOS code signing is intentionally disabled, so packaged builds are unsigned.
-- Packaged app creation is verified with `npm run package`, but runtime smoke launching remains environment-limited here and should still be checked manually on a target machine.
-- HEIC/HEIF decode support depends on the bundled Sharp/libvips build. FotoReady now fails with a direct message when that support is unavailable.
-- Animated image workflows are not a target for v1.
+## Installation
 
-## Data locations
-
-| Item | Path |
-| --- | --- |
-| App data root | `~/.fotoready/` |
-| Settings | `~/.fotoready/settings.json` |
-| Encrypted Gemini key store | `~/.fotoready/api-keys.enc` |
-| Logs | `~/.fotoready/logs/` |
-| Source facts cache | `~/.fotoready/cache/source-facts.json` |
-| Vision cache | `~/.fotoready/cache/vision-facts.json` |
-| Imported LUT directory | Configurable; defaults to `~/.fotoready/luts/` |
-| Imported stamp directory | Configurable; defaults to `~/.fotoready/stamps/` |
-
-Gemini vision uses the configured model ID from Settings. The default is `gemini-3-flash-preview`.
-
-## Development
+FotoReady doesn't ship signed binaries yet, so you build it from source.
 
 ```sh
+git clone <this-repo> fotoready
+cd fotoready
 npm install
+npm run dist
+```
+
+The packaged app is written to `release/`. On macOS the unpacked app is `release/mac-*/FotoReady.app` (for example `release/mac-arm64/FotoReady.app` on Apple Silicon, `release/mac/FotoReady.app` on Intel). Because code signing is intentionally disabled, first launch needs the usual right-click → Open dance to bypass Gatekeeper.
+
+To run from source without packaging:
+
+```sh
 npm run dev
 ```
 
-## Commands
+## Quick start
 
-```sh
-npm run check:imports
-npm run build
-npm run package
-npm run icons
-```
+1. Launch the app.
+2. Drag image files into the window, or use **Add Originals** (`Cmd/Ctrl+N`).
+3. Select a task in the right-hand panel and add ops in the left-hand panel.
+4. Configure the output format and (optionally) a slug for renaming.
+5. Save with `Cmd/Ctrl+S` (current task) or `Cmd/Ctrl+Shift+S` (all not-saved).
+6. Open the Rename modal with `Cmd/Ctrl+R` when you're ready to rename outputs.
 
-Packaging uses `electron-builder` and writes unpacked artifacts to `release/`.
-The unpacked macOS app is written to `release/mac-arm64/FotoReady.app`.
-
-## Preview model
-
-Live previews use a staged cache. For each task, FotoReady keeps a preview-sized base image for the active original and configured preview long edge, then caches the image after each op as that stage is needed. Editing an op invalidates that op's stage and every later stage; earlier stages stay reusable. When a later card is selected, missing stages are regenerated in order from the nearest cached earlier stage.
-
-Most cards preview the image after their current parameters are applied. Cards that edit an overlay against their input image, such as crop, can display the image before that op while still producing their after-op cached stage when a later card needs it. Preview image display fitting is separate from rendering: the resize card uses shrink-only fitting so small resized outputs are shown at actual preview size, while other cards fit the rendered preview into the available canvas area.
-
-Asset-backed pickers rescan bundled app resources and the configured imported-asset folders when opened. Built-in and imported LUTs/stamps are shown together, marked by source, and sorted alphabetically by filename. The asset picker preview size is configurable in Settings → App; LUT previews render the current image at that size, PNG stamps are shrunk to fit, and SVG stamps are rasterized to fit. Built-in LUTs and stamps are loaded directly from packaged app resources, not copied into the user folders. Imported files are skipped when their filenames already match either a built-in asset or an imported asset.
-
-## Metadata model
-
-FotoReady re-encodes saved images. By default, **all source metadata is preserved** on the output, minus fields that no longer describe the re-encoded file (thumbnails, previews, orientation, dimensions, ICC profile, maker notes). The tasks panel shows a privacy pill (E·T·G) when source editorial / time / GPS data will survive into the output.
-
-- **Strip metadata** card is opt-in. When added, every group is stripped except those explicitly kept: Editorial (descriptive/rights/contact fields), Time (capture/create date tags), and GPS (coordinates/direction/date).
-- **Inject metadata** card writes the nine editable fields from Settings or from the card: source, description, author, contact email, contact URL, credit, copyright, rights URL, and usage terms. Injected values win over any same-named source values. Text is Unicode; XMP is UTF-8 and legacy IPTC mirrors are marked UTF-8.
-- **Output stamps** (Settings → Metadata): two booleans, both on by default.
-  - *Software tag* — writes `Software: FotoReady` on every save.
-  - *ModifyDate* — writes the save time to EXIF `ModifyDate`. The EXIF format has no timezone field, so this is the machine's **local wall-clock time** with no offset recorded. Treat it as date-resolution information; the hour/minute reveals when you were at the machine. Turn it off if that's a concern.
-
-## Box overlays
-
-Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosaic) all place a rectangle inside the image and share the same box-geometry rules. The convention:
-
-- New box overlays are created at random in-bounds positions instead of a fixed corner anchor.
-- All spatial fractions (`x`, `y`, `w`/`width`, `h`/`height`, paddings, border thickness, mosaic cell size) are normalized against the image's **long edge**, so "10%" represents the same physical distance on both axes regardless of orientation. Whichever axis maps to the image's short edge can top out below 100% because that axis simply cannot reach as far as the long edge.
-- Each slider's full track represents the entire axis bound. Moves preserve size and refuse to overshoot.
-- Resizes preserve size and slide the box inward when needed, so width/height can grow while the far edge stays inside the image.
-
-Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle plus horizontal and vertical flip toggles. With the lock on, width and height stay in sync to the asset's visible bounds and clamping respects both axes so the ratio always holds; with it off, the asset can be stretched freely. The image's natural aspect ratio is read from the main process via Sharp, so PNG and SVG sources both report the correct ratio.
+Defaults, the Gemini API key, output metadata stamps, LUT/stamp folders, and confirmation prompts live in **Settings** (`Cmd/Ctrl+Comma`).
 
 ## Keyboard shortcuts
 
@@ -94,6 +60,116 @@ Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle 
 | App | Show keyboard shortcuts | `Cmd/Ctrl+Slash` |
 | App | Close the active dialog | `Esc` |
 
-`Save current not-saved image` queues saving for the selected not-saved task, applies its current ops, and writes the output image plus its JSON sidecar file.
-`Save all not-saved images` queues every not-saved task the same way.
-`Rename all` uses four built-in filename choices: `Slug + size` (default), `Slug only`, `Original + size`, and `Original only`. The modal keeps the current output folder at the top, recalculates destinations when that folder changes, shows each row's state first, and exposes inline slug editing/generation only when the selected template uses slugs. Task list and rename rows share the same persistent state model: `Not saved`, `Saved`, `Description generated`, `Slug generated`, and `Needs attention`; rename rows add context such as `Saved, missing slug`, `Description generated, missing slug`, `Ready to rename`, or `Already named` without changing the shared state color. The chosen rename slug is stored on the task; generated slug candidates are suggestions, and empty or uncommitted slug edits block slug-based rename templates. Collision checks are destination-directory aware: exact destination path and sidecar collisions always block, while semantic `{original}` / `{slug}` collisions are only treated as conflicts when those rows would land in the same destination directory. The `Rename all` button requires at least one row to actually rename; rows whose current name already matches the proposed template are shown as `Already named` and will be skipped. On success the modal closes and shows which files were renamed plus any skipped unchanged names; on failure the modal remains open and shows the affected rows and errors.
+## Concepts
+
+### Originals and tasks
+
+An **original** is a source image you've imported. A **task** is one edit-and-save configuration for an original. You can fork a saved task to make another variant from the same source.
+
+A FotoReady session is in-memory: closing the app without saving discards unsaved tasks (the app prompts first). To persist a task across sessions, save the output — a `.json` sidecar with the same base name is written next to it, and dragging that sidecar back into FotoReady re-creates the task with its pipeline intact.
+
+### Preview pipeline
+
+For each task, FotoReady keeps a preview-sized base image plus a cached image after each op. Editing an op invalidates that op's cached stage and every later stage; earlier stages stay reusable, so dragging a slider on a late op doesn't re-run the whole pipeline. The preview's long edge defaults to 1024 px and is adjustable in **Settings**.
+
+Most cards preview the image after their parameters are applied. Cards that edit an overlay against their input image (such as Crop) display the image *before* the op so the overlay is meaningful.
+
+### Metadata model
+
+FotoReady re-encodes every save. By default, all source metadata is preserved on the output except fields that no longer describe the re-encoded file (thumbnails, previews, orientation, dimensions, ICC profile, maker notes). The tasks panel shows a privacy pill (E·T·G) when source editorial / time / GPS data will survive into the output.
+
+- **Strip metadata** is opt-in. When added, every group is stripped except those explicitly kept: Editorial (descriptive / rights / contact fields), Time (capture / create dates), and GPS (coordinates / direction / date).
+- **Inject metadata** writes the nine editable fields from Settings or from the card: source, description, author, contact email, contact URL, credit, copyright, rights URL, and usage terms. Injected values win over same-named source values. Text is Unicode; XMP is UTF-8 and legacy IPTC mirrors are marked UTF-8.
+- **Output stamps** (Settings → Metadata) — both on by default:
+  - *Software tag* writes `Software: FotoReady` on every save.
+  - *ModifyDate* writes the save time to EXIF `ModifyDate`. EXIF has no timezone field, so this is the machine's **local wall-clock time** with no offset recorded. Treat it as date-resolution information; the hour/minute reveals when you were at the machine. Turn it off if that's a concern.
+
+### Box overlays
+
+Text watermark, image watermark, stamp, and the conceal cards (cover, blur, mosaic) all place a rectangle inside the image and share the same geometry rules:
+
+- New box overlays start at random in-bounds positions instead of a fixed corner.
+- All spatial fractions (`x`, `y`, `w`/`width`, `h`/`height`, paddings, border, mosaic cell size) are normalized against the image's **long edge**, so "10%" represents the same physical distance on both axes regardless of orientation. The short-edge axis tops out below 100% because it cannot reach as far as the long edge.
+- Each slider's full track represents the entire axis bound; moves preserve size and refuse to overshoot.
+- Resizes preserve size and slide the box inward when needed.
+
+Image watermark and stamp also expose a default-on **Lock aspect ratio** toggle plus horizontal and vertical flip toggles. With the lock on, width and height stay in sync with the asset's visible bounds.
+
+### Rename templates
+
+The Rename modal previews proposed names, shows per-row state (Ready / Already named / Missing slug / Needs attention / collision), and only renames rows whose name would actually change. Collisions are checked per destination directory, so semantic conflicts in different folders don't block each other. Rename runs are atomic per file: a failure on the sidecar rolls the image back so the task's pointer and on-disk state stay in agreement.
+
+## Where FotoReady stores data
+
+| Item | Path |
+| --- | --- |
+| App data root | `~/.fotoready/` |
+| Settings | `~/.fotoready/settings.json` |
+| UI state | `~/.fotoready/state.json` |
+| Encrypted Gemini key | `~/.fotoready/api-keys.enc` |
+| Logs | `~/.fotoready/logs/` |
+| Imported LUT directory | Configurable; default `~/.fotoready/luts/` |
+| Imported stamp directory | Configurable; default `~/.fotoready/stamps/` |
+
+If `settings.json` or `state.json` fails to parse on startup, the bad file is backed up next to itself as `<name>.<utc-timestamp>.invalid` and the app falls back to defaults.
+
+API keys are encrypted via Electron's `safeStorage`, which is backed by the OS keychain. Gemini calls use the model ID configured in Settings (default `gemini-3-flash-preview`).
+
+## Limitations
+
+- macOS builds are unsigned — code signing is intentionally disabled in this repo.
+- HEIC/HEIF decode depends on the bundled Sharp/libvips build. If the build doesn't include HEIC support, FotoReady fails fast with a clear message.
+- Animated images (GIF, animated WebP) are out of scope.
+- There is no project file format. Persistence is per-output via the `.json` sidecar written next to the saved image.
+- Inputs above ~1 gigapixel are rejected before decoding so a malformed or absurd file can't OOM the worker.
+
+## Development
+
+Requirements: a current Node LTS and matching npm. The toolchain targets Electron 42 and `electron-vite` 5; the repo does not pin a specific Node version.
+
+```sh
+npm install
+npm run dev            # dev mode with electron-vite
+npm run check:imports  # validate inter-module import boundaries
+npm run build          # tsc --noEmit + electron-vite build
+npm run package        # build an unpacked directory (no installer)
+npm run dist           # build a distributable archive
+npm run icons          # regenerate the macOS icon set
+```
+
+### Project layout
+
+```
+src/
+  main/        Main process: IPC, file IO, queues, worker pool
+  preload/     Bridge exposing window.api to the renderer
+  renderer/    React UI
+  core/        Op implementations and slug rules
+  runtime/     Pipeline runner, decode/encode, hashing
+  adapters/    External-system adapters (exiftool, Gemini, api-keys, atomic-file)
+  shared/      Cross-process types, validation, constants
+scripts/       Build helpers and import-boundary check
+resources/     Bundled LUTs and stamps shipped with the app
+```
+
+Import boundaries are enforced by `scripts/check-import-boundaries.mjs`. Each ring can only depend on itself and rings to its left:
+
+```
+shared  <  core, runtime  <  adapters  <  main  <  preload, renderer
+```
+
+### How a save works
+
+1. `runPipeline` (Piscina worker thread) decodes the source via Sharp, runs every enabled op in order, and encodes to the requested format.
+2. The encoded buffer is written to a unique staged path inside the output directory.
+3. `applyMetadataToOutput` (exiftool) copies source metadata, clears stale tags, applies the strip/inject policy, and stamps `Software` / `ModifyDate`.
+4. A `.json` sidecar (same base name as the output) is written alongside it.
+5. A later rename can move the image and sidecar atomically into the user-chosen final name; a failure on the sidecar rolls the image back.
+
+Pipeline jobs and Gemini calls run in pools. The pipeline worker pool defaults to `min(8, cpu_count)` threads and the vision queue defaults to 3 concurrent requests; both are adjustable in **Settings**.
+
+Persistent files (`settings.json`, UI state, sidecars, the encrypted key store) are written through `atomicWriteFile` (`src/adapters/atomic-file.ts`) so a crash mid-write cannot corrupt them.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

@@ -37,6 +37,7 @@ export async function processTask(
   task.updatedAt = nowIso();
   await onUpdate?.();
 
+  let writtenOutputPath: string | null = null;
   try {
     const sourcePath = original.sourcePath;
     const outputPath = await stagedOutputPath(project, task, original, sourcePath);
@@ -47,6 +48,7 @@ export async function processTask(
     if (result.kind !== "file") {
       throw new Error("Processing did not produce an output file.");
     }
+    writtenOutputPath = result.outputPath;
 
     const savedAt = new Date();
     const finalFacts = await applyMetadataPolicy(result.outputPath, sourcePath, task, settings, savedAt);
@@ -67,6 +69,19 @@ export async function processTask(
     task.updatedAt = nowIso();
     await onUpdate?.();
   } catch (error) {
+    if (writtenOutputPath) {
+      try {
+        await fs.rm(writtenOutputPath, { force: true });
+        await fs.rm(`${writtenOutputPath}_original`, { force: true });
+      } catch (cleanupError) {
+        logger?.warn({
+          mod: "processing",
+          taskId: task.id,
+          outputPath: writtenOutputPath,
+          err: cleanupError
+        }, "failed to remove stranded output file after a processing failure");
+      }
+    }
     task.status = "error";
     task.error = taskError(error);
     task.updatedAt = nowIso();

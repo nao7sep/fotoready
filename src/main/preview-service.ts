@@ -6,6 +6,7 @@ import type { LutEntry, LutPreviewEntry, OriginalThumbnail, PreviewRenderOptions
 import { getOpModule } from "@core/ops/catalog";
 import { loadCubeLut } from "@adapters/cube-loader";
 import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
+import { MAX_INPUT_PIXELS } from "@runtime/decode";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 type PreviewBitmap = {
@@ -77,7 +78,7 @@ export class PreviewService {
   }
 
   async renderOriginalThumbnail(original: Original, longEdge = 160): Promise<OriginalThumbnail> {
-    const image = sharp(original.sourcePath, { limitInputPixels: false }).rotate();
+    const image = sharp(original.sourcePath, { limitInputPixels: MAX_INPUT_PIXELS }).rotate();
     const metadata = await image.metadata();
     const bytes = await image
       .resize({ width: longEdge, height: longEdge, fit: "cover" })
@@ -110,7 +111,10 @@ export class PreviewService {
       throw new Error(`Original not found for task: ${taskId}`);
     }
 
-    const base = await this.renderStage(original, task, previewLongEdge, previewTargetStageIndex(task, options));
+    const base = await resizePreviewBitmap(
+      await this.renderStage(original, task, previewLongEdge, previewTargetStageIndex(task, options)),
+      previewLongEdge
+    );
     const opPipeline: Pipeline = {
       ...task.pipeline,
       ops: []
@@ -246,6 +250,31 @@ export class PreviewService {
       height: result.height
     };
   }
+}
+
+async function resizePreviewBitmap(bitmap: PreviewBitmap, longEdge: number): Promise<PreviewBitmap> {
+  const targetLongEdge = Math.max(1, Math.round(longEdge));
+  if (Math.max(bitmap.width, bitmap.height) === targetLongEdge) {
+    return bitmap;
+  }
+
+  const { data, info } = await sharp(bitmap.data, {
+    raw: {
+      width: bitmap.width,
+      height: bitmap.height,
+      channels: 4
+    }
+  })
+    .resize({ width: targetLongEdge, height: targetLongEdge, fit: "inside" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return {
+    data,
+    width: info.width,
+    height: info.height
+  };
 }
 
 function previewTargetStageIndex(task: Task, options?: PreviewRenderOptions): number {

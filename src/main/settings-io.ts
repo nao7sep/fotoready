@@ -5,6 +5,7 @@ import { defaultGlobalSettings } from "@shared/defaults";
 import type { GlobalSettings } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { utcStamp } from "@shared/time";
+import { atomicWriteFile } from "@adapters/atomic-file";
 import type { AppLogger } from "./logger";
 
 function defaults(): GlobalSettings {
@@ -39,8 +40,7 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
 
 export async function saveSettings(settingsPath: string, settings: GlobalSettings): Promise<void> {
   const normalized = normalizeGlobalSettings(settings, defaults()).settings;
-  await fs.mkdir(path.dirname(settingsPath), { recursive: true });
-  await fs.writeFile(settingsPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  await atomicWriteFile(settingsPath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
 async function backupInvalidFile(filePath: string): Promise<string | null> {

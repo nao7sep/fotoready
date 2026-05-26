@@ -435,9 +435,9 @@ function App(): React.JSX.Element {
     if (settings?.confirmDeleteOutputFiles) {
       const deletePaths = savedOutputDeletePaths(task);
       const confirmed = await confirmer.confirm({
-        title: "Delete saved files?",
-        message: deletePaths.join("\n"),
-        confirmLabel: "Delete",
+        title: "Move saved files to the trash?",
+        message: `These files will be moved to the system trash and can be restored from there:\n\n${deletePaths.join("\n")}`,
+        confirmLabel: "Move to trash",
         danger: true
       });
       if (!confirmed) return;

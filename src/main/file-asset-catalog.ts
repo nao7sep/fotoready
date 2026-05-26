@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
+import { shell } from "electron";
 
 export type DirectoryAsset = {
   extension: string;
@@ -85,7 +86,7 @@ export async function importDirectoryAssets(
 
 export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {
   const target = assertDirectoryAssetPath(filePath, dir, extensions);
-  await fs.unlink(target);
+  await shell.trashItem(target);
 }
 
 export async function deleteDirectoryAssets(filePaths: readonly string[], dir: string, extensions: readonly string[]): Promise<void> {

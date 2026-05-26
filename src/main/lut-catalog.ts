@@ -46,9 +46,9 @@ export async function importLuts(filePaths: readonly string[], lutFolder: string
 
 export async function deleteLuts(filePaths: readonly string[], lutFolder: string, homeDir: string): Promise<void> {
   const dir = resolveLutDir(lutFolder, homeDir);
-  const matches = filePaths.filter((filePath) => !isDirectoryAssetPath(filePath, dir, LUT_EXTENSIONS));
-  if (matches.length > 0) {
-    throw new Error(`Built-in LUTs cannot be deleted: ${matches.map((filePath) => path.basename(filePath)).join(", ")}`);
+  const outsideFolder = filePaths.filter((filePath) => !isDirectoryAssetPath(filePath, dir, LUT_EXTENSIONS));
+  if (outsideFolder.length > 0) {
+    throw new Error(`Cannot delete LUTs outside the imported LUT folder (built-in LUTs are included): ${outsideFolder.map((filePath) => path.basename(filePath)).join(", ")}`);
   }
   await deleteDirectoryAssets(filePaths, dir, LUT_EXTENSIONS);
 }

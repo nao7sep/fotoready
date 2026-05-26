@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { shell } from "electron";
 
 export async function deleteSelectedFiles(filePaths: string[]): Promise<void> {
   const uniquePaths = [...new Set(filePaths.filter((filePath) => filePath.trim().length > 0))];
@@ -9,7 +10,7 @@ export async function deleteSelectedFiles(filePaths: string[]): Promise<void> {
       if (!(await fileExists(filePath))) {
         continue;
       }
-      await fs.rm(filePath);
+      await shell.trashItem(filePath);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       failures.push(`${filePath}: ${detail}`);
@@ -17,7 +18,7 @@ export async function deleteSelectedFiles(filePaths: string[]): Promise<void> {
   }
 
   if (failures.length > 0) {
-    throw new Error(`Failed to delete output file${failures.length === 1 ? "" : "s"}: ${failures.join("; ")}`);
+    throw new Error(`Failed to move file${failures.length === 1 ? "" : "s"} to the trash: ${failures.join("; ")}`);
   }
 }
 

@@ -35,7 +35,7 @@ const api: FotoReadyApi = {
   task: {
     select: (taskId) => ipcRenderer.invoke("task.select", taskId),
     fork: (taskId) => ipcRenderer.invoke("task.fork", taskId),
-    delete: (taskId, options) => ipcRenderer.invoke("task.delete", taskId, options),
+    delete: (taskId) => ipcRenderer.invoke("task.delete", taskId),
     deleteSavedOutput: (taskId) => ipcRenderer.invoke("task.deleteSavedOutput", taskId),
     dismissError: (taskId) => ipcRenderer.invoke("task.dismissError", taskId),
     retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),

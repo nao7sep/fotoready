@@ -193,14 +193,14 @@ export function AssetPickerModal<T extends PickerEntry>({
     const confirmed = await confirmer.confirm({
       title: "Remove from library?",
       message: deletedEntries.length === 1
-        ? `Remove "${deletedEntries[0].name}" from the library? This deletes the imported asset file.`
+        ? `Remove "${deletedEntries[0].name}" from the library? The imported asset file will be moved to the system trash and can be restored from there.`
         : (
           <AssetFileListMessage
-            intro={`Remove these ${deletedEntries.length} items from the library? This deletes the imported asset files.`}
+            intro={`Remove these ${deletedEntries.length} items from the library? The imported asset files will be moved to the system trash and can be restored from there.`}
             names={deletedEntries.map((entry) => entry.name)}
           />
         ),
-      confirmLabel: "Remove",
+      confirmLabel: "Move to trash",
       danger: true
     });
     if (!confirmed) return;
@@ -475,7 +475,8 @@ export function LutPickerModal({
       .then((items) => {
         if (!cancelled) setPreviews(items);
       })
-      .catch(() => {
+      .catch((previewError) => {
+        console.warn("Failed to load LUT previews", previewError);
         if (!cancelled) setPreviews([]);
       })
       .finally(() => {

@@ -9,7 +9,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { LutEntry, LutPreviewEntry, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskDeleteOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, LutPreviewEntry, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
@@ -184,23 +184,11 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async deleteTask(taskId: string, options: TaskDeleteOptions = {}): Promise<ProjectSessionSnapshot> {
+  async deleteTask(taskId: string): Promise<ProjectSessionSnapshot> {
     const index = this.#project.tasks.findIndex((task) => task.id === taskId);
     if (index === -1) {
       throw new Error(`Task not found: ${taskId}`);
     }
-
-    const task = this.#project.tasks[index];
-    const outputPaths = task.output
-      ? [
-          options.deleteStagedOutput ? task.output.stagedPath : null,
-          options.deleteStagedOutput ? task.output.stagedParamsPath : null,
-          options.deleteFinalOutput ? task.output.finalPath : null
-          ,
-          options.deleteFinalOutput ? task.output.finalParamsPath : null
-        ].filter((filePath): filePath is string => typeof filePath === "string")
-      : [];
-    await deleteSelectedFiles(outputPaths);
 
     this.#project.tasks.splice(index, 1);
     this.#taskUndoHistory.delete(taskId);

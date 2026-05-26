@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import PQueue from "p-queue";
 import { nowIso } from "@shared/time";
+import { MAX_INPUT_PIXELS } from "@runtime/decode";
 import type { Project, Task, TaskError } from "@shared/types/project";
 import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRunMode } from "@shared/vision-run-mode";
@@ -158,7 +159,7 @@ export class VisionQueue {
 }
 
 async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<Buffer> {
-  return sharp(stagedPath, { limitInputPixels: false })
+  return sharp(stagedPath, { limitInputPixels: MAX_INPUT_PIXELS })
     .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 85 })
     .toBuffer();

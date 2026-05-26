@@ -1,7 +1,7 @@
 import { safeStorage } from "electron";
 import fs from "node:fs/promises";
-import path from "node:path";
 import { utcStamp } from "@shared/time";
+import { atomicWriteFile } from "@adapters/atomic-file";
 
 type ApiKeyFile = Record<string, string>;
 type LoggerLike = {
@@ -9,42 +9,55 @@ type LoggerLike = {
 };
 
 export class ApiKeyStore {
+  #chain: Promise<unknown> = Promise.resolve();
+
   constructor(
     private readonly filePath: string,
     private readonly logger?: LoggerLike
   ) {}
 
-  async has(provider: string): Promise<boolean> {
-    const file = await this.readFile();
-    return typeof file[provider] === "string" && file[provider].length > 0;
+  has(provider: string): Promise<boolean> {
+    return this.serialize(async () => {
+      const file = await this.readFile();
+      return typeof file[provider] === "string" && file[provider].length > 0;
+    });
   }
 
-  async get(provider: string): Promise<string | null> {
-    const file = await this.readFile();
-    const encrypted = file[provider];
-    if (!encrypted) return null;
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error("Secure storage encryption is not available on this system.");
-    }
-    return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+  get(provider: string): Promise<string | null> {
+    return this.serialize(async () => {
+      const file = await this.readFile();
+      const encrypted = file[provider];
+      if (!encrypted) return null;
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error("Secure storage encryption is not available on this system.");
+      }
+      return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+    });
   }
 
-  async delete(provider: string): Promise<void> {
-    const file = await this.readFile();
-    delete file[provider];
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-    await fs.writeFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+  delete(provider: string): Promise<void> {
+    return this.serialize(async () => {
+      const file = await this.readFile();
+      delete file[provider];
+      await atomicWriteFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`);
+    });
   }
 
-  async set(provider: string, value: string): Promise<void> {
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error("Secure storage encryption is not available on this system.");
-    }
+  set(provider: string, value: string): Promise<void> {
+    return this.serialize(async () => {
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error("Secure storage encryption is not available on this system.");
+      }
+      const file = await this.readFile();
+      file[provider] = safeStorage.encryptString(value).toString("base64");
+      await atomicWriteFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`);
+    });
+  }
 
-    const file = await this.readFile();
-    file[provider] = safeStorage.encryptString(value).toString("base64");
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-    await fs.writeFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+  private serialize<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.#chain.then(fn, fn);
+    this.#chain = next.catch(() => {});
+    return next;
   }
 
   private async readFile(): Promise<ApiKeyFile> {

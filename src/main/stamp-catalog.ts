@@ -48,9 +48,9 @@ export async function importStamps(filePaths: readonly string[], stampFolder: st
 
 export async function deleteStamps(filePaths: readonly string[], stampFolder: string, homeDir: string): Promise<void> {
   const dir = resolveStampDir(stampFolder, homeDir);
-  const matches = filePaths.filter((filePath) => !isDirectoryAssetPath(filePath, dir, STAMP_EXTENSIONS));
-  if (matches.length > 0) {
-    throw new Error(`Built-in stamps cannot be deleted: ${matches.map((filePath) => path.basename(filePath)).join(", ")}`);
+  const outsideFolder = filePaths.filter((filePath) => !isDirectoryAssetPath(filePath, dir, STAMP_EXTENSIONS));
+  if (outsideFolder.length > 0) {
+    throw new Error(`Cannot delete stamps outside the imported stamp folder (built-in stamps are included): ${outsideFolder.map((filePath) => path.basename(filePath)).join(", ")}`);
   }
   await deleteDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS);
 }

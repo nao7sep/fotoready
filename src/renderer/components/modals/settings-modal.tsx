@@ -535,7 +535,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.confirmDeleteOutputFiles} onChange={(event) => setSettings({ ...settings, confirmDeleteOutputFiles: event.currentTarget.checked })} />
-            Confirm before deleting saved files from disk
+            Confirm before moving saved files to the trash
           </label>
         </div>
       </section>

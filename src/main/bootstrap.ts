@@ -49,7 +49,7 @@ export async function bootstrap(): Promise<void> {
       preload: path.join(__dirname, "../preload/index.mjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
   installCloseGuard(win);

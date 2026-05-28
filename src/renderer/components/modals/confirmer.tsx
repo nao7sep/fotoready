@@ -1,5 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { ModalShell } from "./modal-shell";
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { ConfirmModal } from "./confirm-modal";
+import { AlertModal } from "./alert-modal";
 
 export type ConfirmRequest = {
   title: string;
@@ -35,73 +36,65 @@ type AlertState = { request: AlertRequest; resolve(): void };
 export function ConfirmerProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [alertState, setAlertState] = useState<AlertState | null>(null);
+  const confirmRef = useRef<ConfirmState | null>(null);
+  const alertRef = useRef<AlertState | null>(null);
+  const confirmQueue = useRef<ConfirmState[]>([]);
+  const alertQueue = useRef<AlertState[]>([]);
+  confirmRef.current = confirmState;
+  alertRef.current = alertState;
 
   const confirm = useCallback((request: ConfirmRequest) => {
     return new Promise<boolean>((resolve) => {
-      setConfirmState({ request, resolve });
+      const next = { request, resolve };
+      if (!confirmRef.current) {
+        confirmRef.current = next;
+        setConfirmState(next);
+      } else {
+        confirmQueue.current.push(next);
+      }
     });
   }, []);
 
   const alert = useCallback((request: AlertRequest) => {
     return new Promise<void>((resolve) => {
-      setAlertState({ request, resolve });
+      const next = { request, resolve };
+      if (!alertRef.current) {
+        alertRef.current = next;
+        setAlertState(next);
+      } else {
+        alertQueue.current.push(next);
+      }
     });
   }, []);
 
   const api = useMemo<ConfirmerApi>(() => ({ confirm, alert }), [confirm, alert]);
 
   function closeConfirm(answer: boolean): void {
-    if (!confirmState) return;
-    const { resolve } = confirmState;
-    setConfirmState(null);
-    resolve(answer);
+    const current = confirmRef.current;
+    if (!current) return;
+    const next = confirmQueue.current.shift() ?? null;
+    confirmRef.current = next;
+    setConfirmState(next);
+    current.resolve(answer);
   }
 
   function closeAlert(): void {
-    if (!alertState) return;
-    const { resolve } = alertState;
-    setAlertState(null);
-    resolve();
+    const current = alertRef.current;
+    if (!current) return;
+    const next = alertQueue.current.shift() ?? null;
+    alertRef.current = next;
+    setAlertState(next);
+    current.resolve();
   }
 
   return (
     <Context.Provider value={api}>
       {children}
       {confirmState ? (
-        <ModalShell
-          title={confirmState.request.title}
-          size="default"
-          onClose={() => closeConfirm(false)}
-          footer={
-            <>
-              <button className="toolbar-button" type="button" onClick={() => closeConfirm(false)}>
-                {confirmState.request.cancelLabel ?? "Cancel"}
-              </button>
-              <button
-                className={confirmState.request.danger ? "primary-action danger" : "primary-action"}
-                type="button"
-                autoFocus
-                onClick={() => closeConfirm(true)}
-              >
-                {confirmState.request.confirmLabel ?? "Confirm"}
-              </button>
-            </>
-          }
-        >
-          <div className="modal-message">{confirmState.request.message}</div>
-        </ModalShell>
+        <ConfirmModal request={confirmState.request} onClose={closeConfirm} />
       ) : null}
       {alertState ? (
-        <ModalShell
-          title={alertState.request.title}
-          size="default"
-          onClose={closeAlert}
-          footer={
-            <button className="primary-action" type="button" autoFocus onClick={closeAlert}>OK</button>
-          }
-        >
-          <div className="modal-message">{alertState.request.message}</div>
-        </ModalShell>
+        <AlertModal request={alertState.request} onClose={closeAlert} />
       ) : null}
     </Context.Provider>
   );

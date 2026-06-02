@@ -11,7 +11,7 @@ FotoReady is built on Electron and runs on macOS, Windows, and Linux.
 - **Format-aware output.** JPEG, WebP, AVIF, PNG, or "same as original". Quality, chroma subsampling, progressive encoding, AVIF effort, WebP method, PNG palette, and transparency flattening are all configurable per task or as defaults. For JPEG re-encodes, the output can automatically adopt the estimated quality of the source so files don't grow or shrink unintentionally.
 - **Metadata you control.** Source metadata is preserved by default; a privacy pill flags any editorial, timestamp, or GPS data that would survive into the output. Opt-in Strip and Inject cards let you remove unwanted fields and overwrite author / copyright / contact / etc. The app records its own `Software` and `ModifyDate` tags by default (both can be turned off).
 - **Batch rename.** Four built-in templates (`Slug + size`, `Slug only`, `Original + size`, `Original only`) with conflict detection across templates and destination directories, per-row slug overrides, and collision-safe rename runs.
-- **AI assist (opt-in).** Generate descriptions and URL slugs with Gemini, using a key you store locally and encrypted with the OS keychain. Images are downscaled to a long edge of 1024 px before being sent, to keep latency and cost predictable.
+- **AI assist (opt-in).** Generate descriptions and URL slugs with Gemini, using a key you store locally. Images are downscaled to a long edge of 1024 px before being sent, to keep latency and cost predictable.
 - **Drag in, drag out.** Drop image files or output `.json` sidecars anywhere in the window. The sidecar format lets you re-import a previously processed task with its pipeline intact.
 - **Safe deletes.** Removing a saved output, an imported LUT, or an imported stamp moves it to the OS trash. Source files are never touched.
 - **Close protection.** If you have unsaved settings or an in-progress workspace, the app intercepts close and quit and asks before discarding. Power events (OS shutdown / restart) bypass the prompt.
@@ -106,14 +106,14 @@ The Rename modal previews proposed names, shows per-row state (Ready / Already n
 | App data root | `~/.fotoready/` |
 | Settings | `~/.fotoready/settings.json` |
 | UI state | `~/.fotoready/state.json` |
-| Encrypted Gemini key | `~/.fotoready/api-keys.enc` |
+| Obfuscated Gemini key | `~/.fotoready/api-keys.json` |
 | Logs | `~/.fotoready/logs/` |
 | Imported LUT directory | Configurable; default `~/.fotoready/luts/` |
 | Imported stamp directory | Configurable; default `~/.fotoready/stamps/` |
 
 If `settings.json` or `state.json` fails to parse on startup, the bad file is backed up next to itself as `<name>.<utc-timestamp>.invalid` and the app falls back to defaults.
 
-API keys are encrypted via Electron's `safeStorage`, which is backed by the OS keychain. Gemini calls use the model ID configured in Settings (default `gemini-3-flash-preview`).
+API keys are lightly obfuscated in local JSON as `obf:` + base64 of the reversed key. This is not encryption; it only keeps keys from appearing as plain text during casual file browsing. Gemini calls use the model ID configured in Settings (default `gemini-3-flash-preview`).
 
 ## Limitations
 
@@ -168,7 +168,7 @@ shared  <  core, runtime  <  adapters  <  main  <  preload, renderer
 
 Pipeline jobs and Gemini calls run in pools. The pipeline worker pool defaults to `min(8, cpu_count)` threads and the vision queue defaults to 3 concurrent requests; both are adjustable in **Settings**.
 
-Persistent files (`settings.json`, UI state, sidecars, the encrypted key store) are written through `atomicWriteFile` (`src/adapters/atomic-file.ts`) so a crash mid-write cannot corrupt them.
+Persistent files (`settings.json`, UI state, sidecars, the obfuscated key store) are written through `atomicWriteFile` (`src/adapters/atomic-file.ts`) so a crash mid-write cannot corrupt them.
 
 ## License
 

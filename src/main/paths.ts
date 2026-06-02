@@ -23,7 +23,7 @@ export function getAppPaths(): AppPaths {
     dataDir,
     settingsPath: path.join(dataDir, "settings.json"),
     statePath: path.join(dataDir, "state.json"),
-    apiKeysPath: path.join(dataDir, "api-keys.enc"),
+    apiKeysPath: path.join(dataDir, "api-keys.json"),
     logsDir: path.join(dataDir, "logs"),
     bundledLutsDir: bundledResourceDir("luts"),
     bundledStampsDir: bundledResourceDir("stamps")

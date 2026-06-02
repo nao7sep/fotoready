@@ -1,4 +1,3 @@
-import { safeStorage } from "electron";
 import fs from "node:fs/promises";
 import { utcStamp } from "@shared/time";
 import { atomicWriteFile } from "@adapters/atomic-file";
@@ -19,19 +18,15 @@ export class ApiKeyStore {
   has(provider: string): Promise<boolean> {
     return this.serialize(async () => {
       const file = await this.readFile();
-      return typeof file[provider] === "string" && file[provider].length > 0;
+      return decodeApiKey(file[provider] ?? "").length > 0;
     });
   }
 
   get(provider: string): Promise<string | null> {
     return this.serialize(async () => {
       const file = await this.readFile();
-      const encrypted = file[provider];
-      if (!encrypted) return null;
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error("Secure storage encryption is not available on this system.");
-      }
-      return safeStorage.decryptString(Buffer.from(encrypted, "base64"));
+      const apiKey = decodeApiKey(file[provider] ?? "");
+      return apiKey.length > 0 ? apiKey : null;
     });
   }
 
@@ -45,11 +40,8 @@ export class ApiKeyStore {
 
   set(provider: string, value: string): Promise<void> {
     return this.serialize(async () => {
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error("Secure storage encryption is not available on this system.");
-      }
       const file = await this.readFile();
-      file[provider] = safeStorage.encryptString(value).toString("base64");
+      file[provider] = encodeApiKey(value);
       await atomicWriteFile(this.filePath, `${JSON.stringify(file, null, 2)}\n`);
     });
   }
@@ -90,5 +82,23 @@ export class ApiKeyStore {
     } catch {
       return null;
     }
+  }
+}
+
+const API_KEY_MARKER = "obf:";
+
+function encodeApiKey(value: string): string {
+  if (!value) return "";
+  const reversed = Array.from(value).reverse().join("");
+  return `${API_KEY_MARKER}${Buffer.from(reversed, "utf8").toString("base64")}`;
+}
+
+function decodeApiKey(value: string): string {
+  if (!value.startsWith(API_KEY_MARKER)) return "";
+  try {
+    const reversed = Buffer.from(value.slice(API_KEY_MARKER.length), "base64").toString("utf8");
+    return Array.from(reversed).reverse().join("");
+  } catch {
+    return "";
   }
 }

@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "tsc --noEmit && electron-vite build",
+    "build": "node scripts/check-import-boundaries.mjs && tsc --noEmit && electron-vite build",
     "check:imports": "node scripts/check-import-boundaries.mjs",
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder --dir",

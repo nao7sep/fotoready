@@ -134,7 +134,6 @@ npm run check:imports  # validate inter-module import boundaries
 npm run build          # tsc --noEmit + electron-vite build
 npm run package        # build an unpacked directory (no installer)
 npm run dist           # build a distributable archive
-npm run icons          # regenerate the macOS icon set
 ```
 
 ### Project layout

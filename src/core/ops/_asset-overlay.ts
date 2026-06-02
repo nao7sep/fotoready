@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type sharp from "sharp";
 import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCategory } from "@shared/types/op";
@@ -85,7 +86,7 @@ export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlay
 
 export async function readAssetAspectRatio(assetPath: string): Promise<number> {
   if (!assetPath) return 1;
-  const key = normalizeAssetCacheKey(assetPath);
+  const key = await assetCacheKey(assetPath);
   const cached = assetAspectRatioCache.get(key);
   if (cached !== undefined) {
     return cached;
@@ -108,7 +109,7 @@ async function renderAssetBitmap(
 ): Promise<RenderedAssetBitmap> {
   const aspectRatio = await readAssetAspectRatio(assetPath);
   const sampleWidth = Math.max(width, Math.round(height * aspectRatio));
-  const key = `${normalizeAssetCacheKey(assetPath)}|${sampleWidth}|${opacity.toFixed(4)}|${flipHorizontal ? "h" : "-"}${flipVertical ? "v" : "-"}`;
+  const key = `${await assetCacheKey(assetPath)}|${sampleWidth}|${opacity.toFixed(4)}|${flipHorizontal ? "h" : "-"}${flipVertical ? "v" : "-"}`;
   const cached = assetBitmapCache.get(key);
   if (cached) {
     return {
@@ -210,8 +211,18 @@ async function renderTrimmedAssetBitmap(
   };
 }
 
-function normalizeAssetCacheKey(assetPath: string): string {
-  return assetPath.trim();
+// Cache key includes the file's size + mtime so replacing or re-importing a stamp at the
+// same path invalidates the cached aspect ratio and bitmap. Keying by path alone made the
+// overlay keep an old (e.g. square placeholder) shape after the file was swapped, even though
+// the picker — which keys on size+mtime — already showed the new art.
+async function assetCacheKey(assetPath: string): Promise<string> {
+  const normalized = assetPath.trim();
+  try {
+    const stat = await fs.stat(normalized);
+    return `${normalized}\0${stat.size}\0${stat.mtimeMs}`;
+  } catch {
+    return normalized;
+  }
 }
 
 function alphaBounds(data: Buffer, width: number, height: number, channels: number): { left: number; top: number; width: number; height: number } | null {

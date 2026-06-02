@@ -58,8 +58,12 @@ async function thumbnailCacheKey(assetPath: string, longEdge: number): Promise<s
 
 async function renderThumbnail(assetPath: string, longEdge: number): Promise<AssetThumbnail> {
   const isSvg = path.extname(assetPath).toLowerCase() === ".svg";
+  // Letterbox onto a square (longEdge × longEdge) canvas with transparent padding so the whole
+  // stamp is visible inside the 1:1 preview cell. `fit: "contain"` keeps the art's aspect ratio
+  // and pads to a square, so a tall stamp like the cat fills the cell without being cropped —
+  // regardless of how the cell's <img> is sized.
   const { data, info } = await sharp(assetPath, { limitInputPixels: MAX_INPUT_PIXELS })
-    .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: !isSvg })
+    .resize({ width: longEdge, height: longEdge, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 }, withoutEnlargement: !isSvg })
     .ensureAlpha()
     .png()
     .toBuffer({ resolveWithObject: true });

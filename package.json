@@ -10,7 +10,6 @@
     "dev": "electron-vite dev",
     "build": "tsc --noEmit && electron-vite build",
     "check:imports": "node scripts/check-import-boundaries.mjs",
-    "icons": "node scripts/generate-icons.mjs && iconutil -c icns build/icon.iconset -o build/icon.icns",
     "preview": "electron-vite preview",
     "package": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
@@ -64,7 +63,6 @@
     ],
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
-      "icon": "build/icon.icns",
       "identity": null
     }
   }

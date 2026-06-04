@@ -137,11 +137,12 @@ npm run package        # build an unpacked directory (no installer)
 npm run dist           # build a distributable archive
 ```
 
-Unit tests run on [Vitest](https://vitest.dev/) and live beside the code they cover as
-`*.test.ts`. They target the deterministic logic in `shared/`, `core/`, `runtime/`, and the
-filesystem-facing helpers in `main/` (e.g. the rename service); the React renderer, the Sharp
-pixel transforms, and the exiftool/Gemini adapters are intentionally left to manual and
-integration testing. `npm run test:watch` reruns on change.
+Unit tests run on [Vitest](https://vitest.dev/) and live under `tests/`, mirroring the `src/`
+layout, so `src/` stays pure shipped code that neither the production typecheck nor the
+import-boundary check sees. They target the deterministic logic in `shared/`, `core/`,
+`runtime/`, and the filesystem-facing helpers in `main/` (e.g. the rename service); the React
+renderer, the Sharp pixel transforms, and the exiftool/Gemini adapters are intentionally left
+to manual and integration testing. `npm run test:watch` reruns on change.
 
 ### Project layout
 
@@ -156,6 +157,7 @@ src/
   shared/      Cross-process types, validation, constants
 scripts/       Build helpers and import-boundary check
 resources/     Bundled LUTs and stamps shipped with the app
+tests/         Vitest unit suite, mirroring the src/ layout
 ```
 
 Import boundaries are enforced by `scripts/check-import-boundaries.mjs`. Each ring can only depend on itself and rings to its left:

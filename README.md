@@ -131,10 +131,17 @@ Requirements: a current Node LTS and matching npm. The toolchain targets Electro
 npm install
 npm run dev            # dev mode with electron-vite
 npm run check:imports  # validate inter-module import boundaries
-npm run build          # tsc --noEmit + electron-vite build
+npm test               # run the Vitest unit suite
+npm run build          # check:imports + tsc --noEmit + electron-vite build
 npm run package        # build an unpacked directory (no installer)
 npm run dist           # build a distributable archive
 ```
+
+Unit tests run on [Vitest](https://vitest.dev/) and live beside the code they cover as
+`*.test.ts`. They target the deterministic logic in `shared/`, `core/`, `runtime/`, and the
+filesystem-facing helpers in `main/` (e.g. the rename service); the React renderer, the Sharp
+pixel transforms, and the exiftool/Gemini adapters are intentionally left to manual and
+integration testing. `npm run test:watch` reruns on change.
 
 ### Project layout
 

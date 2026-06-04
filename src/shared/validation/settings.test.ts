@@ -1,0 +1,79 @@
+import { describe, expect, it } from "vitest";
+import { normalizeGlobalSettings } from "@shared/validation/settings";
+import { defaultGlobalSettings } from "@shared/defaults";
+
+const fallback = defaultGlobalSettings();
+
+describe("normalizeGlobalSettings", () => {
+  it("returns a clean copy with no issues for a fully valid input", () => {
+    const { settings, issues } = normalizeGlobalSettings(fallback, fallback);
+    expect(issues).toEqual([]);
+    expect(settings).toEqual(fallback);
+    expect(settings).not.toBe(fallback);
+  });
+
+  it("treats a non-object input as one issue and uses the fallback", () => {
+    const { settings, issues } = normalizeGlobalSettings(null, fallback);
+    expect(issues).toContain("settings must be a JSON object.");
+    expect(settings.previewLongEdge).toBe(fallback.previewLongEdge);
+  });
+
+  it("falls back per-key on a bad value and records an issue (lenient, never throws)", () => {
+    const { settings, issues } = normalizeGlobalSettings(
+      { ...fallback, webpMethod: 99, defaultBackgroundForTransparency: "" },
+      fallback
+    );
+    expect(settings.webpMethod).toBe(fallback.webpMethod);
+    expect(settings.defaultBackgroundForTransparency).toBe(fallback.defaultBackgroundForTransparency);
+    expect(issues.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("uses the fallback for missing keys without recording an issue", () => {
+    const { settings, issues } = normalizeGlobalSettings({}, fallback);
+    expect(issues).toEqual([]);
+    expect(settings).toEqual(fallback);
+  });
+
+  it("forces description generation on when slug generation is on", () => {
+    const { settings } = normalizeGlobalSettings(
+      { ...fallback, defaultGenerateSlug: true, defaultGenerateDescription: false },
+      fallback
+    );
+    expect(settings.defaultGenerateDescription).toBe(true);
+  });
+
+  it("downgrades jpeg quality mode to fixed when the estimate is disabled", () => {
+    const { settings } = normalizeGlobalSettings(
+      { ...fallback, enableJpegQualityEstimate: false, jpegQualityMode: "auto" },
+      fallback
+    );
+    expect(settings.jpegQualityMode).toBe("fixed");
+  });
+
+  it("accepts a null worker pool size", () => {
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, workerPoolSize: null }, fallback);
+    expect(settings.workerPoolSize).toBeNull();
+    expect(issues).toEqual([]);
+  });
+
+  it("keeps known editable metadata fields and drops unknown keys", () => {
+    const { settings, issues } = normalizeGlobalSettings(
+      { ...fallback, injectFields: { author: "Jane", bogus: "x" } },
+      fallback
+    );
+    expect(settings.injectFields.author).toBe("Jane");
+    expect((settings.injectFields as Record<string, unknown>).bogus).toBeUndefined();
+    expect(issues).toEqual([]);
+  });
+
+  it("falls back the whole injectFields object when a known field is a non-string", () => {
+    const withFields = { ...fallback, injectFields: { author: "Jane" } };
+    const { settings, issues } = normalizeGlobalSettings(
+      { ...withFields, injectFields: { author: "Jane", credit: 5 } },
+      withFields
+    );
+    // The parse throws on `credit: 5`, so injectFields reverts to the fallback object.
+    expect(settings.injectFields).toEqual(withFields.injectFields);
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -4,6 +4,7 @@ import { getOpModule } from "@core/ops/catalog";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
+import { asPipelineError, type PipelineErrorCategory } from "./pipeline-error";
 import type { CubeLut } from "./lut-cube";
 import type sharp from "sharp";
 
@@ -21,27 +22,30 @@ type PipelineRunResult =
 type RawPipelineRunContext = Pick<PipelineRunContext, "resolveLut">;
 
 export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): Promise<PipelineRunResult> {
-  const { image } = await decodeImage(ctx.sourcePath);
+  const { image } = await runPhase("decode", () => decodeImage(ctx.sourcePath));
   let work = image.sharp;
   let workWidth = image.width;
   let workHeight = image.height;
 
   if (ctx.previewLongEdge) {
+    const previewLongEdge = ctx.previewLongEdge;
     const longest = Math.max(workWidth, workHeight);
     if (longest > 0) {
       const sharpImpl = (await import("sharp")).default;
-      const { data, info } = await work
-        .resize({ width: ctx.previewLongEdge, height: ctx.previewLongEdge, fit: "inside" })
+      // Down-resizing the decoded source is a transform, not source parsing, so a failure
+      // here is categorized "process" (deterministic), not "decode".
+      const { data, info } = await runPhase("process", () => work
+        .resize({ width: previewLongEdge, height: previewLongEdge, fit: "inside" })
         .ensureAlpha()
         .raw()
-        .toBuffer({ resolveWithObject: true });
+        .toBuffer({ resolveWithObject: true }));
       work = sharpImpl(data, { raw: { width: info.width, height: info.height, channels: 4 } });
       workWidth = info.width;
       workHeight = info.height;
     }
   }
 
-  const rendered = await applyPipelineOps(work, workWidth, workHeight, pipeline, ctx);
+  const rendered = await runPhase("process", () => applyPipelineOps(work, workWidth, workHeight, pipeline, ctx));
   work = rendered.image;
   workWidth = rendered.width;
   workHeight = rendered.height;
@@ -49,19 +53,30 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
   const appliedPipeline: Pipeline = { ...pipeline, ops: pipeline.ops };
 
   if (ctx.outputPath) {
-    const encoded = await applyOutputEncoding(work, pipeline.output).toBuffer();
-    await fs.writeFile(ctx.outputPath, encoded);
+    const outputPath = ctx.outputPath;
+    const encoded = await runPhase("encode", () => applyOutputEncoding(work, pipeline.output).toBuffer());
+    await runPhase("io", () => fs.writeFile(outputPath, encoded));
     return {
       kind: "file",
-      outputPath: ctx.outputPath,
+      outputPath,
       outputHash: sha256Bytes(encoded),
       bytes: encoded.byteLength,
       appliedPipeline
     };
   }
 
-  const { data: raw, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data: raw, info } = await runPhase("encode", () => work.ensureAlpha().raw().toBuffer({ resolveWithObject: true }));
   return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline };
+}
+
+// Run a pipeline phase, tagging any failure with the phase it occurred in so the caller
+// can decide retryability from the category instead of parsing the error message.
+async function runPhase<T>(phase: PipelineErrorCategory, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw asPipelineError(error, phase);
+  }
 }
 
 export async function runPipelineFromRaw(
@@ -77,8 +92,8 @@ export async function runPipelineFromRaw(
       channels: 4
     }
   });
-  const rendered = await applyPipelineOps(image, source.width, source.height, pipeline, ctx);
-  const { data: raw, info } = await rendered.image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const rendered = await runPhase("process", () => applyPipelineOps(image, source.width, source.height, pipeline, ctx));
+  const { data: raw, info } = await runPhase("encode", () => rendered.image.ensureAlpha().raw().toBuffer({ resolveWithObject: true }));
   return { kind: "buffer", bytes: raw, width: info.width, height: info.height, appliedPipeline: pipeline };
 }
 

@@ -1,8 +1,26 @@
 import { loadCubeLut } from "@adapters/cube-loader";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
 import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
+import { asPipelineError } from "@runtime/pipeline-error";
 
 export default async function pipelineWorker(job: WorkerJob): Promise<WorkerResult> {
+  try {
+    return await runJob(job);
+  } catch (error) {
+    // Return the failure as a categorized value. Throwing here would cross the
+    // worker boundary as a message-only error, losing the category the main process
+    // needs to decide whether the task is worth retrying.
+    const pipelineError = asPipelineError(error, "unknown");
+    return {
+      kind: "error",
+      category: pipelineError.category,
+      message: pipelineError.message,
+      stack: pipelineError.stack ?? null
+    };
+  }
+}
+
+async function runJob(job: WorkerJob): Promise<WorkerResult> {
   if (job.kind === "preview-stage") {
     const result = await runPipelineFromRaw(
       job.pipeline,

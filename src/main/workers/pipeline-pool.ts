@@ -4,6 +4,7 @@ import Piscina from "piscina";
 import { nanoid } from "nanoid";
 import type { Pipeline } from "@shared/types/pipeline";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
+import { PipelineError } from "@runtime/pipeline-error";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,7 +75,15 @@ export class PipelineWorkerPool {
   }
 
   private async run(job: WorkerJob): Promise<WorkerResult> {
-    return this.#pool.run(job) as Promise<WorkerResult>;
+    const result = await (this.#pool.run(job) as Promise<WorkerResult>);
+    if (result.kind === "error") {
+      // Rebuild a typed error in the main process from the category the worker carried
+      // across the boundary, preserving the original failure stack for diagnostics.
+      const error = new PipelineError(result.category, result.message);
+      if (result.stack) error.stack = result.stack;
+      throw error;
+    }
+    return result;
   }
 }
 

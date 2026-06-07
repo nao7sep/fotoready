@@ -8,18 +8,18 @@ export function applyOutputEncoding(image: sharp.Sharp, output: OutputSettings):
       throw new Error("Output format must be resolved before encoding.");
     case "jpeg":
       return prepared.jpeg({
-        quality: numericQuality(output.quality, 85),
+        quality: requireResolvedQuality(output.quality),
         progressive: output.jpegProgressive,
         chromaSubsampling: output.jpegChromaSubsampling
       });
     case "webp":
       return prepared.webp({
-        quality: numericQuality(output.quality, 82),
+        quality: requireResolvedQuality(output.quality),
         effort: output.webpMethod
       });
     case "avif":
       return prepared.avif({
-        quality: numericQuality(output.quality, 60),
+        quality: requireResolvedQuality(output.quality),
         effort: output.avifEffort
       });
     case "png":
@@ -29,8 +29,15 @@ export function applyOutputEncoding(image: sharp.Sharp, output: OutputSettings):
   }
 }
 
-function numericQuality(value: OutputSettings["quality"], fallback: number): number {
-  return typeof value === "number" ? value : fallback;
+// Quality, like format, must be resolved to a concrete, finite number before encoding (an
+// "auto" keyword is resolved upstream from the DQT estimate or the configured fixed quality).
+// Halt rather than silently substituting a default — or feeding sharp a NaN/Infinity — that
+// would not match the user's setting.
+function requireResolvedQuality(value: OutputSettings["quality"]): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error("Output quality must be resolved before encoding.");
+  }
+  return value;
 }
 
 function prepareForEncoding(image: sharp.Sharp, output: OutputSettings): sharp.Sharp {

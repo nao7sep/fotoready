@@ -13,6 +13,7 @@ import { resolveOutputFormat, outputFormatExtension } from "@shared/output-forma
 import { writeTaskSidecarFile } from "@main/task-sidecar";
 import { resolveProjectOutputDir } from "@main/output-paths";
 import type { AppLogger } from "@main/logger";
+import { PipelineError, isRetryableCategory } from "@runtime/pipeline-error";
 
 export async function processTask(
   project: Project,
@@ -123,7 +124,7 @@ async function applyMetadataPolicy(outputPath: string, sourcePath: string, task:
       writeModifyDate: settings.writeModifyDate
     });
   } catch (error) {
-    throw new Error(`Failed to write metadata to the output file. ${errorMessage(error)}`);
+    throw new PipelineError("metadata", `Failed to write metadata to the output file. ${errorMessage(error)}`);
   }
   const bytes = await fs.readFile(outputPath);
   return { outputHash: sha256Bytes(bytes) };
@@ -171,12 +172,16 @@ async function stagedOutputPath(project: Project, task: Task, original: { format
 
 function taskError(error: unknown): TaskError {
   const known = error instanceof Error ? error : new Error(String(error));
+  // Retryability comes from the failure's category, not from scanning its message text.
+  // Errors without a category (filesystem failures setting up the output path, internal
+  // invariants) default to retryable — they are transient or harmless to re-attempt.
+  const retryable = error instanceof PipelineError ? isRetryableCategory(error.category) : true;
   return {
     stage: "processing",
     message: known.message,
     detail: known.stack ?? null,
     occurredAt: nowIso(),
-    retryable: !/unsupported|format/i.test(known.message)
+    retryable
   };
 }
 

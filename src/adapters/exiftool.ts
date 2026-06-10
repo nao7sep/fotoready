@@ -244,6 +244,13 @@ function tagDate(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+// EXIF datetime tags (DateTimeOriginal, CreateDate, ModifyDate) are local
+// wall-clock with no timezone, per the EXIF spec — so formatting with LOCAL
+// getters here is correct and deliberate. This is NOT a violation of the
+// "internal timestamps are always UTC" convention: that rule governs the app's
+// own internal/serialized timestamps, not the values written into a photo's
+// EXIF. The save-time ModifyDate write is opt-in and labeled "local clock" in
+// Settings. Do not "fix" this to UTC — leave the local getters as-is.
 function exifDate(date: Date): string {
   const pad = (value: number) => value.toString().padStart(2, "0");
   return `${date.getFullYear()}:${pad(date.getMonth() + 1)}:${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;

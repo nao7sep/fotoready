@@ -9,6 +9,7 @@ import type {
   StampEntry
 } from "@shared/types/ipc";
 import { api } from "@renderer/ipc/client";
+import { useImeGuard } from "@renderer/utils/ime-guard";
 import { useConfirmer } from "./confirmer";
 import { ModalShell } from "./modal-shell";
 
@@ -49,6 +50,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   onUse
 }: AssetPickerModalProps<T>): React.JSX.Element {
   const confirmer = useConfirmer();
+  const ime = useImeGuard();
   const gridRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
@@ -277,6 +279,8 @@ export function AssetPickerModal<T extends PickerEntry>({
       event.preventDefault();
       moveFocus(visibleColumnCount(), { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
     } else if (event.key === "Enter" || event.key === " ") {
+      // Enter that ends an IME composition accepts the candidate; it must not use the selection.
+      if (ime.isComposing(event)) return;
       event.preventDefault();
       void useSelected();
     } else if (event.key === "Delete" || event.key === "Backspace") {
@@ -368,6 +372,7 @@ export function AssetPickerModal<T extends PickerEntry>({
             ref={gridRef}
             role="listbox"
             tabIndex={0}
+            {...ime.compositionProps}
             onKeyDown={handleGridKeyDown}
           >
             {entries.length > 0 ? entries.map((entry) => {

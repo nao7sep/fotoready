@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmModal } from "./confirm-modal";
 import { AlertModal } from "./alert-modal";
 
@@ -68,6 +68,19 @@ export function ConfirmerProvider({ children }: { children: React.ReactNode }): 
   }, []);
 
   const api = useMemo<ConfirmerApi>(() => ({ confirm, alert }), [confirm, alert]);
+
+  // If the host unmounts (app teardown), every awaiting caller must still settle. Resolve through
+  // the safe path: pending and queued confirms answer "no", pending and queued alerts resolve.
+  useEffect(() => {
+    return () => {
+      if (confirmRef.current) confirmRef.current.resolve(false);
+      confirmQueue.current.forEach((entry) => entry.resolve(false));
+      confirmQueue.current = [];
+      if (alertRef.current) alertRef.current.resolve();
+      alertQueue.current.forEach((entry) => entry.resolve());
+      alertQueue.current = [];
+    };
+  }, []);
 
   function closeConfirm(answer: boolean): void {
     const current = confirmRef.current;

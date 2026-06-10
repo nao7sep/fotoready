@@ -1,16 +1,23 @@
 import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { isTopModalLayer, pushModalLayer, removeModalLayer } from "./modal-stack";
+import { trapTabFocus } from "./focus-trap";
 
 export type ModalSize = "default" | "small" | "wide";
-
-const modalStack: symbol[] = [];
 
 /**
  * Shared chrome for every in-app modal: backdrop, pinned header, scrollable body,
  * pinned footer. Use `footer` for action buttons; omit it for header-only dialogs.
- * All modal close paths should flow through `onClose`, including Escape,
- * backdrop click, and the explicit header close button.
+ *
+ * The shell owns the layer mechanics so feature modals don't repeat them:
+ *  - registers itself on the modal stack so Escape and Tab act only on the topmost layer,
+ *  - traps Tab/Shift+Tab inside the topmost modal so focus never reaches the window behind it,
+ *  - moves focus into the modal on open (unless a child claimed it via `autoFocus`) and restores
+ *    focus to the previously focused element on close.
+ *
+ * All close paths — Escape, backdrop click, the header close button, programmatic — flow through
+ * `onClose`, which decides whether to close, block, or confirm.
  */
 export function ModalShell({
   title,
@@ -27,58 +34,64 @@ export function ModalShell({
   footer?: React.ReactNode;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const modalIdRef = useRef(Symbol("modal"));
+  const layerIdRef = useRef<symbol | null>(null);
+  layerIdRef.current ??= Symbol("modal-layer");
+  const layerId = layerIdRef.current;
   const modalRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
-  function requestClose(): void {
-    onClose();
+  // Capture the element focused *before* this modal opened, during the first render — that is,
+  // before a child's `autoFocus` (which runs at commit time) can pull focus into the modal. Focus
+  // returns here on close so the trigger control is reselected.
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const focusCapturedRef = useRef(false);
+  if (!focusCapturedRef.current) {
+    focusCapturedRef.current = true;
+    const active = document.activeElement;
+    restoreFocusRef.current = active instanceof HTMLElement ? active : null;
   }
 
   useEffect(() => {
-    const modalId = modalIdRef.current;
-    modalStack.push(modalId);
-    return () => {
-      const index = modalStack.indexOf(modalId);
-      if (index >= 0) modalStack.splice(index, 1);
-    };
-  }, []);
+    pushModalLayer(layerId);
+    return () => removeModalLayer(layerId);
+  }, [layerId]);
 
   useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const modal = modalRef.current;
-    const autoFocusTarget = modal?.querySelector<HTMLElement>("[autofocus]");
-    (autoFocusTarget ?? modal)?.focus();
+    // Only claim focus if a child didn't already (e.g. a primary button with `autoFocus`).
+    if (modal && !modal.contains(document.activeElement)) modal.focus();
     return () => {
-      if (previousFocus && previousFocus.isConnected) {
-        previousFocus.focus();
-      }
+      const restore = restoreFocusRef.current;
+      if (restore && restore.isConnected) restore.focus();
     };
   }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape" && modalStack.at(-1) === modalIdRef.current) {
+      if (!isTopModalLayer(layerId)) return;
+      if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        requestClose();
+        onClose();
+      } else if (event.key === "Tab") {
+        trapTabFocus(event, modalRef.current);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [layerId, onClose]);
 
   return createPortal(
     <div
       className="modal-backdrop"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) requestClose();
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <section className={`modal modal-${size}${tall ? " modal-tall" : ""}`} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="modal-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={requestClose}>
+          <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={onClose}>
             <X size={16} />
           </button>
         </header>

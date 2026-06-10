@@ -14,6 +14,7 @@ import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
 import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
 import { ModalShell } from "./components/modals/modal-shell";
+import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
@@ -210,6 +211,9 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // While any modal/dialog is open it owns the keyboard: global shortcuts must not reach the
+      // window behind it (Escape and modal-local keys are handled inside the modal layer itself).
+      if (isModalOpen()) return;
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -928,6 +932,10 @@ function App(): React.JSX.Element {
             <div className="settings-summary">
               <span>Developer</span>
               <code>Yoshinao Inoguchi</code>
+            </div>
+            <div className="settings-summary">
+              <span>Copyright</span>
+              <code>© 2026 Yoshinao Inoguchi</code>
             </div>
             <div className="settings-summary">
               <span>License</span>

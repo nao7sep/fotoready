@@ -3,6 +3,7 @@ import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
 import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
+import { useImeGuard } from "@renderer/utils/ime-guard";
 import { ModalShell } from "./modal-shell";
 
 export type RenameRunSummary = {
@@ -209,6 +210,7 @@ function RenamePreviewRow({
   const initialSlugValue = item.customSlug ?? "";
   const [slugDraft, setSlugDraft] = useState(initialSlugValue);
   const skipBlurCommitRef = useRef(false);
+  const ime = useImeGuard();
 
   useEffect(() => {
     setSlugDraft(initialSlugValue);
@@ -262,6 +264,7 @@ function RenamePreviewRow({
               placeholder="descriptive-slug"
               type="text"
               value={slugDraft}
+              {...ime.compositionProps}
               onBlur={() => {
                 if (skipBlurCommitRef.current) {
                   skipBlurCommitRef.current = false;
@@ -271,7 +274,8 @@ function RenamePreviewRow({
               }}
               onChange={(event) => setSlugDraft(event.currentTarget.value)}
               onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
+                // Enter that ends an IME composition accepts the candidate; it must not commit.
+                if (event.key !== "Enter" || ime.isComposing(event)) return;
                 event.preventDefault();
                 void commitSlugDraft();
               }}

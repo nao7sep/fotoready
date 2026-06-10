@@ -8,8 +8,12 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "node scripts/check-import-boundaries.mjs && tsc --noEmit && electron-vite build",
+    "build": "node scripts/check-import-boundaries.mjs && npm run typecheck:node && npm run typecheck:web && electron-vite build",
     "check:imports": "node scripts/check-import-boundaries.mjs",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

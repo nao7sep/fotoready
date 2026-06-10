@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { exiftool, type WriteTags } from "exiftool-vendored";
 import type { SourceMetadataSummary } from "@shared/types/project";
 import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
+import type { Logger } from "@shared/types/log";
 
 const APP_SOFTWARE_TAG = "FotoReady";
 
@@ -119,11 +120,15 @@ export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<
   }
 }
 
-export async function readSourceMetadataSummary(sourcePath: string): Promise<SourceMetadataSummary> {
+export async function readSourceMetadataSummary(sourcePath: string, logger?: Logger): Promise<SourceMetadataSummary> {
   try {
     const tags = await exiftool.read(sourcePath);
     return metadataSummaryFromTags(tags as Record<string, unknown>);
-  } catch {
+  } catch (error) {
+    // The summary drives the privacy warning, so a read failure that silently
+    // returned "empty" would understate what metadata the source actually
+    // carries. Surface it as a warning and degrade to an empty summary.
+    logger?.warn("could not read source metadata; treating it as empty", { mod: "exiftool", sourcePath, err: error });
     return emptyMetadataSummary();
   }
 }

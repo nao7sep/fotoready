@@ -5,7 +5,7 @@ const api: FotoReadyApi = {
   system: {
     getInfo: () => ipcRenderer.invoke("system.getInfo"),
     filePathForFile: (file) => webUtils.getPathForFile(file),
-    log: (level, message, detail) => ipcRenderer.invoke("system.log", level, message, detail),
+    log: (entry) => ipcRenderer.invoke("system.log", entry),
     openExternal: (url) => ipcRenderer.invoke("system.openExternal", url),
     pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
     pickFiles: (options) => ipcRenderer.invoke("system.pickFiles", options),

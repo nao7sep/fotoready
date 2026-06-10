@@ -191,14 +191,24 @@ function App(): React.JSX.Element {
     const originalError = console.error;
     console.warn = (...args: unknown[]) => {
       originalWarn(...args);
-      void api.system.log("warn", stringifyLogArgs(args));
+      void api.system.log({ level: "warn", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
     };
     console.error = (...args: unknown[]) => {
       originalError(...args);
-      void api.system.log("error", stringifyLogArgs(args));
+      void api.system.log({ level: "error", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
     };
-    const onError = (event: ErrorEvent) => void api.system.log("error", event.message, event.error instanceof Error ? event.error.stack ?? null : null);
-    const onRejection = (event: PromiseRejectionEvent) => void api.system.log("error", "Unhandled renderer rejection", stringifyLogArgs([event.reason]));
+    const onError = (event: ErrorEvent) =>
+      void api.system.log({
+        level: "error",
+        message: event.message,
+        fields: { mod: "renderer.onerror", stack: event.error instanceof Error ? event.error.stack ?? null : null }
+      });
+    const onRejection = (event: PromiseRejectionEvent) =>
+      void api.system.log({
+        level: "error",
+        message: "Unhandled renderer rejection",
+        fields: { mod: "renderer.unhandledrejection", reason: stringifyLogArgs([event.reason]) }
+      });
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     return () => {

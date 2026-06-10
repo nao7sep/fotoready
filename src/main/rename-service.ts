@@ -10,6 +10,7 @@ import { normalizeSlugCandidate } from "@core/slug/rules";
 import { sidecarPathForOutput } from "@main/task-sidecar";
 import { findRenameTemplate, renderRenameTemplate, renameTemplateUsesOriginal, renameTemplateUsesSlug, type RenameTemplateId } from "@shared/rename-template";
 import { resolveProjectOutputDir } from "@main/output-paths";
+import type { AppLogger } from "@main/logger";
 
 type RenamePlanItem = RenamePreview["items"][number];
 
@@ -150,7 +151,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
   };
 }
 
-export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[]): Promise<void> {
+export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<void> {
   const preview = await previewRename(project, templateId, taskIds);
   if (preview.blockedCount > 0) {
     throw new Error(blockedRenameMessage(preview));
@@ -181,9 +182,16 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           try {
             await moveFile(item.proposedPath, item.currentPath);
-          } catch {
-            // Image is already at proposedPath; rollback failed. Surface the original error;
-            // the user will see the rename failed and the on-disk state will be visible.
+          } catch (rollbackError) {
+            // Image is already at proposedPath; rolling it back failed too. The
+            // original error is thrown below, but the rollback failure is its own
+            // incident worth recording — the file is left under the proposed name.
+            logger?.warn("rename rollback failed; output left at the proposed path", {
+              mod: "rename",
+              from: item.proposedPath,
+              to: item.currentPath,
+              err: rollbackError
+            });
           }
           throw error;
         }

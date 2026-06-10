@@ -52,7 +52,7 @@ export class ProcessingQueue {
         await processTask(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool, this.logger);
         await this.#afterTaskProcessed?.(taskId);
       } catch (error) {
-        this.logger?.error({ mod: "processing.queue", taskId, err: error }, "queued task failed outside task processor");
+        this.logger?.error("queued task failed outside task processor", { mod: "processing.queue", taskId, err: error });
         throw error;
       } finally {
         this.#activeTaskIds.delete(taskId);

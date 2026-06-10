@@ -2,7 +2,7 @@ import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
-import { createLogger } from "./logger";
+import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
@@ -14,11 +14,22 @@ import { APP_NAME } from "@shared/constants";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Shared across the app's lifetime (and across windows, since macOS keeps the
+// process alive after the last window closes). The close guard records why the
+// app is shutting down; the single will-quit handler reads it. "unknown" means
+// the app went down without passing through a recognized close path (e.g. an
+// external signal) — distinct from a deliberate user quit.
+type ExitState = { reason: string };
+
 export async function bootstrap(): Promise<void> {
   await app.whenReady();
 
   const paths = getAppPaths();
-  const logger = await createLogger(paths.logsDir);
+  // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
+  // off (never written to disk) in packaged release builds.
+  const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
+  const logger = createLogger(paths.logsDir, { debug });
+  installCrashHandlers(logger);
   const settings = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   const visionQueue = new VisionQueue(paths, settings, logger);
@@ -38,45 +49,70 @@ export async function bootstrap(): Promise<void> {
     version: app.getVersion()
   });
 
-  const win = new BrowserWindow({
-    title: APP_NAME,
-    minWidth: 1024,
-    minHeight: 640,
-    width: 1280,
-    height: 800,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false
+  logger.info("app started", {
+    mod: "main.bootstrap",
+    version: app.getVersion(),
+    debug,
+    dataDir: paths.dataDir,
+    config: {
+      defaultOutputFormat: settings.defaultOutputFormat,
+      model: settings.model,
+      workerPoolSize,
+      visionConcurrency: settings.visionConcurrency,
+      previewLongEdge: settings.previewLongEdge,
+      lutFolder: settings.lutFolder,
+      stampFolder: settings.stampFolder,
+      maximizeOnStartup: settings.maximizeOnStartup
     }
   });
-  installCloseGuard(win);
 
-  win.once("ready-to-show", () => {
-    if (settings.maximizeOnStartup) win.maximize();
-    win.show();
-  });
+  const exitState: ExitState = { reason: "unknown" };
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    await win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    await win.loadFile(path.join(__dirname, "../renderer/index.html"));
-  }
-
-  logger.info({ mod: "main.bootstrap", dataDir: paths.dataDir }, "app started");
-
+  // One launch = one log file. The work above is one-time process init; only the
+  // window is (re)created below, so it must never be redone on re-activate.
   app.once("will-quit", () => {
+    logger.info("app stopping", { mod: "main", reason: exitState.reason });
     void pipelineWorkerPool.destroy();
   });
 
+  const createWindow = (): void => {
+    const win = new BrowserWindow({
+      title: APP_NAME,
+      minWidth: 1024,
+      minHeight: 640,
+      width: 1280,
+      height: 800,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, "../preload/index.mjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false
+      }
+    });
+    installCloseGuard(win, exitState);
+
+    win.once("ready-to-show", () => {
+      if (settings.maximizeOnStartup) win.maximize();
+      win.show();
+    });
+
+    const loaded = process.env.ELECTRON_RENDERER_URL
+      ? win.loadURL(process.env.ELECTRON_RENDERER_URL)
+      : win.loadFile(path.join(__dirname, "../renderer/index.html"));
+    loaded.catch((error) => logger.error("failed to load the renderer window", { mod: "main", err: error }));
+  };
+
+  createWindow();
+
+  // macOS keeps the process running after the window closes; recreate only the
+  // window when the user re-activates, never re-run the init above.
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) void bootstrap();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 }
 
-function installCloseGuard(win: BrowserWindow): void {
+function installCloseGuard(win: BrowserWindow, exitState: ExitState): void {
   let closeAllowed = false;
   let closeRequestPending = false;
   let closeRequestMode: "window" | "quit" = "window";
@@ -85,6 +121,7 @@ function installCloseGuard(win: BrowserWindow): void {
   const markSystemShutdown = () => {
     systemShutdown = true;
     closeAllowed = true;
+    exitState.reason = "system-shutdown";
   };
 
   powerMonitor.once("shutdown", markSystemShutdown);
@@ -120,6 +157,7 @@ function installCloseGuard(win: BrowserWindow): void {
     closeRequestPending = false;
     if (!allow) return;
     closeAllowed = true;
+    exitState.reason = closeRequestMode === "quit" ? "user-quit" : "window-close";
     if (closeRequestMode === "quit") {
       app.quit();
       return;

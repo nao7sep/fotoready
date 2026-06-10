@@ -11,14 +11,14 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     const { state, issues } = normalizeUiState(JSON.parse(raw), defaultUiState());
     if (issues.length > 0) {
       const backupPath = await backupInvalidFile(statePath);
-      logger?.warn({ mod: "state", statePath, backupPath, issues }, "state file contained invalid data; using fallback values");
+      logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, backupPath, issues });
       await saveState(statePath, state);
     }
     return state;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       const backupPath = await backupInvalidFile(statePath);
-      logger?.warn({ mod: "state", statePath, backupPath, err: error }, "state file was unreadable; using defaults");
+      logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, backupPath, err: error });
     }
     const state = defaultUiState();
     await saveState(statePath, state);

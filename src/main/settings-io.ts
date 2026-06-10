@@ -22,14 +22,14 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
     const { settings, issues } = normalizeGlobalSettings(JSON.parse(raw), defaults());
     if (issues.length > 0) {
       const backupPath = await backupInvalidFile(settingsPath);
-      logger?.warn({ mod: "settings", settingsPath, backupPath, issues }, "settings file contained invalid data; using fallback values");
+      logger?.warn("settings file contained invalid data; using fallback values", { mod: "settings", settingsPath, backupPath, issues });
       await saveSettings(settingsPath, settings);
     }
     return settings;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       const backupPath = await backupInvalidFile(settingsPath);
-      logger?.warn({ mod: "settings", settingsPath, backupPath, err: error }, "settings file was unreadable; using defaults");
+      logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, backupPath, err: error });
     }
 
     const settings = defaults();

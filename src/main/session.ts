@@ -95,7 +95,7 @@ export class ProjectSession {
     const sidecars = await loadTaskSidecars(sourcePaths);
     for (const sourcePath of sourcePaths) {
       if (isTaskSidecarPath(sourcePath)) continue;
-      const original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate);
+      const original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate, this.logger);
       const existing = this.#project.originals.find((item) => item.sourceHash === original.sourceHash);
       const targetOriginal = existing ?? original;
 
@@ -268,7 +268,7 @@ export class ProjectSession {
     task.updatedAt = nowIso();
 
     void this.processingQueue.enqueueTask(this.#project, taskId).catch((error) => {
-      this.logger?.error({ mod: "session", taskId, err: error }, "failed to enqueue or process save task");
+      this.logger?.error("failed to enqueue or process save task", { mod: "session", taskId, err: error });
     });
 
     return this.snapshot();
@@ -511,7 +511,7 @@ export class ProjectSession {
   }
 
   async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSessionSnapshot> {
-    await runRename(this.#project, templateId, taskIds);
+    await runRename(this.#project, templateId, taskIds, this.logger);
     return this.snapshot();
   }
 
@@ -617,11 +617,11 @@ export class ProjectSession {
   }
 }
 
-async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: boolean): Promise<Original> {
+async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: boolean, logger?: AppLogger): Promise<Original> {
   const bytes = await fs.readFile(sourcePath);
   const { format, metadata } = await inspectSourceImage(bytes);
   const jpegQualityEstimate = enableJpegQualityEstimate && format === "jpeg" ? detectJpegQuality(bytes).jpegQualityEstimate?.value ?? null : null;
-  const metadataSummary = await readSourceMetadataSummary(sourcePath);
+  const metadataSummary = await readSourceMetadataSummary(sourcePath, logger);
 
   return {
     id: nanoid(),

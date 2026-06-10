@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent, type OpenDialogOptions } from "electron";
 import type { AppPaths } from "@main/paths";
 import type { ProjectSession } from "@main/session";
 import type { AppLogger } from "@main/logger";
@@ -10,7 +10,7 @@ import type { UiState } from "@shared/types/state";
 import { APP_NAME, IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
-import type { PreviewRenderOptions, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
@@ -32,6 +32,32 @@ export type RouterContext = {
 
 export function registerIpcHandlers(ctx: RouterContext): void {
   const assetThumbnailCache = new AssetThumbnailCache();
+
+  // Single IPC chokepoint: every handler is logged once on completion with its
+  // duration and outcome, and any thrown failure is logged at `error` before it
+  // propagates to the renderer. `level` splits genuine user intents (`info`)
+  // from high-frequency / pure-query channels (`debug`), so editing-driven
+  // traffic (preview, thumbnails, slider drags) stays in the developer-only
+  // firehose. Channel name and timing only — never the arguments, per
+  // "summarize, don't dump".
+  const handle = (
+    channel: string,
+    level: "info" | "debug",
+    handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
+  ): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      const startedAt = performance.now();
+      try {
+        const result = await handler(event, ...args);
+        ctx.logger[level](`ipc ${channel}`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt) });
+        return result;
+      } catch (error) {
+        ctx.logger.error(`ipc ${channel} failed`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt), err: error });
+        throw error;
+      }
+    });
+  };
+
   const publishSnapshots = () => {
     const project = ctx.projectSession.snapshot();
     const queue = ctx.projectSession.queueSnapshot();
@@ -64,34 +90,41 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return next;
   };
 
-  ipcMain.handle("system.getInfo", async () => ({
+  handle("system.getInfo", "debug", async () => ({
     appName: APP_NAME,
     version: ctx.version,
     dataDir: ctx.paths.dataDir,
     cpuCount: os.cpus().length
   }));
-  ipcMain.handle("system.log", async (_event, level: "warn" | "error", message: string, detail?: string | null) => {
-    ctx.logger[level]({ mod: "renderer", detail: detail ?? null }, message);
+  // The renderer's own log forwarding — registered raw so the chokepoint doesn't
+  // log a line about every forwarded log line. The renderer is sandboxed and its
+  // payload is untrusted, so the level, message, and fields are all validated;
+  // the `source` stamp is applied last so a renderer-supplied `source` field can
+  // never overwrite it. The fields then run through the same redactor as main's.
+  ipcMain.handle("system.log", async (_event, entry: RendererLogEntry) => {
+    if (!entry || (entry.level !== "warn" && entry.level !== "error") || typeof entry.message !== "string") return;
+    const fields = entry.fields && typeof entry.fields === "object" && !Array.isArray(entry.fields) ? entry.fields : {};
+    ctx.logger[entry.level](entry.message, { ...fields, source: "renderer" });
   });
-  ipcMain.handle("system.revealInFolder", async (_event, filePath: string) => {
+  handle("system.revealInFolder", "info", async (_event, filePath: string) => {
     if (typeof filePath !== "string" || filePath.length === 0) return;
     const resolved = path.resolve(filePath);
     try {
       await fs.lstat(resolved);
     } catch (error) {
-      ctx.logger.warn({ mod: "main.ipc", filePath: resolved, err: String(error) }, "revealInFolder skipped: path does not exist");
+      ctx.logger.warn("revealInFolder skipped: path does not exist", { mod: "main.ipc", filePath: resolved, err: error });
       return;
     }
     shell.showItemInFolder(resolved);
   });
-  ipcMain.handle("system.openExternal", async (_event, url: string) => {
+  handle("system.openExternal", "info", async (_event, url: string) => {
     const target = new URL(url);
     if (target.protocol !== "https:" && target.protocol !== "http:") {
       throw new Error(`Unsupported external URL protocol: ${target.protocol}`);
     }
     await shell.openExternal(target.toString());
   });
-  ipcMain.handle("system.pickFile", async (event, options: { title: string; extensions: string[] }) => {
+  handle("system.pickFile", "info", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
@@ -104,7 +137,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
-  ipcMain.handle("system.pickFiles", async (event, options: { title: string; extensions: string[] }) => {
+  handle("system.pickFiles", "info", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
@@ -117,7 +150,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? [] : result.filePaths;
   });
-  ipcMain.handle("system.pickDirectory", async (event, options: { title: string }) => {
+  handle("system.pickDirectory", "info", async (event, options: { title: string }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
@@ -127,30 +160,30 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
-  ipcMain.handle("settings.get", async () => ctx.settings);
-  ipcMain.handle("settings.update", async (_event, patch: Partial<GlobalSettings>) => {
+  handle("settings.get", "debug", async () => ctx.settings);
+  handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>) => {
     return serializeSettings(async () => {
       const nextCandidate = isRecord(patch) ? { ...ctx.settings, ...patch } : ctx.settings;
       const { settings, issues } = normalizeGlobalSettings(nextCandidate, ctx.settings);
       for (const issue of issues) {
-        ctx.logger.warn({ mod: "main.ipc", issue }, "settings patch contained invalid data");
+        ctx.logger.warn("settings patch contained invalid data", { mod: "main.ipc", issue });
       }
       await saveSettings(ctx.paths.settingsPath, settings);
       Object.assign(ctx.settings, settings);
       return ctx.settings;
     });
   });
-  ipcMain.handle("settings.hasGeminiApiKey", async () => ctx.projectSession.hasGeminiApiKey());
-  ipcMain.handle("settings.setGeminiApiKey", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
-  ipcMain.handle("settings.clearGeminiApiKey", async () => ctx.projectSession.clearGeminiApiKey());
+  handle("settings.hasGeminiApiKey", "debug", async () => ctx.projectSession.hasGeminiApiKey());
+  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
+  handle("settings.clearGeminiApiKey", "info", async () => ctx.projectSession.clearGeminiApiKey());
 
-  ipcMain.handle("state.get", async () => ctx.uiState);
-  ipcMain.handle("state.update", async (_event, patch: Partial<UiState>) => {
+  handle("state.get", "debug", async () => ctx.uiState);
+  handle("state.update", "info", async (_event, patch: Partial<UiState>) => {
     return serializeState(async () => {
       const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
       const { state, issues } = normalizeUiState(candidate, ctx.uiState);
       for (const issue of issues) {
-        ctx.logger.warn({ mod: "main.ipc", issue }, "state patch contained invalid data");
+        ctx.logger.warn("state patch contained invalid data", { mod: "main.ipc", issue });
       }
       await saveState(ctx.paths.statePath, state);
       Object.assign(ctx.uiState, state);
@@ -158,8 +191,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     });
   });
 
-  ipcMain.handle("project.current", async () => ctx.projectSession.snapshot());
-  ipcMain.handle("project.setOutputDirFromDialog", async (event) => {
+  handle("project.current", "debug", async () => ctx.projectSession.snapshot());
+  handle("project.setOutputDirFromDialog", "info", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
       title: "Choose Output Directory",
@@ -171,8 +204,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     }
     return publishResult(ctx.projectSession.setOutputDir(result.filePaths[0]));
   });
-  ipcMain.handle("project.clearOutputDir", async () => publishResult(ctx.projectSession.setOutputDir("")));
-  ipcMain.handle("project.addOriginalsFromDialog", async (event) => {
+  handle("project.clearOutputDir", "info", async () => publishResult(ctx.projectSession.setOutputDir("")));
+  handle("project.addOriginalsFromDialog", "info", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
       title: "Add Originals",
@@ -190,57 +223,59 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
     return publishResult(ctx.projectSession.addOriginals(result.filePaths));
   });
-  ipcMain.handle("project.addOriginals", async (_event, sourcePaths: string[]) => {
+  handle("project.addOriginals", "info", async (_event, sourcePaths: string[]) => {
     const normalized = normalizeAddOriginalsPaths(sourcePaths, ctx.logger);
     return publishResult(ctx.projectSession.addOriginals(normalized));
   });
-  ipcMain.handle("project.removeOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.removeOriginal(originalId)));
-  ipcMain.handle("project.selectOriginal", async (_event, originalId: string) => publishResult(ctx.projectSession.selectOriginal(originalId)));
+  handle("project.removeOriginal", "info", async (_event, originalId: string) => publishResult(ctx.projectSession.removeOriginal(originalId)));
+  handle("project.selectOriginal", "info", async (_event, originalId: string) => publishResult(ctx.projectSession.selectOriginal(originalId)));
 
-  ipcMain.handle("task.select", async (_event, taskId: string) => publishResult(ctx.projectSession.selectTask(taskId)));
-  ipcMain.handle("task.fork", async (_event, taskId: string) => publishResult(ctx.projectSession.forkTask(taskId)));
-  ipcMain.handle("task.delete", async (_event, taskId: string) =>
+  handle("task.select", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.selectTask(taskId)));
+  handle("task.fork", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.forkTask(taskId)));
+  handle("task.delete", "info", async (_event, taskId: string) =>
     publishResult(ctx.projectSession.deleteTask(taskId))
   );
-  ipcMain.handle("task.deleteSavedOutput", async (_event, taskId: string) => publishResult(ctx.projectSession.deleteSavedOutput(taskId)));
-  ipcMain.handle("task.dismissError", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
-  ipcMain.handle("task.retry", async (_event, taskId: string) => publishResult(ctx.projectSession.retryTask(taskId)));
-  ipcMain.handle("task.save", async (_event, taskId: string) => publishResult(ctx.projectSession.enqueueSave(taskId)));
-  ipcMain.handle("task.saveAll", async () => publishResult(ctx.projectSession.enqueueSaveAll()));
-  ipcMain.handle("task.cancel", async (_event, taskId: string) => publishResult(ctx.projectSession.cancelTask(taskId)));
-  ipcMain.handle("task.cancelAll", async () => publishResult(ctx.projectSession.cancelAll()));
-  ipcMain.handle("task.addOp", async (_event, taskId: string, opType: string) => publishResult(ctx.projectSession.addOp(taskId, opType)));
-  ipcMain.handle("task.removeOp", async (_event, taskId: string, opId: string) => publishResult(ctx.projectSession.removeOp(taskId, opId)));
-  ipcMain.handle("task.moveOp", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
-  ipcMain.handle("task.setOpEnabled", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));
-  ipcMain.handle("task.updateOpParam", async (_event, taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions) =>
+  handle("task.deleteSavedOutput", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.deleteSavedOutput(taskId)));
+  handle("task.dismissError", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.dismissTaskError(taskId)));
+  handle("task.retry", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.retryTask(taskId)));
+  handle("task.save", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.enqueueSave(taskId)));
+  handle("task.saveAll", "info", async () => publishResult(ctx.projectSession.enqueueSaveAll()));
+  handle("task.cancel", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.cancelTask(taskId)));
+  handle("task.cancelAll", "info", async () => publishResult(ctx.projectSession.cancelAll()));
+  handle("task.addOp", "info", async (_event, taskId: string, opType: string) => publishResult(ctx.projectSession.addOp(taskId, opType)));
+  handle("task.removeOp", "info", async (_event, taskId: string, opId: string) => publishResult(ctx.projectSession.removeOp(taskId, opId)));
+  handle("task.moveOp", "info", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
+  handle("task.setOpEnabled", "info", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));
+  // Op-parameter and output edits stream from slider drags (many per second) —
+  // developer-only debug per the volume rules; the saved result is logged at info.
+  handle("task.updateOpParam", "debug", async (_event, taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions) =>
     publishResult(ctx.projectSession.updateOpParam(taskId, opId, key, value, options))
   );
-  ipcMain.handle("task.updateOpParams", async (_event, taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions) =>
+  handle("task.updateOpParams", "debug", async (_event, taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions) =>
     publishResult(ctx.projectSession.updateOpParams(taskId, opId, patch, options))
   );
-  ipcMain.handle("task.undo", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
-  ipcMain.handle("task.setGenerateDescription", async (_event, taskId: string, generateDescription: boolean) => publishResult(ctx.projectSession.setGenerateDescription(taskId, generateDescription)));
-  ipcMain.handle("task.setGenerateSlug", async (_event, taskId: string, generateSlug: boolean) => publishResult(ctx.projectSession.setGenerateSlug(taskId, generateSlug)));
-  ipcMain.handle("task.setCustomSlug", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
-  ipcMain.handle("task.clearVision", async (_event, taskId: string) => publishResult(ctx.projectSession.clearVision(taskId)));
-  ipcMain.handle("task.updateOutput", async (_event, taskId: string, key: string, value: unknown, options?: TaskEditOptions) =>
+  handle("task.undo", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.undoTaskEdit(taskId)));
+  handle("task.setGenerateDescription", "info", async (_event, taskId: string, generateDescription: boolean) => publishResult(ctx.projectSession.setGenerateDescription(taskId, generateDescription)));
+  handle("task.setGenerateSlug", "info", async (_event, taskId: string, generateSlug: boolean) => publishResult(ctx.projectSession.setGenerateSlug(taskId, generateSlug)));
+  handle("task.setCustomSlug", "info", async (_event, taskId: string, customSlug: string | null) => publishResult(ctx.projectSession.setCustomSlug(taskId, customSlug)));
+  handle("task.clearVision", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.clearVision(taskId)));
+  handle("task.updateOutput", "debug", async (_event, taskId: string, key: string, value: unknown, options?: TaskEditOptions) =>
     publishResult(ctx.projectSession.updateOutput(taskId, key, value, options))
   );
 
-  ipcMain.handle("assets.aspectRatio", async (_event, assetPath: string) => {
+  handle("assets.aspectRatio", "debug", async (_event, assetPath: string) => {
     if (typeof assetPath !== "string" || !assetPath) return 1;
     try {
       return await readAssetAspectRatio(assetPath);
     } catch (err) {
-      ctx.logger.warn({ mod: "main.ipc", assetPath, err: String(err) }, "failed to read asset aspect ratio");
+      ctx.logger.warn("failed to read asset aspect ratio", { mod: "main.ipc", assetPath, err });
       return 1;
     }
   });
-  ipcMain.handle("assets.thumbnail", async (_event, assetPath: string, longEdge?: number) => {
+  handle("assets.thumbnail", "debug", async (_event, assetPath: string, longEdge?: number) => {
     return assetThumbnailCache.get(assetPath, longEdge);
   });
-  ipcMain.handle("ops.list", async () =>
+  handle("ops.list", "debug", async () =>
     listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
       type,
       label,
@@ -251,24 +286,24 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       metadataOnly
     }))
   );
-  ipcMain.handle("preview.render", async (_event, taskId: string, options?: PreviewRenderOptions) =>
+  handle("preview.render", "debug", async (_event, taskId: string, options?: PreviewRenderOptions) =>
     ctx.projectSession.renderPreview(taskId, options)
   );
-  ipcMain.handle("preview.originalThumbnail", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
-  ipcMain.handle("vision.runForTask", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
-  ipcMain.handle("rename.preview", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
-  ipcMain.handle("rename.run", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
-  ipcMain.handle("luts.list", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.import", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  ipcMain.handle("luts.delete", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("luts.preview", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
+  handle("preview.originalThumbnail", "debug", async (_event, originalId: string) => ctx.projectSession.renderOriginalThumbnail(originalId));
+  handle("vision.runForTask", "info", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
+  handle("rename.preview", "debug", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
+  handle("rename.run", "info", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
+  handle("luts.list", "debug", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  handle("luts.import", "info", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
+  handle("luts.delete", "info", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
+  handle("luts.preview", "debug", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
     const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
     return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
   });
-  ipcMain.handle("stamps.list", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  ipcMain.handle("stamps.import", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  ipcMain.handle("stamps.delete", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir)));
-  ipcMain.handle("queues.snapshot", async () => ctx.projectSession.queueSnapshot());
+  handle("stamps.list", "debug", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  handle("stamps.import", "info", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
+  handle("stamps.delete", "info", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir)));
+  handle("queues.snapshot", "debug", async () => ctx.projectSession.queueSnapshot());
 }
 
 function normalizeAddOriginalsPaths(sourcePaths: unknown, logger: AppLogger): string[] {
@@ -283,7 +318,7 @@ function normalizeAddOriginalsPaths(sourcePaths: unknown, logger: AppLogger): st
     seen.add(resolved);
     const extension = path.extname(resolved).toLowerCase();
     if (!allowed.has(extension)) {
-      logger.warn({ mod: "main.ipc", filePath: resolved, extension }, "addOriginals rejected unsupported extension");
+      logger.warn("addOriginals rejected unsupported extension", { mod: "main.ipc", filePath: resolved, extension });
       continue;
     }
     accepted.push(resolved);

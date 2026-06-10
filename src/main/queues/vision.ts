@@ -89,10 +89,12 @@ export class VisionQueue {
   ): Promise<void> {
     if (!task.output) return;
     try {
+      const startedAt = performance.now();
       const apiKey = await this.#apiKeys.get("gemini");
       if (!apiKey) {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
+      this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, model: this.settings.model });
 
       const callOptions = {
         timeoutMs: this.settings.visionTimeoutMs,
@@ -145,15 +147,11 @@ export class VisionQueue {
       }
       task.error = null;
       task.updatedAt = nowIso();
+      this.logger?.info("vision completed", { mod: "vision", taskId: task.id, mode, ms: Math.round(performance.now() - startedAt) });
     } catch (error) {
       task.error = visionError(error);
       task.updatedAt = nowIso();
-      this.logger?.error({
-        mod: "vision",
-        taskId: task.id,
-        mode,
-        err: error
-      }, "vision task failed");
+      this.logger?.error("vision task failed", { mod: "vision", taskId: task.id, mode, err: error });
     }
   }
 }

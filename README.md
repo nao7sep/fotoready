@@ -113,6 +113,8 @@ The Rename modal previews proposed names, shows per-row state (Ready / Already n
 
 If `settings.json` or `state.json` fails to parse on startup, the bad file is backed up next to itself as `<name>.<utc-timestamp>.invalid` and the app falls back to defaults.
 
+Each launch writes one [JSON Lines](https://jsonlines.org/) session log to `~/.fotoready/logs/`, named by its UTC start time (`yyyymmdd-hhmmss-utc.log`). Logs are never auto-deleted — an old one may be exactly what is needed to debug a problem that surfaces much later. Developer-only `debug` lines are off in packaged builds; set `FOTOREADY_DEBUG=1` (or run an unpackaged dev build) to include them.
+
 API keys are lightly obfuscated in local JSON as `obf:` + base64 of the reversed key. This is not encryption; it only keeps keys from appearing as plain text during casual file browsing. Gemini calls use the model ID configured in Settings (default `gemini-3-flash-preview`).
 
 ## Limitations

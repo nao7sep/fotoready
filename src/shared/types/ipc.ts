@@ -25,6 +25,19 @@ export type SystemInfo = {
   cpuCount: number;
 };
 
+/**
+ * A structured log object the sandboxed renderer forwards to the main process,
+ * which owns the session file. The renderer only ever surfaces problems it
+ * recovered from (captured `console.warn`/`console.error`) or last-resort global
+ * hooks, so the level is restricted to `warn`/`error`. Main stamps the source
+ * and runs the fields through the same redactor as its own logs.
+ */
+export type RendererLogEntry = {
+  level: "warn" | "error";
+  message: string;
+  fields?: Record<string, unknown>;
+};
+
 export type PrivacyWarning = {
   kept: ("editorial" | "dates" | "gps")[];
 };
@@ -132,7 +145,7 @@ export type FotoReadyApi = {
   system: {
     getInfo(): Promise<SystemInfo>;
     filePathForFile(file: File): string;
-    log(level: "warn" | "error", message: string, detail?: string | null): Promise<void>;
+    log(entry: RendererLogEntry): Promise<void>;
     openExternal(url: string): Promise<void>;
     pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
     pickFiles(options: { title: string; extensions: string[] }): Promise<string[]>;

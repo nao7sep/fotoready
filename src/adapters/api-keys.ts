@@ -1,18 +1,16 @@
 import fs from "node:fs/promises";
 import { utcStamp } from "@shared/time";
 import { atomicWriteFile } from "@adapters/atomic-file";
+import type { Logger } from "@shared/types/log";
 
 type ApiKeyFile = Record<string, string>;
-type LoggerLike = {
-  warn(fields: Record<string, unknown>, message: string): void;
-};
 
 export class ApiKeyStore {
   #chain: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly filePath: string,
-    private readonly logger?: LoggerLike
+    private readonly logger?: Logger
   ) {}
 
   has(provider: string): Promise<boolean> {
@@ -57,18 +55,18 @@ export class ApiKeyStore {
       const parsed = JSON.parse(await fs.readFile(this.filePath, "utf8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         const backupPath = await this.backupInvalidFile();
-        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath, backupPath }, "api key file was not a JSON object; ignoring it");
+        this.logger?.warn("api key file was not a JSON object; ignoring it", { mod: "api-keys", apiKeysPath: this.filePath, backupPath });
         return {};
       }
       const entries = Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string");
       if (entries.length !== Object.keys(parsed).length) {
-        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath }, "api key file contained non-string entries; ignoring those entries");
+        this.logger?.warn("api key file contained non-string entries; ignoring those entries", { mod: "api-keys", apiKeysPath: this.filePath });
       }
       return Object.fromEntries(entries);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         const backupPath = await this.backupInvalidFile();
-        this.logger?.warn({ mod: "api-keys", apiKeysPath: this.filePath, backupPath, err: error }, "api key file was unreadable; ignoring it");
+        this.logger?.warn("api key file was unreadable; ignoring it", { mod: "api-keys", apiKeysPath: this.filePath, backupPath, err: error });
       }
       return {};
     }

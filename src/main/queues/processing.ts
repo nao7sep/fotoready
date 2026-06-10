@@ -33,6 +33,9 @@ export async function processTask(
     throw new Error(`Original not found for task: ${task.id}`);
   }
 
+  const startedAt = performance.now();
+  logger?.info("task processing started", { mod: "processing", taskId: task.id, originalId: original.id });
+
   task.status = "processing";
   task.error = null;
   task.updatedAt = nowIso();
@@ -68,6 +71,7 @@ export async function processTask(
     };
     task.output.stagedParamsPath = await writeTaskSidecarFile(result.outputPath, original, task, result.appliedPipeline);
     task.updatedAt = nowIso();
+    logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
     await onUpdate?.();
   } catch (error) {
     if (writtenOutputPath) {
@@ -75,24 +79,24 @@ export async function processTask(
         await fs.rm(writtenOutputPath, { force: true });
         await fs.rm(`${writtenOutputPath}_original`, { force: true });
       } catch (cleanupError) {
-        logger?.warn({
+        logger?.warn("failed to remove stranded output file after a processing failure", {
           mod: "processing",
           taskId: task.id,
           outputPath: writtenOutputPath,
           err: cleanupError
-        }, "failed to remove stranded output file after a processing failure");
+        });
       }
     }
     task.status = "error";
     task.error = taskError(error);
     task.updatedAt = nowIso();
-    logger?.error({
+    logger?.error("task processing failed", {
       mod: "processing",
       taskId: task.id,
       originalId: original.id,
       sourcePath: original.sourcePath,
       err: error
-    }, "task processing failed");
+    });
     await onUpdate?.();
   }
 }

@@ -134,7 +134,8 @@ npm install
 npm run dev            # dev mode with electron-vite
 npm run check:imports  # validate inter-module import boundaries
 npm test               # run the Vitest unit suite
-npm run build          # check:imports + tsc --noEmit + electron-vite build
+npm run typecheck      # type-check each environment: node + web + tests
+npm run build          # check:imports + typecheck (node + web) + electron-vite build
 npm run package        # build an unpacked directory (no installer)
 npm run dist           # build a distributable archive
 ```
@@ -145,6 +146,13 @@ import-boundary check sees. They target the deterministic logic in `shared/`, `c
 `runtime/`, and the filesystem-facing helpers in `main/` (e.g. the rename service); the React
 renderer, the Sharp pixel transforms, and the exiftool/Gemini adapters are intentionally left
 to manual and integration testing. `npm run test:watch` reruns on change.
+
+The production typecheck is split by runtime environment so cross-environment mistakes are
+caught statically: `tsconfig.node.json` (the `shared`/`core`/`runtime`/`adapters`/`main`/`preload`
+rings — Node, no DOM) and `tsconfig.web.json` (renderer — DOM, no Node types). A main-side file
+reaching for a browser global, or a renderer file reaching for a Node global, is a static error.
+`npm run typecheck` adds `tsconfig.test.json` (both environments, for the tests) on top, and
+`npm run build` runs the two production configs before bundling.
 
 ### Project layout
 

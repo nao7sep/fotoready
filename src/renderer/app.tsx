@@ -24,6 +24,7 @@ import { useWorkspaceLayout } from "./layout/workspace-layout";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { taskStateLabel } from "./task-visual-state";
+import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -59,7 +60,7 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
   {
     title: "Editing",
     items: [
-      { action: "Undo last not-saved edit", detail: "Revert the most recent task edit, including op changes, params, output settings, and slug/generation toggles.", keys: "Cmd/Ctrl+Z" }
+      { action: "Undo last not-saved edit", detail: "Revert the most recent task edit when focus is outside a text field. Inside a text field, the shortcut uses native text undo.", keys: "Cmd/Ctrl+Z" }
     ]
   },
   {
@@ -71,10 +72,19 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
   {
     title: "Lists and controls",
     items: [
-      { action: "Move within a list or control", detail: "Each list (Originals, Tasks), segmented control, swatch group, settings tab strip, and the resize-preset toolbar is one tab stop: Tab in, then the arrow keys move and select within it.", keys: "Arrow keys" },
+      { action: "Move within a list or control", detail: "Each list (Originals, Tasks), segmented control, swatch group, settings tab strip, and the resize-preset toolbar is one tab stop: Tab in, then the arrow keys move within it; the selection follows in lists, tabs, and groups, while in the preset toolbar they move focus and Enter applies.", keys: "Arrow keys" },
       { action: "Jump to the first / last item", detail: "Within the focused list or control.", keys: "Home / End" },
       { action: "Remove the selected original", detail: "Deletes the highlighted original from the Originals list.", keys: "Delete / Backspace" },
       { action: "Open a menu, then move between items", detail: "Enter or Space opens the menu; the arrows move between commands and Esc closes it.", keys: "Enter / Arrows / Esc" }
+    ]
+  },
+  {
+    title: "Asset picker (LUTs & stamps)",
+    items: [
+      { action: "Move and select in the grid", detail: "The picker is a multi-select grid: the arrow keys move and select; Cmd/Ctrl+A selects all.", keys: "Arrow keys" },
+      { action: "Extend the selection", detail: "Shift+Arrow grows a range from the anchor; Shift+Click ranges and Cmd/Ctrl+Click toggles one item.", keys: "Shift+Arrows" },
+      { action: "Use the selected item", detail: "Applies the one selected LUT or stamp and closes the picker.", keys: "Enter / Space" },
+      { action: "Remove from library", detail: "Moves the selected imported files to the system trash. Built-in items are protected.", keys: "Delete / Backspace" }
     ]
   },
   {
@@ -114,8 +124,8 @@ function App(): React.JSX.Element {
   const selectOp = useEditorStore((state) => state.selectOp);
   const renameOpen = useEditorStore((state) => state.renameOpen);
   const setRenameOpen = useEditorStore((state) => state.setRenameOpen);
-  const apiKeyOpen = useEditorStore((state) => state.apiKeyOpen);
-  const setApiKeyOpen = useEditorStore((state) => state.setApiKeyOpen);
+  const settingsOpen = useEditorStore((state) => state.settingsOpen);
+  const setSettingsOpen = useEditorStore((state) => state.setSettingsOpen);
   const shortcutsOpen = useEditorStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useEditorStore((state) => state.setShortcutsOpen);
   const aboutOpen = useEditorStore((state) => state.aboutOpen);
@@ -245,6 +255,7 @@ function App(): React.JSX.Element {
         event.preventDefault();
         if (activeTask?.status === "not-saved") void saveTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "z" && !event.shiftKey) {
+        if (isTextEditingShortcutTarget(event.target)) return;
         event.preventDefault();
         if (activeTask?.status === "not-saved") void undoTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "r") {
@@ -574,7 +585,7 @@ function App(): React.JSX.Element {
     setSettingsInitialTab(initialTab);
     setSettingsDraft(settings);
     setApiKeyClearRequested(false);
-    setApiKeyOpen(true);
+    setSettingsOpen(true);
   }
 
   async function saveSettingsDraft(): Promise<void> {
@@ -594,7 +605,7 @@ function App(): React.JSX.Element {
     setApiKeyDraft("");
     setLutEntries(await api.luts.list());
     setStampEntries(await api.stamps.list());
-    setApiKeyOpen(false);
+    setSettingsOpen(false);
   }
 
   function updateApiKeyDraft(value: string): void {
@@ -623,7 +634,7 @@ function App(): React.JSX.Element {
     }
     setApiKeyDraft("");
     setApiKeyClearRequested(false);
-    setApiKeyOpen(false);
+    setSettingsOpen(false);
   }
 
   async function toggleHistogram(): Promise<void> {
@@ -887,7 +898,7 @@ function App(): React.JSX.Element {
         />
       ) : null}
 
-      {apiKeyOpen ? (
+      {settingsOpen ? (
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}
           apiKeyClearRequested={apiKeyClearRequested}

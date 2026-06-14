@@ -24,3 +24,32 @@ export function nextIndex(direction: NavDirection, current: number, length: numb
       return length - 1;
   }
 }
+
+export function indexOfId(ids: readonly string[], id: string | null | undefined): number {
+  return id ? ids.indexOf(id) : -1;
+}
+
+export function currentCompositeIndex({
+  ids,
+  focusedId,
+  activeId,
+  selectedId,
+}: {
+  ids: readonly string[];
+  focusedId?: string | null;
+  activeId?: string | null;
+  selectedId?: string | null;
+}): number {
+  const focused = indexOfId(ids, focusedId);
+  if (focused >= 0) return focused;
+  const active = indexOfId(ids, activeId);
+  if (active >= 0) return active;
+  return indexOfId(ids, selectedId);
+}
+
+export function removalFocusTargetId(
+  remainingIds: readonly string[],
+  removedIndex: number,
+): string | null {
+  return remainingIds[removedIndex] ?? remainingIds[removedIndex - 1] ?? null;
+}

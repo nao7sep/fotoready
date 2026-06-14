@@ -1,5 +1,5 @@
-import { useRef, type KeyboardEvent } from "react";
-import { nextIndex } from "@renderer/components/composite-nav";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { currentCompositeIndex, nextIndex, removalFocusTargetId } from "@renderer/components/composite-nav";
 
 /**
  * The app's in-app listbox layer for the single-select master panels (Originals,
@@ -21,11 +21,19 @@ export function useListbox(params: {
 }) {
   const { ids, selectedId, onSelect, onRemove } = params;
   const ref = useRef<HTMLDivElement>(null);
+  const activeIdRef = useRef<string | null>(selectedId && ids.includes(selectedId) ? selectedId : ids[0] ?? null);
+  const [activeId, setActiveIdState] = useState<string | null>(activeIdRef.current);
+  const pendingRemovalRef = useRef<{ id: string; index: number } | null>(null);
 
   // The single tab stop: the selected option, or the first when nothing in the
   // list is selected, so the list is always Tab-reachable when it has rows.
-  const tabbableId =
-    selectedId && ids.includes(selectedId) ? selectedId : ids[0] ?? null;
+  const selectedInList = selectedId && ids.includes(selectedId) ? selectedId : null;
+  const tabbableId = activeId && ids.includes(activeId) ? activeId : selectedInList ?? ids[0] ?? null;
+
+  const setActiveId = (id: string | null) => {
+    activeIdRef.current = id;
+    setActiveIdState(id);
+  };
 
   const focusOption = (id: string) => {
     (
@@ -35,16 +43,46 @@ export function useListbox(params: {
     )?.focus();
   };
 
+  useEffect(() => {
+    const pending = pendingRemovalRef.current;
+    if (!pending || ids.includes(pending.id)) return;
+    pendingRemovalRef.current = null;
+    const targetId = removalFocusTargetId(ids, pending.index);
+    setActiveId(targetId);
+    if (targetId) focusOption(targetId);
+  }, [ids]);
+
+  useEffect(() => {
+    const nextActive = selectedInList ?? ids[0] ?? null;
+    if (activeIdRef.current && ids.includes(activeIdRef.current)) return;
+    setActiveId(nextActive);
+  }, [ids, selectedInList]);
+
+  useEffect(() => {
+    if (selectedInList && selectedInList !== activeIdRef.current) setActiveId(selectedInList);
+  }, [selectedInList]);
+
+  const focusedId = (): string | null => {
+    const active = document.activeElement;
+    return active instanceof HTMLElement ? active.dataset.listboxOption ?? null : null;
+  };
+
   const selectAt = (index: number) => {
     const id = ids[index];
     if (id === undefined) return;
-    onSelect(id);
+    setActiveId(id);
     focusOption(id);
+    onSelect(id);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (ids.length === 0) return;
-    const current = selectedId ? ids.indexOf(selectedId) : -1;
+    const current = currentCompositeIndex({
+      ids,
+      focusedId: focusedId(),
+      activeId: activeIdRef.current,
+      selectedId,
+    });
     if (e.key === "ArrowDown") {
       e.preventDefault();
       selectAt(nextIndex("next", current, ids.length));
@@ -57,9 +95,13 @@ export function useListbox(params: {
     } else if (e.key === "End") {
       e.preventDefault();
       selectAt(nextIndex("last", current, ids.length));
-    } else if ((e.key === "Delete" || e.key === "Backspace") && onRemove && selectedId) {
+    } else if ((e.key === "Delete" || e.key === "Backspace") && onRemove) {
+      const targetId = focusedId() ?? activeIdRef.current ?? selectedId;
+      const targetIndex = targetId ? ids.indexOf(targetId) : -1;
+      if (!targetId || targetIndex < 0) return;
       e.preventDefault();
-      onRemove(selectedId);
+      pendingRemovalRef.current = { id: targetId, index: targetIndex };
+      onRemove(targetId);
     }
   };
 
@@ -70,6 +112,7 @@ export function useListbox(params: {
       "aria-selected": id === selectedId,
       tabIndex: id === tabbableId ? 0 : -1,
       "data-listbox-option": id,
+      onFocus: () => setActiveId(id),
     }),
   };
 }

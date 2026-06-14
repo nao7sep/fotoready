@@ -8,7 +8,7 @@ type InjectMetadataParams = { fields: MetadataFields };
 
 export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
   type: "inject-metadata",
-  Card({ params, disabled, onParamChange }) {
+  Card({ params, disabled, ctx, onParamChange }) {
     const fields = params.fields ?? {};
     return (
       <div className="geometry-controls">
@@ -18,6 +18,7 @@ export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
               {metadataFieldLabel(field)}
               <MetadataFieldTextArea
                 disabled={disabled}
+                identity={`${ctx.activeTaskId}:${ctx.opId}:${field}`}
                 value={fields[field] ?? ""}
                 onChange={(value) => onParamChange("fields", updateMetadataField(fields, field, value))}
               />
@@ -41,14 +42,16 @@ function updateMetadataField(fields: MetadataFields, field: keyof MetadataFields
 
 function MetadataFieldTextArea({
   disabled,
+  identity,
   value,
   onChange
 }: {
   disabled: boolean;
+  identity: string;
   value: string;
   onChange(value: string): void;
 }): React.JSX.Element {
-  const field = useDraftField<HTMLTextAreaElement>(value, onChange);
+  const field = useDraftField<HTMLTextAreaElement>(value, onChange, identity);
 
   React.useLayoutEffect(() => {
     const node = field.ref.current;
@@ -67,4 +70,3 @@ function MetadataFieldTextArea({
     />
   );
 }
-

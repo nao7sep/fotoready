@@ -54,17 +54,25 @@ Defaults, the Gemini API key, output metadata stamps, LUT/stamp folders, and con
 | Import and save | Save current not-saved image | `Cmd/Ctrl+S` |
 | Import and save | Save all not-saved images | `Cmd/Ctrl+Shift+S` |
 | Import and save | Rename all | `Cmd/Ctrl+R` |
-| Editing | Undo last not-saved edit | `Cmd/Ctrl+Z` |
+| Editing | Undo last not-saved edit (outside text fields) | `Cmd/Ctrl+Z` |
 | View | Toggle histogram | `Cmd/Ctrl+H` |
 | App | Open settings | `Cmd/Ctrl+Comma` |
 | App | Show keyboard shortcuts | `Cmd/Ctrl+Slash` |
 | App | Close the active dialog | `Esc` |
-| Lists and controls | Move and select within the focused list or control | `Arrow keys` |
+| Lists and controls | Move within the focused list or control | `Arrow keys` |
 | Lists and controls | Jump to the first / last item | `Home / End` |
 | Lists and controls | Remove the selected original | `Delete / Backspace` |
 | Lists and controls | Open a menu, move between commands, close | `Enter / Arrows / Esc` |
+| Asset picker | Move and select in the grid | `Arrow keys` |
+| Asset picker | Extend the selection (Shift+Click ranges, Cmd/Ctrl+Click toggles, Cmd/Ctrl+A all) | `Shift+Arrows` |
+| Asset picker | Use the selected item | `Enter / Space` |
+| Asset picker | Remove from library | `Delete / Backspace` |
 
-Lists (Originals, Tasks), segmented controls, swatch groups, the settings tab strip, the resize-preset toolbar, and the app menu are each a single tab stop: press `Tab` to move between them, then use the arrow keys to move and select inside the focused one. This keeps `Tab` short and predictable instead of stepping through every item.
+The LUT and stamp picker is a multi-select grid; `Delete` / `Backspace` moves the selected imported files to the system trash, and built-in items are protected.
+
+Lists (Originals, Tasks), segmented controls, swatch groups, the settings tab strip, the resize-preset toolbar, and the app menu are each a single tab stop: press `Tab` to move between them, then use the arrow keys to move inside the focused one. In the lists, tab strip, and segmented groups the selection follows as you move; in the preset toolbar and the app menu the arrows move focus and `Enter` activates. This keeps `Tab` short and predictable instead of stepping through every item.
+
+When a text field is focused, `Cmd/Ctrl+Z` uses the field's native text undo. Move focus out of the field to undo the last task edit.
 
 ## Concepts
 

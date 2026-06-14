@@ -67,10 +67,15 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
       onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, { minSize: MIN_TEXT_WATERMARK_BOX_SIZE }));
     }
 
-    const textField = useDraftField<HTMLInputElement>(params.text, (value) => onParamChange("text", value));
+    const textField = useDraftField<HTMLInputElement>(
+      params.text,
+      (value) => onParamChange("text", value),
+      `${ctx.activeTaskId}:${ctx.opId}:text`,
+    );
     const fontFamilyField = useDraftField<HTMLInputElement>(
       normalizedBox.fontFamily,
-      (value) => onParamChange("fontFamily", value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)
+      (value) => onParamChange("fontFamily", value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY),
+      `${ctx.activeTaskId}:${ctx.opId}:fontFamily`,
     );
 
     return (

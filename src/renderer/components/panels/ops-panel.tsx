@@ -351,7 +351,11 @@ function OutputControls({
   onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
 }): React.JSX.Element {
   const continuousHistory = useContinuousControlHistoryScope("output");
-  const slugField = useDraftField<HTMLInputElement>(task?.customSlug ?? "", (value) => onCustomSlugChange(value || null));
+  const slugField = useDraftField<HTMLInputElement>(
+    task?.customSlug ?? "",
+    (value) => onCustomSlugChange(value || null),
+    `${task?.id ?? "no-task"}:customSlug`,
+  );
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
   const canAutoEstimateJpeg = Boolean(settings?.enableJpegQualityEstimate && original?.format === "jpeg" && original.jpegQualityEstimate !== null);

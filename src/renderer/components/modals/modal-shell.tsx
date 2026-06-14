@@ -2,7 +2,9 @@ import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { isTopModalLayer, pushModalLayer, removeModalLayer } from "./modal-stack";
+import { acquireScrollLock, releaseScrollLock } from "./scroll-lock";
 import { trapTabFocus } from "./focus-trap";
+import { isComposingKeyboardEvent } from "@renderer/utils/ime-guard";
 
 export type ModalSize = "default" | "small" | "wide";
 
@@ -52,8 +54,15 @@ export function ModalShell({
   }
 
   useEffect(() => {
+    // The shell owns both layer registration and the background scroll lock for its lifetime.
+    // Reference counting in scroll-lock means the body unlocks only when the *last* modal closes,
+    // staying correct under stacking and out-of-order unmount.
     pushModalLayer(layerId);
-    return () => removeModalLayer(layerId);
+    acquireScrollLock();
+    return () => {
+      removeModalLayer(layerId);
+      releaseScrollLock();
+    };
   }, [layerId]);
 
   useEffect(() => {
@@ -70,6 +79,10 @@ export function ModalShell({
     function onKeyDown(event: KeyboardEvent): void {
       if (!isTopModalLayer(layerId)) return;
       if (event.key === "Escape") {
+        // During an IME composition, Escape cancels the pending candidate and belongs to the IME.
+        // Closing the modal here would swallow that cancel and dismiss the dialog out from under
+        // the user. Native handler, so read composition off the key event itself.
+        if (isComposingKeyboardEvent(event)) return;
         event.preventDefault();
         event.stopPropagation();
         onClose();

@@ -67,6 +67,13 @@ body {
   overflow: hidden;
 }
 
+/* Background scroll lock while any modal is open, applied by the modal shell's reference-counted
+   scroll-lock. The fixed-viewport shell is already overflow: hidden, so this mainly makes the
+   contract explicit rather than changing visible behavior. */
+body.modal-open {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background: var(--app-bg);

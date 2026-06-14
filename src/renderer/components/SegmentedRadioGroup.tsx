@@ -1,5 +1,5 @@
-import { useRef, type CSSProperties, type KeyboardEvent } from "react";
-import { nextIndex } from "@renderer/components/composite-nav";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { currentCompositeIndex, nextIndex } from "@renderer/components/composite-nav";
 
 /**
  * One single-choice segmented control: a `radiogroup` with one tab stop, arrow
@@ -51,27 +51,67 @@ export function SegmentedRadioGroup<T extends string>({
 
   // Arrow navigation moves among the enabled options only.
   const enabled = disabled ? [] : options.filter((o) => !o.disabled);
+  const enabledIds = enabled.map((o) => o.id);
+  const selectedInGroup = value && enabled.some((o) => o.id === value) ? value : null;
+  const initialActiveId = selectedInGroup ?? enabled[0]?.id ?? null;
+  const activeIdRef = useRef<T | null>(initialActiveId);
+  const lastSelectedRef = useRef<T | null>(selectedInGroup);
+  const [activeId, setActiveIdState] = useState<T | null>(initialActiveId);
+  const enabledKey = enabledIds.join("\0");
 
   // The single tab stop: the selected option, or the first enabled one when the
   // current value isn't among the options (e.g. a custom color, no preset match).
-  const tabbableId = options.some((o) => o.id === value) ? value : enabled[0]?.id;
+  const tabbableId =
+    activeId && enabled.some((o) => o.id === activeId)
+      ? activeId
+      : selectedInGroup ?? enabled[0]?.id;
+
+  const setActiveId = (id: T | null) => {
+    activeIdRef.current = id;
+    setActiveIdState(id);
+  };
+
+  useEffect(() => {
+    if (selectedInGroup === lastSelectedRef.current) return;
+    lastSelectedRef.current = selectedInGroup;
+    setActiveId(selectedInGroup ?? enabled[0]?.id ?? null);
+  }, [selectedInGroup]);
+
+  useEffect(() => {
+    if (activeIdRef.current && enabled.some((o) => o.id === activeIdRef.current)) return;
+    setActiveId(initialActiveId);
+  }, [enabledKey, initialActiveId]);
 
   const focusOption = (id: T) => {
     (
-      ref.current?.querySelector(`[data-option-id="${id}"]`) as HTMLElement | null
+      Array.from(ref.current?.querySelectorAll<HTMLElement>("[data-option-id]") ?? [])
+        .find((el) => el.dataset.optionId === id)
     )?.focus();
+  };
+
+  const focusedId = (): T | null => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return null;
+    const id = active.dataset.optionId;
+    return id && enabled.some((o) => o.id === id) ? id as T : null;
   };
 
   const selectAt = (index: number) => {
     const opt = enabled[index];
     if (!opt) return;
-    onChange(opt.id);
+    setActiveId(opt.id);
     focusOption(opt.id);
+    onChange(opt.id);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (enabled.length === 0) return;
-    const current = enabled.findIndex((o) => o.id === value);
+    const current = currentCompositeIndex({
+      ids: enabledIds,
+      focusedId: focusedId(),
+      activeId: activeIdRef.current,
+      selectedId: value,
+    });
     if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       e.preventDefault();
       selectAt(nextIndex("next", current, enabled.length));
@@ -108,7 +148,11 @@ export function SegmentedRadioGroup<T extends string>({
             tabIndex={o.id === tabbableId ? 0 : -1}
             disabled={disabled || o.disabled}
             style={o.style}
-            onClick={() => onChange(o.id)}
+            onClick={() => {
+              setActiveId(o.id);
+              onChange(o.id);
+            }}
+            onFocus={() => setActiveId(o.id)}
             className={[optionClassName, o.className, checked ? "active" : ""]
               .filter(Boolean)
               .join(" ")}

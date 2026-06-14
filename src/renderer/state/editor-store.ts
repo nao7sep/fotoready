@@ -9,7 +9,7 @@ type EditorStore = {
   previewState: PreviewState;
   selectedOpId: string | null;
   renameOpen: boolean;
-  apiKeyOpen: boolean;
+  settingsOpen: boolean;
   shortcutsOpen: boolean;
   aboutOpen: boolean;
   menuOpen: boolean;
@@ -21,7 +21,7 @@ type EditorStore = {
   setPreviewState(previewState: PreviewState): void;
   selectOp(opId: string | null): void;
   setRenameOpen(open: boolean): void;
-  setApiKeyOpen(open: boolean): void;
+  setSettingsOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
   setAboutOpen(open: boolean): void;
   setMenuOpen(open: boolean): void;
@@ -36,7 +36,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   previewState: "idle",
   selectedOpId: null,
   renameOpen: false,
-  apiKeyOpen: false,
+  settingsOpen: false,
   shortcutsOpen: false,
   aboutOpen: false,
   menuOpen: false,
@@ -54,7 +54,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setPreviewState: (previewState) => set({ previewState }),
   selectOp: (selectedOpId) => set({ selectedOpId }),
   setRenameOpen: (renameOpen) => set({ renameOpen }),
-  setApiKeyOpen: (apiKeyOpen) => set({ apiKeyOpen }),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),

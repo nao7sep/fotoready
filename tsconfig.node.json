@@ -34,6 +34,7 @@
   },
   "include": [
     "electron.vite.config.ts",
+    "scripts/content-security-policy.ts",
     "src/core/**/*",
     "src/runtime/**/*",
     "src/adapters/**/*",

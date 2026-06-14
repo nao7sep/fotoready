@@ -1,6 +1,24 @@
 import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
 import { resolve } from "node:path";
+import { CONTENT_SECURITY_POLICY } from "./scripts/content-security-policy";
+
+// Injects the production CSP as a <meta> tag into the built renderer HTML. Build-only: the dev
+// server is left without a CSP so Vite HMR (inline scripts, eval, the websocket) keeps working.
+const contentSecurityPolicy: Plugin = {
+  name: "fotoready-csp",
+  apply: "build",
+  transformIndexHtml() {
+    return [
+      {
+        tag: "meta",
+        attrs: { "http-equiv": "Content-Security-Policy", content: CONTENT_SECURITY_POLICY },
+        injectTo: "head-prepend"
+      }
+    ];
+  }
+};
 
 const alias = {
   "@shared": resolve("src/shared"),
@@ -39,6 +57,12 @@ export default defineConfig({
         "@renderer": resolve("src/renderer")
       }
     },
-    plugins: [react()]
+    // Electron's Chromium supports modulepreload natively, so Vite's inline polyfill script is
+    // unnecessary — dropping it keeps the built HTML free of inline scripts, so the CSP can hold
+    // script-src to 'self' without 'unsafe-inline'.
+    build: {
+      modulePreload: { polyfill: false }
+    },
+    plugins: [react(), contentSecurityPolicy]
   }
 });

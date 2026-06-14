@@ -92,6 +92,16 @@ export async function bootstrap(): Promise<void> {
     });
     installCloseGuard(win, exitState);
 
+    // Defense in depth: the renderer only loads local content and routes every external link through
+    // system.openExternal, so it never legitimately opens a window or navigates to another origin.
+    // Deny renderer-initiated window creation, and block navigation away from the current origin, so
+    // a stray target="_blank" or an injected navigation can't pull a remote page into the app.
+    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    win.webContents.on("will-navigate", (event, url) => {
+      const current = win.webContents.getURL();
+      if (current && !sameOrigin(url, current)) event.preventDefault();
+    });
+
     win.once("ready-to-show", () => {
       if (settings.maximizeOnStartup) win.maximize();
       win.show();
@@ -110,6 +120,17 @@ export async function bootstrap(): Promise<void> {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}
+
+// Two URLs share an origin (file: URLs both report origin "null", so same-origin local navigation
+// and dev-server HMR reloads are allowed; a cross-origin navigation is not). Malformed input is
+// treated as a different origin and therefore blocked.
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
 }
 
 function installCloseGuard(win: BrowserWindow, exitState: ExitState): void {

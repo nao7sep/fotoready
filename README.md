@@ -11,8 +11,8 @@ FotoReady is built on Electron and runs on macOS, Windows, and Linux.
 - **Format-aware output.** JPEG, WebP, AVIF, PNG, or "same as original". Quality, chroma subsampling, progressive encoding, AVIF effort, WebP method, PNG palette, and transparency flattening are all configurable per task or as defaults. For JPEG re-encodes, the output can automatically adopt the estimated quality of the source so files don't grow or shrink unintentionally.
 - **Metadata you control.** Source metadata is preserved by default; a privacy pill flags any editorial, timestamp, or GPS data that would survive into the output. Opt-in Strip and Inject cards let you remove unwanted fields and overwrite author / copyright / contact / etc. The app records its own `Software` and `ModifyDate` tags by default (both can be turned off).
 - **Batch rename.** Four built-in templates (`Slug + size`, `Slug only`, `Original + size`, `Original only`) with conflict detection across templates and destination directories, per-row slug overrides, and collision-safe rename runs.
-- **AI assist (opt-in).** Generate descriptions and URL slugs with Gemini, using a key you store locally. Images are downscaled to a long edge of 1024 px before being sent, to keep latency and cost predictable.
-- **Drag in, drag out.** Drop image files or output `.json` sidecars anywhere in the window. The sidecar format lets you re-import a previously processed task with its pipeline intact.
+- **AI assist (opt-in).** Generate descriptions and URL slugs with Gemini, using a key you store locally. Images are downscaled to a long edge of 1024 px by default (adjustable in Settings) before being sent, to keep latency and cost predictable.
+- **Drag to import.** Drop image files or output `.json` sidecars anywhere in the window. The sidecar format lets you re-import a previously processed task with its pipeline intact.
 - **Safe deletes.** Removing a saved output, an imported LUT, or an imported stamp moves it to the OS trash. Source files are never touched.
 - **Close protection.** If you have unsaved settings or an in-progress workspace, the app intercepts close and quit and asks before discarding. Power events (OS shutdown / restart) bypass the prompt.
 
@@ -174,10 +174,14 @@ resources/     Bundled LUTs and stamps shipped with the app
 tests/         Vitest unit suite, mirroring the src/ layout
 ```
 
-Import boundaries are enforced by `scripts/check-import-boundaries.mjs`. Each ring can only depend on itself and rings to its left:
+Import boundaries are enforced by `scripts/check-import-boundaries.mjs`. Each ring may import only from itself and the rings listed for it:
 
 ```
-shared  <  core, runtime  <  adapters  <  main  <  preload, renderer
+shared              → (nothing else)
+core, runtime       → shared (and each other)
+adapters            → shared, core, runtime
+main                → shared, core, runtime, adapters
+preload, renderer   → shared only — they reach main through the IPC bridge, never by import
 ```
 
 ### How a save works

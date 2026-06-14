@@ -1,6 +1,7 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape, materialize } from "./_shared";
+import { cropExtractRegion } from "./_crop-region";
 
 export type CropAspectLock = number | string | null;
 
@@ -29,17 +30,7 @@ const cropModule: OpModule<CropParams> = {
     };
   },
   async apply(image, params, ctx) {
-    const longEdge = Math.max(ctx.sourceWidth, ctx.sourceHeight);
-    const left = Math.max(0, Math.round(params.x * longEdge));
-    const top = Math.max(0, Math.round(params.y * longEdge));
-    const width = Math.max(1, Math.round(params.w * longEdge));
-    const height = Math.max(1, Math.round(params.h * longEdge));
-    return materialize(image.extract({
-      left,
-      top,
-      width: Math.min(width, ctx.sourceWidth - left),
-      height: Math.min(height, ctx.sourceHeight - top)
-    }));
+    return materialize(image.extract(cropExtractRegion(params, ctx.sourceWidth, ctx.sourceHeight)));
   }
 };
 

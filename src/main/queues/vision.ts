@@ -11,12 +11,16 @@ import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider } from "@adapters/gemini";
 
+/** The state of one scheduled-but-not-yet-started vision run. Its cancel flag is owned by one job. */
+type PendingVisionJob = { cancelled: boolean };
+
 export class VisionQueue {
   #apiKeys: ApiKeyStore;
   #queue: PQueue;
   #currentConcurrency: number;
-  #pendingTaskIds: Set<string> = new Set();
-  #cancelledTaskIds: Set<string> = new Set();
+  // Cancellation is bound to the specific scheduled job, not a shared task-keyed set, so a fresh
+  // run for a task whose job is still pending revives it rather than being swallowed then skipped.
+  #pending = new Map<string, PendingVisionJob>();
 
   constructor(
     paths: AppPaths,
@@ -52,25 +56,31 @@ export class VisionQueue {
     const mode = resolveVisionRunMode(task, options);
     if (!mode) return;
 
-    if (this.#pendingTaskIds.has(taskId)) return;
-    this.#pendingTaskIds.add(taskId);
+    const existing = this.#pending.get(taskId);
+    if (existing) {
+      existing.cancelled = false;
+      return;
+    }
+    const job: PendingVisionJob = { cancelled: false };
+    this.#pending.set(taskId, job);
     this.#syncConcurrency();
     await this.#queue.add(async () => {
-      this.#pendingTaskIds.delete(taskId);
-      if (this.#cancelledTaskIds.delete(taskId)) return;
+      this.#pending.delete(taskId);
+      if (job.cancelled) return;
       await this.#runForTaskInner(task, mode, onProgress);
     });
   }
 
   cancelTask(taskId: string): boolean {
-    if (!this.#pendingTaskIds.has(taskId)) return false;
-    this.#cancelledTaskIds.add(taskId);
+    const job = this.#pending.get(taskId);
+    if (!job) return false;
+    job.cancelled = true;
     return true;
   }
 
   cancelAll(): string[] {
-    const ids = Array.from(this.#pendingTaskIds);
-    for (const id of ids) this.#cancelledTaskIds.add(id);
+    const ids = Array.from(this.#pending.keys());
+    for (const job of this.#pending.values()) job.cancelled = true;
     return ids;
   }
 
@@ -94,6 +104,10 @@ export class VisionQueue {
       if (!apiKey) {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }
+      // The saved output can be deleted (or the task retried, which nulls task.output) while the key
+      // is fetched or a Gemini call is in flight. Re-validate before each post-await read/write of
+      // task.output and bail quietly — the output this result would describe no longer exists.
+      if (!task.output) return;
       this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, model: this.settings.model });
 
       const callOptions = {
@@ -116,6 +130,7 @@ export class VisionQueue {
           }
         );
         if (includesSlugGeneration(mode)) {
+          if (!task.output) return;
           task.output.vision = {
             description,
             slugCandidates: [],
@@ -136,6 +151,7 @@ export class VisionQueue {
           ...callOptions
         })
         : previousSlugCandidates;
+      if (!task.output) return;
       task.output.vision = {
         description,
         slugCandidates,

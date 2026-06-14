@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { isComposingKeyboardEvent } from "@renderer/utils/ime-guard";
 
 /**
  * The app's in-app menu layer: a trigger plus a popup list of commands that
@@ -90,7 +91,17 @@ export function Menu({ open, onOpenChange, label, trigger, children, className }
     } else if (e.key === "Escape" || e.key === "Tab") {
       e.preventDefault();
       close();
-    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    } else if (
+      e.key.length === 1
+      && e.key !== " "
+      && !e.metaKey
+      && !e.ctrlKey
+      && !e.altKey
+      && !isComposingKeyboardEvent(e.nativeEvent)
+    ) {
+      // Type-ahead jumps to an item by its label, but never while an IME composition is in progress
+      // (those keystrokes belong to the composition) and never for Space, which activates the focused
+      // menuitem natively.
       const ch = e.key.toLowerCase();
       const order = [...all.slice(current + 1), ...all.slice(0, current + 1)];
       order.find((el) => el.textContent?.trim().toLowerCase().startsWith(ch))?.focus();

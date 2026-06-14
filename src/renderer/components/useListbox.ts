@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { currentCompositeIndex, nextIndex, removalFocusTargetId } from "@renderer/components/composite-nav";
+import { currentCompositeIndex, nextIndex } from "@renderer/components/composite-nav";
 
 /**
  * The app's in-app listbox layer for the single-select master panels (Originals,
@@ -10,8 +10,14 @@ import { currentCompositeIndex, nextIndex, removalFocusTargetId } from "@rendere
  * One tab stop (roving tabindex on the options); Up/Down move the selection and
  * focus (selection follows focus — the panels' clicks already select on the same
  * cost), Home/End jump to the ends (stopping there), and Delete/Backspace removes
- * the selected row when an `onRemove` is given. Mirrors the asset-picker grid's
+ * the focused row when an `onRemove` is given. Mirrors the asset-picker grid's
  * roving-tabindex model in a vertical, single-select form.
+ *
+ * `activeId` is the roving tab stop. It leads `selectedId` during fast keyboard
+ * navigation (selection round-trips through IPC) and is reconciled back to the
+ * selection once it lands. After a removal, focus simply follows wherever the
+ * session re-pointed the selection — the listbox never invents its own target, so
+ * focus and the `aria-selected`/highlighted row can never disagree.
  */
 export function useListbox(params: {
   ids: string[];
@@ -21,13 +27,17 @@ export function useListbox(params: {
 }) {
   const { ids, selectedId, onSelect, onRemove } = params;
   const ref = useRef<HTMLDivElement>(null);
-  const activeIdRef = useRef<string | null>(selectedId && ids.includes(selectedId) ? selectedId : ids[0] ?? null);
-  const [activeId, setActiveIdState] = useState<string | null>(activeIdRef.current);
-  const pendingRemovalRef = useRef<{ id: string; index: number } | null>(null);
-
-  // The single tab stop: the selected option, or the first when nothing in the
-  // list is selected, so the list is always Tab-reachable when it has rows.
   const selectedInList = selectedId && ids.includes(selectedId) ? selectedId : null;
+  const activeIdRef = useRef<string | null>(selectedInList ?? ids[0] ?? null);
+  const [activeId, setActiveIdState] = useState<string | null>(activeIdRef.current);
+  const refocusAfterRemovalRef = useRef(false);
+  // Effects key on this string, not the `ids` array, whose identity changes every
+  // parent render (the panels pass a fresh `.map(...)`); this keeps them from
+  // re-running on unrelated renders.
+  const idsKey = ids.join("\0");
+
+  // The single tab stop: the active row when it's still present, else the selected
+  // row, else the first, so the list is always Tab-reachable when it has rows.
   const tabbableId = activeId && ids.includes(activeId) ? activeId : selectedInList ?? ids[0] ?? null;
 
   const setActiveId = (id: string | null) => {
@@ -43,24 +53,22 @@ export function useListbox(params: {
     )?.focus();
   };
 
+  // Keep the roving active row valid and following the selection; after a keyboard
+  // removal, return focus to whichever row the session selected in place of the
+  // removed one (focus follows selection, so the two never diverge).
   useEffect(() => {
-    const pending = pendingRemovalRef.current;
-    if (!pending || ids.includes(pending.id)) return;
-    pendingRemovalRef.current = null;
-    const targetId = removalFocusTargetId(ids, pending.index);
-    setActiveId(targetId);
-    if (targetId) focusOption(targetId);
-  }, [ids]);
-
-  useEffect(() => {
-    const nextActive = selectedInList ?? ids[0] ?? null;
-    if (activeIdRef.current && ids.includes(activeIdRef.current)) return;
-    setActiveId(nextActive);
-  }, [ids, selectedInList]);
-
-  useEffect(() => {
-    if (selectedInList && selectedInList !== activeIdRef.current) setActiveId(selectedInList);
-  }, [selectedInList]);
+    const desired = selectedInList ?? ids[0] ?? null;
+    if (!activeIdRef.current || !ids.includes(activeIdRef.current)) {
+      setActiveId(desired);
+    } else if (selectedInList && selectedInList !== activeIdRef.current) {
+      setActiveId(selectedInList);
+    }
+    if (refocusAfterRemovalRef.current) {
+      refocusAfterRemovalRef.current = false;
+      const target = activeIdRef.current ?? desired;
+      if (target) focusOption(target);
+    }
+  }, [idsKey, selectedInList]);
 
   const focusedId = (): string | null => {
     const active = document.activeElement;
@@ -97,10 +105,9 @@ export function useListbox(params: {
       selectAt(nextIndex("last", current, ids.length));
     } else if ((e.key === "Delete" || e.key === "Backspace") && onRemove) {
       const targetId = focusedId() ?? activeIdRef.current ?? selectedId;
-      const targetIndex = targetId ? ids.indexOf(targetId) : -1;
-      if (!targetId || targetIndex < 0) return;
+      if (!targetId || !ids.includes(targetId)) return;
       e.preventDefault();
-      pendingRemovalRef.current = { id: targetId, index: targetIndex };
+      refocusAfterRemovalRef.current = true;
       onRemove(targetId);
     }
   };

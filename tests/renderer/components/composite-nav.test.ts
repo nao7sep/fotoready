@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentCompositeIndex, nextIndex, removalFocusTargetId } from "@renderer/components/composite-nav";
+import { currentCompositeIndex, nextIndex } from "@renderer/components/composite-nav";
 
 describe("nextIndex", () => {
   it("steps forward and backward one item at a time", () => {
@@ -53,19 +53,5 @@ describe("currentCompositeIndex", () => {
   it("falls back to selected and then no current item", () => {
     expect(currentCompositeIndex({ ids, selectedId: "a" })).toBe(0);
     expect(currentCompositeIndex({ ids, focusedId: "missing", activeId: "missing", selectedId: "missing" })).toBe(-1);
-  });
-});
-
-describe("removalFocusTargetId", () => {
-  it("keeps focus at the same index when a later item slides into place", () => {
-    expect(removalFocusTargetId(["a", "c"], 1)).toBe("c");
-  });
-
-  it("falls back to the previous item after removing the last item", () => {
-    expect(removalFocusTargetId(["a", "b"], 2)).toBe("b");
-  });
-
-  it("returns null when the list becomes empty", () => {
-    expect(removalFocusTargetId([], 0)).toBeNull();
   });
 });

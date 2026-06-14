@@ -28,6 +28,7 @@ import { resolveVisionRunMode } from "@shared/vision-run-mode";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
+import { pickActiveTaskAfterOriginalRemoval } from "@main/session-selection";
 import type { RenameTemplateId } from "@shared/rename-template";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { computePrivacyWarning } from "@main/privacy-warning";
@@ -152,7 +153,7 @@ export class ProjectSession {
     }
 
     if (this.#activeTaskId && removedTaskIds.has(this.#activeTaskId)) {
-      this.#activeTaskId = this.#project.tasks[0]?.id ?? null;
+      this.#activeTaskId = pickActiveTaskAfterOriginalRemoval(this.#project.originals, originalIndex, this.#project.tasks);
     }
 
     return this.snapshot();

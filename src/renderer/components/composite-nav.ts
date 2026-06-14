@@ -46,10 +46,3 @@ export function currentCompositeIndex({
   if (active >= 0) return active;
   return indexOfId(ids, selectedId);
 }
-
-export function removalFocusTargetId(
-  remainingIds: readonly string[],
-  removedIndex: number,
-): string | null {
-  return remainingIds[removedIndex] ?? remainingIds[removedIndex - 1] ?? null;
-}

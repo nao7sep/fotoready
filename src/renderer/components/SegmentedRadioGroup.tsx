@@ -52,7 +52,7 @@ export function SegmentedRadioGroup<T extends string>({
   // Arrow navigation moves among the enabled options only.
   const enabled = disabled ? [] : options.filter((o) => !o.disabled);
   const enabledIds = enabled.map((o) => o.id);
-  const selectedInGroup = value && enabled.some((o) => o.id === value) ? value : null;
+  const selectedInGroup = value !== null && enabled.some((o) => o.id === value) ? value : null;
   const initialActiveId = selectedInGroup ?? enabled[0]?.id ?? null;
   const activeIdRef = useRef<T | null>(initialActiveId);
   const lastSelectedRef = useRef<T | null>(selectedInGroup);
@@ -84,8 +84,9 @@ export function SegmentedRadioGroup<T extends string>({
 
   const focusOption = (id: T) => {
     (
-      Array.from(ref.current?.querySelectorAll<HTMLElement>("[data-option-id]") ?? [])
-        .find((el) => el.dataset.optionId === id)
+      ref.current?.querySelector(
+        `[data-option-id="${CSS.escape(id)}"]`,
+      ) as HTMLElement | null
     )?.focus();
   };
 

@@ -1,5 +1,6 @@
 import React from "react";
 import { MAX_RESIZE_DIMENSION, MAX_RESIZE_PIXELS } from "@shared/constants";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
 
 type ResizeMode = "fit" | "exact";
@@ -21,32 +22,68 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
     const widthSliderValue = dimensionToSliderValue(params.width, widthMax);
     const heightSliderValue = dimensionToSliderValue(params.height, heightMax);
 
+    // The preset sizes are a toolbar of quick actions (no persistent selection):
+    // one tab stop via roving tabindex, arrow keys move focus, Home/End jump, and
+    // the last-focused preset is remembered for the next Tab in.
+    const presetCount = resizePresets.length;
+    const [presetFocus, setPresetFocus] = React.useState(0);
+    const presetsRef = React.useRef<HTMLDivElement>(null);
+    const focusPreset = (index: number) => {
+      const clamped = Math.min(Math.max(index, 0), presetCount - 1);
+      setPresetFocus(clamped);
+      (
+        presetsRef.current?.querySelector(
+          `[data-preset-index="${clamped}"]`,
+        ) as HTMLElement | null
+      )?.focus();
+    };
+    const onPresetsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        focusPreset(presetFocus + 1);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        focusPreset(presetFocus - 1);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        focusPreset(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        focusPreset(presetCount - 1);
+      }
+    };
+
     return (
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Target: <strong>{params.width}×{params.height}px</strong></span>
         </div>
-        <div className="geometry-chip-group" role="group" aria-label="Resize mode">
-          {resizeModeOptions.map((option) => (
-            <button
-              className={`toolbar-button compact-text ${activeMode === option.id ? "active" : ""}`}
-              disabled={disabled}
-              key={option.id}
-              type="button"
-              onClick={() => onParamChange("mode", option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <div className="geometry-chip-group" role="group" aria-label="Common resize presets">
-          {resizePresets.map((preset) => (
+        <SegmentedRadioGroup
+          className="geometry-chip-group"
+          optionClassName="toolbar-button compact-text"
+          ariaLabel="Resize mode"
+          options={resizeModeOptions}
+          value={activeMode}
+          onChange={(mode) => onParamChange("mode", mode)}
+          disabled={disabled}
+        />
+        <div
+          ref={presetsRef}
+          role="toolbar"
+          aria-label="Common resize presets"
+          className="geometry-chip-group"
+          onKeyDown={onPresetsKeyDown}
+        >
+          {resizePresets.map((preset, index) => (
             <button
               className="toolbar-button compact-text"
               disabled={disabled}
               key={preset}
+              data-preset-index={index}
+              tabIndex={index === presetFocus ? 0 : -1}
               type="button"
               onClick={() => onParamsChange({ width: preset, height: preset })}
+              onFocus={() => setPresetFocus(index)}
             >
               {preset}
             </button>

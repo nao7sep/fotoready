@@ -1,6 +1,7 @@
 import React from "react";
 import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
+import { useDraftField } from "@renderer/components/useDraftField";
 import type { OpRenderer } from "./op-renderer";
 
 type InjectMetadataParams = { fields: MetadataFields };
@@ -47,22 +48,22 @@ function MetadataFieldTextArea({
   value: string;
   onChange(value: string): void;
 }): React.JSX.Element {
-  const ref = React.useRef<HTMLTextAreaElement | null>(null);
+  const field = useDraftField<HTMLTextAreaElement>(value, onChange);
 
   React.useLayoutEffect(() => {
-    const node = ref.current;
+    const node = field.ref.current;
     if (!node) return;
     node.style.height = "0px";
     node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
-  }, [value]);
+  }, [field.value]);
 
   return (
     <textarea
       disabled={disabled}
-      ref={ref}
+      ref={field.ref}
       rows={1}
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
+      value={field.value}
+      onChange={field.onChange}
     />
   );
 }

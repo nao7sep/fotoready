@@ -8,6 +8,7 @@ import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
+import { useDraftField } from "@renderer/components/useDraftField";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
@@ -350,6 +351,7 @@ function OutputControls({
   onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
 }): React.JSX.Element {
   const continuousHistory = useContinuousControlHistoryScope("output");
+  const slugField = useDraftField<HTMLInputElement>(task?.customSlug ?? "", (value) => onCustomSlugChange(value || null));
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
   const canAutoEstimateJpeg = Boolean(settings?.enableJpegQualityEstimate && original?.format === "jpeg" && original.jpegQualityEstimate !== null);
@@ -512,7 +514,7 @@ function OutputControls({
       ) : null}
       <label className="stacked-field">
         Rename slug
-        <input disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={task?.customSlug ?? ""} onChange={(event) => onCustomSlugChange(event.currentTarget.value || null)} />
+        <input ref={slugField.ref} disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={slugField.value} onChange={slugField.onChange} />
       </label>
     </div>
   );

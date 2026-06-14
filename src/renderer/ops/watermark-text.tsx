@@ -2,6 +2,8 @@ import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import { normalizeAngle } from "@shared/rotation";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
+import { useDraftField } from "@renderer/components/useDraftField";
 import type { OpRenderer, OverlayContext } from "./op-renderer";
 import { AngleControl } from "./_angle-controls";
 import { imageBoundsFromOriginalSize, rectFromStage, rectToStage, updateFractionRect, type FractionRect } from "./_overlay-primitives";
@@ -65,14 +67,21 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
       onParamsChange(updateFractionRect(normalizedBox, updates, imageBounds, { minSize: MIN_TEXT_WATERMARK_BOX_SIZE }));
     }
 
+    const textField = useDraftField<HTMLInputElement>(params.text, (value) => onParamChange("text", value));
+    const fontFamilyField = useDraftField<HTMLInputElement>(
+      normalizedBox.fontFamily,
+      (value) => onParamChange("fontFamily", value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)
+    );
+
     return (
       <div className="geometry-controls">
         <input
+          ref={textField.ref}
           className="compact-control"
           disabled={disabled}
           type="text"
-          value={params.text}
-          onChange={(event) => onParamChange("text", event.currentTarget.value)}
+          value={textField.value}
+          onChange={textField.onChange}
         />
         <label className="slider-row">
           <span>X</span>
@@ -129,18 +138,24 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         <AngleControl disabled={disabled} value={normalizedBox.rotation} onChange={(rotation) => updateBox({ rotation: normalizeAngle(rotation) })} />
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Background</span>
-          <div className="geometry-swatch-group" role="group" aria-label="Background color">
-            {BOX_COLOR_SWATCHES.map((swatch) => (
-              <button
-                aria-label={`Use ${swatch.label.toLowerCase()} background`}
-                className={`color-swatch ${backgroundSwatchActive(normalizedBox, swatch.value) ? "active" : ""}${swatch.value === "transparent" ? " transparent" : ""}`}
-                disabled={disabled}
-                key={swatch.key}
-                style={swatch.style}
-                type="button"
-                onClick={() => onParamsChange(applyBackgroundSwatch(normalizedBox, swatch.value))}
-              />
-            ))}
+          <div className="geometry-swatch-group">
+            <SegmentedRadioGroup
+              className="geometry-swatch-group"
+              optionClassName="color-swatch"
+              ariaLabel="Background color"
+              options={BOX_COLOR_SWATCHES.map((swatch) => ({
+                id: swatch.key,
+                ariaLabel: `Use ${swatch.label.toLowerCase()} background`,
+                style: swatch.style,
+                className: swatch.value === "transparent" ? "transparent" : undefined,
+              }))}
+              value={BOX_COLOR_SWATCHES.find((swatch) => backgroundSwatchActive(normalizedBox, swatch.value))?.key ?? null}
+              onChange={(key) => {
+                const swatch = BOX_COLOR_SWATCHES.find((s) => s.key === key);
+                if (swatch) onParamsChange(applyBackgroundSwatch(normalizedBox, swatch.value));
+              }}
+              disabled={disabled}
+            />
             <label className="color-picker-button">
               <input disabled={disabled} type="color" value={normalizedBox.backgroundColor} onChange={(event) => onParamsChange({ backgroundColor: event.currentTarget.value, backgroundOpacity: normalizedBox.backgroundOpacity > 0 ? normalizedBox.backgroundOpacity : 1 })} />
             </label>
@@ -153,18 +168,24 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         </label>
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Border</span>
-          <div className="geometry-swatch-group" role="group" aria-label="Border color">
-            {BOX_COLOR_SWATCHES.map((swatch) => (
-              <button
-                aria-label={`Use ${swatch.label.toLowerCase()} border`}
-                className={`color-swatch ${borderSwatchActive(normalizedBox, swatch.value) ? "active" : ""}${swatch.value === "transparent" ? " transparent" : ""}`}
-                disabled={disabled}
-                key={`border-${swatch.key}`}
-                style={swatch.style}
-                type="button"
-                onClick={() => onParamsChange(applyBorderSwatch(normalizedBox, swatch.value, borderWidthFallback))}
-              />
-            ))}
+          <div className="geometry-swatch-group">
+            <SegmentedRadioGroup
+              className="geometry-swatch-group"
+              optionClassName="color-swatch"
+              ariaLabel="Border color"
+              options={BOX_COLOR_SWATCHES.map((swatch) => ({
+                id: swatch.key,
+                ariaLabel: `Use ${swatch.label.toLowerCase()} border`,
+                style: swatch.style,
+                className: swatch.value === "transparent" ? "transparent" : undefined,
+              }))}
+              value={BOX_COLOR_SWATCHES.find((swatch) => borderSwatchActive(normalizedBox, swatch.value))?.key ?? null}
+              onChange={(key) => {
+                const swatch = BOX_COLOR_SWATCHES.find((s) => s.key === key);
+                if (swatch) onParamsChange(applyBorderSwatch(normalizedBox, swatch.value, borderWidthFallback));
+              }}
+              disabled={disabled}
+            />
             <label className="color-picker-button">
               <input disabled={disabled} type="color" value={normalizedBox.borderColor} onChange={(event) => onParamsChange({
                 borderColor: event.currentTarget.value,
@@ -234,19 +255,20 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
         <label className="stacked-field">
           Font family
           <input
+            ref={fontFamilyField.ref}
             className="compact-control"
             disabled={disabled}
             placeholder={DEFAULT_TEXT_WATERMARK_FONT_FAMILY}
             type="text"
-            value={normalizedBox.fontFamily}
-            onChange={(event) => onParamChange("fontFamily", event.currentTarget.value || DEFAULT_TEXT_WATERMARK_FONT_FAMILY)}
+            value={fontFamilyField.value}
+            onChange={fontFamilyField.onChange}
           />
         </label>
         <div className="watermark-style-row">
-          <button className={`toolbar-button compact-text ${normalizedBox.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !normalizedBox.bold)}>Bold</button>
-          <button className={`toolbar-button compact-text ${normalizedBox.italic ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("italic", !normalizedBox.italic)}>Italic</button>
-          <button className={`toolbar-button compact-text ${normalizedBox.underline ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("underline", !normalizedBox.underline)}>Underline</button>
-          <button className={`toolbar-button compact-text ${normalizedBox.strikeThrough ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("strikeThrough", !normalizedBox.strikeThrough)}>Strike</button>
+          <button aria-pressed={normalizedBox.bold} className={`toolbar-button compact-text ${normalizedBox.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !normalizedBox.bold)}>Bold</button>
+          <button aria-pressed={normalizedBox.italic} className={`toolbar-button compact-text ${normalizedBox.italic ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("italic", !normalizedBox.italic)}>Italic</button>
+          <button aria-pressed={normalizedBox.underline} className={`toolbar-button compact-text ${normalizedBox.underline ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("underline", !normalizedBox.underline)}>Underline</button>
+          <button aria-pressed={normalizedBox.strikeThrough} className={`toolbar-button compact-text ${normalizedBox.strikeThrough ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("strikeThrough", !normalizedBox.strikeThrough)}>Strike</button>
         </div>
         <label className="control-row">
           <span>Text color</span>

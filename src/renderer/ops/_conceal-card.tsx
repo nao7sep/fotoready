@@ -4,6 +4,7 @@ import type { OpCardProps } from "./op-renderer";
 import { ConcealGeometryControls } from "./_conceal-geometry-controls";
 import { clampConcealRegion, readConcealRegionList, replacePrimaryConcealRegion, updateConcealRegion } from "./_conceal-primitives";
 import { imageBoundsFromOriginalSize } from "./_overlay-primitives";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 
 /**
  * Shared card scaffolding for cover/blur/mosaic. Owns the shape toggle and the
@@ -27,24 +28,17 @@ export function ConcealCard<P extends { rects: ConcealRegion[] } & Record<string
 
   return (
     <div className="geometry-controls">
-      <div className="segmented-control">
-        <button
-          className={firstRegion.shape === "rectangle" ? "active" : ""}
-          disabled={disabled}
-          type="button"
-          onClick={() => updateRegion({ shape: "rectangle" })}
-        >
-          Rectangle
-        </button>
-        <button
-          className={firstRegion.shape === "ellipse" ? "active" : ""}
-          disabled={disabled}
-          type="button"
-          onClick={() => updateRegion({ shape: "ellipse" })}
-        >
-          Ellipse
-        </button>
-      </div>
+      <SegmentedRadioGroup
+        className="segmented-control"
+        ariaLabel="Conceal shape"
+        options={[
+          { id: "rectangle", label: "Rectangle" },
+          { id: "ellipse", label: "Ellipse" },
+        ]}
+        value={firstRegion.shape}
+        onChange={(shape) => updateRegion({ shape })}
+        disabled={disabled}
+      />
       <ConcealGeometryControls disabled={disabled} imageBounds={imageBounds} region={firstRegion} onChange={updateRegion} />
       {children}
     </div>

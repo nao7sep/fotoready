@@ -59,6 +59,12 @@ Defaults, the Gemini API key, output metadata stamps, LUT/stamp folders, and con
 | App | Open settings | `Cmd/Ctrl+Comma` |
 | App | Show keyboard shortcuts | `Cmd/Ctrl+Slash` |
 | App | Close the active dialog | `Esc` |
+| Lists and controls | Move and select within the focused list or control | `Arrow keys` |
+| Lists and controls | Jump to the first / last item | `Home / End` |
+| Lists and controls | Remove the selected original | `Delete / Backspace` |
+| Lists and controls | Open a menu, move between commands, close | `Enter / Arrows / Esc` |
+
+Lists (Originals, Tasks), segmented controls, swatch groups, the settings tab strip, the resize-preset toolbar, and the app menu are each a single tab stop: press `Tab` to move between them, then use the arrow keys to move and select inside the focused one. This keeps `Tab` short and predictable instead of stepping through every item.
 
 ## Concepts
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
 import { clampFractionRect, CropDarkenMask, type FractionRect, imageBoundsFromOriginalSize, OverlayRect, rectFromStage, rectToStage } from "./_overlay-primitives";
 
@@ -63,19 +64,15 @@ export const cropRenderer: OpRenderer<CropParams> = {
             Reset
           </button>
         </div>
-        <div className="geometry-chip-group" role="group" aria-label="Crop aspect ratio">
-          {cropAspectOptions.map((option) => (
-            <button
-              className={`toolbar-button compact-text ${activeAspectId === option.id ? "active" : ""}`}
-              disabled={disabled}
-              key={option.id}
-              type="button"
-              onClick={() => handleAspectChange(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedRadioGroup
+          className="geometry-chip-group"
+          optionClassName="toolbar-button compact-text"
+          ariaLabel="Crop aspect ratio"
+          options={cropAspectOptions}
+          value={activeAspectId === "custom" ? null : activeAspectId}
+          onChange={handleAspectChange}
+          disabled={disabled}
+        />
         <div className="field-grid">
           <label className="stacked-field geometry-number-field">
             Ratio width

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
@@ -14,6 +14,7 @@ import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
 import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
 import { ModalShell } from "./components/modals/modal-shell";
+import { Menu, MenuItem } from "./components/Menu";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -65,6 +66,15 @@ const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<Sho
     title: "View",
     items: [
       { action: "Toggle histogram", detail: "Show or hide the preview histogram. Its position is remembered across sessions.", keys: "Cmd/Ctrl+H" }
+    ]
+  },
+  {
+    title: "Lists and controls",
+    items: [
+      { action: "Move within a list or control", detail: "Each list (Originals, Tasks), segmented control, swatch group, settings tab strip, and the resize-preset toolbar is one tab stop: Tab in, then the arrow keys move and select within it.", keys: "Arrow keys" },
+      { action: "Jump to the first / last item", detail: "Within the focused list or control.", keys: "Home / End" },
+      { action: "Remove the selected original", detail: "Deletes the highlighted original from the Originals list.", keys: "Delete / Backspace" },
+      { action: "Open a menu, then move between items", detail: "Enter or Space opens the menu; the arrows move between commands and Esc closes it.", keys: "Enter / Arrows / Esc" }
     ]
   },
   {
@@ -693,25 +703,21 @@ function App(): React.JSX.Element {
         <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title="Toggle histogram (Cmd/Ctrl+H)" onClick={() => void toggleHistogram()}>
           <BarChart3 size={18} />
         </button>
-        <button className="icon-button" type="button" title="Menu" onClick={() => setMenuOpen(!menuOpen)}>
-          <Menu size={18} />
-        </button>
-        {menuOpen ? (
-          <div className="app-menu">
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
-              void openSettings();
-            }}>Settings</button>
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
-              setShortcutsOpen(true);
-            }}>Keyboard shortcuts</button>
-            <button type="button" onClick={() => {
-              setMenuOpen(false);
-              setAboutOpen(true);
-            }}>About FotoReady</button>
-          </div>
-        ) : null}
+        <Menu
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          label="Main menu"
+          className="app-menu"
+          trigger={({ ref, ...props }) => (
+            <button {...props} ref={ref} className="icon-button" title="Menu">
+              <MenuIcon size={18} />
+            </button>
+          )}
+        >
+          <MenuItem onSelect={() => openSettings()}>Settings</MenuItem>
+          <MenuItem onSelect={() => setShortcutsOpen(true)}>Keyboard shortcuts</MenuItem>
+          <MenuItem onSelect={() => setAboutOpen(true)}>About FotoReady</MenuItem>
+        </Menu>
       </header>
 
       <section className="workspace" style={{ gridTemplateColumns: workspaceLayout.gridTemplateColumns }}>

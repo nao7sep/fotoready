@@ -1,4 +1,5 @@
 import React from "react";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
 
 type AutoToneParams = { shadowClip: number; highlightClip: number };
@@ -43,19 +44,24 @@ export const autoToneRenderer: OpRenderer<AutoToneParams> = {
           />
           <span className="slider-value">{formatPercent(params.highlightClip)}</span>
         </label>
-        <div className="geometry-chip-group" role="group" aria-label="Apply the same clip to shadows and highlights">
-          {autoTonePresets.map((preset) => (
-            <button
-              className={`toolbar-button compact-text ${params.shadowClip === preset.shadowClip && params.highlightClip === preset.highlightClip ? "active" : ""}`}
-              disabled={disabled}
-              key={preset.id}
-              type="button"
-              onClick={() => onParamsChange({ shadowClip: preset.shadowClip, highlightClip: preset.highlightClip })}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedRadioGroup
+          className="geometry-chip-group"
+          optionClassName="toolbar-button compact-text"
+          ariaLabel="Apply the same clip to shadows and highlights"
+          options={autoTonePresets}
+          value={
+            autoTonePresets.find(
+              (preset) =>
+                params.shadowClip === preset.shadowClip &&
+                params.highlightClip === preset.highlightClip,
+            )?.id ?? null
+          }
+          onChange={(id) => {
+            const preset = autoTonePresets.find((p) => p.id === id);
+            if (preset) onParamsChange({ shadowClip: preset.shadowClip, highlightClip: preset.highlightClip });
+          }}
+          disabled={disabled}
+        />
       </div>
     );
   }

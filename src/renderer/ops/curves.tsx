@@ -1,4 +1,5 @@
 import React from "react";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
 
 type CurvePoint = [number, number];
@@ -20,19 +21,18 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
     const points = params.rgb.length >= 2 ? params.rgb : defaultCurve;
     return (
       <div className="geometry-controls">
-        <div className="geometry-chip-group" role="group" aria-label="Curves presets">
-          {curvePresets.map((preset) => (
-            <button
-              className={`toolbar-button compact-text ${sameCurve(points, preset.rgb) ? "active" : ""}`}
-              disabled={disabled}
-              key={preset.id}
-              type="button"
-              onClick={() => onParamChange("rgb", preset.rgb)}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedRadioGroup
+          className="geometry-chip-group"
+          optionClassName="toolbar-button compact-text"
+          ariaLabel="Curves presets"
+          options={curvePresets}
+          value={curvePresets.find((preset) => sameCurve(points, preset.rgb))?.id ?? null}
+          onChange={(id) => {
+            const preset = curvePresets.find((p) => p.id === id);
+            if (preset) onParamChange("rgb", preset.rgb);
+          }}
+          disabled={disabled}
+        />
         {points.map((point, index) => (
           <div className="geometry-controls" key={index}>
             <div className="geometry-status">

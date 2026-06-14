@@ -571,6 +571,21 @@ select:disabled {
   background: var(--brand-secondary-soft-bg);
 }
 
+/* These rows are flat, so they take emphasis from their fill, not a ring. The
+   focusable option fills only part of an Originals row (the trash button is a
+   sibling), so the default outline would wrap just that part — suppress it and
+   show keyboard focus as a stronger full-row background instead. */
+.row-main-action:focus-visible,
+.list-row.task-row:focus-visible {
+  outline: none;
+}
+
+.list-row.task-row:focus-visible,
+.list-row:has(.row-main-action:focus-visible) {
+  color: var(--brand-secondary-soft-text);
+  background: var(--brand-secondary-soft-border);
+}
+
 .row-title,
 .row-detail {
   display: block;
@@ -709,7 +724,7 @@ select:disabled {
 
 .geometry-toolbar-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }

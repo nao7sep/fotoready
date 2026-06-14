@@ -2,6 +2,7 @@ import React from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import type { Original } from "@shared/types/project";
 import { formatLabel } from "@shared/output-format";
+import { useListbox } from "@renderer/components/useListbox";
 
 export function OriginalsPanel({
   activeOriginalId,
@@ -21,6 +22,12 @@ export function OriginalsPanel({
   onSelect(originalId: string): void;
 }): React.JSX.Element {
   const [dragActive, setDragActive] = React.useState(false);
+  const listbox = useListbox({
+    ids: originals.map((original) => original.id),
+    selectedId: activeOriginalId,
+    onSelect,
+    onRemove
+  });
 
   function onDragOver(event: React.DragEvent): void {
     event.preventDefault();
@@ -40,12 +47,12 @@ export function OriginalsPanel({
   return (
     <aside className={`panel originals-panel ${dragActive ? "drag-active" : ""}`} onDragLeave={() => setDragActive(false)} onDragOver={onDragOver} onDrop={onDrop}>
       <PanelHeader title="Originals" />
-      <div className="list">
+      <div className="list" aria-label="Originals" {...listbox.listboxProps}>
         {originals.length === 0 ? (
           <div className="empty-state">No originals</div>
         ) : originals.map((original) => (
           <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`} key={original.id}>
-            <button className="row-main-action" type="button" onClick={() => onSelect(original.id)}>
+            <button className="row-main-action" type="button" onClick={() => onSelect(original.id)} {...listbox.getOptionProps(original.id)}>
               <span className="thumb">
                 {thumbnails[original.id] ? <img src={thumbnails[original.id]} alt="" /> : null}
               </span>
@@ -54,7 +61,7 @@ export function OriginalsPanel({
                 <span className="row-detail">{original.width}x{original.height} · {formatLabel(original.format)}</span>
               </span>
             </button>
-            <button className="icon-button compact row-remove-button" title="Remove original" type="button" onClick={() => onRemove(original.id)}>
+            <button className="icon-button compact row-remove-button" title="Remove original" type="button" tabIndex={-1} onClick={() => onRemove(original.id)}>
               <Trash2 size={13} />
             </button>
           </div>

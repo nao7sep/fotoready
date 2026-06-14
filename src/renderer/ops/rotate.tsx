@@ -2,6 +2,7 @@ import React from "react";
 import { Line, Rect } from "react-konva";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
+import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 
 type RotateParams = { degrees: number; fillColor: string };
 
@@ -21,18 +22,26 @@ export const rotateRenderer: OpRenderer<RotateParams> = {
         <AngleControl disabled={disabled} rangeLabel="Rotate left / right" value={params.degrees} onChange={(degrees) => onParamChange("degrees", normalizeAngle(degrees))} />
         <div className="geometry-toolbar-row">
           <span className="geometry-status">Fill</span>
-          <div className="geometry-swatch-group" role="group" aria-label="Rotate fill color">
-            {rotateFillSwatches.map((swatch) => (
-              <button
-                aria-label={`Use ${swatch.label.toLowerCase()} fill`}
-                className={`color-swatch ${normalizeFillColor(params.fillColor) === normalizeFillColor(swatch.value) ? "active" : ""}${swatch.value === "rgba(0,0,0,0)" ? " transparent" : ""}`}
-                disabled={disabled}
-                key={swatch.value}
-                style={swatch.style}
-                type="button"
-                onClick={() => onParamChange("fillColor", swatch.value)}
-              />
-            ))}
+          <div className="geometry-swatch-group">
+            <SegmentedRadioGroup
+              className="geometry-swatch-group"
+              optionClassName="color-swatch"
+              ariaLabel="Rotate fill color"
+              options={rotateFillSwatches.map((swatch) => ({
+                id: swatch.value,
+                ariaLabel: `Use ${swatch.label.toLowerCase()} fill`,
+                style: swatch.style,
+                className: swatch.value === "rgba(0,0,0,0)" ? "transparent" : undefined,
+              }))}
+              value={
+                rotateFillSwatches.find(
+                  (swatch) =>
+                    normalizeFillColor(params.fillColor) === normalizeFillColor(swatch.value),
+                )?.value ?? null
+              }
+              onChange={(value) => onParamChange("fillColor", value)}
+              disabled={disabled}
+            />
             <label className="color-picker-button">
               <input disabled={disabled} type="color" value={colorPickerValue(params.fillColor)} onChange={(e) => onParamChange("fillColor", e.currentTarget.value)} />
             </label>

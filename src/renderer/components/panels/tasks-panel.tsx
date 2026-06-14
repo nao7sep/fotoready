@@ -3,6 +3,7 @@ import { Pencil, Save, X } from "lucide-react";
 import type { PrivacyWarning, QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
+import { useListbox } from "@renderer/components/useListbox";
 
 export function TasksPanel({
   activeTaskId,
@@ -27,11 +28,16 @@ export function TasksPanel({
 }): React.JSX.Element {
   const hasPending = tasks.some((task) => task.status === "not-saved");
   const hasQueued = queue.queued > 0;
+  const listbox = useListbox({
+    ids: tasks.map((task) => task.id),
+    selectedId: activeTaskId,
+    onSelect
+  });
 
   return (
     <aside className="panel tasks-panel">
       <PanelHeader title="Tasks" />
-      <div className="list">
+      <div className="list" aria-label="Tasks" {...listbox.listboxProps}>
         {tasks.length === 0 ? (
           <div className="empty-state">No tasks yet</div>
         ) : tasks.map((task) => (
@@ -40,6 +46,7 @@ export function TasksPanel({
             key={task.id}
             type="button"
             onClick={() => onSelect(task.id)}
+            {...listbox.getOptionProps(task.id)}
           >
             <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true">{statusIndicator(task)}</span>
             <span className="task-copy">

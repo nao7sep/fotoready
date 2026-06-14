@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { DEFAULT_LUT_FOLDER, DEFAULT_STAMP_FOLDER, MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
@@ -61,6 +61,30 @@ export function AppSettingsModal({
 }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
 
+  // The settings tabs are a tablist: one tab stop (roving tabindex), Left/Right
+  // move and activate immediately (switching a settings page is cheap), Home/End
+  // jump, and the arrows stop at the ends.
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const activeTabIndex = tabs.findIndex((entry) => entry.id === tab);
+  const focusTabAt = (index: number) => {
+    (
+      tablistRef.current?.querySelector(
+        `[data-tab-index="${index}"]`,
+      ) as HTMLElement | null
+    )?.focus();
+  };
+  const onTablistKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    let target: number | null = null;
+    if (e.key === "ArrowRight") target = Math.min(activeTabIndex + 1, tabs.length - 1);
+    else if (e.key === "ArrowLeft") target = Math.max(activeTabIndex - 1, 0);
+    else if (e.key === "Home") target = 0;
+    else if (e.key === "End") target = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    setTab(tabs[target].id);
+    focusTabAt(target);
+  };
+
   return (
     <ModalShell
       title="Settings"
@@ -74,9 +98,24 @@ export function AppSettingsModal({
         </>
       }
     >
-      <div className="settings-tabs">
-        {tabs.map((entry) => (
-          <button className={tab === entry.id ? "active" : ""} key={entry.id} type="button" onClick={() => setTab(entry.id)}>
+      <div
+        ref={tablistRef}
+        role="tablist"
+        aria-label="Settings sections"
+        className="settings-tabs"
+        onKeyDown={onTablistKeyDown}
+      >
+        {tabs.map((entry, index) => (
+          <button
+            className={tab === entry.id ? "active" : ""}
+            key={entry.id}
+            role="tab"
+            aria-selected={tab === entry.id}
+            tabIndex={tab === entry.id ? 0 : -1}
+            data-tab-index={index}
+            type="button"
+            onClick={() => setTab(entry.id)}
+          >
             {entry.label}
           </button>
         ))}
@@ -293,7 +332,6 @@ function VisionTab({
                 <span className="field-help">Gemini API key is saved.</span>
                 <div className="settings-path-row">
                   <input
-                    autoFocus
                     placeholder="Type a new key to replace it"
                     type="password"
                     value={apiKeyDraft}
@@ -306,14 +344,14 @@ function VisionTab({
             ) : hasGeminiApiKey && apiKeyClearRequested ? (
               <>
                 <div className="settings-path-row">
-                  <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+                  <input type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
                   <button className="toolbar-button" type="button" onClick={onKeepApiKey}>Keep key</button>
                 </div>
                 <span className="field-help">Gemini API key will be cleared when you save. Type a new key to replace it instead.</span>
               </>
             ) : (
               <>
-                <input autoFocus type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
+                <input type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
                 <span className="field-help">No Gemini API key is saved.</span>
               </>
             )}

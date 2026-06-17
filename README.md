@@ -27,12 +27,6 @@ npm run dev          # run from source
 npm run dist         # build a packaged app into release/
 ```
 
-## Limitations
-
-- macOS builds are unsigned (code signing is intentionally disabled).
-- Animated images (GIF, animated WebP) are out of scope.
-- No project file format — persistence is per-output via the `.json` sidecar.
-
 ## License
 
 MIT © 2026 Yoshinao Inoguchi

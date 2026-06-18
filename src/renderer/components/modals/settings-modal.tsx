@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
-import { DEFAULT_LUT_FOLDER, DEFAULT_STAMP_FOLDER, MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
+import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
@@ -136,7 +136,7 @@ export function AppSettingsModal({
               setSettings={setSettingsDraft}
             />
           ) : null}
-          {tab === "assets" ? <AssetsTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
+          {tab === "assets" ? <AssetsTab settings={settingsDraft} setSettings={setSettingsDraft} systemInfo={systemInfo} /> : null}
           {tab === "app" ? <AppTab settings={settingsDraft} setSettings={setSettingsDraft} systemInfo={systemInfo} /> : null}
         </div>
       ) : null}
@@ -429,8 +429,13 @@ function VisionTab({
   );
 }
 
-function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
+function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
   const fontFamilyListId = useId();
+  // Reflect the REAL resolved default (which relocates with FOTOREADY_HOME)
+  // rather than a hardcoded ~/.fotoready path. Fall back to a generic label
+  // until app info has loaded.
+  const lutEmptyLabel = systemInfo ? `Default (${systemInfo.lutsDir})` : "Default (app data folder)";
+  const stampEmptyLabel = systemInfo ? `Default (${systemInfo.stampsDir})` : "Default (app data folder)";
 
   return (
     <div className="settings-section-stack">
@@ -439,7 +444,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <PathField
           allowClear
           buttonLabel="Choose folder"
-          emptyLabel={`Default (${DEFAULT_LUT_FOLDER})`}
+          emptyLabel={lutEmptyLabel}
           label="Imported LUT folder"
           pick={async () => window.api.system.pickDirectory({ title: "Choose LUT Folder" })}
           value={settings.lutFolder}
@@ -448,7 +453,7 @@ function AssetsTab({ settings, setSettings }: SettingsProps): React.JSX.Element 
         <PathField
           allowClear
           buttonLabel="Choose folder"
-          emptyLabel={`Default (${DEFAULT_STAMP_FOLDER})`}
+          emptyLabel={stampEmptyLabel}
           label="Imported stamp folder"
           pick={async () => window.api.system.pickDirectory({ title: "Choose Stamp Folder" })}
           value={settings.stampFolder}

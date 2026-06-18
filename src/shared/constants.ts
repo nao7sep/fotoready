@@ -1,8 +1,6 @@
 export const APP_NAME = "FotoReady";
 export const APP_ID = "com.fotoready.desktop";
 export const DATA_DIR_NAME = ".fotoready";
-export const DEFAULT_LUT_FOLDER = "~/.fotoready/luts/";
-export const DEFAULT_STAMP_FOLDER = "~/.fotoready/stamps/";
 export const TASK_SIDECAR_SUFFIX = ".json";
 export const MAX_RESIZE_DIMENSION = 8192;
 export const MAX_RESIZE_PIXELS = 40_000_000;

@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiKeyStore } from "@adapters/api-keys";
+import type { Logger } from "@shared/types/log";
 
 const GEMINI_ENV = "GEMINI_API_KEY";
 const isPosix = process.platform !== "win32";
@@ -55,5 +56,36 @@ describe("ApiKeyStore", () => {
     await store.set("gemini", "stored-key");
     const mode = fs.statSync(filePath).mode & 0o777;
     expect(mode).toBe(0o600);
+  });
+
+  it.runIf(isPosix)("warns and tightens a group/world-readable secrets file back to 0600 on read", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // Write a valid keys file, then deliberately loosen it to 0644.
+    fs.writeFileSync(filePath, `${JSON.stringify({})}\n`);
+    fs.chmodSync(filePath, 0o644);
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
+
+    const store = new ApiKeyStore(filePath, logger);
+    // Any read path triggers the insecure-mode check.
+    await store.get("gemini");
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/readable beyond the owner/i),
+      expect.objectContaining({ mode: "644" })
+    );
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+
+  it.runIf(isPosix)("does not warn for an already-0600 secrets file", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    fs.writeFileSync(filePath, `${JSON.stringify({})}\n`, { mode: 0o600 });
+    fs.chmodSync(filePath, 0o600);
+
+    const store = new ApiKeyStore(filePath, logger);
+    await store.get("gemini");
+
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   });
 });

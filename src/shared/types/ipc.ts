@@ -22,6 +22,8 @@ export type SystemInfo = {
   appName: "FotoReady";
   version: string;
   dataDir: string;
+  lutsDir: string;
+  stampsDir: string;
   cpuCount: number;
 };
 

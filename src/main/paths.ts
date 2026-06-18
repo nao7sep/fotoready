@@ -1,7 +1,7 @@
 import path from "node:path";
-import os from "node:os";
 import { app } from "electron";
 import { DATA_DIR_NAME } from "@shared/constants";
+import { resolveStorageRoot } from "./storage-root";
 
 export type AppPaths = {
   dataDir: string;
@@ -13,8 +13,14 @@ export type AppPaths = {
   bundledStampsDir: string;
 };
 
+// Standard subdirectories created under the storage root on first use.
+const STANDARD_SUBDIRS = ["logs"] as const;
+
+// Resolves the storage root from the home directory (honoring FOTOREADY_HOME),
+// never from the working directory or the code's location, and creates the root
+// plus its standard subdirs. An unusable override is a reported startup error.
 export function getDataDir(): string {
-  return path.join(os.homedir(), DATA_DIR_NAME);
+  return resolveStorageRoot(DATA_DIR_NAME, STANDARD_SUBDIRS);
 }
 
 export function getAppPaths(): AppPaths {

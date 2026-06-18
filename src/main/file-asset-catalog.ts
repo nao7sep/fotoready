@@ -95,10 +95,16 @@ export async function deleteDirectoryAssets(filePaths: readonly string[], dir: s
   }
 }
 
+// Expands a leading `~`/`~/` against the home directory and guarantees an
+// absolute result. A relative value (e.g. a user-typed "myluts") is resolved
+// against `homeDir` — an explicit, launch-independent base — and NEVER left to
+// resolve against `process.cwd()` downstream, which would land under `/` on a
+// double-clicked macOS build per the storage-path conventions.
 export function expandHomePath(input: string, homeDir: string): string {
   if (input === "~") return homeDir;
   if (input.startsWith("~/")) return path.join(homeDir, input.slice(2));
-  return input;
+  if (path.isAbsolute(input)) return input;
+  return path.resolve(homeDir, input);
 }
 
 export function assertDirectoryAssetPath(filePath: string, dir: string, extensions: readonly string[]): string {

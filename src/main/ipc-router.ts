@@ -293,16 +293,16 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("vision.runForTask", "info", async (_event, taskId: string, options?: VisionRunOptions) => publishResult(ctx.projectSession.runVision(taskId, options)));
   handle("rename.preview", "debug", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   handle("rename.run", "info", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
-  handle("luts.list", "debug", async () => listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  handle("luts.import", "info", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir));
-  handle("luts.delete", "info", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir)));
+  handle("luts.list", "debug", async () => listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir));
+  handle("luts.import", "info", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir));
+  handle("luts.delete", "info", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir));
   handle("luts.preview", "debug", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
-    const luts = await listLuts(ctx.settings.lutFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledLutsDir);
+    const luts = await listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir);
     return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
   });
-  handle("stamps.list", "debug", async () => listStamps(ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  handle("stamps.import", "info", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir), ctx.paths.bundledStampsDir));
-  handle("stamps.delete", "info", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, path.dirname(ctx.paths.dataDir)));
+  handle("stamps.list", "debug", async () => listStamps(ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir));
+  handle("stamps.import", "info", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir));
+  handle("stamps.delete", "info", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir));
   handle("queues.snapshot", "debug", async () => ctx.projectSession.queueSnapshot());
 }
 

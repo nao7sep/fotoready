@@ -9,6 +9,8 @@ export type AppPaths = {
   statePath: string;
   apiKeysPath: string;
   logsDir: string;
+  lutsDir: string;
+  stampsDir: string;
   bundledLutsDir: string;
   bundledStampsDir: string;
 };
@@ -31,6 +33,8 @@ export function getAppPaths(): AppPaths {
     statePath: path.join(dataDir, "state.json"),
     apiKeysPath: path.join(dataDir, "api-keys.json"),
     logsDir: path.join(dataDir, "logs"),
+    lutsDir: path.join(dataDir, "luts"),
+    stampsDir: path.join(dataDir, "stamps"),
     bundledLutsDir: bundledResourceDir("luts"),
     bundledStampsDir: bundledResourceDir("stamps")
   };

@@ -1,6 +1,7 @@
 import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import { normalizeAngle } from "@shared/rotation";
+import { singleLine } from "@shared/text-cleanup";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import { useDraftField } from "@renderer/components/useDraftField";
@@ -87,6 +88,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           type="text"
           value={textField.value}
           onChange={textField.onChange}
+          // Single-line cleanup at commit (blur), never on each keystroke: an
+          // <input> drops newlines but not a pasted full-width-space run, and
+          // reformatting mid-edit would tear IME composition apart.
+          onBlur={(event) => onParamChange("text", singleLine(event.currentTarget.value))}
         />
         <label className="slider-row">
           <span>X</span>

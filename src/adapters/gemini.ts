@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { normalizeSlugCandidate } from "@core/slug/rules";
+import { singleLine } from "@shared/text-cleanup";
 
 export type VisionDescribeRequest = {
   imageBytes: Buffer;
@@ -143,7 +144,7 @@ function slugPrompt(description: string, prompt: string): string {
 }
 
 function parseDescription(raw: string): string {
-  const normalized = raw.replace(/\s+/g, " ").trim();
+  const normalized = singleLine(raw, { minify: true });
   if (!normalized) {
     throw new Error("Vision provider returned an empty description response.");
   }

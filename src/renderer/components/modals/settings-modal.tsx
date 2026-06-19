@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
+import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
@@ -293,6 +294,7 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
               <AutoTextarea
                 value={settings.injectFields[field] ?? ""}
                 onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
+                onCommit={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: cleanMetadataField(field, value) } })}
               />
               <span className="field-help">{metadataFieldHelp[field]}</span>
             </label>
@@ -689,7 +691,7 @@ function PathField({
   );
 }
 
-function AutoTextarea({ value, onChange }: { value: string; onChange(value: string): void }): React.JSX.Element {
+function AutoTextarea({ value, onChange, onCommit }: { value: string; onChange(value: string): void; onCommit(value: string): void }): React.JSX.Element {
   const ref = React.useRef<HTMLTextAreaElement | null>(null);
 
   React.useLayoutEffect(() => {
@@ -699,7 +701,17 @@ function AutoTextarea({ value, onChange }: { value: string; onChange(value: stri
     node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
   }, [value]);
 
-  return <textarea ref={ref} rows={1} value={value} onChange={(event) => onChange(event.currentTarget.value)} />;
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(event) => onChange(event.currentTarget.value)}
+      // Whitespace cleanup runs at commit (blur), never on each keystroke, so
+      // typing and IME composition are never reformatted mid-edit.
+      onBlur={(event) => onCommit(event.currentTarget.value)}
+    />
+  );
 }
 
 function cleanIntegerDraft(value: string): string {

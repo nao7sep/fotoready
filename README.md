@@ -11,6 +11,10 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 - **AI assist (opt-in)** — generate descriptions and slugs with Gemini, using a key stored locally
 - **Sidecar persistence** — each saved output writes a `.json` sidecar; drag it back in to re-create the task with its pipeline intact
 
+## Window and layout
+
+FotoReady is a light-themed app and forces its native title bar to the light theme, so it never shows a dark bar on a dark-mode host. It opens at a fixed 1280×800 default every launch and does not remember its size or position. The window's minimum size is not a hand-typed number — it is derived from the panes' own minimums plus the fixed chrome (top bar, preview toolbar, status bar), so the window can never be shrunk small enough to hide or truncate a pane. Those minimums, the splitter width, and the chrome heights all live in one place, `src/shared/layout/workspace-metrics.ts`, which is the single source of truth for both the OS window minimum and the in-page splitter clamping.
+
 ## Requirements
 
 - macOS, Windows, or Linux

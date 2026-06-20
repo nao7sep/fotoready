@@ -836,6 +836,7 @@ function App(): React.JSX.Element {
 
         {showOps ? (
           <OpsPanel
+            addOpsWidth={workspaceLayout.addOpsWidth}
             activeTask={activeTask}
             activeOriginal={activeOriginal}
             hasGeminiApiKey={hasGeminiApiKey}

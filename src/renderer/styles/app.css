@@ -11,6 +11,11 @@
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
   --border-soft-color: #e7e5e4;
+  /* Scroll-bar thumb: sits between --border-color and --border-strong-color, brightening to
+     --text-soft-color on hover. Light app, but the bar is still thin and rounded per the
+     window-chrome conventions. */
+  --scrollbar-thumb: #c2bdb8;
+  --scrollbar-thumb-hover: #78716c;
   --text-color: #292524;
   --text-strong-color: #1c1917;
   --text-muted-color: #57534e;
@@ -59,6 +64,42 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Global scroll-bar styling per the window-chrome conventions: a thin, rounded, palette-matched
+   bar in every overflow container, replacing the thick square OS default. The color-scheme on
+   :root keeps native controls light; this styles the bar itself. The thumb is inset from the gutter
+   by a transparent border with the background clipped to the padding box, turning it into a slim
+   pill with breathing room rather than a bar filling the gutter edge to edge. Firefox uses the
+   scrollbar-width / scrollbar-color shorthand; WebKit/Chromium (Electron's renderer) uses the
+   pseudo-elements. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-color: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 html,
@@ -395,7 +436,11 @@ select:disabled {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 160px 6px 200px 6px minmax(0, 1fr) 6px 260px 220px;
+  /* Static fallback before useWorkspaceLayout sets the inline template. Side panes are originals,
+     tasks, and the single Ops region (the two ops halves folded into one 480px track), with the
+     editor as the fill pane carrying its own minimum (minmax(360px, 1fr)) so widening a side pane
+     can never squeeze it out. */
+  grid-template-columns: 160px 6px 200px 6px minmax(360px, 1fr) 6px 480px;
 }
 
 .workspace-splitter {
@@ -685,6 +730,10 @@ select:disabled {
 }
 
 .editor-panel {
+  /* The editor is the fill pane; its real minimum (the source of truth is PANE_MINS.editor in
+     @shared/layout/workspace-metrics) is mirrored here and in the grid's minmax() track so the
+     content never collapses below a usable width. */
+  min-width: 360px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--surface-muted-bg);
@@ -987,6 +1036,17 @@ select:disabled {
   font-size: 12px;
 }
 
+/* The Ops region occupies a single workspace grid track and lays its two halves out internally:
+   the editable ops list + output fills, and the add-op palette is a fixed-width column on the
+   right (width set inline from the persisted addOps width). No second user splitter — the region
+   is resized as a whole by the Ops splitter. */
+.ops-region {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  overflow: hidden;
+}
+
 .ops-panel {
   min-height: 0;
   min-width: 0;
@@ -999,6 +1059,10 @@ select:disabled {
 .ops-add-pane {
   min-width: 0;
   min-height: 0;
+}
+
+.ops-add-pane {
+  border-left: 1px solid var(--border-color);
 }
 
 .ops-edit-pane {

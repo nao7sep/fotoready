@@ -18,6 +18,7 @@ const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> 
 };
 
 type OpsPanelProps = {
+  addOpsWidth: number;
   activeTask: Task | null;
   activeOriginal: Original | null;
   hasGeminiApiKey: boolean;
@@ -63,7 +64,11 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   }, [pendingRevealOpId, activeTask?.pipeline.ops, props]);
 
   return (
-    <>
+    // One Ops region occupying a single workspace grid track: the editable ops list + output fills,
+    // and the "add op" palette is a fixed-width column inside it (driven by the region splitter, not
+    // its own). Folding the two panes here keeps the workspace grid to exactly three side panes plus
+    // the editor, so the splitter count is unambiguous.
+    <div className="ops-region" style={{ gridTemplateColumns: `minmax(0, 1fr) ${props.addOpsWidth}px` }}>
       <aside className="panel ops-panel ops-edit-pane">
         <section className="op-section current-ops-section">
           <h3>Ops</h3>
@@ -141,7 +146,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
           </section>
         ))}
       </aside>
-    </>
+    </div>
   );
 }
 

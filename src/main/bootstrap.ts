@@ -1,4 +1,5 @@
-import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
+import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor } from "electron";
+import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
@@ -11,6 +12,35 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
+import { computeMinWindowHeight, computeMinWindowWidth } from "@shared/layout/workspace-metrics";
+
+// FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
+// dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
+// the window background the app background so the first frame and any letterboxing match the UI
+// instead of flashing the OS default. The minimum size is derived from the pane minimums plus the
+// fixed chrome — never a hand-typed literal (see @shared/layout/workspace-metrics).
+const APP_BACKGROUND_COLOR = "#f5f5f4";
+
+// Pure so it can be unit-tested without constructing a real BrowserWindow: given the preload path,
+// it returns the exact constructor options. The theme is set separately (nativeTheme is a global
+// side effect), asserted in the same test.
+export function buildWindowOptions(preloadPath: string): BrowserWindowConstructorOptions {
+  return {
+    title: APP_NAME,
+    minWidth: computeMinWindowWidth(),
+    minHeight: computeMinWindowHeight(),
+    width: 1280,
+    height: 800,
+    backgroundColor: APP_BACKGROUND_COLOR,
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -75,21 +105,12 @@ export async function bootstrap(): Promise<void> {
     void pipelineWorkerPool.destroy();
   });
 
+  // A light app must not inherit a dark native title bar on a dark-mode host. Force the light theme
+  // once at startup so the bar matches the app on every platform.
+  nativeTheme.themeSource = "light";
+
   const createWindow = (): void => {
-    const win = new BrowserWindow({
-      title: APP_NAME,
-      minWidth: 1024,
-      minHeight: 640,
-      width: 1280,
-      height: 800,
-      show: false,
-      webPreferences: {
-        preload: path.join(__dirname, "../preload/index.mjs"),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false
-      }
-    });
+    const win = new BrowserWindow(buildWindowOptions(path.join(__dirname, "../preload/index.mjs")));
     installCloseGuard(win, exitState);
 
     // Defense in depth: the renderer only loads local content and routes every external link through

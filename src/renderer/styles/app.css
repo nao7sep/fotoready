@@ -458,7 +458,7 @@ select:disabled {
 
 .workspace-splitter:hover,
 .workspace-splitter:focus-visible,
-.is-resizing-workspace .workspace-splitter {
+.workspace-splitter.is-resizing {
   background: var(--brand-secondary);
 }
 

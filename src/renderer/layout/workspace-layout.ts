@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   CHROME,
@@ -54,23 +54,60 @@ export function useWorkspaceLayout({
   addOpsWidth: number;
   startResize(pane: PaneKey): (event: ReactPointerEvent<HTMLButtonElement>) => void;
 } {
-  const [widths, setWidths] = useState<WorkspaceWidths>(readStoredWidths);
+  // INTENT, not display: the width the user dragged each adjustable pane to, in pixels. It is set
+  // ONLY by a splitter drag and is the sole thing persisted. A window resize never touches it — the
+  // user's intended widths survive a temporary shrink and reappear when the window grows again.
+  const [intent, setIntent] = useState<WorkspaceWidths>(readStoredWidths);
+
+  // The live workspace width, tracked so the DISPLAYED widths can be re-derived from the unchanged
+  // intent whenever the window (and thus the workspace) changes size. Seeded from the current
+  // container so the first paint already reflects the real width rather than the fallback.
+  const [containerWidth, setContainerWidth] = useState<number>(() => currentContainerWidth());
+
+  // Re-measure the container on every window resize and re-derive display from the unchanged intent.
+  // This persists NOTHING: only the displayed grid template reacts to the window; the stored intent
+  // stays exactly as the user dragged it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = (): void => setContainerWidth(currentContainerWidth());
+    window.addEventListener("resize", onResize);
+    // Measure once after mount: the real workspace element now exists, so the seeded value (which may
+    // have used the fallback) is corrected without waiting for the first resize.
+    onResize();
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // DISPLAY = clamp(min, intent, fitMax) against the live container. Window-shrink narrows each pane
+  // toward its own minimum; window-grow returns it to the intended width. Derived, never persisted.
+  const displayed = useMemo(
+    () => clampWidthsToContainer(intent, containerWidth),
+    [intent, containerWidth]
+  );
 
   const gridTemplateColumns = useMemo(
-    () => buildGridTemplateColumns(widths, { showOps, showOriginals, showTasks }),
-    [showOps, showOriginals, showTasks, widths]
+    () => buildGridTemplateColumns(displayed, { showOps, showOriginals, showTasks }),
+    [displayed, showOps, showOriginals, showTasks]
   );
 
   const startResize = useCallback((pane: PaneKey) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    // Highlight only the splitter being dragged. The body class below is for the global resize
+    // cursor + text-select lock, not the highlight — keying the highlight off it lit up every
+    // splitter at once. Captured synchronously since the React event is reused after this handler.
+    const splitter = event.currentTarget;
     const startX = event.clientX;
-    const startWidth = widths[pane];
+    // Drag from the pane's current DISPLAYED width, so the splitter tracks where the edge actually
+    // sits even if the window had narrowed the pane below its intent.
+    const startWidth = clampWidthsToContainer(intent, currentContainerWidth(event.currentTarget))[pane];
     // Ops splitters grow the pane when dragged left (toward the editor); the left panes grow right.
     const direction = pane === "ops" || pane === "addOps" ? -1 : 1;
     const container = workspaceContainerWidth(event.currentTarget);
 
     function onMove(moveEvent: PointerEvent): void {
       const requested = startWidth + (moveEvent.clientX - startX) * direction;
+      // The dragged value is the new INTENT, clamped against the live container so the drag itself
+      // can't push a sibling below its minimum. This clamped width is also what fits right now, so it
+      // doubles as the intent: a window-grow later cannot widen a pane past where the user dragged it.
       const next = clampPaneWidth(
         requested,
         limits[pane].min,
@@ -79,7 +116,7 @@ export function useWorkspaceLayout({
         container,
         SIDE_SPLITTER_COUNT * SPLITTER_WIDTH
       );
-      setWidths((current) => {
+      setIntent((current) => {
         const updated = { ...current, [pane]: next };
         window.localStorage.setItem(storageKey, JSON.stringify(updated));
         return updated;
@@ -90,14 +127,16 @@ export function useWorkspaceLayout({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       document.body.classList.remove("is-resizing-workspace");
+      splitter.classList.remove("is-resizing");
     }
 
     document.body.classList.add("is-resizing-workspace");
+    splitter.classList.add("is-resizing");
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
-  }, [widths]);
+  }, [intent]);
 
-  return { gridTemplateColumns, addOpsWidth: widths.addOps, startResize };
+  return { gridTemplateColumns, addOpsWidth: displayed.addOps, startResize };
 }
 
 // Pure builder for the workspace grid track template, exported for tests. The Ops region is a single
@@ -148,27 +187,29 @@ function computeFallbackContainer(): number {
   return maxes.originals + maxes.tasks + PANE_MINS.editor + maxes.ops + maxes.addOps + SIDE_SPLITTER_COUNT * SPLITTER_WIDTH;
 }
 
-// Read persisted widths and re-clamp each against the current container so a layout saved on a wide
-// window can't reopen on a narrow one with a pane that crowds out the editor. Falls back to defaults
-// on malformed JSON or a missing addOps (the marker that the stored shape predates this schema).
+// Read the persisted INTENT widths verbatim — no container clamp. The stored value is the width the
+// user dragged to and must survive a reopen on a narrow window unchanged; only the DISPLAY is clamped
+// (see clampWidthsToContainer), and only at render time. Falls back to defaults on malformed JSON or
+// a missing addOps (the marker that the stored shape predates this schema).
 export function readStoredWidths(): WorkspaceWidths {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}") as Partial<WorkspaceWidths>;
-    if (typeof parsed.addOps !== "number") return clampWidthsToContainer(defaults);
-    const raw: WorkspaceWidths = {
+    if (typeof parsed.addOps !== "number") return { ...defaults };
+    return {
       originals: Number(parsed.originals ?? defaults.originals),
       tasks: Number(parsed.tasks ?? defaults.tasks),
       ops: Number(parsed.ops ?? defaults.ops),
       addOps: Number(parsed.addOps ?? defaults.addOps)
     };
-    return clampWidthsToContainer(raw);
   } catch {
-    return clampWidthsToContainer(defaults);
+    return { ...defaults };
   }
 }
 
-// Clamp every pane against its own bounds and the live container, so the restored set always leaves
-// the editor (and every other pane) its minimum. Exported for tests.
+// Derive DISPLAY widths from intent: clamp every pane against its own bounds and the live container,
+// so the rendered grid always leaves the editor (and every other pane) its minimum. This is the
+// display-only projection of the intent — it never mutates or persists the intent it is fed. Exported
+// for tests.
 export function clampWidthsToContainer(widths: WorkspaceWidths, container?: number): WorkspaceWidths {
   const available = container ?? currentContainerWidth();
   const splitters = SIDE_SPLITTER_COUNT * SPLITTER_WIDTH;
@@ -180,9 +221,9 @@ export function clampWidthsToContainer(widths: WorkspaceWidths, container?: numb
   return result;
 }
 
-function currentContainerWidth(): number {
+function currentContainerWidth(from?: HTMLElement | null): number {
   if (typeof document !== "undefined") {
-    const workspace = document.querySelector(".workspace");
+    const workspace = from?.closest(".workspace") ?? document.querySelector(".workspace");
     if (workspace instanceof HTMLElement) {
       const measured = workspace.getBoundingClientRect().width;
       if (measured > 0) return measured;

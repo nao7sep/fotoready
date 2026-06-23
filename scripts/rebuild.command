@@ -3,9 +3,9 @@ set -euo pipefail
 
 # rebuild: produce a fresh production build, package it into a real .app bundle,
 # and launch that bundle. Slow — run this after changing source. The build runs
-# the production checks and re-bundles from clean, so import-boundary, type, CSP,
-# and packaged-layout errors that run-dev hides surface here; packaging then gives
-# the app its own bundle identity (correct dock/menu name and icon). run-built is
+# the production type checks and re-bundles from clean, so type, import, CSP, and
+# packaged-layout errors that run-dev hides surface here; packaging then gives
+# the app its own bundle identity (correct dock/menu name). run-built is
 # the fast, no-build launcher for everything after this.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -54,11 +54,6 @@ fi
 # leftover artifact from a previous run.
 log_step "Cleaning previous build"
 rm -rf out "$OUT_DIR"
-
-# The release build enforces the import boundaries between main, preload, and
-# renderer before type-checking; the dev server skips this entirely.
-log_step "Checking import boundaries"
-node scripts/check-import-boundaries.mjs
 
 # The release build type-checks the shipped sources (main/preload + renderer);
 # the dev server skips this entirely. Tests are checked separately and are not

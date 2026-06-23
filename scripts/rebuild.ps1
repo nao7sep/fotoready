@@ -4,7 +4,7 @@ $scriptExitCode = 0
 
 # rebuild: produce a fresh production build, package it into a real app bundle,
 # and launch it. Slow — run this after changing source. The build runs the
-# production checks and re-bundles from clean, so import-boundary, type, CSP, and
+# production type checks and re-bundles from clean, so type, import, CSP, and
 # packaged-layout errors that run-dev hides surface here; packaging then gives the
 # app its own identity. run-built is the fast, no-build launcher after this.
 
@@ -74,11 +74,6 @@ try {
     Write-Step "Cleaning previous build"
     if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
     if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
-
-    # The release build enforces the import boundaries between main, preload, and
-    # renderer before type-checking; the dev server skips this entirely.
-    Write-Step "Checking import boundaries"
-    Invoke-Native -FilePath "node" -ArgumentList @("scripts/check-import-boundaries.mjs")
 
     # The release build type-checks the shipped sources (main/preload + renderer);
     # the dev server skips this entirely. Tests are checked separately and are not

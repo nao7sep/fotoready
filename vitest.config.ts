@@ -1,10 +1,10 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
-// Tests live under tests/, mirroring the src/ layout, so src/ stays pure shipped code and
-// neither the production typecheck (tsc over src/**) nor the import-boundary check sees test
-// files. The alias map mirrors electron.vite.config.ts / tsconfig.json so tests import modules
-// by the same @-aliases the app uses.
+// Tests live under tests/, mirroring the src/ layout, so src/ stays pure shipped code and the
+// production typecheck (tsc over src/**) doesn't see test files. The alias map mirrors
+// electron.vite.config.ts / tsconfig.json so tests import modules by the same @-aliases the
+// app uses.
 const alias = {
   "@shared": resolve("src/shared"),
   "@core": resolve("src/core"),

@@ -25,6 +25,7 @@ import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
+import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -244,6 +245,9 @@ function App(): React.JSX.Element {
       // While any modal/dialog is open it owns the keyboard: global shortcuts must not reach the
       // window behind it (Escape and modal-local keys are handled inside the modal layer itself).
       if (isModalOpen()) return;
+      // A chord pressed while an IME candidate is pending belongs to the composition; stand down
+      // until it commits, rather than firing on a not-yet-committed candidate (text-input-ime).
+      if (isComposingKeyboardEvent(event)) return;
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();

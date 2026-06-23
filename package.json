@@ -67,9 +67,6 @@
         "to": "stamps"
       }
     ],
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "mac": {
-      "identity": null
-    }
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }

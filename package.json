@@ -64,8 +64,17 @@
       {
         "from": "resources/stamps",
         "to": "stamps"
+      },
+      {
+        "from": "build/Assets.car",
+        "to": "Assets.car"
       }
     ],
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "extendInfo": {
+        "CFBundleIconName": "star-bokeh"
+      }
+    }
   }
 }

@@ -8,14 +8,21 @@
  * production build, so the dev server keeps no CSP and Vite HMR's inline scripts / eval / websocket
  * are unaffected.
  *
- * The directives are scoped to exactly what the renderer loads:
- *  - scripts: the app's own bundled module scripts only — never `'unsafe-inline'`/`'unsafe-eval'`.
+ * The directives map to exactly what the renderer loads:
+ *  - `default-src 'self'`: the restrictive baseline every unset fetch directive falls back to.
+ *  - `script-src 'self'`: the app's own bundled module scripts only — never `'unsafe-inline'`/`'unsafe-eval'`.
  *    Vite's inline module-preload polyfill is disabled in the renderer build (Electron's Chromium
  *    supports `modulepreload` natively), so `script-src 'self'` can stay strict.
- *  - styles: `'unsafe-inline'` is required for React `style={{…}}` props and Vite-injected `<style>`.
- *  - images: `'self'` plus `data:` for the base64 thumbnails, previews, histogram, and LUT swatches.
- *  - there is no web worker, `blob:`, remote `fetch`, or web font in the renderer, so those sources
- *    are deliberately omitted (they fall back to the restrictive `default-src 'self'`).
+ *  - `style-src 'self' 'unsafe-inline'`: `'unsafe-inline'` is required for React `style={{…}}` props and
+ *    Vite-injected `<style>`.
+ *  - `img-src 'self' data:`: `data:` covers the base64 thumbnails, previews, histogram, and LUT swatches.
+ *  - `font-src 'self'` and `connect-src 'self'`: no remote fonts and no remote `fetch`/XHR/websocket. They
+ *    restate the `default-src 'self'` fallback explicitly so they stay strict even if `default-src` is later
+ *    loosened.
+ *  - `object-src 'none'`, `base-uri 'self'`, `form-action 'none'`, `frame-src 'none'`: hardening — no
+ *    plugins/embeds, no `<base>` hijacking the document base URL, no form submissions, no nested frames.
+ *  - `worker-src` and a `blob:` source are deliberately unset: the renderer spawns no web worker and loads
+ *    nothing from `blob:`, so both fall through to the restrictive `default-src 'self'`.
  *
  * `frame-ancestors` is intentionally absent: it is ignored in a meta-delivered policy, and the
  * BrowserWindow plus the `will-navigate`/`setWindowOpenHandler` guards already prevent embedding.

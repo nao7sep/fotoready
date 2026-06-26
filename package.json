@@ -72,6 +72,7 @@
     ],
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
+      "icon": "build/icon.icns",
       "extendInfo": {
         "CFBundleIconName": "star-bokeh"
       }

@@ -58,6 +58,9 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "**/node_modules/exiftool-vendored.*/**/*"
+    ],
     "extraResources": [
       {
         "from": "resources/luts",

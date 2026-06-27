@@ -15,6 +15,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 
 - macOS, Windows, or Linux
 - A current Node LTS and npm — FotoReady is built from source and doesn't ship signed binaries yet, so first launch on macOS needs the usual right-click → Open to bypass Gatekeeper
+- Metadata editing uses a bundled ExifTool: on macOS and Linux it runs on the **system Perl** interpreter (shipped with current macOS); Windows bundles a self-contained build needing no Perl
 - Optional: a Google Gemini API key for the AI-assist features
 
 ## Getting started

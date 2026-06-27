@@ -1,3 +1,19 @@
+// Metadata read/write goes through ExifTool (Phil Harvey's), via exiftool-vendored.
+// ExifTool is the only engine that both reads and writes the full range of EXIF/IPTC/XMP/GPS
+// across formats; the pure-JS libraries (exifr, piexifjs) are read-only or JPEG/EXIF-only, so
+// none can back this app's "control exactly what metadata survives, and inject fields" feature.
+// exiftool-vendored is its best-maintained Node binding and version-pins the bundled ExifTool.
+//
+// Delivery is per-OS: Windows uses exiftool-vendored.exe (self-contained, with its own Perl);
+// macOS/Linux use exiftool-vendored.pl (Perl scripts) that run on the *system* Perl. We do NOT
+// bundle a Perl on macOS: ExifTool ships no official self-contained mac binary (unlike Windows),
+// so doing so would mean a custom, fragile Perl-bundling pipeline. macOS still ships
+// /usr/bin/perl (5.34 as of macOS 26), so the app works with no user action; revisit only if
+// Apple actually removes the system Perl.
+//
+// Packaging: exiftool-vendored spawns the real .pl/.exe on disk, so it cannot live inside
+// app.asar — package.json's electron-builder "asarUnpack" keeps exiftool-vendored.* unpacked,
+// without which the metadata feature breaks in packaged builds.
 import fs from "node:fs/promises";
 import { exiftool, type WriteTags } from "exiftool-vendored";
 import type { SourceMetadataSummary } from "@shared/types/project";

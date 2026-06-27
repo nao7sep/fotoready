@@ -9,3 +9,6 @@ dist/
 # Local OS/editor noise
 .DS_Store
 *.log
+
+# Coverage reports (generated)
+coverage/

@@ -25,7 +25,27 @@ export type SystemInfo = {
   lutsDir: string;
   stampsDir: string;
   cpuCount: number;
+  /** `process.platform` of the host running the app, used for runtime-correct UI (e.g. shortcut labels). */
+  platform: NodeProcessPlatform;
 };
+
+/**
+ * The values `process.platform` can take. Declared explicitly (rather than as
+ * `NodeJS.Platform`) so this shared type stays usable from the renderer's
+ * web-only typecheck, which does not load Node's ambient types.
+ */
+export type NodeProcessPlatform =
+  | "aix"
+  | "android"
+  | "darwin"
+  | "freebsd"
+  | "haiku"
+  | "linux"
+  | "openbsd"
+  | "sunos"
+  | "win32"
+  | "cygwin"
+  | "netbsd";
 
 /**
  * A structured log object the sandboxed renderer forwards to the main process,

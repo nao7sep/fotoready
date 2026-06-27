@@ -66,6 +66,26 @@ describe("normalizeGlobalSettings", () => {
     expect(issues).toEqual([]);
   });
 
+  it("defaults the UI font to blank (meaning the built-in default stack)", () => {
+    expect(fallback.uiFontFamily).toBe("");
+  });
+
+  it("keeps a custom UI font and accepts a blank one", () => {
+    const custom = normalizeGlobalSettings({ ...fallback, uiFontFamily: "Iosevka, monospace" }, fallback);
+    expect(custom.settings.uiFontFamily).toBe("Iosevka, monospace");
+    expect(custom.issues).toEqual([]);
+
+    const blank = normalizeGlobalSettings({ ...fallback, uiFontFamily: "" }, fallback);
+    expect(blank.settings.uiFontFamily).toBe("");
+    expect(blank.issues).toEqual([]);
+  });
+
+  it("falls back the UI font when it is not a string", () => {
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, uiFontFamily: 42 }, fallback);
+    expect(settings.uiFontFamily).toBe(fallback.uiFontFamily);
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("falls back the whole injectFields object when a known field is a non-string", () => {
     const withFields = { ...fallback, injectFields: { author: "Jane" } };
     const { settings, issues } = normalizeGlobalSettings(

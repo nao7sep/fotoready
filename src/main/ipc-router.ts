@@ -96,7 +96,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     dataDir: ctx.paths.dataDir,
     lutsDir: ctx.paths.lutsDir,
     stampsDir: ctx.paths.stampsDir,
-    cpuCount: os.cpus().length
+    cpuCount: os.cpus().length,
+    platform: process.platform
   }));
   // The renderer's own log forwarding — registered raw so the chokepoint doesn't
   // log a line about every forwarded log line. The renderer is sandboxed and its

@@ -18,6 +18,8 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     : (issues.push("settings must be a JSON object."), {});
 
   const settings: GlobalSettings = {
+    // UI font is free text; blank is allowed and resolves to the built-in default stack at apply time.
+    uiFontFamily: readValue(source, "uiFontFamily", fallback.uiFontFamily, issues, assertString),
     confirmDeleteOriginals: readValue(source, "confirmDeleteOriginals", fallback.confirmDeleteOriginals, issues, assertBoolean),
     confirmDeleteTasks: readValue(source, "confirmDeleteTasks", fallback.confirmDeleteTasks, issues, assertBoolean),
     confirmDeleteOutputFiles: readValue(source, "confirmDeleteOutputFiles", fallback.confirmDeleteOutputFiles, issues, assertBoolean),

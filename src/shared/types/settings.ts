@@ -31,6 +31,10 @@ export const EDITABLE_METADATA_FIELDS = [
 export type JpegQualityMode = "auto" | "fixed";
 
 export type GlobalSettings = {
+  // The app's UI (chrome) font family. Family only; blank means the built-in default stack (the
+  // app.css `--font-ui` variable). Distinct from `defaultWatermarkTextFontFamily`, which is a
+  // content-output font rendered into the saved image — never the UI font.
+  uiFontFamily: string;
   defaultOutputFormat: OutputFormat;
   defaultWebpQuality: number;
   defaultAvifQuality: number;

@@ -30,6 +30,7 @@ export function defaultPipeline(): Pipeline {
 
 export function defaultGlobalSettings(workerPoolSize: number | null = null): GlobalSettings {
   return {
+    uiFontFamily: "",
     confirmDeleteOriginals: false,
     confirmDeleteTasks: false,
     confirmDeleteOutputFiles: true,

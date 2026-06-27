@@ -1,6 +1,10 @@
 :root {
   color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* UI (chrome) font. The Settings → App "UI font" field overrides this variable at runtime with a
+     verbatim, engine-resolved family string; blank reverts to this default. Family only — no UI
+     font-size knob. The text-watermark font is a separate content-output setting, not this. */
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
   --app-bg: #f5f5f4;
   --surface-bg: #ffffff;
   --surface-raised-bg: #f1f5f9;

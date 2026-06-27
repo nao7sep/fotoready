@@ -93,6 +93,7 @@ function makeTask(opts: {
 
 const SLUG_ONLY = BUILTIN_RENAME_TEMPLATE_IDS.slug;
 const SLUG_SIZE = BUILTIN_RENAME_TEMPLATE_IDS.slugSize;
+const ORIGINAL_ONLY = BUILTIN_RENAME_TEMPLATE_IDS.original;
 
 describe("previewRename", () => {
   it("marks a task with no output as not-saved", async () => {
@@ -147,6 +148,27 @@ describe("previewRename", () => {
     const preview = await previewRename(project, SLUG_ONLY);
     expect(preview.items.every((item) => item.status === "blocked")).toBe(true);
     expect(preview.items[0].issue).toMatch(/slug/i);
+    expect(preview.blockedCount).toBe(2);
+  });
+
+  it("blocks two tasks from the same original under an original-based template", async () => {
+    // Two saved tasks (e.g. forks) of one original both render to the same
+    // original-derived name in the same directory — the semantic original
+    // conflict the slug case has, on the original axis. This exercises
+    // countSemanticConflicts with usesOriginal, previously untested.
+    const a = await writeImage("staged-a.jpg");
+    const b = await writeImage("staged-b.jpg");
+    const project: Project = {
+      outputDir: workDir,
+      originals: [makeOriginal("o1", "DSC_0001.jpg")],
+      tasks: [
+        makeTask({ id: "t1", originalId: "o1", customSlug: null, stagedPath: a, createdAt: "2026-06-04T00:00:00.000Z" }),
+        makeTask({ id: "t2", originalId: "o1", customSlug: null, stagedPath: b, createdAt: "2026-06-04T00:00:01.000Z" })
+      ]
+    };
+    const preview = await previewRename(project, ORIGINAL_ONLY);
+    expect(preview.items.every((item) => item.status === "blocked")).toBe(true);
+    expect(preview.items[0].issue).toBe("Overlaps another original-based name");
     expect(preview.blockedCount).toBe(2);
   });
 

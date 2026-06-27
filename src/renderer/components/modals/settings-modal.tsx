@@ -506,6 +506,24 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
   return (
     <div className="settings-section-stack">
       <section>
+        <h3>Appearance</h3>
+        <div className="settings-grid">
+          <label className="stacked-field span-two">
+            UI font
+            <input
+              type="text"
+              placeholder="Inter"
+              value={settings.uiFontFamily}
+              onChange={(event) => setSettings({ ...settings, uiFontFamily: event.currentTarget.value })}
+            />
+          </label>
+          <div className="row-detail">
+            The app interface font. Comma-separated families; the first one your system has is used. Blank uses the built-in default. (The text-watermark font is set separately, in Assets.)
+          </div>
+        </div>
+      </section>
+
+      <section>
         <h3>Performance</h3>
         <div className="settings-grid">
           <NumberField

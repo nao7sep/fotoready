@@ -3,7 +3,6 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
-import { clamp } from "@shared/numeric";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
@@ -20,12 +19,9 @@ import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
 import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
-import { applyOutputSettingChange } from "@shared/validation/pipeline";
-import { resolveOutputFormat } from "@shared/output-format";
-import { DEFAULT_ASSET_OVERLAY_WIDTH, clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
-import type { BoxBounds } from "@shared/box-geometry";
 import { resolveVisionRunMode } from "@shared/vision-run-mode";
-import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
+import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
+import { nextMetadataFlags } from "@main/metadata-flags";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 import { pickActiveTaskAfterOriginalRemoval } from "@main/session-selection";
@@ -444,7 +440,9 @@ export class ProjectSession {
   async setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "not-saved") this.recordTaskEdit(task);
-    task.generateDescription = generateDescription || task.generateSlug;
+    const flags = nextMetadataFlags(task, { field: "generateDescription", value: generateDescription });
+    task.generateDescription = flags.generateDescription;
+    task.generateSlug = flags.generateSlug;
     touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
@@ -453,8 +451,9 @@ export class ProjectSession {
   async setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "not-saved") this.recordTaskEdit(task);
-    task.generateSlug = generateSlug;
-    task.generateDescription = generateSlug ? true : task.generateDescription;
+    const flags = nextMetadataFlags(task, { field: "generateSlug", value: generateSlug });
+    task.generateDescription = flags.generateDescription;
+    task.generateSlug = flags.generateSlug;
     touchTaskMetadata(task);
     await this.writeOutputSidecarIfSaved(task);
     return this.snapshot();
@@ -675,108 +674,6 @@ function normalizeOptionalSlug(value: string | null): string | null {
   if (!value) return null;
   const normalized = normalizeSlugCandidate(value);
   return normalized || null;
-}
-
-function defaultTaskOutput(settings: GlobalSettings, originalFormat: string, fallback: Task["pipeline"]["output"]): Task["pipeline"]["output"] {
-  const format = settings.defaultOutputFormat;
-  return {
-    ...fallback,
-    format,
-    quality: defaultQualityForFormat(format, settings, originalFormat, fallback.quality),
-    flattenTransparency: settings.defaultFlattenTransparency,
-    jpegProgressive: settings.jpegProgressive,
-    jpegChromaSubsampling: settings.jpegChromaSubsampling,
-    webpMethod: settings.webpMethod,
-    avifEffort: settings.avifEffort,
-    pngPalette: settings.defaultPngPalette,
-    backgroundForTransparency: settings.defaultBackgroundForTransparency
-  };
-}
-
-async function initializeOpParamsForOriginal(opType: string, params: Record<string, unknown>, original: Original): Promise<void> {
-  const imageBounds = imageBoundsForOriginal(original);
-  if (opType === "watermark-text") {
-    if (
-      typeof params.x !== "number"
-      || typeof params.y !== "number"
-      || typeof params.w !== "number"
-      || typeof params.h !== "number"
-    ) {
-      return;
-    }
-    const w = clamp(params.w, 0.02, Math.max(0.02, imageBounds.maxX));
-    const h = clamp(params.h, 0.02, Math.max(0.02, imageBounds.maxY));
-    params.w = w;
-    params.h = h;
-    params.x = clamp(params.x, 0, Math.max(0, imageBounds.maxX - w));
-    params.y = clamp(params.y, 0, Math.max(0, imageBounds.maxY - h));
-    return;
-  }
-  if (opType !== "watermark-image" && opType !== "stamp") return;
-  if (
-    typeof params.assetPath !== "string"
-    || typeof params.x !== "number"
-    || typeof params.y !== "number"
-    || typeof params.width !== "number"
-    || typeof params.height !== "number"
-    || typeof params.lockAspectRatio !== "boolean"
-    || typeof params.opacity !== "number"
-    || typeof params.rotation !== "number"
-  ) {
-    return;
-  }
-  const ar = params.assetPath ? await readAssetAspectRatio(params.assetPath as string) : 1;
-  const width = DEFAULT_ASSET_OVERLAY_WIDTH;
-  const height = width / Math.max(0.01, ar);
-  Object.assign(params, clampAssetOverlay({ ...(params as unknown as AssetOverlayParams), width, height }, imageBounds));
-}
-
-function imageBoundsForOriginal(original: Original): BoxBounds {
-  const longEdge = Math.max(original.width, original.height, 1);
-  return { maxX: original.width / longEdge, maxY: original.height / longEdge };
-}
-
-function nextTaskOutput(
-  current: Task["pipeline"]["output"],
-  key: string,
-  value: unknown,
-  settings: GlobalSettings,
-  originalFormat: string
-): Task["pipeline"]["output"] {
-  const nextOutput = applyOutputSettingChange(current, key, value);
-  const resolvedFormat = resolveOutputFormat(nextOutput.format, originalFormat);
-  if (key === "format") {
-    return {
-      ...nextOutput,
-      quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),
-      flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
-    };
-  }
-  if (resolvedFormat !== "jpeg" || (nextOutput.quality === "auto" && originalFormat !== "jpeg")) {
-    return {
-      ...nextOutput,
-      quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),
-      flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
-    };
-  }
-  return {
-    ...nextOutput,
-    flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
-  };
-}
-
-function defaultQualityForFormat(
-  format: Task["pipeline"]["output"]["format"],
-  settings: GlobalSettings,
-  originalFormat: string,
-  fallback: Task["pipeline"]["output"]["quality"]
-): Task["pipeline"]["output"]["quality"] {
-  const resolvedFormat = resolveOutputFormat(format, originalFormat);
-  if (resolvedFormat === "webp") return settings.defaultWebpQuality;
-  if (resolvedFormat === "avif") return settings.defaultAvifQuality;
-  if (resolvedFormat === "png") return typeof fallback === "number" ? fallback : 82;
-  if (settings.enableJpegQualityEstimate && settings.jpegQualityMode === "auto" && originalFormat === "jpeg") return "auto";
-  return settings.jpegFixedQuality;
 }
 
 function findOpIndex(task: Task, opId: string): number {

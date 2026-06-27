@@ -9,11 +9,13 @@ import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
 import { pipelineForPreview } from "@shared/preview-pipeline";
+import { resolveSlugRegenerationMode } from "@shared/vision-run-mode";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
 import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
-import { ModalShell } from "./components/modals/modal-shell";
+import { AboutModal } from "./components/modals/about-modal";
+import { ShortcutsModal } from "./components/modals/shortcuts-modal";
 import { Menu, MenuItem } from "./components/Menu";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
@@ -38,65 +40,6 @@ const initialQueueSnapshot: QueueSnapshot = {
   activeTaskId: null,
   activeTaskLabel: null
 };
-
-const APP_REPOSITORY_URL = "https://github.com/nao7sep/fotoready";
-const APP_ISSUES_URL = `${APP_REPOSITORY_URL}/issues`;
-
-type ShortcutItem = {
-  action: string;
-  detail?: string;
-  keys: string;
-};
-
-const SHORTCUT_SECTIONS: ReadonlyArray<{ title: string; items: ReadonlyArray<ShortcutItem> }> = [
-  {
-    title: "Import and save",
-    items: [
-      { action: "Add originals", detail: "Open the file picker to import source images or sidecars.", keys: "Cmd/Ctrl+N" },
-      { action: "Save current not-saved image", detail: "Apply the current task's ops, queue saving, and write the output image plus sidecar.", keys: "Cmd/Ctrl+S" },
-      { action: "Save all not-saved images", detail: "Queue every not-saved task for saving.", keys: "Cmd/Ctrl+Shift+S" },
-      { action: "Rename all", detail: "Review saved and unsaved tasks before renaming saved outputs.", keys: "Cmd/Ctrl+R" }
-    ]
-  },
-  {
-    title: "Editing",
-    items: [
-      { action: "Undo last not-saved edit", detail: "Revert the most recent task edit when focus is outside a text field. Inside a text field, the shortcut uses native text undo.", keys: "Cmd/Ctrl+Z" }
-    ]
-  },
-  {
-    title: "View",
-    items: [
-      { action: "Toggle histogram", detail: "Show or hide the preview histogram. Its position is remembered across sessions.", keys: "Cmd/Ctrl+H" }
-    ]
-  },
-  {
-    title: "Lists and controls",
-    items: [
-      { action: "Move within a list or control", detail: "Each list (Originals, Tasks), segmented control, swatch group, settings tab strip, and the resize-preset toolbar is one tab stop: Tab in, then the arrow keys move within it; the selection follows in lists, tabs, and groups, while in the preset toolbar they move focus and Enter applies.", keys: "Arrow keys" },
-      { action: "Jump to the first / last item", detail: "Within the focused list or control.", keys: "Home / End" },
-      { action: "Remove the selected original", detail: "Deletes the highlighted original from the Originals list.", keys: "Delete / Backspace" },
-      { action: "Open a menu, then move between items", detail: "Enter or Space opens the menu; the arrows move between commands and Esc closes it.", keys: "Enter / Arrows / Esc" }
-    ]
-  },
-  {
-    title: "Asset picker (LUTs & stamps)",
-    items: [
-      { action: "Move and select in the grid", detail: "The picker is a multi-select grid: the arrow keys move and select; Cmd/Ctrl+A selects all.", keys: "Arrow keys" },
-      { action: "Extend the selection", detail: "Shift+Arrow grows a range from the anchor; Shift+Click ranges and Cmd/Ctrl+Click toggles one item.", keys: "Shift+Arrows" },
-      { action: "Use the selected item", detail: "Applies the one selected LUT or stamp and closes the picker.", keys: "Enter / Space" },
-      { action: "Remove from library", detail: "Moves the selected imported files to the system trash. Built-in items are protected.", keys: "Delete / Backspace" }
-    ]
-  },
-  {
-    title: "App",
-    items: [
-      { action: "Open settings", keys: "Cmd/Ctrl+Comma" },
-      { action: "Show keyboard shortcuts", keys: "Cmd/Ctrl+Slash" },
-      { action: "Close the active dialog", keys: "Esc" }
-    ]
-  }
-];
 
 function App(): React.JSX.Element {
   const confirmer = useConfirmer();
@@ -206,6 +149,16 @@ function App(): React.JSX.Element {
       }
     );
   }, []);
+
+  // Apply the configured UI font by overriding the `--font-ui` CSS variable on :root; blank reverts
+  // to the app.css default. The string is handed to CSS verbatim (engine-resolved, graceful fallback)
+  // per the app-chrome-conventions. The watermark font is unaffected — it is content-output.
+  useEffect(() => {
+    const family = settings?.uiFontFamily?.trim();
+    const root = document.documentElement;
+    if (family) root.style.setProperty("--font-ui", family);
+    else root.style.removeProperty("--font-ui");
+  }, [settings?.uiFontFamily]);
 
   useEffect(() => {
     const originalWarn = console.warn;
@@ -885,7 +838,7 @@ function App(): React.JSX.Element {
           onRegenerateSlug={async (taskId) => {
             const task = project?.tasks.find((candidate) => candidate.id === taskId);
             if (!task?.output) return;
-            const mode: VisionRunMode = task.output.vision?.description?.trim() ? "slug" : "description-and-slug";
+            const mode = resolveSlugRegenerationMode(task.output.vision?.description);
             await runVisionForTask(taskId, { mode });
           }}
           onRun={async (templateId, summary) => {
@@ -921,61 +874,9 @@ function App(): React.JSX.Element {
         />
       ) : null}
 
-      {shortcutsOpen ? (
-        <ModalShell title="Keyboard shortcuts" size="small" onClose={() => setShortcutsOpen(false)}>
-          <div className="shortcut-list">
-            {SHORTCUT_SECTIONS.map(({ title, items }) => (
-              <section className="shortcut-group" key={title}>
-                <h3>{title}</h3>
-                {items.map(({ action, detail, keys }) => (
-                  <div className="shortcut-row" key={action}>
-                    <div className="shortcut-row-copy">
-                      <span>{action}</span>
-                      {detail ? <small>{detail}</small> : null}
-                    </div>
-                    <kbd>{keys}</kbd>
-                  </div>
-                ))}
-              </section>
-            ))}
-          </div>
-        </ModalShell>
-      ) : null}
+      {shortcutsOpen ? <ShortcutsModal systemInfo={systemInfo} onClose={() => setShortcutsOpen(false)} /> : null}
 
-      {aboutOpen ? (
-        <ModalShell title="About FotoReady" size="small" onClose={() => setAboutOpen(false)}>
-          <div className="about-dialog">
-            <div>
-              <h3>FotoReady</h3>
-              <p className="about-version">Version {systemInfo?.version ?? "0.1.0"}</p>
-            </div>
-            <p>
-              A desktop photo editor for blogging and publication workflows, with queued image processing,
-              metadata controls, rename previews, and optional Gemini-assisted descriptions and slugs.
-            </p>
-            <div className="about-links">
-              <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_REPOSITORY_URL)}>
-                GitHub
-              </button>
-              <button className="toolbar-button" type="button" onClick={() => void api.system.openExternal(APP_ISSUES_URL)}>
-                Issues
-              </button>
-            </div>
-            <div className="settings-summary">
-              <span>Developer</span>
-              <code>Yoshinao Inoguchi</code>
-            </div>
-            <div className="settings-summary">
-              <span>Copyright</span>
-              <code>© 2026 Yoshinao Inoguchi</code>
-            </div>
-            <div className="settings-summary">
-              <span>License</span>
-              <code>MIT</code>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
+      {aboutOpen ? <AboutModal systemInfo={systemInfo} onClose={() => setAboutOpen(false)} /> : null}
 
       <footer className="status-bar">
         <StatusBar

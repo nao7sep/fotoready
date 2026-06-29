@@ -33,15 +33,15 @@ export class VisionQueue {
   }
 
   async setGeminiApiKey(value: string): Promise<void> {
-    await this.#apiKeys.set("gemini", value);
+    await this.#apiKeys.set(["gemini"], value);
   }
 
   async hasGeminiApiKey(): Promise<boolean> {
-    return this.#apiKeys.has("gemini");
+    return this.#apiKeys.has(["gemini"]);
   }
 
   async clearGeminiApiKey(): Promise<void> {
-    await this.#apiKeys.delete("gemini");
+    await this.#apiKeys.clear(["gemini"]);
   }
 
   async runForTask(
@@ -100,7 +100,7 @@ export class VisionQueue {
     if (!task.output) return;
     try {
       const startedAt = performance.now();
-      const apiKey = await this.#apiKeys.get("gemini");
+      const apiKey = await this.#apiKeys.resolve(["gemini"]);
       if (!apiKey) {
         throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
       }

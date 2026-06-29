@@ -91,8 +91,7 @@ export async function bootstrap(): Promise<void> {
       visionConcurrency: settings.visionConcurrency,
       previewLongEdge: settings.previewLongEdge,
       lutFolder: settings.lutFolder,
-      stampFolder: settings.stampFolder,
-      maximizeOnStartup: settings.maximizeOnStartup
+      stampFolder: settings.stampFolder
     }
   });
 
@@ -124,7 +123,6 @@ export async function bootstrap(): Promise<void> {
     });
 
     win.once("ready-to-show", () => {
-      if (settings.maximizeOnStartup) win.maximize();
       win.show();
     });
 

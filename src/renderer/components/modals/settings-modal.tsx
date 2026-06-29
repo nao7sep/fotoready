@@ -573,19 +573,6 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
       </section>
 
       <section>
-        <h3>Window</h3>
-        <div className="settings-grid">
-          <label className="toggle-row settings-toggle-card span-two">
-            <input type="checkbox" checked={settings.maximizeOnStartup} onChange={(event) => setSettings({ ...settings, maximizeOnStartup: event.currentTarget.checked })} />
-            Maximize window on startup
-          </label>
-          <div className="row-detail">
-            Opens the app at the size of a manual window maximize (no fullscreen). The menu bar and dock stay visible.
-          </div>
-        </div>
-      </section>
-
-      <section>
         <h3>Confirmations</h3>
         <div className="settings-grid">
           <label className="toggle-row settings-toggle-card span-two">

@@ -57,8 +57,7 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64, max: MAX_PREVIEW_LONG_EDGE })),
     assetPickerPreviewLongEdge: readValue(source, "assetPickerPreviewLongEdge", fallback.assetPickerPreviewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: MIN_ASSET_PICKER_PREVIEW_LONG_EDGE, max: MAX_ASSET_PICKER_PREVIEW_LONG_EDGE })),
-    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 })),
-    maximizeOnStartup: readValue(source, "maximizeOnStartup", fallback.maximizeOnStartup, issues, assertBoolean)
+    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
   };
   if (settings.defaultGenerateSlug) {
     settings.defaultGenerateDescription = true;

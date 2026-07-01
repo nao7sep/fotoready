@@ -22,7 +22,7 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
       <div className="about-dialog">
         <div>
           <h3>FotoReady</h3>
-          <p className="about-version">Version {systemInfo?.version ?? "0.1.0"}</p>
+          <p className="about-version">Version {systemInfo?.version ?? "unknown"}</p>
         </div>
         <p>
           A desktop photo editor for blogging and publication workflows, with queued image processing,

@@ -7,6 +7,7 @@ import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
+import { runBackupInBackground } from "./backup/backup-service";
 import { ProjectSession } from "./session";
 import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
@@ -133,6 +134,12 @@ export async function bootstrap(): Promise<void> {
   };
 
   createWindow();
+
+  // Just-in-case data backup: a best-effort, silent, background snapshot of ~/.fotoready/, taken after
+  // the window is up so it never delays the first paint (data-backup conventions). config.json is already
+  // materialized (loadSettings above), so it is present to capture. Fire-and-forget: it never blocks,
+  // shows an error, or crashes — its own outcome is the only thing logged.
+  runBackupInBackground(paths, logger);
 
   // macOS keeps the process running after the window closes; recreate only the
   // window when the user re-activates, never re-run the init above.

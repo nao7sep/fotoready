@@ -17,6 +17,7 @@ import { AppSettingsModal, type SettingsTab } from "./components/modals/settings
 import { AboutModal } from "./components/modals/about-modal";
 import { ShortcutsModal } from "./components/modals/shortcuts-modal";
 import { Menu, MenuItem } from "./components/Menu";
+import { ErrorBoundary } from "./components/error-boundary";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -1049,7 +1050,9 @@ function stringifyLogArgs(args: unknown[]): string {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <ConfirmerProvider>
-    <App />
-  </ConfirmerProvider>
+  <ErrorBoundary>
+    <ConfirmerProvider>
+      <App />
+    </ConfirmerProvider>
+  </ErrorBoundary>
 );

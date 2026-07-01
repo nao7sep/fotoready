@@ -16,10 +16,16 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     }
     return state;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      const backupPath = await backupInvalidFile(statePath);
-      logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, backupPath, err: error });
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      // Missing state is the normal first-run case: return defaults WITHOUT writing. state.json is
+      // volatile UI state and is deliberately not materialized on first run (storage-path
+      // conventions) — it is written only once there is real state to record (a resize, a selection).
+      return defaultUiState();
     }
+    // Present but unreadable: quarantine the bad bytes, then reset to defaults on disk so the next
+    // launch does not re-read (and re-quarantine) the same corrupt file.
+    const backupPath = await backupInvalidFile(statePath);
+    logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, backupPath, err: error });
     const state = defaultUiState();
     await saveState(statePath, state);
     return state;

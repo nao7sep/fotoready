@@ -19,14 +19,16 @@ import { normalize } from "./archive-paths";
 
 const EXCLUDED_DIRS = ["backups", "logs"];
 const EXCLUDED_FILES = new Set(["state.json"]);
-const EXCLUDED_BASENAMES = new Set([".DS_Store", "Thumbs.db"]);
+// OS/file-manager metadata that appears under the root just from browsing it (the fleet floor); matched
+// against the lowercased base name so `Desktop.ini`/`thumbs.db` etc. all match, case-insensitively.
+const EXCLUDED_BASENAMES = new Set([".ds_store", "thumbs.db", "desktop.ini"]);
 
 /** True when a home-root file must not be backed up. */
 export function isExcludedFile(relativePath: string): boolean {
   const path = normalize(relativePath);
-  if (path.endsWith(".tmp")) return true;
+  if (path.toLowerCase().endsWith(".tmp")) return true;
   if (EXCLUDED_FILES.has(path)) return true;
-  const basename = path.slice(path.lastIndexOf("/") + 1);
+  const basename = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
   if (EXCLUDED_BASENAMES.has(basename)) return true;
   return EXCLUDED_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
 }

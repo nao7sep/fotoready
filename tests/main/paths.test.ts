@@ -45,6 +45,42 @@ describe("getAppPaths luts/stamps relocate with FOTOREADY_HOME", () => {
   });
 });
 
+describe("getAppPaths storage filenames", () => {
+  let tmpBase: string;
+  const original = process.env[ENV_VAR];
+
+  beforeEach(() => {
+    tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-paths-"));
+    delete process.env[ENV_VAR];
+  });
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[ENV_VAR];
+    else process.env[ENV_VAR] = original;
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+  });
+
+  it("resolves the durable settings to config.json under the storage root", () => {
+    const target = path.join(tmpBase, "relocated");
+    process.env[ENV_VAR] = target;
+    const paths = getAppPaths();
+    expect(paths.settingsPath).toBe(path.join(path.resolve(target), "config.json"));
+    expect(path.basename(paths.settingsPath)).toBe("config.json");
+  });
+
+  it("keeps settings, state, and api-keys as three distinct files", () => {
+    const target = path.join(tmpBase, "relocated");
+    process.env[ENV_VAR] = target;
+    const paths = getAppPaths();
+    expect(path.basename(paths.settingsPath)).toBe("config.json");
+    expect(path.basename(paths.statePath)).toBe("state.json");
+    expect(path.basename(paths.apiKeysPath)).toBe("api-keys.json");
+    const names = [paths.settingsPath, paths.statePath, paths.apiKeysPath];
+    expect(new Set(names).size).toBe(3);
+    expect(paths.settingsPath).not.toBe(paths.statePath);
+  });
+});
+
 describe("resolveLutDir / resolveStampDir", () => {
   const defaultLutDir = path.join("/tmp", "fotoready-home", "luts");
   const defaultStampDir = path.join("/tmp", "fotoready-home", "stamps");

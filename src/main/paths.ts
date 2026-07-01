@@ -29,7 +29,7 @@ export function getAppPaths(): AppPaths {
   const dataDir = getDataDir();
   return {
     dataDir,
-    settingsPath: path.join(dataDir, "settings.json"),
+    settingsPath: path.join(dataDir, "config.json"),
     statePath: path.join(dataDir, "state.json"),
     apiKeysPath: path.join(dataDir, "api-keys.json"),
     logsDir: path.join(dataDir, "logs"),

@@ -51,9 +51,8 @@ async function runCore(paths: BackupPaths, now: Date): Promise<BackupReport> {
       lastWriteUtc: toIsoSeconds(item.mtimeMs),
     });
   }
-  // Index second: the archive is already in place, so a crash here just re-captures next run. The index
-  // is written 0600 (it lives in the 0700 backups dir, but owner-only on the file too costs nothing).
-  await atomicWriteFile(paths.indexPath, `${JSON.stringify(index, null, 2)}\n`, { mode: 0o600 });
+  // Index second: the archive is already in place, so a crash here just re-captures next run.
+  await atomicWriteFile(paths.indexPath, `${JSON.stringify(index, null, 2)}\n`);
 
   return { nothingChanged: false, archiveFileName, filesArchived: archived.length, skips, indexWasReset };
 }
@@ -111,7 +110,7 @@ async function writeArchive(
 
   zip.end();
   try {
-    await pipeline(zip.outputStream, createWriteStream(tempPath, { mode: 0o600 }));
+    await pipeline(zip.outputStream, createWriteStream(tempPath));
     await fs.promises.rename(tempPath, finalPath);
   } catch (err) {
     await tryDelete(tempPath);
@@ -122,11 +121,6 @@ async function writeArchive(
 
 async function ensureBackupsDir(backupsDir: string): Promise<string> {
   await fs.promises.mkdir(backupsDir, { recursive: true });
-  // Owner-only: a backup may contain a secrets file (api-keys.json), so the archives must not be readable
-  // by other users even though the zip itself carries the umask default (data-backup conventions).
-  if (process.platform !== "win32") {
-    await fs.promises.chmod(backupsDir, 0o700);
-  }
   return backupsDir;
 }
 

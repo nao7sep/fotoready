@@ -1,8 +1,8 @@
-// End-to-end backup runs over a throwaway home root: a first run captures config.json, api-keys.json,
-// and the luts/ + stamps/ trees at their mirror paths while excluding the volatile state.json; an
-// unchanged run writes nothing; an edit captures only what changed; a corrupt index resets to a full
-// backup; and a case-insensitive path collision is skipped without failing the run. The backups
-// directory is owner-only (0700) so a secret it may contain (api-keys.json) is not downgraded.
+// End-to-end backup runs over a throwaway home root: a first run captures the user's work-product
+// (config.json and other durable managed data) at their mirror paths while excluding the volatile
+// state.json, the api-keys.json secret, the imported luts/ + stamps/ instrument trees, and .invalid
+// quarantine copies; an unchanged run writes nothing; an edit captures only what changed; a corrupt
+// index resets to a full backup; and a case-insensitive path collision is skipped without failing.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
@@ -55,12 +55,14 @@ function zipEntries(zipFile: string): Promise<string[]> {
 }
 
 describe("runBackup", () => {
-  it("captures managed files at mirror paths and excludes state.json", async () => {
+  it("captures the user's work-product and excludes secrets, instruments, state and quarantine copies", async () => {
     write("config.json", "{}");
-    write("api-keys.json", "{}");
+    write("notes/durable.json", "{}"); // durable managed data — captured
+    write("api-keys.json", "{}"); // a secret — must NOT be captured
     write("state.json", '{"window":true}'); // volatile UI state — must NOT be captured
-    write("luts/warm.cube", "LUT");
-    write("stamps/logo.png", "PNG");
+    write("luts/warm.cube", "LUT"); // imported instrument — must NOT be captured
+    write("stamps/logo.png", "PNG"); // imported instrument — must NOT be captured
+    write("config.json.20260701-000000-utc.invalid", "{ broken"); // quarantine copy — must NOT be captured
     write("logs/20260701-000000-utc.log", "log"); // recreatable — excluded
 
     const report = await runBackup(paths, RUN1);
@@ -71,21 +73,18 @@ describe("runBackup", () => {
 
     const entries = await zipEntries(archivePath(report.archiveFileName!));
     expect(entries).toEqual([
-      "api-keys.json",
       "config.json",
-      "luts/warm.cube",
-      "stamps/logo.png",
+      "notes/durable.json",
     ]);
+    expect(entries).not.toContain("api-keys.json");
     expect(entries).not.toContain("state.json");
-
-    if (process.platform !== "win32") {
-      expect(fs.statSync(paths.backupsDir).mode & 0o777).toBe(0o700);
-    }
+    expect(entries).not.toContain("luts/warm.cube");
+    expect(entries).not.toContain("stamps/logo.png");
   });
 
   it("writes nothing on a second run with no changes", async () => {
     write("config.json", "{}");
-    write("luts/warm.cube", "LUT");
+    write("notes/durable.json", "{}");
 
     await runBackup(paths, RUN1);
     const report = await runBackup(paths, RUN2);
@@ -96,22 +95,22 @@ describe("runBackup", () => {
 
   it("captures only the changed file after an edit", async () => {
     write("config.json", "{}");
-    const lut = path.join(home, "luts", "warm.cube");
-    write("luts/warm.cube", "LUT");
+    const note = path.join(home, "notes", "durable.json");
+    write("notes/durable.json", "{}");
     await runBackup(paths, RUN1);
 
-    fs.writeFileSync(lut, "LUT, now longer"); // size differs, caught regardless of mtime
+    fs.writeFileSync(note, '{"now":"longer"}'); // size differs, caught regardless of mtime
 
     const report = await runBackup(paths, RUN2);
 
     expect(report.filesArchived).toBe(1);
     const entries = await zipEntries(archivePath("backup-20260701-010000-utc.zip"));
-    expect(entries).toEqual(["luts/warm.cube"]);
+    expect(entries).toEqual(["notes/durable.json"]);
   });
 
   it("resets a corrupt index to a full backup", async () => {
     write("config.json", "{}");
-    write("luts/warm.cube", "LUT");
+    write("notes/durable.json", "{}");
     await runBackup(paths, RUN1);
 
     fs.writeFileSync(paths.indexPath, "{ not valid json");
@@ -119,7 +118,7 @@ describe("runBackup", () => {
     const report = await runBackup(paths, RUN2);
 
     expect(report.indexWasReset).toBe(true);
-    expect(report.filesArchived).toBe(2); // config.json + luts/warm.cube
+    expect(report.filesArchived).toBe(2); // config.json + notes/durable.json
   });
 
   it("skips a case-insensitive archive-path collision and continues", async () => {
@@ -127,13 +126,13 @@ describe("runBackup", () => {
     // zip, so the second is a recorded skip and the run still succeeds. Skipped on case-insensitive
     // filesystems (e.g. default macOS/Windows) where the second write just overwrites the first.
     write("config.json", "{}");
-    write("luts/Warm.cube", "A");
-    if (fs.existsSync(path.join(home, "luts", "warm.cube"))) return; // case-insensitive FS: no collision
-    write("luts/warm.cube", "B");
+    write("notes/Durable.json", "A");
+    if (fs.existsSync(path.join(home, "notes", "durable.json"))) return; // case-insensitive FS: no collision
+    write("notes/durable.json", "B");
 
     const report = await runBackup(paths, RUN1);
 
-    expect(report.nothingChanged).toBe(false); // config.json + one of the luts is still captured
+    expect(report.nothingChanged).toBe(false); // config.json + one of the notes is still captured
     expect(report.skips.some((s) => s.reason.includes("case-insensitive"))).toBe(true);
   });
 });

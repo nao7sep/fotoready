@@ -80,7 +80,13 @@
       "icon": "build/icon.icns",
       "extendInfo": {
         "CFBundleIconName": "star-bokeh"
-      }
+      },
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ]
     }
   }
 }

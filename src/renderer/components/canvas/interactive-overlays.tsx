@@ -10,6 +10,17 @@ type Placement = { x: number; y: number; width: number; height: number; scale: n
 const MIN_STAGE_SIZE = 12;
 
 /**
+ * Set the canvas cursor for the draggable region: the open hand at rest, the
+ * closed hand while moving it (per the cursor conventions' drag rule). Konva
+ * draws to a canvas, so the cursor lives on the stage's container element, not
+ * on the node — there is no CSS selector to hang it on.
+ */
+function setStageCursor(node: Konva.Node, value: string): void {
+  const container = node.getStage()?.container();
+  if (container) container.style.cursor = value;
+}
+
+/**
  * Draggable/resizable region in stage pixels. Callers own conversion between
  * image-space params and stage-space display coordinates.
  */
@@ -58,6 +69,9 @@ export function InteractiveOverlayRect({
         x={centerX}
         y={centerY}
         draggable
+        onMouseEnter={(event) => setStageCursor(event.target, "grab")}
+        onMouseLeave={(event) => setStageCursor(event.target, "")}
+        onDragStart={(event) => setStageCursor(event.target, "grabbing")}
         dragBoundFunc={(position) => {
           const bounded = clampStageRect({
             ...stageRect,
@@ -79,6 +93,7 @@ export function InteractiveOverlayRect({
         }}
         onDragEnd={(event) => {
           const node = event.target;
+          setStageCursor(node, "grab");
           const nextRect = clampStageRect({
             x: node.x() - stageRect.w / 2,
             y: node.y() - stageRect.h / 2,

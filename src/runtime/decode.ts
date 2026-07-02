@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import sharp, { format as sharpFormat } from "sharp";
+import sharp from "sharp";
 import type { Metadata } from "sharp";
 import { detectFormat } from "./format";
 import type { Image } from "./image";
@@ -49,6 +49,6 @@ export async function inspectSourceImage(bytes: Buffer): Promise<{ format: strin
 }
 
 function supportsHeicInput(): boolean {
-  const suffixes = sharpFormat.heif?.input?.fileSuffix ?? [];
+  const suffixes = sharp.format.heif?.input?.fileSuffix ?? [];
   return suffixes.includes(".heic") || suffixes.includes(".heif");
 }

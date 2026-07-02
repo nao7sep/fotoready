@@ -45,6 +45,9 @@ const initialQueueSnapshot: QueueSnapshot = {
 function App(): React.JSX.Element {
   const confirmer = useConfirmer();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+  // Live UI shows the running platform's single modifier word, never the combined
+  // "Cmd/Ctrl" (keyboard-shortcut-conventions) — same resolution the shortcuts modal uses.
+  const mod = systemInfo && systemInfo.platform !== "darwin" ? "Ctrl" : "Cmd";
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [uiState, setUiState] = useState<UiState | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
@@ -669,7 +672,7 @@ function App(): React.JSX.Element {
             </button>
           ) : null}
         </div>
-        <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title="Toggle histogram (Cmd/Ctrl+H)" onClick={() => void toggleHistogram()}>
+        <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title={`Toggle histogram (${mod}+H)`} onClick={() => void toggleHistogram()}>
           <BarChart3 size={18} />
         </button>
         <Menu

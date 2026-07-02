@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
-import sharp from "sharp";
+import sharp, { format as sharpFormat } from "sharp";
+import type { Metadata } from "sharp";
 import { detectFormat } from "./format";
 import type { Image } from "./image";
 
@@ -23,7 +24,7 @@ export async function decodeImage(sourcePath: string): Promise<{ image: Image }>
   };
 }
 
-export async function inspectSourceImage(bytes: Buffer): Promise<{ format: string; metadata: sharp.Metadata }> {
+export async function inspectSourceImage(bytes: Buffer): Promise<{ format: string; metadata: Metadata }> {
   const format = detectFormat(bytes);
   if (format === "unknown") {
     throw new Error("Unsupported image format. Convert the source image to JPEG, PNG, WebP, AVIF, TIFF, GIF, or HEIC and retry.");
@@ -48,6 +49,6 @@ export async function inspectSourceImage(bytes: Buffer): Promise<{ format: strin
 }
 
 function supportsHeicInput(): boolean {
-  const suffixes = sharp.format.heif?.input?.fileSuffix ?? [];
+  const suffixes = sharpFormat.heif?.input?.fileSuffix ?? [];
   return suffixes.includes(".heic") || suffixes.includes(".heif");
 }

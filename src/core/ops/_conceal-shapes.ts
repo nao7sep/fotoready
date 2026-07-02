@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import type { OverlayOptions, Sharp } from "sharp";
 import { CONCEAL_SHAPES, type ConcealRegion, type ConcealShape } from "@shared/types/conceal";
 import { normalizeAngle } from "@shared/rotation";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, clamp, escapeXml } from "./_shared";
@@ -32,7 +33,7 @@ export function fillOverlayFromConcealRegion(
   sourceWidth: number,
   sourceHeight: number,
   fill: string
-): sharp.OverlayOptions {
+): OverlayOptions {
   const projected = projectConcealRegion(region, sourceWidth, sourceHeight);
   return {
     input: shapeSvg(projected, fill),
@@ -42,12 +43,12 @@ export function fillOverlayFromConcealRegion(
 }
 
 export async function compositeMaskedOverlayFromConcealRegion(
-  image: sharp.Sharp,
+  image: Sharp,
   region: ConcealRegion,
   sourceWidth: number,
   sourceHeight: number,
-  transform: (regionImage: sharp.Sharp, size: { width: number; height: number }) => sharp.Sharp | Promise<sharp.Sharp>
-): Promise<sharp.OverlayOptions> {
+  transform: (regionImage: Sharp, size: { width: number; height: number }) => Sharp | Promise<Sharp>
+): Promise<OverlayOptions> {
   const projected = projectConcealRegion(region, sourceWidth, sourceHeight);
   const transformedImage = await transform(image.clone().extract(projected.bounds), {
     width: projected.bounds.width,

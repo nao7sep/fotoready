@@ -132,6 +132,12 @@ textarea {
   font: inherit;
 }
 
+/* Every button shows the hand (the webview clickable idiom); disabled resets to
+   the arrow below. */
+button {
+  cursor: pointer;
+}
+
 .app-shell {
   position: relative;
   display: grid;
@@ -370,6 +376,9 @@ button:disabled,
 input:disabled,
 select:disabled {
   opacity: 0.55;
+  /* A disabled button shows the plain arrow, never the hand — overrides the
+     button pointer above so a dead button does not invite a click. */
+  cursor: default;
 }
 
 .app-title {

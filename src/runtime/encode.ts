@@ -1,4 +1,4 @@
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 import type { OutputSettings } from "@shared/types/pipeline";
 
 export function applyOutputEncoding(image: sharp.Sharp, output: OutputSettings): sharp.Sharp {

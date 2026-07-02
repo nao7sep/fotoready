@@ -3,7 +3,7 @@ import { registerOp } from "./registry";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared";
 import { compositeMaskedOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
-import sharp from "sharp";
+import type * as sharp from "sharp";
 
 type MosaicParams = {
   rects: ConcealRegion[];

@@ -1,4 +1,4 @@
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, assertString, assertNonEmptyString } from "@shared/validation/common";
 import { clamp, clamp01 } from "@shared/numeric";
 

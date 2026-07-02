@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
+import type { Sharp } from "sharp";
 import { applyOutputEncoding } from "@runtime/encode";
 import type { OutputSettings } from "@shared/types/pipeline";
 
-function makeImage(): sharp.Sharp {
+function makeImage(): Sharp {
   // A tiny opaque RGBA frame is enough to exercise the encoder configuration path.
   return sharp(Buffer.alloc(2 * 2 * 4, 200), { raw: { width: 2, height: 2, channels: 4 } });
 }

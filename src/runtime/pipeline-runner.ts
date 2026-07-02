@@ -6,7 +6,7 @@ import { applyOutputEncoding } from "./encode";
 import { sha256Bytes } from "./hash";
 import { asPipelineError, type PipelineErrorCategory } from "./pipeline-error";
 import type { CubeLut } from "./lut-cube";
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 
 type PipelineRunContext = {
   sourcePath: string;

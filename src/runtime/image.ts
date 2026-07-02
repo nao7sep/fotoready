@@ -1,4 +1,4 @@
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 import type { Pipeline } from "@shared/types/pipeline";
 import type { PipelineErrorCategory } from "./pipeline-error";
 

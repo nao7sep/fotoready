@@ -1,4 +1,4 @@
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCategory } from "@shared/types/op";
 import { assertBoolean } from "@shared/validation/common";

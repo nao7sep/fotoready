@@ -1,4 +1,4 @@
-import type sharp from "sharp";
+import type * as sharp from "sharp";
 import { registerOp } from "./registry";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import type { OpModule } from "./op-module";

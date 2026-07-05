@@ -41,9 +41,10 @@ describe("loadState", () => {
     const state = await loadState(statePath());
 
     expect(state).toEqual(defaultUiState());
-    // The corrupt bytes are preserved aside, and state.json is reset so the next launch is clean.
+    // The corrupt bytes are preserved aside (as state-<stamp>.invalid, derived-filename grammar), and
+    // state.json is reset so the next launch is clean.
     const files = await fs.readdir(dir);
-    expect(files.some((f) => f.startsWith("state.json.") && f.endsWith(".invalid"))).toBe(true);
+    expect(files.some((f) => f.startsWith("state-") && f.endsWith(".invalid"))).toBe(true);
     expect(files).toContain("state.json");
   });
 });

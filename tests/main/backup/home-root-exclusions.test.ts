@@ -20,9 +20,9 @@ describe("isExcludedFile", () => {
     "logs/20260701-000000-utc.log",
     "backups/index.json",
     "backups/backup-20260701-000000-utc.zip",
-    "config.json.tmp.123.abc.tmp",
-    "config.json.20260701-000000-utc.invalid", // quarantine copy
-    "state.20260701-000000-utc.INVALID", // matched case-insensitively
+    "config-a1b2c3d4.tmp",
+    "config-20260701-000000-000-utc.invalid", // quarantine copy
+    "state-20260701-000000-000-utc.INVALID", // matched case-insensitively
     ".DS_Store",
     "luts/.DS_Store",
     "stamps/Thumbs.db",

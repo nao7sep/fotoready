@@ -19,8 +19,11 @@ export async function atomicWriteFile(
   options?: AtomicWriteOptions | BufferEncoding
 ): Promise<void> {
   const opts: AtomicWriteOptions = typeof options === "string" ? { encoding: options } : options ?? {};
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.tmp.${process.pid}.${nanoid(8)}`;
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  // <stem>-<nanoid>.tmp, alongside the target (derived-filename grammar): one final extension stating
+  // the temp file's current role, never a dot-appended suffix on the full target filename.
+  const tmpPath = path.join(dir, `${path.parse(filePath).name}-${nanoid(8)}.tmp`);
   try {
     const writeOptions = opts.mode !== undefined ? { mode: opts.mode } : undefined;
     if (typeof data === "string") {

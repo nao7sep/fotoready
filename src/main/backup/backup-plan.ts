@@ -37,8 +37,9 @@ function isChanged(candidate: BackupCandidate, latest: Map<string, BackupIndexEn
   return Math.abs(candidate.mtimeMs - recordedMs) > MTIME_MATCH_TOLERANCE_MS;
 }
 
-/** The latest entry per archive path. `archivedAt` is a `yyyymmdd-hhmmss-utc` stamp, so ordinal string
- *  comparison is chronological. */
+/** The latest entry per archive path. `archivedAt` is a `yyyymmdd-hhmmss(-fff)-utc` stamp (millisecond
+ *  form going forward; older entries stay at second precision), so ordinal string comparison is
+ *  chronological. */
 function latestByPath(index: BackupIndex): Map<string, BackupIndexEntry> {
   const latest = new Map<string, BackupIndexEntry>();
   for (const entry of index.entries) {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { atomicWriteFile } from "@adapters/atomic-file";
 
 const isPosix = process.platform !== "win32";
@@ -26,6 +26,15 @@ describe("atomicWriteFile", () => {
     // Only the target should remain in the directory: no .tmp.* sibling.
     const remaining = await fsp.readdir(tmpDir);
     expect(remaining).toEqual(["out.json"]);
+  });
+
+  it("names the temp file <stem>-<nanoid>.tmp in the same directory as the target", async () => {
+    const renameSpy = vi.spyOn(fsp, "rename");
+    await atomicWriteFile(filePath, "hello world", "utf8");
+    const tempArg = renameSpy.mock.calls[0]?.[0] as string;
+    expect(path.dirname(tempArg)).toBe(tmpDir);
+    expect(path.basename(tempArg)).toMatch(/^out-[A-Za-z0-9_-]{8}\.tmp$/);
+    renameSpy.mockRestore();
   });
 
   it("writes buffer content as well", async () => {

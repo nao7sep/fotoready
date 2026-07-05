@@ -168,8 +168,8 @@ function buildLine(level: LogLevel, message: string, fields?: LogFields): string
 }
 
 /**
- * One log file per launch under `logsDir`, named with a UTC session-start stamp
- * (`yyyymmdd-hhmmss-utc.log`). Every line is one JSON object. Writes are
+ * One log file per launch under `logsDir`, named with a UTC session-start millisecond stamp
+ * (`yyyymmdd-hhmmss-fff-utc.log`, per the timestamp-conventions). Every line is one JSON object. Writes are
  * synchronous, so the last lines before a crash are already on disk — no buffer
  * to lose. If the file can't be opened or a write fails, the logger degrades to
  * the console and keeps running; it never throws and never silently swallows a

@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState } from "@shared/validation/state";
 import { utcStamp } from "@shared/time";
@@ -38,7 +39,8 @@ export async function saveState(statePath: string, state: UiState): Promise<void
 }
 
 async function backupInvalidFile(filePath: string): Promise<string | null> {
-  const backupPath = `${filePath}.${utcStamp()}.invalid`;
+  // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
+  const backupPath = path.join(path.dirname(filePath), `${path.parse(filePath).name}-${utcStamp()}.invalid`);
   try {
     await fs.copyFile(filePath, backupPath);
     return backupPath;

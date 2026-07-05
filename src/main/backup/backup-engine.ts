@@ -9,6 +9,7 @@ import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import yazl from "yazl";
+import { nanoid } from "nanoid";
 import { utcStamp } from "@shared/time";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import { collectRoots } from "./backup-collector";
@@ -35,9 +36,7 @@ async function runCore(paths: BackupPaths, now: Date): Promise<BackupReport> {
     return { nothingChanged: true, filesArchived: 0, skips, indexWasReset };
   }
 
-  const archivedAt = utcStamp(now);
-  const archiveFileName = `backup-${archivedAt}.zip`;
-  const archived = await writeArchive(paths.backupsDir, archiveFileName, changed, skips);
+  const { archived, archivedAt, archiveFileName } = await writeArchive(paths.backupsDir, now, changed, skips);
   if (archived.length === 0) {
     // Every changed file vanished before it could be archived; nothing was written, nothing is recorded.
     return { nothingChanged: true, filesArchived: 0, skips, indexWasReset };
@@ -83,16 +82,23 @@ async function loadIndex(indexPath: string): Promise<{ index: BackupIndex; index
 }
 
 /** Streams the changed files to a temp zip and renames it into place, returning the files that were
- *  actually archived (a file that vanished since collection is skipped, not recorded). */
+ *  actually archived (a file that vanished since collection is skipped, not recorded) alongside the
+ *  stamp and archive name that won. `now` seeds the stamp; on a name collision (a no-clobber create) it
+ *  is advanced one millisecond at a time — keeping the same Date instant, re-formatted via {@link
+ *  utcStamp} — until a free name is found, and the winning stamp is what the caller records in the
+ *  index, so the zip stays derivable from `archivedAt`. */
 async function writeArchive(
   backupsDir: string,
-  archiveFileName: string,
+  now: Date,
   changed: readonly BackupCandidate[],
   skips: BackupSkip[],
-): Promise<BackupCandidate[]> {
+): Promise<{ archived: BackupCandidate[]; archivedAt: string; archiveFileName: string }> {
   const dir = await ensureBackupsDir(backupsDir);
-  const finalPath = path.join(dir, archiveFileName);
-  const tempPath = path.join(dir, `.${process.pid}-${archiveFileName}.tmp`);
+  let stamp = now;
+  let archivedAt = utcStamp(stamp);
+  let archiveFileName = `backup-${archivedAt}.zip`;
+  // <stem>-<nanoid>.tmp, alongside the target archive (derived-filename grammar).
+  const tempPath = path.join(dir, `${path.parse(archiveFileName).name}-${nanoid(8)}.tmp`);
 
   const zip = new yazl.ZipFile();
   const archived: BackupCandidate[] = [];
@@ -105,18 +111,27 @@ async function writeArchive(
     archived.push(item);
   }
   if (archived.length === 0) {
-    return archived;
+    return { archived, archivedAt, archiveFileName };
   }
 
   zip.end();
   try {
     await pipeline(zip.outputStream, createWriteStream(tempPath));
+    // No-clobber create: before the final move, if another run already claimed this exact millisecond,
+    // advance to the next free one and use it for both the zip name and the index records.
+    let finalPath = path.join(dir, archiveFileName);
+    while (fs.existsSync(finalPath)) {
+      stamp = new Date(stamp.getTime() + 1);
+      archivedAt = utcStamp(stamp);
+      archiveFileName = `backup-${archivedAt}.zip`;
+      finalPath = path.join(dir, archiveFileName);
+    }
     await fs.promises.rename(tempPath, finalPath);
   } catch (err) {
     await tryDelete(tempPath);
     throw err;
   }
-  return archived;
+  return { archived, archivedAt, archiveFileName };
 }
 
 async function ensureBackupsDir(backupsDir: string): Promise<string> {

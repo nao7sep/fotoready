@@ -110,7 +110,8 @@ describe("ApiKeyStore", () => {
 
     await expect(store.resolve(["gemini"])).resolves.toBeNull();
     const entries = fs.readdirSync(tmpDir);
-    expect(entries.some((e) => e.startsWith("api-keys.json.") && e.endsWith(".invalid"))).toBe(true);
+    // api-keys-<stamp>.invalid, derived-filename grammar (never a dot-append after the full filename).
+    expect(entries.some((e) => e.startsWith("api-keys-") && e.endsWith(".invalid"))).toBe(true);
     expect(entries).not.toContain("api-keys.json");
   });
 

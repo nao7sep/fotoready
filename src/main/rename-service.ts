@@ -216,7 +216,8 @@ async function moveFile(from: string, to: string): Promise<void> {
       throw error;
     }
   }
-  const tempPath = `${to}.tmp.${process.pid}.${nanoid(8)}`;
+  // <stem>-<nanoid>.tmp, alongside the destination (derived-filename grammar).
+  const tempPath = path.join(path.dirname(to), `${path.parse(to).name}-${nanoid(8)}.tmp`);
   try {
     await fs.copyFile(from, tempPath, fs.constants.COPYFILE_EXCL);
     await fs.rename(tempPath, to);

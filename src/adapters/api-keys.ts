@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import { utcStamp } from "@shared/time";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { Logger } from "@shared/types/log";
@@ -225,7 +226,8 @@ export class ApiKeyStore {
   // re-flagged on every read), returning the new path or null if it could not be
   // moved. Best-effort: a failed move never blocks resolution.
   private async moveAsideInvalid(): Promise<string | null> {
-    const movedTo = `${this.filePath}.${utcStamp()}.invalid`;
+    // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
+    const movedTo = path.join(path.dirname(this.filePath), `${path.parse(this.filePath).name}-${utcStamp()}.invalid`);
     try {
       await fs.rename(this.filePath, movedTo);
       return movedTo;

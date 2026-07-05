@@ -44,7 +44,8 @@ export async function saveSettings(settingsPath: string, settings: GlobalSetting
 }
 
 async function backupInvalidFile(filePath: string): Promise<string | null> {
-  const backupPath = `${filePath}.${utcStamp()}.invalid`;
+  // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
+  const backupPath = path.join(path.dirname(filePath), `${path.parse(filePath).name}-${utcStamp()}.invalid`);
   try {
     await fs.copyFile(filePath, backupPath);
     return backupPath;

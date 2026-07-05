@@ -27,10 +27,10 @@ function readLines(dir: string): Array<Record<string, unknown>> {
 const ISO_MS_Z = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 describe("createLogger", () => {
-  it("names the session file with a UTC stamp and nothing else", () => {
+  it("names the session file with a UTC millisecond stamp and nothing else", () => {
     createLogger(logsDir, { debug: false }).close();
     const file = fs.readdirSync(logsDir).find((entry) => entry.endsWith(".log"));
-    expect(file).toMatch(/^\d{8}-\d{6}-utc\.log$/);
+    expect(file).toMatch(/^\d{8}-\d{6}-\d{3}-utc\.log$/);
   });
 
   it("writes one JSON object per line with the time/level/message envelope plus fields", () => {

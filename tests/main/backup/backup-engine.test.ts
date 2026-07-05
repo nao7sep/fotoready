@@ -62,14 +62,14 @@ describe("runBackup", () => {
     write("state.json", '{"window":true}'); // volatile UI state — must NOT be captured
     write("luts/warm.cube", "LUT"); // imported instrument — must NOT be captured
     write("stamps/logo.png", "PNG"); // imported instrument — must NOT be captured
-    write("config.json.20260701-000000-utc.invalid", "{ broken"); // quarantine copy — must NOT be captured
+    write("config-20260701-000000-000-utc.invalid", "{ broken"); // quarantine copy — must NOT be captured
     write("logs/20260701-000000-utc.log", "log"); // recreatable — excluded
 
     const report = await runBackup(paths, RUN1);
 
     expect(report.fatal).toBeUndefined();
     expect(report.nothingChanged).toBe(false);
-    expect(report.archiveFileName).toBe("backup-20260701-000000-utc.zip");
+    expect(report.archiveFileName).toBe("backup-20260701-000000-000-utc.zip");
 
     const entries = await zipEntries(archivePath(report.archiveFileName!));
     expect(entries).toEqual([
@@ -90,7 +90,7 @@ describe("runBackup", () => {
     const report = await runBackup(paths, RUN2);
 
     expect(report.nothingChanged).toBe(true);
-    expect(fs.existsSync(archivePath("backup-20260701-010000-utc.zip"))).toBe(false);
+    expect(fs.existsSync(archivePath("backup-20260701-010000-000-utc.zip"))).toBe(false);
   });
 
   it("captures only the changed file after an edit", async () => {
@@ -104,7 +104,7 @@ describe("runBackup", () => {
     const report = await runBackup(paths, RUN2);
 
     expect(report.filesArchived).toBe(1);
-    const entries = await zipEntries(archivePath("backup-20260701-010000-utc.zip"));
+    const entries = await zipEntries(archivePath("backup-20260701-010000-000-utc.zip"));
     expect(entries).toEqual(["notes/durable.json"]);
   });
 
@@ -119,6 +119,34 @@ describe("runBackup", () => {
 
     expect(report.indexWasReset).toBe(true);
     expect(report.filesArchived).toBe(2); // config.json + notes/durable.json
+  });
+
+  it("advances to the next free millisecond when the target archive name already exists (no-clobber create)", async () => {
+    write("config.json", "{}");
+    write("notes/durable.json", "{}");
+
+    // Simulate a second instance (or a leftover) that already claimed the exact millisecond this run
+    // would otherwise stamp — the engine must advance rather than overwrite it.
+    fs.mkdirSync(paths.backupsDir, { recursive: true });
+    fs.writeFileSync(archivePath("backup-20260701-000000-000-utc.zip"), "");
+
+    const report = await runBackup(paths, RUN1);
+
+    expect(report.fatal).toBeUndefined();
+    expect(report.nothingChanged).toBe(false);
+    expect(report.archiveFileName).toBe("backup-20260701-000000-001-utc.zip");
+
+    const entries = await zipEntries(archivePath(report.archiveFileName!));
+    expect(entries).toEqual(["config.json", "notes/durable.json"]);
+
+    // The pre-existing archive at the original stamp is left untouched, not overwritten.
+    expect(fs.readFileSync(archivePath("backup-20260701-000000-000-utc.zip"), "utf-8")).toBe("");
+
+    const index = JSON.parse(fs.readFileSync(paths.indexPath, "utf-8")) as {
+      entries: Array<{ archivedAt: string }>;
+    };
+    expect(index.entries.length).toBe(2);
+    expect(index.entries.every((e) => e.archivedAt === "20260701-000000-001-utc")).toBe(true);
   });
 
   it("skips a case-insensitive archive-path collision and continues", async () => {

@@ -10,8 +10,8 @@
  *     session and is harmless to lose, so capturing it would emit a near-worthless backup on almost
  *     every launch and defeat the skip-empty property.
  *   - `api-keys.json` — a secret; not part of the backed-up work-product.
- *   - `*.tmp` — atomic-write temporaries.
- *   - `*.invalid` — the `.<name>.<stamp>.invalid` quarantine copies fotoready writes when a managed
+ *   - `*.tmp` — atomic-write temporaries (`<stem>-<nanoid>.tmp`).
+ *   - `*.invalid` — the `<stem>-<stamp>.invalid` quarantine copies fotoready writes when a managed
  *     file fails to parse (settings-io.ts, state-io.ts, adapters/api-keys.ts); throwaway, not backed up.
  *   - `.DS_Store`, `Thumbs.db` — OS directory-metadata droppings that appear anywhere in the tree.
  * Paths are the forward-slash relative path under the root.

@@ -200,4 +200,38 @@ describe("createLogger", () => {
       logger.close();
     }).not.toThrow();
   });
+
+  it("degrades the second same-millisecond session to the console instead of interleaving into one file", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T03:15:42.123Z"));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const first = createLogger(logsDir, { debug: false });
+      first.info("first session", { mod: "test" });
+
+      // Same launch instant -> same filename -> the exclusive-create open must
+      // fail for the second logger rather than appending into the first file.
+      const second = createLogger(logsDir, { debug: false });
+      second.info("second session", { mod: "test" });
+
+      const logFiles = fs.readdirSync(logsDir).filter((entry) => entry.endsWith(".log"));
+      expect(logFiles).toHaveLength(1);
+
+      const lines = readLines(logsDir);
+      expect(lines).toHaveLength(1);
+      expect(lines[0].message).toBe("first session");
+
+      // The second session's line went to the console fallback, not the file.
+      expect(logSpy).toHaveBeenCalled();
+
+      first.close();
+      second.close();
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });

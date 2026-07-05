@@ -63,4 +63,30 @@ describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
     process.env[ENV_VAR] = filePath;
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
   });
+
+  it("hard-errors on a reference to an unset $VAR, naming the variable (never a literal $VAR directory)", () => {
+    delete process.env.FOTOREADY_ROOT_TEST_UNSET;
+    process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_UNSET";
+    // A literal `$VAR` path segment would be a silent misconfiguration — the
+    // app would create a directory literally named "$FOTOREADY_ROOT_TEST_UNSET".
+    // Per the storage-path-conventions (and the mumbler/tapebox reference
+    // shape), this is a reported startup error instead.
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/not set/);
+    // And no literal-$VAR directory was materialized under HOME.
+    expect(fs.existsSync(path.join(os.homedir(), "$FOTOREADY_ROOT_TEST_UNSET"))).toBe(false);
+  });
+
+  it("hard-errors when the override expands to an empty path (a $VAR set to the empty string), never collapsing onto bare HOME", () => {
+    process.env.FOTOREADY_ROOT_TEST_EMPTY = "";
+    process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_EMPTY";
+    try {
+      // Must throw rather than silently resolving to path.resolve(homeDir, "") === homeDir.
+      expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
+      expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/empty path/);
+    } finally {
+      delete process.env.FOTOREADY_ROOT_TEST_EMPTY;
+    }
+  });
 });

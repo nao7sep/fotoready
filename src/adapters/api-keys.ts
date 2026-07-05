@@ -76,11 +76,24 @@ function encodeApiKey(plain: string): string {
   return MARKER + Buffer.from(Buffer.from(plain, "utf8")).reverse().toString("base64");
 }
 
-// An untagged value is plaintext, used as-is; a tagged value is decoded. Never
-// throws — the caller's trim/non-empty check drops anything unusable.
-function decodeApiKey(stored: string): string {
+// RFC 4648 base64 alphabet with optional padding — used to validate a marked
+// payload canonically rather than trusting Buffer.from(..., "base64"), which
+// silently ignores invalid characters and never throws on malformed input.
+const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+
+// An untagged value is plaintext, used as-is; a tagged value is decoded and
+// validated canonically (charset + length%4 + decode-reencode equality) so a
+// malformed payload can never silently turn into byte-garbage sent to the
+// provider. Returns null when a marked value is malformed — the caller treats
+// that as absent (never throws). An empty payload decodes to "", which the
+// caller's non-empty check already treats as absent.
+function decodeApiKey(stored: string): string | null {
   if (!stored.startsWith(MARKER)) return stored;
-  return Buffer.from(Buffer.from(stored.slice(MARKER.length), "base64")).reverse().toString("utf8");
+  const payload = stored.slice(MARKER.length);
+  if (payload.length % 4 !== 0 || !BASE64_RE.test(payload)) return null;
+  const decoded = Buffer.from(payload, "base64");
+  if (decoded.toString("base64") !== payload) return null;
+  return decoded.reverse().toString("utf8");
 }
 
 // Canonicalize the on-disk shape `{ keys: { id: value } }`: ids lowercased and
@@ -128,7 +141,15 @@ export class ApiKeyStore {
       for (const level of levels) {
         const stored = all.keys[keyId(level)];
         if (typeof stored === "string") {
-          const key = decodeApiKey(stored).trim();
+          const decoded = decodeApiKey(stored);
+          if (decoded === null) {
+            this.logger?.warn("stored api key value is malformed; treating as absent", {
+              mod: "api-keys",
+              keyId: keyId(level),
+            });
+            continue;
+          }
+          const key = decoded.trim();
           if (key) return key;
         }
       }
@@ -170,21 +191,25 @@ export class ApiKeyStore {
     await atomicWriteFile(this.filePath, `${JSON.stringify(data, null, 2)}\n`, { mode: SECRETS_FILE_MODE });
   }
 
-  // POSIX-only: warn once if the secrets file is readable beyond the owner, and
-  // repair the mode opportunistically rather than refusing, so an existing key
-  // stays usable.
+  // POSIX-only: runs on every read, per the api-key-storage-conventions — a
+  // file widened mid-session must be re-tightened on the very next access, not
+  // just once at startup. Only the WARNING is once-per-session; the chmod
+  // itself is unconditional whenever the file is found group/world-readable,
+  // so a file re-widened after the first warning still gets tightened back.
   private async warnIfInsecureMode(): Promise<void> {
-    if (!ENFORCE_FILE_MODE || this.#modeWarned) return;
+    if (!ENFORCE_FILE_MODE) return;
     try {
       const stat = await fs.stat(this.filePath);
       if ((stat.mode & 0o077) !== 0) {
-        this.#modeWarned = true;
-        const octal = (stat.mode & 0o777).toString(8).padStart(3, "0");
-        this.logger?.warn("api key file is readable beyond the owner; tightening to 0600", {
-          mod: "api-keys",
-          apiKeysPath: this.filePath,
-          mode: octal,
-        });
+        if (!this.#modeWarned) {
+          this.#modeWarned = true;
+          const octal = (stat.mode & 0o777).toString(8).padStart(3, "0");
+          this.logger?.warn("api key file is readable beyond the owner; tightening to 0600", {
+            mod: "api-keys",
+            apiKeysPath: this.filePath,
+            mode: octal,
+          });
+        }
         await fs.chmod(this.filePath, SECRETS_FILE_MODE).catch(() => {});
       }
     } catch {

@@ -182,7 +182,12 @@ export function createLogger(logsDir: string, options: CreateLoggerOptions): App
 
   try {
     fs.mkdirSync(logsDir, { recursive: true });
-    fd = fs.openSync(path.join(logsDir, `${utcStamp()}.log`), "a");
+    // Exclusive create ("wx"): per the logging-conventions, two processes
+    // stamping the same millisecond must never interleave into one file. The
+    // second writer's open fails (EEXIST) and falls into the existing
+    // console-fallback path below rather than appending into the first
+    // session's log.
+    fd = fs.openSync(path.join(logsDir, `${utcStamp()}.log`), "wx");
   } catch (error) {
     fileFailed = true;
     console.error("[logger] could not open the session log file; logging to console only", error);

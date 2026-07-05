@@ -250,8 +250,14 @@ function outputExtension(stagedPath: string): string {
   return path.extname(stagedPath).replace(/^\./, "") || "jpg";
 }
 
+// Folded to lowercase per the storage-path-conventions' hard invariant: no two
+// names differing only in case may share a directory. This key is used purely
+// for in-memory equality/counting (never passed to a filesystem call), so
+// folding case here is what makes the intra-batch conflict checks below catch
+// a same-name-different-case pair on a case-sensitive volume, which a bare
+// path.resolve() (case-preserving) would otherwise treat as two distinct paths.
 function normalizePathKey(filePath: string): string {
-  return path.resolve(filePath);
+  return path.resolve(filePath).toLocaleLowerCase();
 }
 
 function normalizeOriginalConflictKey(sourcePath: string): string {
@@ -284,24 +290,34 @@ function countSemanticConflicts(
   return countsByTaskId;
 }
 
-async function pathExists(filePath: string): Promise<boolean> {
+// Enumerates the target directory and looks for an entry matching filePath's
+// basename case-insensitively. A bare exists()/lstat() on the exact-case path
+// is wrong here: on a case-sensitive volume it misses a same-name,
+// different-case sibling entirely, which is exactly the pair the
+// storage-path-conventions' hard invariant forbids from ever sharing a
+// directory. Returns the on-disk name that matched, or null when the
+// directory doesn't exist or no case-insensitive match is found.
+async function findCaseInsensitiveSibling(filePath: string): Promise<string | null> {
+  const dir = path.dirname(filePath);
+  const targetName = path.basename(filePath).toLocaleLowerCase();
+  let entries: string[];
   try {
-    await fs.lstat(filePath);
-    return true;
+    entries = await fs.readdir(dir);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+  const match = entries.find((entry) => entry.toLocaleLowerCase() === targetName);
+  return match ? path.join(dir, match) : null;
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  return (await findCaseInsensitiveSibling(filePath)) !== null;
 }
 
 async function ensureNoCollision(filePath: string): Promise<void> {
-  try {
-    await fs.lstat(filePath);
-    throw new Error(`Output path already exists: ${filePath}`);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return;
-    }
-    throw error;
+  const sibling = await findCaseInsensitiveSibling(filePath);
+  if (sibling) {
+    throw new Error(`Output path already exists: ${sibling}`);
   }
 }

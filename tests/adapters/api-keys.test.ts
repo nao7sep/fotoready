@@ -150,4 +150,44 @@ describe("ApiKeyStore", () => {
     expect(logger.warn).not.toHaveBeenCalled();
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   });
+
+  it.runIf(isPosix)("re-tightens a file widened again later in the same session, warning only once", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    fs.writeFileSync(filePath, `${JSON.stringify({ keys: {} })}\n`);
+    fs.chmodSync(filePath, 0o644);
+
+    const store = new ApiKeyStore(filePath, logger);
+    await store.resolve(["gemini"]); // first access: warns once and tightens
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // Widened again mid-session (e.g. some external actor loosened perms).
+    fs.chmodSync(filePath, 0o644);
+    await store.resolve(["gemini"]); // second access: must re-tighten even though already warned once
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+    // The chmod repeats every time; only the warning stays once-per-session.
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats a malformed obf: value as absent, warns naming the key id, and never returns garbage", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    fs.writeFileSync(filePath, `${JSON.stringify({ keys: { gemini: "obf:not-valid-base64!!" } })}\n`);
+    const store = new ApiKeyStore(filePath, logger);
+
+    await expect(store.resolve(["gemini"])).resolves.toBeNull();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/malformed/i),
+      expect.objectContaining({ keyId: "gemini" }),
+    );
+  });
+
+  it("round-trips a valid obf: value without the malformed-value warning firing", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const store = new ApiKeyStore(filePath, logger);
+    await store.set(["gemini"], "sk-a-real-key");
+
+    await expect(store.resolve(["gemini"])).resolves.toBe("sk-a-real-key");
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
 });

@@ -184,6 +184,49 @@ describe("previewRename", () => {
     expect(preview.items[0].status).toBe("blocked");
     expect(preview.items[0].issue).toMatch(/already exists/i);
   });
+
+  it("blocks an intra-batch conflict that only differs by directory case (case-insensitive key fold)", async () => {
+    // Two tasks share the exact same slug and would land in destination
+    // directories that are literal string case-variants of one another (e.g. a
+    // messy source tree with "Set" and "set" subfolders). On any volume, per
+    // the storage-path-conventions' hard invariant, this pair must never be
+    // treated as non-conflicting just because the directory strings differ in
+    // case — a bare path.resolve() (case-preserving) would miss this.
+    const a = await writeImage("staged-a.jpg");
+    const b = await writeImage("staged-b.jpg");
+    const project: Project = {
+      outputDir: null,
+      originals: [makeOriginal("o1", "Set/DSC_0001.jpg"), makeOriginal("o2", "set/DSC_0002.jpg")],
+      tasks: [
+        makeTask({ id: "t1", originalId: "o1", customSlug: "same-slug", stagedPath: a, createdAt: "2026-06-04T00:00:00.000Z" }),
+        makeTask({ id: "t2", originalId: "o2", customSlug: "same-slug", stagedPath: b, createdAt: "2026-06-04T00:00:01.000Z" })
+      ]
+    };
+    const preview = await previewRename(project, SLUG_ONLY);
+    expect(preview.items.every((item) => item.status === "blocked")).toBe(true);
+    expect(preview.blockedCount).toBe(2);
+  });
+
+  it("detects an on-disk case-only sibling even when an exact-case lookup would miss it", async () => {
+    const staged = await writeImage("staged-1.jpg");
+    // A pre-existing, untracked file differing only in case from the proposed name.
+    await fs.writeFile(path.join(workDir, "IMG_1.jpg"), "existing");
+    const project: Project = {
+      outputDir: workDir,
+      originals: [makeOriginal("o1", "img_1.jpg")],
+      tasks: [makeTask({ id: "t1", originalId: "o1", customSlug: null, stagedPath: staged })]
+    };
+
+    // Simulate a case-sensitive volume, where an exact-case stat/lstat lookup
+    // for "img_1.jpg" would not find "IMG_1.jpg". The fix must not depend on an
+    // OS-level case-insensitive lstat to find the sibling — it enumerates the
+    // directory and folds case itself.
+    vi.spyOn(fs, "lstat").mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+
+    const preview = await previewRename(project, ORIGINAL_ONLY);
+    expect(preview.items[0].status).toBe("blocked");
+    expect(preview.items[0].issue).toMatch(/already exists/i);
+  });
 });
 
 describe("runRename", () => {

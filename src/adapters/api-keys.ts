@@ -188,6 +188,11 @@ export class ApiKeyStore {
   }
 
   private async write(data: ApiKeysFile): Promise<void> {
+    // not recorded: api-keys.json is a SECRET. It is never written through the managed-text choke point, so
+    // no `afterWrite` hook is supplied here — a backup history that contained a credential would become
+    // sensitive-at-rest in its entirety. Keeping secrets out is what keeps backups.sqlite3 no more sensitive
+    // than ordinary user text; the 0600 mode below is where this file's protection lives (data-backup
+    // conventions: "Secrets are never recorded").
     await atomicWriteFile(this.filePath, `${JSON.stringify(data, null, 2)}\n`, { mode: SECRETS_FILE_MODE });
   }
 

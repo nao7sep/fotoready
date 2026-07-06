@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadSettings, saveSettings } from "@main/settings-io";
+import { closeBackupStore } from "@main/backup-store";
 import { defaultGlobalSettings } from "@shared/defaults";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 
@@ -10,15 +11,28 @@ import { normalizeGlobalSettings } from "@shared/validation/settings";
 // exercised end to end. Unlike volatile state.json, config.json IS materialized on first run
 // (storage-path conventions: built-in defaultable files exist on disk after first launch).
 
+const ENV_VAR = "FOTOREADY_HOME";
+const prevHome = process.env[ENV_VAR];
+
 let dir: string;
 const settingsPath = () => path.join(dir, "config.json");
 const defaults = () => defaultGlobalSettings(null);
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-settings-"));
+  // The write-through data-backup store resolves its file from FOTOREADY_HOME; point it at this test's
+  // throwaway root so saveSettings' record writes backups.sqlite3 HERE (cleaned up below) rather than the
+  // developer's home dir. (findInvalid below already filters to config-*.invalid, so the store's own files
+  // never confuse a directory assertion.)
+  process.env[ENV_VAR] = dir;
 });
 
 afterEach(async () => {
+  // Close the store singleton so it releases this root's file handle and re-opens against the next test's
+  // throwaway root.
+  closeBackupStore();
+  if (prevHome === undefined) delete process.env[ENV_VAR];
+  else process.env[ENV_VAR] = prevHome;
   await fs.rm(dir, { recursive: true, force: true });
 });
 

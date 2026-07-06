@@ -32,6 +32,11 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
     pipeline,
     vision: task.output?.vision ?? null
   });
+  // not recorded: this JSON sidecar is written next to a saved OUTPUT image, in the user-chosen output
+  // directory — a binary-bearing directory, and output the app writes for the user then forgets (it keeps
+  // a path to reopen the task, but the output file itself is not managed internal state). It rides into
+  // exclusion with the images it describes (data-backup conventions: "Anything colocated in a
+  // binary-bearing directory"), so no `afterWrite` hook is supplied.
   await atomicWriteFile(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`);
   return sidecarPath;
 }

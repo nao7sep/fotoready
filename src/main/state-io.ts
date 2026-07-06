@@ -3,7 +3,7 @@ import path from "node:path";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState } from "@shared/validation/state";
 import { utcStamp } from "@shared/time";
-import { atomicWriteFile } from "@adapters/atomic-file";
+import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
 
 export async function loadState(statePath: string, logger?: AppLogger): Promise<UiState> {
@@ -35,7 +35,11 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  await atomicWriteFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
+  // recorded: state.json is durable managed text — window geometry, recent list, last selection. It is
+  // recorded on every save DELIBERATELY (data-backup conventions): dedup absorbs the churn, and capturing
+  // it is what quietly protects the durable registries that live in it. This is NOT the old
+  // exclude-volatile rule; state.json goes through the managed-text choke point like config.json.
+  await writeManagedFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
 async function backupInvalidFile(filePath: string): Promise<string | null> {

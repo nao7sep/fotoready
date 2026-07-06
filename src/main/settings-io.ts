@@ -5,7 +5,7 @@ import { defaultGlobalSettings } from "@shared/defaults";
 import type { GlobalSettings } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { utcStamp } from "@shared/time";
-import { atomicWriteFile } from "@adapters/atomic-file";
+import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
 
 function defaults(): GlobalSettings {
@@ -40,7 +40,10 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
 
 export async function saveSettings(settingsPath: string, settings: GlobalSettings): Promise<void> {
   const normalized = normalizeGlobalSettings(settings, defaults()).settings;
-  await atomicWriteFile(settingsPath, `${JSON.stringify(normalized, null, 2)}\n`);
+  // recorded: config.json is durable, user-authored managed text (the app's own settings) — written
+  // through the managed-text choke point, which records its exact bytes into backups.sqlite3 after the
+  // rename (data-backup conventions).
+  await writeManagedFile(settingsPath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
 async function backupInvalidFile(filePath: string): Promise<string | null> {

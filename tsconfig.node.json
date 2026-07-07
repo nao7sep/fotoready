@@ -1,0 +1,45 @@
+{
+  // Main-process side (core / runtime / adapters / main / preload): Node, NO DOM.
+  // Keeping the DOM lib out is what statically catches a main-side file reaching
+  // for a browser global (document, window) that would be undefined at runtime.
+  // Preload sits here (not with the renderer) because it imports `electron`, whose
+  // types transitively pull in @types/node — which would otherwise leak Node
+  // globals into the renderer program. The `File` it receives across the bridge is
+  // available as one of @types/node's web globals.
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./out/tsbuild-node",
+    "noEmit": true,
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@core/*": ["./src/core/*"],
+      "@runtime/*": ["./src/runtime/*"],
+      "@adapters/*": ["./src/adapters/*"],
+      "@main/*": ["./src/main/*"]
+    }
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "scripts/content-security-policy.ts",
+    "src/core/**/*",
+    "src/runtime/**/*",
+    "src/adapters/**/*",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*"
+  ]
+}

@@ -1,0 +1,17 @@
+export const APP_NAME = "FotoReady";
+export const APP_ID = "com.fotoready.desktop";
+export const DATA_DIR_NAME = ".fotoready";
+export const TASK_SIDECAR_SUFFIX = ".json";
+export const MAX_RESIZE_DIMENSION = 8192;
+export const MAX_RESIZE_PIXELS = 40_000_000;
+export const MAX_PREVIEW_LONG_EDGE = 4096;
+export const MAX_VISION_IMAGE_LONG_EDGE = 4096;
+export const DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE = 180;
+export const MIN_ASSET_PICKER_PREVIEW_LONG_EDGE = 96;
+export const MAX_ASSET_PICKER_PREVIEW_LONG_EDGE = 320;
+
+// File extensions accepted by the import flow (file dialog and drag-and-drop).
+// Includes the .json task sidecar so dropping a sidecar re-imports its task.
+export const IMPORT_FILE_EXTENSIONS = [
+  "jpg", "jpeg", "png", "webp", "avif", "heic", "gif", "tif", "tiff", "json"
+] as const;

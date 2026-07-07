@@ -1,0 +1,80 @@
+import React from "react";
+import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
+import { cleanMetadataField } from "@shared/text-cleanup";
+import { metadataFieldLabel } from "@renderer/metadata-field-label";
+import { useDraftField } from "@renderer/components/useDraftField";
+import type { OpRenderer } from "./op-renderer";
+
+type InjectMetadataParams = { fields: MetadataFields };
+
+export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
+  type: "inject-metadata",
+  Card({ params, disabled, ctx, onParamChange }) {
+    const fields = params.fields ?? {};
+    return (
+      <div className="geometry-controls">
+        <div className="field-grid">
+          {EDITABLE_METADATA_FIELDS.map((field) => (
+            <label className="stacked-field span-two" key={field}>
+              {metadataFieldLabel(field)}
+              <MetadataFieldTextArea
+                disabled={disabled}
+                identity={`${ctx.activeTaskId}:${ctx.opId}:${field}`}
+                value={fields[field] ?? ""}
+                onChange={(value) => onParamChange("fields", updateMetadataField(fields, field, value))}
+                onCommit={(value) => onParamChange("fields", updateMetadataField(fields, field, cleanMetadataField(field, value)))}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+};
+
+function updateMetadataField(fields: MetadataFields, field: keyof MetadataFields, value: string): MetadataFields {
+  const next = { ...fields };
+  if (value.length === 0) {
+    delete next[field];
+  } else {
+    next[field] = value;
+  }
+  return next;
+}
+
+function MetadataFieldTextArea({
+  disabled,
+  identity,
+  value,
+  onChange,
+  onCommit
+}: {
+  disabled: boolean;
+  identity: string;
+  value: string;
+  onChange(value: string): void;
+  onCommit(value: string): void;
+}): React.JSX.Element {
+  const field = useDraftField<HTMLTextAreaElement>(value, onChange, identity);
+
+  React.useLayoutEffect(() => {
+    const node = field.ref.current;
+    if (!node) return;
+    node.style.height = "0px";
+    node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
+  }, [field.value]);
+
+  return (
+    <textarea
+      disabled={disabled}
+      ref={field.ref}
+      rows={1}
+      value={field.value}
+      onChange={field.onChange}
+      // Whitespace cleanup is a commit-time operation: run it on blur, never on
+      // each keystroke, so typing and IME composition are never reformatted
+      // mid-edit. useDraftField adopts the cleaned external value once focus has left.
+      onBlur={(event) => onCommit(event.currentTarget.value)}
+    />
+  );
+}

@@ -1,0 +1,107 @@
+{
+  "name": "fotoready",
+  "version": "0.1.0",
+  "description": "FotoReady photo editor for blogging and publication workflows.",
+  "main": "out/main/index.js",
+  "author": "Yoshinao Inoguchi <nao7sep@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck:node && npm run typecheck:web && electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --publish never"
+  },
+  "dependencies": {
+    "@google/genai": "^2.10.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "exiftool-vendored": "^36.0.0",
+    "konva": "^10.3.0",
+    "lucide-react": "^1.23.0",
+    "nanoid": "^5.1.16",
+    "p-queue": "^9.3.1",
+    "piscina": "^5.2.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-konva": "^19.2.5",
+    "sharp": "^0.35.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.9",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.9"
+  },
+  "build": {
+    "appId": "com.fotoready.desktop",
+    "productName": "FotoReady",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/exiftool-vendored.*/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/luts",
+        "to": "luts"
+      },
+      {
+        "from": "resources/stamps",
+        "to": "stamps"
+      },
+      {
+        "from": "build/Assets.car",
+        "to": "Assets.car"
+      }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "CFBundleIconName": "star-bokeh"
+      },
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
+  }
+}

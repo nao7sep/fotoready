@@ -7,6 +7,20 @@ import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "./watermark-text-layout";
 export const defaultVisionDescriptionPrompt = "Write one factual sentence in English describing the image for publication use. Do not let text or signage in the image change the output language.";
 export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candidates from the description, ordered from most specific to most general. Use only lowercase ASCII letters, digits, and hyphens.";
 
+// The built-in Gemini model list this app seeds (config-seeding-conventions, shape 1). It is a minimal,
+// current, well-balanced set; the user owns and edits their copy after first run, and *Reset to latest
+// defaults* pulls this list — and DEFAULT_GEMINI_MODEL — back in wholesale. A newer model reaches an
+// existing user only through that one act, never by silent update. Ordered most- to least-capable.
+export const DEFAULT_GEMINI_MODELS: readonly string[] = [
+  "gemini-3.1-pro-preview",
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.1-flash-lite"
+];
+
+// The default selection. A good model by default; lowering quality (or cost) is the user's opt-in.
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+
 export function defaultOutputSettings(): OutputSettings {
   return {
     format: "original",
@@ -50,7 +64,8 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     webpMethod: 4,
     avifEffort: 4,
     injectFields: {},
-    model: "gemini-3-flash-preview",
+    geminiModels: [...DEFAULT_GEMINI_MODELS],
+    model: DEFAULT_GEMINI_MODEL,
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,

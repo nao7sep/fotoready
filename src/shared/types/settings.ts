@@ -59,6 +59,11 @@ export type GlobalSettings = {
   jpegProgressive: boolean;
   webpMethod: number;
   avifEffort: number;
+  // Owned, user-editable Gemini model list plus the single selection into it (config-seeding-conventions,
+  // shape 1). `geminiModels` is the whole set the user CRUDs; `model` is the chosen entry. The store never
+  // checks that `model` is a member — a bad or retired id is reported when a vision job runs (fail-fast),
+  // not here (ai-model-routing-conventions).
+  geminiModels: string[];
   model: string;
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;

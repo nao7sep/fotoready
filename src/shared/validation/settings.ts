@@ -1,6 +1,6 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "../types/settings";
-import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
+import { assertArray, assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
@@ -44,6 +44,11 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
+    // The owned model list is trimmed, de-duplicated, and kept non-empty; an all-empty or non-array list
+    // falls back to the built-in defaults (lenient, like every other field). `model` is only checked for
+    // being a non-empty string — never for membership in the list, so an out-of-list pick survives a list
+    // edit and a bad id is caught at call time, not here (config-seeding + ai-model-routing conventions).
+    geminiModels: readValue(source, "geminiModels", fallback.geminiModels, issues, assertGeminiModels),
     model: readValue(source, "model", fallback.model, issues, assertNonEmptyString),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
@@ -94,6 +99,17 @@ function cloneValue<T>(value: T): T {
     return structuredClone(value);
   }
   return value;
+}
+
+function assertGeminiModels(value: unknown, path: string): string[] {
+  const array = assertArray(value, path);
+  const models = [...new Set(array.map((entry, index) => assertString(entry, `${path}[${index}]`).trim()).filter((entry) => entry.length > 0))];
+  if (models.length === 0) {
+    // Throwing routes through readValue's catch, so an empty list reverts to the built-in defaults with an
+    // issue recorded — the store is never left with a model list a vision job could not run against.
+    throw new Error(`${path} must list at least one model.`);
+  }
+  return models;
 }
 
 function validateMetadataFields(value: unknown, path: string): MetadataFields {

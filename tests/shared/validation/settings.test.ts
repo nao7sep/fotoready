@@ -97,3 +97,47 @@ describe("normalizeGlobalSettings", () => {
     expect(issues.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("Gemini model list (config-seeding: owned, editable, current defaults)", () => {
+  it("seeds a non-empty list whose default selection is a member of it", () => {
+    expect(fallback.geminiModels.length).toBeGreaterThan(0);
+    expect(fallback.geminiModels).toContain(fallback.model);
+  });
+
+  it("trims and de-duplicates the owned list", () => {
+    const { settings, issues } = normalizeGlobalSettings(
+      { ...fallback, geminiModels: ["  gemini-3.5-flash ", "gemini-2.5-pro", "gemini-3.5-flash"] },
+      fallback
+    );
+    expect(settings.geminiModels).toEqual(["gemini-3.5-flash", "gemini-2.5-pro"]);
+    expect(issues).toEqual([]);
+  });
+
+  it("preserves an out-of-list selection — an orphaned pick after a list edit is kept, not snapped or rejected", () => {
+    // The store never checks membership; a bad or retired id surfaces when a vision job runs (fail-fast),
+    // and the modal shows an out-of-list value as a fallback option so it is never silently lost.
+    const { settings, issues } = normalizeGlobalSettings(
+      { ...fallback, model: "gemini-2.5-pro", geminiModels: ["gemini-3.5-flash"] },
+      fallback
+    );
+    expect(settings.model).toBe("gemini-2.5-pro");
+    expect(settings.geminiModels).toEqual(["gemini-3.5-flash"]);
+    expect(issues).toEqual([]);
+  });
+
+  it("reverts an empty list to the built-in defaults with an issue (lenient, never throws)", () => {
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, geminiModels: [] }, fallback);
+    expect(settings.geminiModels).toEqual(fallback.geminiModels);
+    expect(issues.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reverts a non-array or non-string list to the built-in defaults with an issue", () => {
+    const notArray = normalizeGlobalSettings({ ...fallback, geminiModels: "gemini-3.5-flash" }, fallback);
+    expect(notArray.settings.geminiModels).toEqual(fallback.geminiModels);
+    expect(notArray.issues.length).toBeGreaterThanOrEqual(1);
+
+    const badEntry = normalizeGlobalSettings({ ...fallback, geminiModels: ["gemini-3.5-flash", 7] }, fallback);
+    expect(badEntry.settings.geminiModels).toEqual(fallback.geminiModels);
+    expect(badEntry.issues.length).toBeGreaterThanOrEqual(1);
+  });
+});

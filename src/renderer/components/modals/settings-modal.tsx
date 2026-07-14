@@ -435,7 +435,7 @@ function VisionTab({
             disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
             onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
           >
-            Reset to default
+            Reset to latest defaults
           </button>
         </label>
         <label className="stacked-field">
@@ -448,7 +448,7 @@ function VisionTab({
             disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
             onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
           >
-            Reset to default
+            Reset to latest defaults
           </button>
         </label>
       </section>

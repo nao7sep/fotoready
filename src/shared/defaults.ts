@@ -8,9 +8,9 @@ export const defaultVisionDescriptionPrompt = "Write one factual sentence in Eng
 export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candidates from the description, ordered from most specific to most general. Use only lowercase ASCII letters, digits, and hyphens.";
 
 // The built-in Gemini model list this app seeds (config-seeding-conventions, shape 1). It is a minimal,
-// current, well-balanced set; the user owns and edits their copy after first run, and *Reset to latest
-// defaults* pulls this list — and DEFAULT_GEMINI_MODEL — back in wholesale. A newer model reaches an
-// existing user only through that one act, never by silent update. Ordered most- to least-capable.
+// current, well-balanced set; the user owns and edits their copy after first run, and *Reset models*
+// pulls this list — and DEFAULT_GEMINI_MODEL — back in wholesale. A newer model reaches an existing
+// user only through that one act, never by silent update. Ordered most- to least-capable.
 export const DEFAULT_GEMINI_MODELS: readonly string[] = [
   "gemini-3.1-pro-preview",
   "gemini-3.5-flash",

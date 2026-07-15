@@ -374,11 +374,8 @@ function VisionTab({
               disabled={isAtDefaultModels(settings)}
               onClick={() => setSettings({ ...settings, geminiModels: [...DEFAULT_GEMINI_MODELS], model: DEFAULT_GEMINI_MODEL })}
             >
-              Reset to latest defaults
+              Reset models
             </button>
-            <span className="field-help">
-              Replaces the list and the selected model with the latest built-in models (including any added in updates). Save to keep them; close without saving to keep your current models.
-            </span>
           </div>
           <label className="stacked-field">
             Model
@@ -435,7 +432,7 @@ function VisionTab({
             disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
             onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
           >
-            Reset to latest defaults
+            Reset description prompt
           </button>
         </label>
         <label className="stacked-field">
@@ -448,7 +445,7 @@ function VisionTab({
             disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
             onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
           >
-            Reset to latest defaults
+            Reset slug prompt
           </button>
         </label>
       </section>
@@ -624,7 +621,7 @@ type SettingsProps = {
 };
 
 // True when the owned model list and the selection both already equal the shipped defaults — so
-// "Reset to latest defaults" can disable itself, matching the prompt reset buttons above.
+// "Reset models" can disable itself, matching the prompt reset buttons above.
 function isAtDefaultModels(settings: GlobalSettings): boolean {
   return (
     settings.model === DEFAULT_GEMINI_MODEL &&
@@ -660,7 +657,7 @@ function ModelListEditor({ models, onChange }: { models: string[]; onChange(mode
           ))}
         </ul>
       ) : (
-        <p className="row-detail">No models in the list. Add one below or reset to the latest defaults.</p>
+        <p className="row-detail">No models in the list. Add one below or use Reset models.</p>
       )}
       <div className="settings-path-row">
         <input

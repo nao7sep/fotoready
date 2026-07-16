@@ -1,6 +1,14 @@
 import type * as sharp from "sharp";
 import type { OutputSettings } from "@shared/types/pipeline";
 
+// Sharp's own TIFF default is JPEG compression — lossy. Silently re-encoding a scan
+// as lossy inside a lossless-looking container is worse than not offering TIFF at
+// all, so the compression is stated here rather than inherited. deflate is lossless
+// and the smallest of the lossless options (lzw runs ~50% larger); every modern
+// reader handles it. There is deliberately no UI knob: TIFF exists here to preserve
+// a scan, and the only choice that serves that is a lossless one.
+const TIFF_COMPRESSION = "deflate" as const;
+
 export function applyOutputEncoding(image: sharp.Sharp, output: OutputSettings): sharp.Sharp {
   const prepared = prepareForEncoding(image, output);
   switch (output.format) {
@@ -25,6 +33,11 @@ export function applyOutputEncoding(image: sharp.Sharp, output: OutputSettings):
     case "png":
       return prepared.png({
         palette: output.pngPalette
+      });
+    case "tiff":
+      // No quality: deflate is lossless, so there is nothing for it to mean.
+      return prepared.tiff({
+        compression: TIFF_COMPRESSION
       });
   }
 }

@@ -23,6 +23,27 @@ export type VisionSlugOptions = VisionCallOptions & {
   slugPrompt: string;
 };
 
+/**
+ * Dynamic thinking — the model decides how much to reason. Stated rather than left to the
+ * provider's default, because the default is not one behaviour: measured live across the
+ * shipped list, 3.1-pro-preview / 3.5-flash / 3-flash-preview all think unasked while
+ * 3.1-flash-lite does not. Silence shipped four behaviours nobody chose, any of which the
+ * provider could change without this app cutting a release; this ships one.
+ *
+ * `-1` and not `0`: disabling is NOT portable — gemini-3.1-pro-preview rejects it outright
+ * ("Budget 0 is invalid. This model only works in thinking mode"), so a shipped `0` would
+ * delete a model from the list by making it uncallable. Dynamic is accepted by every model
+ * tested. Matches mumbler, which reached the same shape from the same measurement.
+ *
+ * This does NOT make the calls cheaper — dynamic is roughly what silence was already doing.
+ * It is worth knowing that thinking is ~87% of the per-image bill (2026-07-16: ~1.4c/image
+ * on 3.5-flash, of which ~1.2c is thinking, and the SLUG call reasons harder than the vision
+ * call — ~1000-1200 tokens to emit three slugs). Capping the budget is the only lever that
+ * would cut it, and it was declined deliberately: it risks the description quality this app
+ * exists to produce, to save a cent. Revisit only if batches get large.
+ */
+const THINKING_CONFIG = { thinkingBudget: -1 } as const;
+
 const SLUG_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -48,7 +69,10 @@ export class GeminiVisionProvider {
           { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
           { text: descriptionPrompt(opts.descriptionPrompt) }
         ],
-        config: { httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } } }
+        config: {
+          thinkingConfig: THINKING_CONFIG,
+          httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
+        }
       })
     );
     return parseDescription(response.text ?? "");
@@ -63,6 +87,7 @@ export class GeminiVisionProvider {
         config: {
           responseMimeType: "application/json",
           responseSchema: SLUG_RESPONSE_SCHEMA,
+          thinkingConfig: THINKING_CONFIG,
           httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
         }
       })

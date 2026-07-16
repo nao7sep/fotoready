@@ -1,6 +1,6 @@
 import type { OpInstance } from "./op";
 
-export type EncodedOutputFormat = "jpeg" | "webp" | "avif" | "png";
+export type EncodedOutputFormat = "jpeg" | "webp" | "avif" | "png" | "tiff";
 export type OutputFormat = "original" | EncodedOutputFormat;
 
 export type OutputSettings = {

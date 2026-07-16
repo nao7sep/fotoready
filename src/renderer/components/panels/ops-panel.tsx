@@ -364,7 +364,13 @@ function OutputControls({
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
   const defaultFixedQuality = settings?.jpegFixedQuality ?? 85;
   const canAutoEstimateJpeg = Boolean(settings?.enableJpegQualityEstimate && original?.format === "jpeg" && original.jpegQualityEstimate !== null);
-  const flattenableFormat = resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif";
+  // Every format that can carry alpha, so the flatten toggle is offered for it. TIFF
+  // belongs here for the same reason PNG does — it has an alpha channel to flatten.
+  const flattenableFormat =
+    resolvedFormat === "png" || resolvedFormat === "webp" || resolvedFormat === "avif" || resolvedFormat === "tiff";
+  // Formats the encoder writes losslessly, where a quality slider would be a control
+  // that changes nothing: png ignores it, and tiff is written with deflate.
+  const losslessFormat = resolvedFormat === "png" || resolvedFormat === "tiff";
   const outputFormatOptions = availableOutputFormats();
   const storedQuality = task?.pipeline.output.quality;
   const assumedQuality = canAutoEstimateJpeg ? original?.jpegQualityEstimate ?? null : null;
@@ -456,7 +462,7 @@ function OutputControls({
           </select>
         </label>
       ) : null}
-      {resolvedFormat && resolvedFormat !== "png" ? (
+      {resolvedFormat && !losslessFormat ? (
         <label className="slider-row">
           <span>Quality</span>
           <input

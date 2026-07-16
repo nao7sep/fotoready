@@ -179,7 +179,8 @@ async function prepareVisionInput(stagedPath: string, longEdge: number): Promise
     .toBuffer();
 }
 
-function visionError(error: unknown): TaskError {
+/** Exported for tests — the classification is the interesting part, and a live call is a poor way to reach it. */
+export function visionError(error: unknown): TaskError {
   const known = error instanceof Error ? error : new Error(String(error));
   const message = classifyVisionMessage(error, known.message);
   return {
@@ -200,6 +201,15 @@ function classifyVisionMessage(error: unknown, fallback: string): string {
   }
   if (status === 401 || status === 403 || /\bunauthori[sz]ed\b|\bforbidden\b|\binvalid api key\b|\bauth/i.test(raw)) {
     return "Gemini authentication failed. Check the saved API key in Settings, then retry.";
+  }
+  // The likeliest error now that the model list is closed, and the only one that is a matter of
+  // time rather than accident: every id retires eventually, two of the four shipped are -preview,
+  // and there is no models reset — so an existing config stays pinned to its pick while the app's
+  // list moves on under it. Settings labels that pick "no longer offered", but a job is where most
+  // users will meet it, and the raw payload here is a wall of JSON. Checked before the \bjson\b arm
+  // below, which the 404 payload can otherwise match.
+  if (status === 404 || /\bis not found\b|\bdoes not exist\b/.test(raw)) {
+    return "This Gemini model isn't available. Open Settings and choose one from the list.";
   }
   if (status === 429 || /\brate limit\b|\bquota\b|\bresource has been exhausted\b/.test(raw)) {
     return "Gemini rate limit reached. Wait a moment, then retry.";
@@ -224,6 +234,11 @@ function isVisionRetryable(error: unknown, message: string): boolean {
   const status = readErrorStatus(error);
 
   if (raw.includes("api key is missing")) return true;
+  // A missing model is permanent: the id is wrong or gone, and the same call will fail identically
+  // forever. This function's default is an optimistic `return true`, which is right for an unknown
+  // error and wrong here — it offers a retry that cannot succeed. Sits above the \bjson\b arm for
+  // the same reason as in classifyVisionMessage.
+  if (status === 404 || /\bis not found\b|\bdoes not exist\b/.test(raw)) return false;
   if (status === 401 || status === 403) return true;
   if (status === 429 || (status !== null && status >= 500)) return true;
   if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn/i.test(raw)) return true;

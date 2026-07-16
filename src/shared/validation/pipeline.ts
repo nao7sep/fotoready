@@ -1,7 +1,10 @@
+import { encodedFormats } from "../output-format";
 import type { OutputSettings } from "../types/pipeline";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord } from "./common";
 
-const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
+// Derived, not restated. This was a second hand-typed copy of the format list, so
+// adding a format to the union left the UI offering it and this validator rejecting it.
+const outputFormats = ["original", ...encodedFormats] as const;
 const qualityKeywords = ["auto"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
 

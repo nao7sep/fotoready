@@ -98,46 +98,36 @@ describe("normalizeGlobalSettings", () => {
   });
 });
 
-describe("Gemini model list (config-seeding: owned, editable, current defaults)", () => {
-  it("seeds a non-empty list whose default selection is a member of it", () => {
-    expect(fallback.geminiModels.length).toBeGreaterThan(0);
-    expect(fallback.geminiModels).toContain(fallback.model);
-  });
+describe("Gemini model selection (closed list — the config stores the pick, never the list)", () => {
+  // NOT tested here: that DEFAULT_GEMINI_MODEL is a member of GEMINI_MODELS. It is typed as
+  // GeminiModel, so a non-member fails to compile — a runtime assertion could not fail and would
+  // be exactly the vacuous test pixelup was carrying.
 
-  it("trims and de-duplicates the owned list", () => {
-    const { settings, issues } = normalizeGlobalSettings(
-      { ...fallback, geminiModels: ["  gemini-3.5-flash ", "gemini-2.5-pro", "gemini-3.5-flash"] },
-      fallback
-    );
-    expect(settings.geminiModels).toEqual(["gemini-3.5-flash", "gemini-2.5-pro"]);
-    expect(issues).toEqual([]);
-  });
-
-  it("preserves an out-of-list selection — an orphaned pick after a list edit is kept, not snapped or rejected", () => {
-    // The store never checks membership; a bad or retired id surfaces when a vision job runs (fail-fast),
-    // and the modal shows an out-of-list value as a fallback option so it is never silently lost.
-    const { settings, issues } = normalizeGlobalSettings(
-      { ...fallback, model: "gemini-2.5-pro", geminiModels: ["gemini-3.5-flash"] },
-      fallback
-    );
+  it("preserves a selection the shipped list no longer offers — kept verbatim, not snapped", () => {
+    // The load-bearing case for closing the list: a config written when the list was editable can
+    // name any id. Snapping it to a valid one would be the store judging a selection it does not
+    // own — pixelup's clamp handed a user the crash value doing exactly that. The id survives, the
+    // Model picker shows it as no longer offered, and the vision job is what refuses it.
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, model: "gemini-2.5-pro" }, fallback);
     expect(settings.model).toBe("gemini-2.5-pro");
-    expect(settings.geminiModels).toEqual(["gemini-3.5-flash"]);
     expect(issues).toEqual([]);
   });
 
-  it("reverts an empty list to the built-in defaults with an issue (lenient, never throws)", () => {
-    const { settings, issues } = normalizeGlobalSettings({ ...fallback, geminiModels: [] }, fallback);
-    expect(settings.geminiModels).toEqual(fallback.geminiModels);
-    expect(issues.length).toBeGreaterThanOrEqual(1);
+  it("falls back to the shipped selection when model is blank or not a string, recording an issue", () => {
+    const blank = normalizeGlobalSettings({ ...fallback, model: "   " }, fallback);
+    expect(blank.settings.model).toBe(fallback.model);
+    expect(blank.issues.length).toBeGreaterThanOrEqual(1);
+
+    const notString = normalizeGlobalSettings({ ...fallback, model: 7 }, fallback);
+    expect(notString.settings.model).toBe(fallback.model);
+    expect(notString.issues.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("reverts a non-array or non-string list to the built-in defaults with an issue", () => {
-    const notArray = normalizeGlobalSettings({ ...fallback, geminiModels: "gemini-3.5-flash" }, fallback);
-    expect(notArray.settings.geminiModels).toEqual(fallback.geminiModels);
-    expect(notArray.issues.length).toBeGreaterThanOrEqual(1);
-
-    const badEntry = normalizeGlobalSettings({ ...fallback, geminiModels: ["gemini-3.5-flash", 7] }, fallback);
-    expect(badEntry.settings.geminiModels).toEqual(fallback.geminiModels);
-    expect(badEntry.issues.length).toBeGreaterThanOrEqual(1);
+  it("does not carry a geminiModels list into the normalized settings", () => {
+    // A config from a build that owned an editable list still has the key. It must not survive
+    // normalization: the list has one home now, and a second copy in the config would be a second
+    // writer of the same thing.
+    const { settings } = normalizeGlobalSettings({ ...fallback, geminiModels: ["gemini-2.5-pro"] }, fallback);
+    expect(settings).not.toHaveProperty("geminiModels");
   });
 });

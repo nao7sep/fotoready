@@ -59,11 +59,17 @@ export type GlobalSettings = {
   jpegProgressive: boolean;
   webpMethod: number;
   avifEffort: number;
-  // Owned, user-editable Gemini model list plus the single selection into it (config-seeding-conventions,
-  // shape 1). `geminiModels` is the whole set the user CRUDs; `model` is the chosen entry. The store never
-  // checks that `model` is a member — a bad or retired id is reported when a vision job runs (fail-fast),
-  // not here (ai-model-routing-conventions).
-  geminiModels: string[];
+  // The selected Gemini model. The list itself is app-owned and closed (GEMINI_MODELS in defaults.ts),
+  // so this is the only part of the choice the config stores.
+  //
+  // Deliberately `string`, not `GeminiModel`: a config written by an older build — or edited by hand —
+  // can name a model this build does not offer, and the store's job is to hand that value back, not to
+  // judge it. It is never snapped to a valid one (ai-model-routing-conventions: the store stays dumb).
+  //
+  // "Not offered" is not the same as "broken", and the difference was measured rather than assumed:
+  // gemini-2.5-pro is absent from GEMINI_MODELS yet still runs, because Gemini still serves it. So an
+  // unlisted id keeps working until GOOGLE retires it, at which point the vision job reports the API's
+  // own error. FotoReady does not police which models exist — that constraint belongs to the provider.
   model: string;
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;

@@ -75,7 +75,11 @@ export function defaultQualityForFormat(
   const resolvedFormat = resolveOutputFormat(format, originalFormat);
   if (resolvedFormat === "webp") return settings.defaultWebpQuality;
   if (resolvedFormat === "avif") return settings.defaultAvifQuality;
-  if (resolvedFormat === "png") return typeof fallback === "number" ? fallback : 82;
+  // png and tiff are lossless here, so quality never reaches the encoder — it is carried
+  // only so switching back to a lossy format restores a sane number rather than a blank.
+  // Named explicitly: without a tiff branch it fell into the JPEG path below and could
+  // hand back "auto" for a jpeg source, a value that means nothing for a lossless format.
+  if (resolvedFormat === "png" || resolvedFormat === "tiff") return typeof fallback === "number" ? fallback : 82;
   if (settings.enableJpegQualityEstimate && settings.jpegQualityMode === "auto" && originalFormat === "jpeg") return "auto";
   return settings.jpegFixedQuality;
 }

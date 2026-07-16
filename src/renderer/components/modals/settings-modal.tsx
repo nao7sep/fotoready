@@ -5,9 +5,8 @@ import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } fr
 import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
-import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
+import { GEMINI_MODELS, defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
-import { useImeGuard } from "@renderer/utils/ime-guard";
 import { ModalShell } from "./modal-shell";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
@@ -359,32 +358,22 @@ function VisionTab({
               </>
             )}
           </label>
-          <div className="stacked-field span-two">
-            Models
-            <span className="field-help">
-              Your model list — add any Gemini model id, remove ones you don&apos;t use. The Model selector below picks from this list. An invalid or retired id is reported when a job runs, not here.
-            </span>
-            <ModelListEditor models={settings.geminiModels} onChange={(geminiModels) => setSettings({ ...settings, geminiModels })} />
-          </div>
-          <div className="stacked-field span-two">
-            <button
-              className="toolbar-button"
-              type="button"
-              style={{ justifySelf: "start" }}
-              disabled={isAtDefaultModels(settings)}
-              onClick={() => setSettings({ ...settings, geminiModels: [...DEFAULT_GEMINI_MODELS], model: DEFAULT_GEMINI_MODEL })}
-            >
-              Reset models
-            </button>
-          </div>
           <label className="stacked-field">
             Model
             <select value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })}>
-              {settings.geminiModels.map((id) => (
+              {GEMINI_MODELS.map((id) => (
                 <option key={id} value={id}>{id}</option>
               ))}
-              {settings.model && !settings.geminiModels.includes(settings.model) ? (
-                <option value={settings.model}>{settings.model} (not in list)</option>
+              {/*
+                Only reachable from a config written by an older build (when the list was editable) or a
+                hand-edited settings file — never from anything the user can do here now. Rendered rather
+                than dropped because a <select> whose value matches no <option> renders BLANK: the choice
+                is between naming the stale id and showing an empty picker with no explanation.
+                "No longer offered" is about THIS list, not about Gemini: such a model often still runs
+                (gemini-2.5-pro does), so the label must not imply it is broken.
+              */}
+              {settings.model && !GEMINI_MODELS.some((id) => id === settings.model) ? (
+                <option value={settings.model}>{settings.model} — no longer offered</option>
               ) : null}
             </select>
           </label>
@@ -619,65 +608,6 @@ type SettingsProps = {
   settings: GlobalSettings;
   setSettings(settings: GlobalSettings): void;
 };
-
-// True when the owned model list and the selection both already equal the shipped defaults — so
-// "Reset models" can disable itself, matching the prompt reset buttons above.
-function isAtDefaultModels(settings: GlobalSettings): boolean {
-  return (
-    settings.model === DEFAULT_GEMINI_MODEL &&
-    settings.geminiModels.length === DEFAULT_GEMINI_MODELS.length &&
-    settings.geminiModels.every((id, index) => id === DEFAULT_GEMINI_MODELS[index])
-  );
-}
-
-// The owned model list (config-seeding-conventions): free-text add of any id, remove per row. Editing
-// lives here, on the list; the Model <select> beside it is only a constrained pick from what this owns.
-function ModelListEditor({ models, onChange }: { models: string[]; onChange(models: string[]): void }): React.JSX.Element {
-  const [draft, setDraft] = useState("");
-  const ime = useImeGuard();
-
-  const addModel = (): void => {
-    const id = draft.trim();
-    // Ignore blanks and duplicates; either way clear the field so the input is ready for the next id.
-    if (id.length > 0 && !models.includes(id)) {
-      onChange([...models, id]);
-    }
-    setDraft("");
-  };
-
-  return (
-    <div className="model-list">
-      {models.length > 0 ? (
-        <ul className="model-list-items">
-          {models.map((id) => (
-            <li className="model-list-item" key={id}>
-              <span className="model-list-id">{id}</span>
-              <button className="toolbar-button" type="button" onClick={() => onChange(models.filter((entry) => entry !== id))}>Remove</button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="row-detail">No models in the list. Add one below or use Reset models.</p>
-      )}
-      <div className="settings-path-row">
-        <input
-          type="text"
-          placeholder="Add a model id, e.g. gemini-3.5-flash"
-          value={draft}
-          {...ime.compositionProps}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !ime.isComposing(event)) {
-              event.preventDefault();
-              addModel();
-            }
-          }}
-        />
-        <button className="toolbar-button" type="button" onClick={addModel} disabled={draft.trim().length === 0}>Add</button>
-      </div>
-    </div>
-  );
-}
 
 function NumberField({
   className,

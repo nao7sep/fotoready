@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   CHROME,
+  PANE_DEFAULTS,
+  PANE_MAXES,
   PANE_MINS,
   SPLITTER_WIDTH,
-  clampPaneWidth
+  clampPaneWidth,
+  type WorkspacePaneKey
 } from "@shared/layout/workspace-metrics";
 
 // The three side panes the user can resize. The editor is the fill pane (`minmax(editor min, 1fr)`)
@@ -12,28 +15,17 @@ import {
 // pane can never squeeze the editor below its own minimum. `ops` and `addOps` are the two halves of
 // the single Ops region (the editable list + the "add op" palette); the `ops` splitter resizes the
 // whole region, and `addOps` is the fixed width of the palette half inside it.
-type PaneKey = "originals" | "tasks" | "ops" | "addOps";
+type PaneKey = WorkspacePaneKey;
 
-type WorkspaceWidths = Record<PaneKey, number>;
+export type WorkspaceWidths = Record<PaneKey, number>;
 
-const storageKey = "fotoready.workspace.widths";
-const defaults: WorkspaceWidths = { originals: 160, tasks: 200, ops: 260, addOps: 220 };
-
-// Per-pane maximums. The minimum for each pane is the single source of truth in PANE_MINS; the max
-// only caps a pane from growing unreasonably wide (a tighter container cap is applied on top by
-// clampPaneWidth).
-const maxes: Record<PaneKey, number> = {
-  originals: 360,
-  tasks: 420,
-  ops: 520,
-  addOps: 360
-};
-
+// Defaults and maximums live in @shared so the state layer (defaults + normalization) and the main
+// process's window sizing read the same numbers. The minimum stays PANE_MINS; the max caps growth.
 const limits: Record<PaneKey, { min: number; max: number }> = {
-  originals: { min: PANE_MINS.originals, max: maxes.originals },
-  tasks: { min: PANE_MINS.tasks, max: maxes.tasks },
-  ops: { min: PANE_MINS.ops, max: maxes.ops },
-  addOps: { min: PANE_MINS.addOps, max: maxes.addOps }
+  originals: { min: PANE_MINS.originals, max: PANE_MAXES.originals },
+  tasks: { min: PANE_MINS.tasks, max: PANE_MAXES.tasks },
+  ops: { min: PANE_MINS.ops, max: PANE_MAXES.ops },
+  addOps: { min: PANE_MINS.addOps, max: PANE_MAXES.addOps }
 };
 
 // The Ops region is one grid track holding both ops sub-panes; its width is the sum of the two
@@ -44,11 +36,17 @@ const SIDE_SPLITTER_COUNT = 3;
 export function useWorkspaceLayout({
   showOps,
   showOriginals,
-  showTasks
+  showTasks,
+  widths,
+  onWidthsChange
 }: {
   showOps: boolean;
   showOriginals: boolean;
   showTasks: boolean;
+  // The persisted intent, supplied by the app once state.json has loaded (PANE_DEFAULTS until then).
+  widths: WorkspaceWidths;
+  // Persist a new intent — a drag only. Wired to `state.update({ workspaceWidths })` by the app.
+  onWidthsChange(widths: WorkspaceWidths): void;
 }): {
   gridTemplateColumns: string;
   addOpsWidth: number;
@@ -57,7 +55,22 @@ export function useWorkspaceLayout({
   // INTENT, not display: the width the user dragged each adjustable pane to, in pixels. It is set
   // ONLY by a splitter drag and is the sole thing persisted. A window resize never touches it — the
   // user's intended widths survive a temporary shrink and reappear when the window grows again.
-  const [intent, setIntent] = useState<WorkspaceWidths>(readStoredWidths);
+  //
+  // Seeded from the `widths` prop and re-synced when that changes from OUTSIDE (state.json finishing
+  // its async load, or a future reset). The value compare means our own persisted drag echoing back
+  // through the prop is a no-op, so a drag is never fought by the sync.
+  const [intent, setIntent] = useState<WorkspaceWidths>(widths);
+  const widthsKey = `${widths.originals},${widths.tasks},${widths.ops},${widths.addOps}`;
+  useEffect(() => {
+    setIntent((current) =>
+      current.originals === widths.originals &&
+      current.tasks === widths.tasks &&
+      current.ops === widths.ops &&
+      current.addOps === widths.addOps
+        ? current
+        : widths
+    );
+  }, [widthsKey, widths]);
 
   // The live workspace width, tracked so the DISPLAYED widths can be re-derived from the unchanged
   // intent whenever the window (and thus the workspace) changes size. Seeded from the current
@@ -118,7 +131,7 @@ export function useWorkspaceLayout({
       );
       setIntent((current) => {
         const updated = { ...current, [pane]: next };
-        window.localStorage.setItem(storageKey, JSON.stringify(updated));
+        onWidthsChange(updated);
         return updated;
       });
     }
@@ -134,7 +147,7 @@ export function useWorkspaceLayout({
     splitter.classList.add("is-resizing");
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
-  }, [intent]);
+  }, [intent, onWidthsChange]);
 
   return { gridTemplateColumns, addOpsWidth: displayed.addOps, startResize };
 }
@@ -184,41 +197,63 @@ function workspaceContainerWidth(from: HTMLElement): number {
 // A container wide enough that the per-pane min/max bounds, not the container cap, govern on load
 // when no measurement is available: the sum of every pane's max plus the splitters.
 function computeFallbackContainer(): number {
-  return maxes.originals + maxes.tasks + PANE_MINS.editor + maxes.ops + maxes.addOps + SIDE_SPLITTER_COUNT * SPLITTER_WIDTH;
+  return PANE_MAXES.originals + PANE_MAXES.tasks + PANE_MINS.editor + PANE_MAXES.ops + PANE_MAXES.addOps + SIDE_SPLITTER_COUNT * SPLITTER_WIDTH;
 }
 
-// Read the persisted INTENT widths verbatim — no container clamp. The stored value is the width the
-// user dragged to and must survive a reopen on a narrow window unchanged; only the DISPLAY is clamped
-// (see clampWidthsToContainer), and only at render time. Falls back to defaults on malformed JSON or
-// a missing addOps (the marker that the stored shape predates this schema).
-export function readStoredWidths(): WorkspaceWidths {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}") as Partial<WorkspaceWidths>;
-    if (typeof parsed.addOps !== "number") return { ...defaults };
-    return {
-      originals: Number(parsed.originals ?? defaults.originals),
-      tasks: Number(parsed.tasks ?? defaults.tasks),
-      ops: Number(parsed.ops ?? defaults.ops),
-      addOps: Number(parsed.addOps ?? defaults.addOps)
-    };
-  } catch {
-    return { ...defaults };
-  }
-}
-
-// Derive DISPLAY widths from intent: clamp every pane against its own bounds and the live container,
-// so the rendered grid always leaves the editor (and every other pane) its minimum. This is the
-// display-only projection of the intent — it never mutates or persists the intent it is fed. Exported
-// for tests.
+// Derive DISPLAY widths from intent so the rendered grid always leaves the editor its minimum and
+// never overflows the container. This is the display-only projection of the intent — it never mutates
+// or persists the intent it is fed. Exported for tests.
+//
+// Two stages, because a per-pane clamp is not enough. Clamping each pane against the OTHER panes'
+// minimums (the old approach) lets several wide panes each "leave room for the others' minimums" while
+// collectively overflowing — the editor track is minmax(editor min, 1fr) and cannot shrink below its
+// minimum, so the surplus pushes the rightmost pane (the Ops region) half off-screen. So after the
+// per-pane bounds, the side panes are fitted TOGETHER: if they don't leave the editor its minimum plus
+// the splitters, they shrink jointly, proportional to each pane's spare room, none below its own
+// minimum. When the container is at least the window minimum, the total spare room always covers the
+// surplus, so the layout fits at any window size. A single wide pane still lands exactly where the old
+// per-pane cap put it (container − others' minimums − splitters) — that is just this rule with only
+// one pane holding any room.
 export function clampWidthsToContainer(widths: WorkspaceWidths, container?: number): WorkspaceWidths {
   const available = container ?? currentContainerWidth();
   const splitters = SIDE_SPLITTER_COUNT * SPLITTER_WIDTH;
   const keys = Object.keys(limits) as PaneKey[];
-  const result = {} as WorkspaceWidths;
+
+  // Stage 1: each pane honors its own [min, max], independent of the container.
+  const display = {} as WorkspaceWidths;
   for (const key of keys) {
-    result[key] = clampPaneWidth(widths[key], limits[key].min, limits[key].max, othersMinSum(key), available, splitters);
+    const requested = Number.isFinite(widths[key]) ? Math.round(widths[key]) : limits[key].min;
+    display[key] = Math.min(limits[key].max, Math.max(limits[key].min, requested));
   }
-  return result;
+
+  // Stage 2: fit the side panes together so the editor keeps its minimum and nothing overflows.
+  const budget = available - PANE_MINS.editor - splitters;
+  const room = (key: PaneKey): number => display[key] - limits[key].min;
+  const surplus = (): number => keys.reduce((sum, key) => sum + display[key], 0) - budget;
+
+  const over = surplus();
+  if (over <= 0) return display;
+
+  const totalRoom = keys.reduce((sum, key) => sum + room(key), 0);
+  if (totalRoom > 0) {
+    for (const key of keys) {
+      const cut = Math.round((over * room(key)) / totalRoom);
+      display[key] = Math.max(limits[key].min, display[key] - cut);
+    }
+  }
+  // Rounding can leave a few px of residual overflow; trim it from whichever pane still has the most
+  // room, so the final widths fit exactly. Terminates: each pass removes ≥1px of real room, and the
+  // loop stops once nothing is over budget or no pane has room left (only when the container is below
+  // the window minimum — which the OS minimum prevents).
+  let residual = surplus();
+  while (residual > 0) {
+    const key = keys.filter((k) => room(k) > 0).sort((a, b) => room(b) - room(a))[0];
+    if (!key) break;
+    const cut = Math.min(residual, room(key));
+    display[key] -= cut;
+    residual -= cut;
+  }
+  return display;
 }
 
 function currentContainerWidth(from?: HTMLElement | null): number {

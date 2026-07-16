@@ -2,28 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PANE_MINS, SPLITTER_WIDTH } from "@shared/layout/workspace-metrics";
 import {
   buildGridTemplateColumns,
-  clampWidthsToContainer,
-  readStoredWidths
+  clampWidthsToContainer
 } from "@renderer/layout/workspace-layout";
 
-// Tests run in the node environment (no DOM). The layout module reads window.localStorage and, when
-// deriving display, falls back to window.innerWidth (document is absent). Stub a minimal localStorage
-// and a roomy innerWidth so the per-pane bounds — not the container cap — govern unless a test passes
-// a tight container explicitly.
-const storageKey = "fotoready.workspace.widths";
-let store: Record<string, string>;
-
+// Tests run in the node environment (no DOM). clampWidthsToContainer falls back to window.innerWidth
+// only when a test omits the container; every test below passes one explicitly, so a roomy innerWidth
+// is stubbed purely as a defensive default. Pane-width persistence lives in state.json now (no
+// localStorage), so there is nothing storage-related to stub.
 beforeEach(() => {
-  store = {};
-  vi.stubGlobal("window", {
-    innerWidth: 4000,
-    localStorage: {
-      getItem: (key: string) => (key in store ? store[key] : null),
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      }
-    }
-  });
+  vi.stubGlobal("window", { innerWidth: 4000 });
 });
 
 afterEach(() => {
@@ -83,6 +70,24 @@ describe("clampWidthsToContainer (display projection of intent)", () => {
     expect(clamped.ops).toBe(container - othersMin - splitters);
   });
 
+  it("keeps ALL panes collectively within the container, not just each against the others' minimums", () => {
+    // The bug this pins: clampWidthsToContainer clamps each pane INDEPENDENTLY, capping each at
+    // (container - the OTHER panes' MINIMUMS - splitters). That is correct for one widened pane, but
+    // when several panes carry large intents at once, each clamp assumes the others are at their
+    // minimums — they are not — so the displayed widths collectively overflow the container. The
+    // editor track is minmax(editor min, 1fr) and cannot shrink below its minimum, so the grid
+    // overruns the window and the rightmost pane (the Ops region) is pushed half off-screen.
+    //
+    // The invariant that must hold for the layout never to overflow: the displayed side panes plus
+    // the editor's minimum plus the splitters fit the container.
+    const container = 1280;
+    const splitters = 3 * SPLITTER_WIDTH;
+    const wideIntent = { originals: 360, tasks: 420, ops: 520, addOps: 360 }; // every pane near its max
+    const display = clampWidthsToContainer(wideIntent, container);
+    const sideSum = display.originals + display.tasks + display.ops + display.addOps;
+    expect(sideSum + PANE_MINS.editor + splitters).toBeLessThanOrEqual(container);
+  });
+
   it("still applies the per-pane max when it is tighter than the container cap", () => {
     // Roomy container, so the container cap is loose; ops' own max (520) is the binding limit.
     const clamped = clampWidthsToContainer(
@@ -114,32 +119,3 @@ describe("clampWidthsToContainer (display projection of intent)", () => {
   });
 });
 
-describe("readStoredWidths", () => {
-  it("returns the persisted INTENT verbatim, not re-clamped to the container", () => {
-    // A layout the user dragged to on a maximized window, persisted as pixels. On a narrow reopen the
-    // stored intent must come back UNCHANGED — clamping is a display concern handled at render time,
-    // never applied to the persisted value.
-    const intent = { originals: 320, tasks: 380, ops: 480, addOps: 300 };
-    store[storageKey] = JSON.stringify(intent);
-    expect(readStoredWidths()).toEqual(intent);
-  });
-
-  it("returns an out-of-bounds persisted width as-is (intent is not clamped on read)", () => {
-    store[storageKey] = JSON.stringify({ originals: 9999, tasks: 250, ops: 300, addOps: 240 });
-    const widths = readStoredWidths();
-    // No clamp on read: the raw intent is preserved. The per-pane max only bounds the DISPLAY.
-    expect(widths.originals).toBe(9999);
-  });
-
-  it("falls back to defaults when addOps is missing — the pre-schema marker", () => {
-    store[storageKey] = JSON.stringify({ originals: 200, tasks: 250, ops: 300 });
-    const widths = readStoredWidths();
-    expect(widths).toEqual({ originals: 160, tasks: 200, ops: 260, addOps: 220 });
-  });
-
-  it("falls back to defaults on malformed JSON", () => {
-    store[storageKey] = "{not valid json";
-    const widths = readStoredWidths();
-    expect(widths).toEqual({ originals: 160, tasks: 200, ops: 260, addOps: 220 });
-  });
-});

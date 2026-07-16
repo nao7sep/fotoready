@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
@@ -23,7 +23,8 @@ import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
-import { useWorkspaceLayout } from "./layout/workspace-layout";
+import { useWorkspaceLayout, type WorkspaceWidths } from "./layout/workspace-layout";
+import { PANE_DEFAULTS } from "@shared/layout/workspace-metrics";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { taskStateLabel } from "./task-visual-state";
@@ -87,7 +88,19 @@ function App(): React.JSX.Element {
   const currentOriginalIdsRef = useRef(new Set<string>());
   const originalThumbnailIdsRef = useRef(new Set<string>());
   const originalThumbnailRequestsRef = useRef(new Set<string>());
-  const workspaceLayout = useWorkspaceLayout({ showOps, showOriginals, showTasks });
+  // Pane widths live in state.json (via the state IPC), not localStorage, so the main process can size
+  // the window from them. Until state.json loads, fall back to the shipped defaults — same async
+  // pattern as showHistogram below. A drag persists the new intent; a window resize persists nothing.
+  const persistWorkspaceWidths = useCallback((workspaceWidths: WorkspaceWidths): void => {
+    void api.state.update({ workspaceWidths }).then(setUiState);
+  }, []);
+  const workspaceLayout = useWorkspaceLayout({
+    showOps,
+    showOriginals,
+    showTasks,
+    widths: uiState?.workspaceWidths ?? PANE_DEFAULTS,
+    onWidthsChange: persistWorkspaceWidths
+  });
 
   const project = projectSnapshot?.project;
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;

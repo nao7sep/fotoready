@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   CHROME,
   CONTENT_MIN_HEIGHT,
+  FIRST_RUN_CONTENT_HEIGHT,
+  PANE_DEFAULTS,
   PANE_MINS,
   SPLITTER_WIDTH,
   clampPaneWidth,
+  clampWindowSizeToWorkArea,
+  computeFirstRunWindowHeight,
+  computeFirstRunWindowWidth,
   computeMinWindowHeight,
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
@@ -48,6 +53,58 @@ describe("workspace-metrics", () => {
     it("reserves all three fixed chrome bars so none can be clipped", () => {
       const contentOnly = computeMinWindowHeight() - CHROME.topBar - CHROME.previewToolbar - CHROME.statusBar;
       expect(contentOnly).toBe(CONTENT_MIN_HEIGHT);
+    });
+  });
+
+  describe("computeFirstRunWindowWidth", () => {
+    it("is side panes at their defaults + the editor minimum + the splitters", () => {
+      const expected =
+        PANE_DEFAULTS.originals + PANE_DEFAULTS.tasks + PANE_DEFAULTS.ops + PANE_DEFAULTS.addOps +
+        PANE_MINS.editor + 3 * SPLITTER_WIDTH;
+      expect(computeFirstRunWindowWidth()).toBe(expected);
+    });
+
+    it("is the smallest window that shows the default layout without cramping (>= the minimum)", () => {
+      // 840 side defaults + 360 editor + 18 splitters = 1218, above the 1098 bare minimum.
+      expect(computeFirstRunWindowWidth()).toBe(1218);
+      expect(computeFirstRunWindowWidth()).toBeGreaterThan(computeMinWindowWidth());
+    });
+  });
+
+  describe("computeFirstRunWindowHeight", () => {
+    it("is the fixed chrome plus the first-run content height", () => {
+      expect(computeFirstRunWindowHeight()).toBe(
+        CHROME.topBar + CHROME.previewToolbar + CHROME.statusBar + FIRST_RUN_CONTENT_HEIGHT
+      );
+    });
+
+    it("is taller than the bare minimum so the preview is usable out of the box", () => {
+      expect(computeFirstRunWindowHeight()).toBeGreaterThan(computeMinWindowHeight());
+    });
+  });
+
+  describe("clampWindowSizeToWorkArea", () => {
+    it("keeps a size that already fits the screen", () => {
+      const size = { width: 1400, height: 900 };
+      expect(clampWindowSizeToWorkArea(size, { width: 2560, height: 1440 })).toEqual(size);
+    });
+
+    it("shrinks a size saved on a big monitor to fit a smaller screen", () => {
+      // Unplug the external monitor: a 3000x2000 layout clamps to the 1440x900 laptop.
+      const clamped = clampWindowSizeToWorkArea({ width: 3000, height: 2000 }, { width: 1440, height: 900 });
+      expect(clamped).toEqual({ width: 1440, height: 900 });
+    });
+
+    it("never returns below the content minimum, even on a screen smaller than the minimum", () => {
+      // A screen narrower than the content minimum: the minimum wins (content must not truncate).
+      const clamped = clampWindowSizeToWorkArea({ width: 800, height: 400 }, { width: 900, height: 500 });
+      expect(clamped.width).toBe(computeMinWindowWidth());
+      expect(clamped.height).toBe(computeMinWindowHeight());
+    });
+
+    it("ignores a non-finite work area (leaves the size floored at the minimum)", () => {
+      const clamped = clampWindowSizeToWorkArea({ width: 1400, height: 900 }, { width: Number.NaN, height: 0 });
+      expect(clamped).toEqual({ width: 1400, height: 900 });
     });
   });
 

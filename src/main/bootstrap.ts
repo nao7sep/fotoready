@@ -1,11 +1,11 @@
-import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor } from "electron";
+import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
-import { loadState } from "./state-io";
+import { loadState, saveState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
 import { setBackupLogger } from "./backup-store";
 import { ProjectSession } from "./session";
@@ -13,7 +13,13 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
-import { computeMinWindowHeight, computeMinWindowWidth } from "@shared/layout/workspace-metrics";
+import {
+  clampWindowSizeToWorkArea,
+  computeFirstRunWindowHeight,
+  computeFirstRunWindowWidth,
+  computeMinWindowHeight,
+  computeMinWindowWidth
+} from "@shared/layout/workspace-metrics";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
 // dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
@@ -23,15 +29,23 @@ import { computeMinWindowHeight, computeMinWindowWidth } from "@shared/layout/wo
 const APP_BACKGROUND_COLOR = "#f5f5f4";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow: given the preload path,
-// it returns the exact constructor options. The theme is set separately (nativeTheme is a global
-// side effect), asserted in the same test.
-export function buildWindowOptions(preloadPath: string): BrowserWindowConstructorOptions {
+// the display's work-area size, and the remembered window size (null on first run), it returns the
+// exact constructor options. The opening size is the remembered size clamped to the current screen,
+// or — first run — the derived first-run size; either way clamped so the window always fits. The theme
+// is set separately (nativeTheme is a global side effect), asserted in the same test.
+export function buildWindowOptions(
+  preloadPath: string,
+  workArea: { width: number; height: number },
+  savedSize: { width: number; height: number } | null
+): BrowserWindowConstructorOptions {
+  const requested = savedSize ?? { width: computeFirstRunWindowWidth(), height: computeFirstRunWindowHeight() };
+  const size = clampWindowSizeToWorkArea(requested, workArea);
   return {
     title: APP_NAME,
     minWidth: computeMinWindowWidth(),
     minHeight: computeMinWindowHeight(),
-    width: 1280,
-    height: 800,
+    width: size.width,
+    height: size.height,
     backgroundColor: APP_BACKGROUND_COLOR,
     show: false,
     webPreferences: {
@@ -115,8 +129,35 @@ export async function bootstrap(): Promise<void> {
   nativeTheme.themeSource = "light";
 
   const createWindow = (): void => {
-    const win = new BrowserWindow(buildWindowOptions(path.join(__dirname, "../preload/index.mjs")));
+    // Open at the remembered size (clamped to this display), or the first-run size. Reading the size
+    // here in main — not in the renderer — is why the pane widths and window size live in state.json.
+    const { workAreaSize } = screen.getPrimaryDisplay();
+    const win = new BrowserWindow(
+      buildWindowOptions(path.join(__dirname, "../preload/index.mjs"), workAreaSize, uiState.windowSize)
+    );
     installCloseGuard(win, exitState);
+
+    // Remember the window's size (only size, never position — a monitor change can't strand it
+    // off-screen). Debounced on resize so a drag writes state.json once it settles; flushed on close so
+    // a resize-then-quit is not lost. uiState is the same object the IPC router holds, so writing it
+    // here keeps a single source. The saved size is re-clamped to the screen on the next launch.
+    let sizeSaveTimer: ReturnType<typeof setTimeout> | null = null;
+    const persistWindowSize = (): void => {
+      const [width, height] = win.getSize();
+      uiState.windowSize = { width, height };
+      void saveState(paths.statePath, uiState);
+    };
+    win.on("resize", () => {
+      if (sizeSaveTimer) clearTimeout(sizeSaveTimer);
+      sizeSaveTimer = setTimeout(persistWindowSize, 400);
+    });
+    win.on("close", () => {
+      if (sizeSaveTimer) {
+        clearTimeout(sizeSaveTimer);
+        sizeSaveTimer = null;
+      }
+      persistWindowSize();
+    });
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.

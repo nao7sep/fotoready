@@ -22,6 +22,29 @@ export const PANE_MINS = {
   addOps: 180
 } as const;
 
+/** The three side panes the user can resize (the editor is the fill pane and is never resized
+ *  directly). Their widths are the persisted workspace layout. */
+export type WorkspacePaneKey = "originals" | "tasks" | "ops" | "addOps";
+
+/** The width each side pane starts at on a fresh install — the seed for the persisted layout and the
+ *  basis for the first-run window size. Shared so the renderer, the state defaults, and the main
+ *  process's window sizing all agree on one set of numbers. */
+export const PANE_DEFAULTS: Record<WorkspacePaneKey, number> = {
+  originals: 160,
+  tasks: 200,
+  ops: 260,
+  addOps: 220
+};
+
+/** Per-pane maximums — the widest a side pane may grow. The minimum is PANE_MINS; a tighter live
+ *  container cap is applied on top at display time (see clampPaneWidth / clampWidthsToContainer). */
+export const PANE_MAXES: Record<WorkspacePaneKey, number> = {
+  originals: 360,
+  tasks: 420,
+  ops: 520,
+  addOps: 360
+};
+
 /** Width (px) of a workspace splitter. Mirrors `.workspace-splitter` in app.css. */
 export const SPLITTER_WIDTH = 6;
 
@@ -64,6 +87,52 @@ export function computeMinWindowWidth(): number {
  */
 export function computeMinWindowHeight(): number {
   return CHROME.topBar + CHROME.previewToolbar + CHROME.statusBar + CONTENT_MIN_HEIGHT;
+}
+
+/**
+ * Content height (px) a fresh install opens with — taller than the bare CONTENT_MIN_HEIGHT so the
+ * preview is usable out of the box, but deliberately modest: there is no point starting large when the
+ * window size is remembered after the first resize.
+ */
+export const FIRST_RUN_CONTENT_HEIGHT = 680;
+
+/**
+ * The window's FIRST-RUN width: the smallest window that shows the default layout without cramping —
+ * the side panes at their defaults, the editor at its own minimum, plus the splitters. There is no
+ * larger "designed" default: after the first run the window remembers whatever size the user set
+ * (UiState.windowSize), so the opening size only needs to be sensible, not spacious.
+ */
+export function computeFirstRunWindowWidth(): number {
+  const sidePanes = PANE_DEFAULTS.originals + PANE_DEFAULTS.tasks + PANE_DEFAULTS.ops + PANE_DEFAULTS.addOps;
+  return sidePanes + PANE_MINS.editor + WORKSPACE_SPLITTER_COUNT * SPLITTER_WIDTH;
+}
+
+/** The window's FIRST-RUN height: the fixed chrome plus a modest content height. */
+export function computeFirstRunWindowHeight(): number {
+  return CHROME.topBar + CHROME.previewToolbar + CHROME.statusBar + FIRST_RUN_CONTENT_HEIGHT;
+}
+
+/**
+ * Clamp a remembered window size to the current display: never below the content minimum (a smaller
+ * screen shrinks the window toward the minimum, and when the minimum itself exceeds a tiny screen the
+ * minimum wins — a window wider than the screen beats truncated content), never larger than the work
+ * area. Applied on every restore so unplugging a large external monitor yields a window that fits.
+ * Pure — unit-tested without a real display.
+ */
+export function clampWindowSizeToWorkArea(
+  size: { width: number; height: number },
+  workArea: { width: number; height: number }
+): { width: number; height: number } {
+  return {
+    width: clampWindowDimension(size.width, computeMinWindowWidth(), workArea.width),
+    height: clampWindowDimension(size.height, computeMinWindowHeight(), workArea.height)
+  };
+}
+
+function clampWindowDimension(value: number, min: number, workArea: number): number {
+  const rounded = Number.isFinite(value) ? Math.round(value) : min;
+  const capped = Number.isFinite(workArea) && workArea > 0 ? Math.min(rounded, Math.round(workArea)) : rounded;
+  return Math.max(min, capped);
 }
 
 /**

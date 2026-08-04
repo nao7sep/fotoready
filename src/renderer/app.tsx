@@ -27,6 +27,7 @@ import { useWorkspaceLayout, type WorkspaceWidths } from "./layout/workspace-lay
 import { PANE_DEFAULTS } from "@shared/layout/workspace-metrics";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
+import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
@@ -54,7 +55,6 @@ function App(): React.JSX.Element {
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
-  const [originalThumbnails, setOriginalThumbnails] = useState<Record<string, string>>({});
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiKeyClearRequested, setApiKeyClearRequested] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
@@ -85,9 +85,6 @@ function App(): React.JSX.Element {
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
   const globalDragDepthRef = useRef(0);
-  const currentOriginalIdsRef = useRef(new Set<string>());
-  const originalThumbnailIdsRef = useRef(new Set<string>());
-  const originalThumbnailRequestsRef = useRef(new Set<string>());
   // Pane widths live in state.json (via the state IPC), not localStorage, so the main process can size
   // the window from them. Until state.json loads, fall back to the shipped defaults — same async
   // pattern as showHistogram below. A drag persists the new intent; a window resize persists nothing.
@@ -103,6 +100,8 @@ function App(): React.JSX.Element {
   });
 
   const project = projectSnapshot?.project;
+  // Self-reconciling against the originals list — no cleanup at any call site.
+  const originalThumbnails = useOriginalThumbnails(project?.originals);
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
@@ -330,45 +329,6 @@ function App(): React.JSX.Element {
     };
   }, [previewStateKey, settings?.previewDebounceMs]);
 
-  useEffect(() => {
-    const originals = project?.originals ?? [];
-    const originalIds = new Set(originals.map((original) => original.id));
-    currentOriginalIdsRef.current = originalIds;
-    originalThumbnailIdsRef.current.forEach((id) => {
-      if (!originalIds.has(id)) originalThumbnailIdsRef.current.delete(id);
-    });
-    originalThumbnailRequestsRef.current.forEach((id) => {
-      if (!originalIds.has(id)) originalThumbnailRequestsRef.current.delete(id);
-    });
-    setOriginalThumbnails((current) => {
-      const next = Object.fromEntries(Object.entries(current).filter(([id]) => originalIds.has(id)));
-      return Object.keys(next).length === Object.keys(current).length ? current : next;
-    });
-
-    const missing = originals.filter((original) =>
-      !originalThumbnailIdsRef.current.has(original.id) && !originalThumbnailRequestsRef.current.has(original.id)
-    );
-    if (missing.length === 0) return;
-
-    for (const original of missing) {
-      originalThumbnailRequestsRef.current.add(original.id);
-      void api.preview.originalThumbnail(original.id)
-        .then((thumbnail) => {
-          originalThumbnailRequestsRef.current.delete(thumbnail.originalId);
-          if (!currentOriginalIdsRef.current.has(thumbnail.originalId)) return;
-          originalThumbnailIdsRef.current.add(thumbnail.originalId);
-          setOriginalThumbnails((current) => ({ ...current, [thumbnail.originalId]: thumbnail.dataUrl }));
-        })
-        .catch((thumbnailError) => {
-          console.warn("Failed to load original thumbnail", original.id, thumbnailError);
-          originalThumbnailRequestsRef.current.delete(original.id);
-          if (!currentOriginalIdsRef.current.has(original.id)) return;
-          originalThumbnailIdsRef.current.add(original.id);
-          setOriginalThumbnails((current) => ({ ...current, [original.id]: "" }));
-        });
-    }
-  }, [project?.originals]);
-
   async function addOriginals(): Promise<void> {
     await refreshProject(await api.project.addOriginalsFromDialog());
   }
@@ -402,13 +362,6 @@ function App(): React.JSX.Element {
       if (!confirmed) return;
     }
     await refreshProject(await api.project.removeOriginal(originalId));
-    setOriginalThumbnails((current) => {
-      const next = { ...current };
-      delete next[originalId];
-      return next;
-    });
-    originalThumbnailIdsRef.current.delete(originalId);
-    originalThumbnailRequestsRef.current.delete(originalId);
   }
 
   async function selectTask(taskId: string): Promise<void> {

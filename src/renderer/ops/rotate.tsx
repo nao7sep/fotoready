@@ -1,4 +1,3 @@
-import React from "react";
 import { Line, Rect } from "react-konva";
 import type { OpRenderer } from "./op-renderer";
 import { AngleControl, normalizeAngle } from "./_angle-controls";

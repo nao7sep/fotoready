@@ -1,4 +1,3 @@
-import React from "react";
 import type { OpRenderer } from "./op-renderer";
 
 type LevelsParams = { blackPoint: number; whitePoint: number; gamma: number };

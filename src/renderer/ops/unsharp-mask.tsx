@@ -1,4 +1,3 @@
-import React from "react";
 import type { OpRenderer } from "./op-renderer";
 
 type UnsharpMaskParams = { radius: number; amount: number };

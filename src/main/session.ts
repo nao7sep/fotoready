@@ -49,7 +49,7 @@ export class ProjectSession {
     private readonly settings: GlobalSettings,
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
-    private readonly workerPool: PipelineWorkerPool,
+    workerPool: PipelineWorkerPool,
     private readonly logger?: AppLogger
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);

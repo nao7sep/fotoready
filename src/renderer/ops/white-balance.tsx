@@ -1,4 +1,3 @@
-import React from "react";
 import { Circle } from "react-konva";
 import { clamp } from "@shared/numeric";
 import type { OpRenderer } from "./op-renderer";

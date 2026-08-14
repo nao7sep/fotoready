@@ -1,4 +1,3 @@
-import React from "react";
 import type { OpRenderer } from "./op-renderer";
 
 type HslAdjustment = { hue: number; sat: number; lum: number };

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   CHROME,
-  PANE_DEFAULTS,
   PANE_MAXES,
   PANE_MINS,
   SPLITTER_WIDTH,

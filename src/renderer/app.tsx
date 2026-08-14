@@ -4,7 +4,7 @@ import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, T
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PreviewResult, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -976,11 +976,6 @@ function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): Reac
 
 function basename(sourcePath: string): string {
   return sourcePath.split(/[\\/]/).at(-1) ?? sourcePath;
-}
-
-function taskLabel(task: Task, originals: { id: string; sourcePath: string }[]): string {
-  const original = originals.find((item) => item.id === task.originalId);
-  return original ? basename(original.sourcePath) : task.id;
 }
 
 function hasWorkspaceWork(project: Project | undefined, queue: QueueSnapshot): boolean {

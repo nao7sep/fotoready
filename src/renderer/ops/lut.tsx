@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { LutPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { fileNameFromPath } from "@shared/file-path";
 import type { OpRenderer } from "./op-renderer";

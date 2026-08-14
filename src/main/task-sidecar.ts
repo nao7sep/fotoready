@@ -6,7 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
-import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
+import { assertBoolean, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
 import { atomicWriteFile } from "@adapters/atomic-file";
 

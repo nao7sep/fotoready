@@ -3,7 +3,7 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
-import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
+import { createLogger, installCrashHandlers } from "./logger";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { loadState, saveState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";

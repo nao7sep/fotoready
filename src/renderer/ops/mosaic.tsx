@@ -1,4 +1,3 @@
-import React from "react";
 import type { ConcealRegion } from "@shared/types/conceal";
 import type { OpRenderer } from "./op-renderer";
 import { ConcealCard } from "./_conceal-card";

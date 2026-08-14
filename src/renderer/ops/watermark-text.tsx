@@ -1,4 +1,3 @@
-import React from "react";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import { normalizeAngle } from "@shared/rotation";
 import { singleLine } from "@shared/text-cleanup";

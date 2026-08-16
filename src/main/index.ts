@@ -9,12 +9,12 @@ import { bootstrap } from "./bootstrap";
 void bootstrap().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   dialog.showErrorBox(
-    "fotoready could not start",
-    "A settings file could not be read, and fotoready could not copy it aside either — so it has been " +
+    "FotoReady could not start",
+    "A settings file could not be read, and FotoReady could not copy it aside either — so it has been " +
       "left exactly where it is rather than risk overwriting it.\n\n" +
       message +
-      "\n\nYour photos and projects are not affected. Repair or move the file under the fotoready data " +
-      "folder, then start fotoready again.",
+      "\n\nYour photos and projects are not affected. Repair or move the file under the FotoReady data " +
+      "folder, then start FotoReady again.",
   );
   app.exit(1);
 });

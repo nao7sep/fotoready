@@ -87,17 +87,17 @@ export async function bootstrap(): Promise<void> {
   if (settingsQuarantinedTo) {
     dialog.showErrorBox(
       "Settings could not be read",
-      "Your fotoready settings file was unreadable and a copy has been set aside so nothing is lost:\n\n" +
+      "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost:\n\n" +
         `${settingsQuarantinedTo}\n\n` +
-        "fotoready has started with default values for the unreadable fields. Your projects and photos are untouched.",
+        "FotoReady has started with default values for the unreadable fields. Your projects and photos are untouched.",
     );
   }
   if (stateQuarantinedTo) {
     dialog.showErrorBox(
       "Window state could not be read",
-      "Your fotoready window-state file was unreadable and a copy has been set aside:\n\n" +
+      "Your FotoReady window-state file was unreadable and a copy has been set aside:\n\n" +
         `${stateQuarantinedTo}\n\n` +
-        "fotoready has started with a default layout. Your settings, projects, and photos are untouched.",
+        "FotoReady has started with a default layout. Your settings, projects, and photos are untouched.",
     );
   }
   const visionQueue = new VisionQueue(paths, settings, logger);

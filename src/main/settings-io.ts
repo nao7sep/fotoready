@@ -18,10 +18,7 @@ export function resolveWorkerPoolSize(workerPoolSize: number | null): number {
 
 export type SettingsLoadResult = {
   settings: GlobalSettings;
-  // Set when the on-disk file was corrupt (unreadable or shape-invalid) and its
-  // bytes were copied aside — the app edge reports it to the user, since an
-  // unreported quarantine is a silent reset with extra steps (storage-path
-  // conventions).
+  // Set when corrupt bytes were copied aside so startup can report the path.
   quarantinedTo: string | null;
 };
 

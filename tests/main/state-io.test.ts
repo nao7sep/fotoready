@@ -39,7 +39,7 @@ afterEach(async () => {
 
 describe("loadState", () => {
   it("returns defaults on first run WITHOUT creating state.json", async () => {
-    const { state } = await loadState(statePath());
+    const state = await loadState(statePath());
 
     expect(state).toEqual(defaultUiState());
     // The volatile state file is not materialized on first run.
@@ -50,19 +50,16 @@ describe("loadState", () => {
 
   it("reads back state once it has actually been written", async () => {
     await saveState(statePath(), defaultUiState());
-    expect(await loadState(statePath())).toEqual({ state: defaultUiState(), quarantinedTo: null });
+    expect(await loadState(statePath())).toEqual(defaultUiState());
   });
 
-  it("quarantines an unreadable state file, then resets it in place", async () => {
+  it("replaces unreadable disposable state with defaults", async () => {
     await fs.writeFile(statePath(), "{ not valid json", "utf8");
 
-    const { state } = await loadState(statePath());
+    const state = await loadState(statePath());
 
     expect(state).toEqual(defaultUiState());
-    // The corrupt bytes are preserved aside (as state-<stamp>.invalid, derived-filename grammar), and
-    // state.json is reset so the next launch is clean.
     const files = withoutStoreFiles(await fs.readdir(dir));
-    expect(files.some((f) => f.startsWith("state-") && f.endsWith(".invalid"))).toBe(true);
-    expect(files).toContain("state.json");
+    expect(files).toEqual(["state.json"]);
   });
 });

@@ -81,23 +81,13 @@ export async function bootstrap(): Promise<void> {
   // there is no startup backup pass to kick off (data-backup conventions: write-through, not a scan).
   setBackupLogger(logger);
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
-  const { state: uiState, quarantinedTo: stateQuarantinedTo } = await loadState(paths.statePath, logger);
-  // An unreported quarantine is a silent reset with extra steps: name what was
-  // set aside and what the app started with instead (storage-path conventions).
+  const uiState = await loadState(paths.statePath, logger);
   if (settingsQuarantinedTo) {
     dialog.showErrorBox(
       "Settings could not be read",
       "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost:\n\n" +
         `${settingsQuarantinedTo}\n\n` +
         "FotoReady has started with default values for the unreadable fields. Your projects and photos are untouched.",
-    );
-  }
-  if (stateQuarantinedTo) {
-    dialog.showErrorBox(
-      "Window state could not be read",
-      "Your FotoReady window-state file was unreadable and a copy has been set aside:\n\n" +
-        `${stateQuarantinedTo}\n\n` +
-        "FotoReady has started with a default layout. Your settings, projects, and photos are untouched.",
     );
   }
   const visionQueue = new VisionQueue(paths, settings, logger);

@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
+import { BrowserWindow, app, dialog, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,8 +80,26 @@ export async function bootstrap(): Promise<void> {
   // of the silent default. Recording itself is a side effect of each managed save (settings-io/state-io);
   // there is no startup backup pass to kick off (data-backup conventions: write-through, not a scan).
   setBackupLogger(logger);
-  const settings = await loadSettings(paths.settingsPath, logger);
-  const uiState = await loadState(paths.statePath, logger);
+  const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
+  const { state: uiState, quarantinedTo: stateQuarantinedTo } = await loadState(paths.statePath, logger);
+  // An unreported quarantine is a silent reset with extra steps: name what was
+  // set aside and what the app started with instead (storage-path conventions).
+  if (settingsQuarantinedTo) {
+    dialog.showErrorBox(
+      "Settings could not be read",
+      "Your fotoready settings file was unreadable and a copy has been set aside so nothing is lost:\n\n" +
+        `${settingsQuarantinedTo}\n\n` +
+        "fotoready has started with default values for the unreadable fields. Your projects and photos are untouched.",
+    );
+  }
+  if (stateQuarantinedTo) {
+    dialog.showErrorBox(
+      "Window state could not be read",
+      "Your fotoready window-state file was unreadable and a copy has been set aside:\n\n" +
+        `${stateQuarantinedTo}\n\n` +
+        "fotoready has started with a default layout. Your settings, projects, and photos are untouched.",
+    );
+  }
   const visionQueue = new VisionQueue(paths, settings, logger);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);

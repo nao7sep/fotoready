@@ -39,7 +39,7 @@ afterEach(async () => {
 
 describe("loadState", () => {
   it("returns defaults on first run WITHOUT creating state.json", async () => {
-    const state = await loadState(statePath());
+    const { state } = await loadState(statePath());
 
     expect(state).toEqual(defaultUiState());
     // The volatile state file is not materialized on first run.
@@ -50,13 +50,13 @@ describe("loadState", () => {
 
   it("reads back state once it has actually been written", async () => {
     await saveState(statePath(), defaultUiState());
-    expect(await loadState(statePath())).toEqual(defaultUiState());
+    expect(await loadState(statePath())).toEqual({ state: defaultUiState(), quarantinedTo: null });
   });
 
   it("quarantines an unreadable state file, then resets it in place", async () => {
     await fs.writeFile(statePath(), "{ not valid json", "utf8");
 
-    const state = await loadState(statePath());
+    const { state } = await loadState(statePath());
 
     expect(state).toEqual(defaultUiState());
     // The corrupt bytes are preserved aside (as state-<stamp>.invalid, derived-filename grammar), and

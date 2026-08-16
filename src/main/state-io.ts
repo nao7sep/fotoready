@@ -6,7 +6,14 @@ import { utcStamp } from "@shared/time";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
 
-export async function loadState(statePath: string, logger?: AppLogger): Promise<UiState> {
+export type StateLoadResult = {
+  state: UiState;
+  // Set when the on-disk file was corrupt and its bytes were copied aside —
+  // the app edge reports it (storage-path conventions: both branches report).
+  quarantinedTo: string | null;
+};
+
+export async function loadState(statePath: string, logger?: AppLogger): Promise<StateLoadResult> {
   try {
     const raw = await fs.readFile(statePath, "utf8");
     const { state, issues } = normalizeUiState(JSON.parse(raw), defaultUiState());
@@ -14,14 +21,15 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
       const backupPath = await backupInvalidFile(statePath);
       logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, backupPath, issues });
       await saveState(statePath, state);
+      return { state, quarantinedTo: backupPath };
     }
-    return state;
+    return { state, quarantinedTo: null };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       // Missing state is the normal first-run case: return defaults WITHOUT writing. state.json is
       // volatile UI state and is deliberately not materialized on first run (storage-path
       // conventions) — it is written only once there is real state to record (a resize, a selection).
-      return defaultUiState();
+      return { state: defaultUiState(), quarantinedTo: null };
     }
     // Present but unreadable: quarantine the bad bytes, then reset to defaults on disk so the next
     // launch does not re-read (and re-quarantine) the same corrupt file.
@@ -29,7 +37,7 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, backupPath, err: error });
     const state = defaultUiState();
     await saveState(statePath, state);
-    return state;
+    return { state, quarantinedTo: backupPath };
   }
 }
 
@@ -45,10 +53,9 @@ export async function saveState(statePath: string, state: UiState): Promise<void
 async function backupInvalidFile(filePath: string): Promise<string | null> {
   // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
   const backupPath = path.join(path.dirname(filePath), `${path.parse(filePath).name}-${utcStamp()}.invalid`);
-  try {
-    await fs.copyFile(filePath, backupPath);
-    return backupPath;
-  } catch {
-    return null;
-  }
+  // The copy either lands or its failure propagates — swallowing it would let
+  // the caller reset over the very bytes the copy exists to preserve
+  // (storage-path conventions).
+  await fs.copyFile(filePath, backupPath);
+  return backupPath;
 }

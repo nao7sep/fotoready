@@ -30,6 +30,7 @@ import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
+import { hasMod, shadowsMacTextBinding } from "./utils/shortcuts";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import "./styles/app.css";
 
@@ -217,7 +218,17 @@ function App(): React.JSX.Element {
       // A chord pressed while an IME candidate is pending belongs to the composition; stand down
       // until it commits, rather than firing on a not-yet-committed candidate (text-input-ime).
       if (isComposingKeyboardEvent(event)) return;
-      const mod = event.metaKey || event.ctrlKey;
+      // On macOS a bare-Ctrl chord on a Cocoa text-editing key (Ctrl+H =
+      // delete-backward, Ctrl+N = next-line, Ctrl+Slash too) belongs to the
+      // text system while the caret is editable; the Cmd half always fires
+      // (keyboard-shortcut-conventions).
+      if (
+        shadowsMacTextBinding(event, !systemInfo || systemInfo.platform === "darwin") &&
+        isTextEditingShortcutTarget(event.target)
+      ) {
+        return;
+      }
+      const mod = hasMod(event);
       if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();
         void addOriginals();
@@ -249,7 +260,7 @@ function App(): React.JSX.Element {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram, systemInfo]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {

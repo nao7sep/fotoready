@@ -43,7 +43,7 @@ async function findInvalid(): Promise<string | undefined> {
 
 describe("loadSettings", () => {
   it("materializes config.json from defaults on first run (write-if-absent)", async () => {
-    const settings = await loadSettings(settingsPath());
+    const { settings } = await loadSettings(settingsPath());
 
     // Behavior (a)/(b): the missing file is the first-run case; config.json IS written with the
     // in-code defaults (config.json, unlike state.json, is materialized on first run).
@@ -62,14 +62,14 @@ describe("loadSettings", () => {
     const custom = { ...defaults(), defaultWebpQuality: 71, confirmDeleteTasks: true };
     await saveSettings(settingsPath(), custom);
 
-    expect(await loadSettings(settingsPath())).toEqual(custom);
+    expect(await loadSettings(settingsPath())).toEqual({ settings: custom, quarantinedTo: null });
   });
 
   it("quarantines an unreadable (unparseable) config.json, then resets it to defaults in place", async () => {
     const corrupt = "{ not valid json";
     await fs.writeFile(settingsPath(), corrupt, "utf8");
 
-    const settings = await loadSettings(settingsPath());
+    const { settings } = await loadSettings(settingsPath());
 
     // Behavior (b): present-but-unreadable → the original bytes are quarantined aside and config.json
     // is rewritten with defaults so the next launch is clean (never silently discarded).
@@ -97,7 +97,7 @@ describe("loadSettings", () => {
     ].join("\n");
     await fs.writeFile(settingsPath(), originalText, "utf8");
 
-    const settings = await loadSettings(settingsPath());
+    const { settings } = await loadSettings(settingsPath());
 
     // The coerced result: the out-of-range field falls back to the default, the valid field is kept.
     const { settings: expected, issues } = normalizeGlobalSettings(JSON.parse(originalText), defaults());

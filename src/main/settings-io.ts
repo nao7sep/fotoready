@@ -16,7 +16,16 @@ export function resolveWorkerPoolSize(workerPoolSize: number | null): number {
   return workerPoolSize ?? Math.min(8, os.cpus().length);
 }
 
-export async function loadSettings(settingsPath: string, logger?: AppLogger): Promise<GlobalSettings> {
+export type SettingsLoadResult = {
+  settings: GlobalSettings;
+  // Set when the on-disk file was corrupt (unreadable or shape-invalid) and its
+  // bytes were copied aside — the app edge reports it to the user, since an
+  // unreported quarantine is a silent reset with extra steps (storage-path
+  // conventions).
+  quarantinedTo: string | null;
+};
+
+export async function loadSettings(settingsPath: string, logger?: AppLogger): Promise<SettingsLoadResult> {
   try {
     const raw = await fs.readFile(settingsPath, "utf8");
     const { settings, issues } = normalizeGlobalSettings(JSON.parse(raw), defaults());
@@ -24,17 +33,21 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
       const backupPath = await backupInvalidFile(settingsPath);
       logger?.warn("settings file contained invalid data; using fallback values", { mod: "settings", settingsPath, backupPath, issues });
       await saveSettings(settingsPath, settings);
+      return { settings, quarantinedTo: backupPath };
     }
-    return settings;
+    return { settings, quarantinedTo: null };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       const backupPath = await backupInvalidFile(settingsPath);
       logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, backupPath, err: error });
+      const settings = defaults();
+      await saveSettings(settingsPath, settings);
+      return { settings, quarantinedTo: backupPath };
     }
 
     const settings = defaults();
     await saveSettings(settingsPath, settings);
-    return settings;
+    return { settings, quarantinedTo: null };
   }
 }
 
@@ -49,10 +62,9 @@ export async function saveSettings(settingsPath: string, settings: GlobalSetting
 async function backupInvalidFile(filePath: string): Promise<string | null> {
   // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
   const backupPath = path.join(path.dirname(filePath), `${path.parse(filePath).name}-${utcStamp()}.invalid`);
-  try {
-    await fs.copyFile(filePath, backupPath);
-    return backupPath;
-  } catch {
-    return null;
-  }
+  // The copy either lands or its failure propagates — swallowing it would let
+  // the caller reset over the very bytes the copy exists to preserve
+  // (storage-path conventions).
+  await fs.copyFile(filePath, backupPath);
+  return backupPath;
 }

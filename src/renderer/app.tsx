@@ -217,13 +217,15 @@ function App(): React.JSX.Element {
       // A chord pressed while an IME candidate is pending belongs to the composition; stand down
       // until it commits, rather than firing on a not-yet-committed candidate (text-input-ime).
       if (isComposingKeyboardEvent(event)) return;
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const isMac = !systemInfo || systemInfo.platform === "darwin";
+      // On macOS, Ctrl inside a text field belongs to the text system whatever
+      // the key is, so the Ctrl half of a dual-bound chord stands down there —
+      // one blanket test, no per-chord key list (keyboard-shortcut-conventions).
+      // The Cmd half is the binding and always fires.
       if (
         isMac &&
         event.ctrlKey &&
         !event.metaKey &&
-        ["h", "n", "/"].includes(key) &&
         isTextEditingShortcutTarget(event.target)
       ) {
         return;

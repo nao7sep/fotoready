@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "FotoReady photo editor for blogging and publication workflows.",
   "main": "out/main/index.js",
-  "author": "Yoshinao Inoguchi <nao7sep@gmail.com>",
+  "author": "Yoshinao Inoguchi <yoshinao@inoguchi.com>",
   "license": "MIT",
   "type": "module",
   "scripts": {

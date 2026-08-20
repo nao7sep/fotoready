@@ -579,6 +579,8 @@ select:disabled {
   gap: 6px;
   height: 28px;
   font-size: 12px;
+  /* An icon plus its words is one label: never break between them. */
+  white-space: nowrap;
 }
 
 .list {

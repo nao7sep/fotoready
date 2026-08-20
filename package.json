@@ -15,6 +15,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "preview": "electron-vite preview",
     "test": "vitest run",
+    "check": "npm run typecheck && npm test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "package": "npm run build && electron-builder --dir",

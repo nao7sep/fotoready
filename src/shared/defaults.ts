@@ -12,13 +12,15 @@ export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candid
 // *Reset models* — content the user must not edit is not shown as editable at all. Ordered by category
 // (pro -> flash -> flash-lite), one per category, which also runs most- to least-expensive.
 //
-// Provenance differs per entry, and the difference is the point of writing it down:
-//   gemini-3.1-pro-preview  — verified live 2026-07-16: resolves AND accepts image input.
-//   gemini-3.7-flash        — added 2026-08-20, replacing gemini-3.5-flash.
-//   gemini-3.5-flash-lite   — added 2026-08-20, replacing gemini-3.1-flash-lite.
-// The two 2026-08-20 entries are DOC-VERIFIED ONLY: taken from Google's published model list after
-// gemini-3-flash-preview was found shut down, and never yet called with an image from this app. That
-// is a weaker bar than the entry above them met, and it stays written here until a live check closes it.
+// Verified live 2026-08-20 — each id was sent a real image and asked a question only the image answers;
+// all three resolve AND accept image input, the same bar the list has always been held to (the previous
+// entries were verified live 2026-07-16 the same way).
+//
+// The ids this replaced — gemini-3.5-flash, gemini-3.1-flash-lite, gemini-3-flash-preview — all still
+// resolve. They were superseded, not retired, and were dropped to keep one id per category. Worth
+// recording why that sentence is careful: a published model page listed gemini-3-flash-preview as shut
+// down, and the live API lists it and answers. THE API IS THE AUTHORITY; a docs table is a claim about
+// it. That is the whole reason this list is verified by calling rather than by reading.
 // mumbler proved the earlier ids for AUDIO; a different modality on a different app, so it was re-proven
 // here rather than assumed to carry over (gptimg shipped two capability claims that had never met the
 // API). Verification is a DESIGN-TIME act — the app itself never queries the model-list endpoint.

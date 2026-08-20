@@ -10,17 +10,22 @@ export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candid
 // The Gemini models FotoReady offers. A CLOSED list (ai-model-routing-conventions): the app ships it,
 // the user picks from it, nothing adds to it at runtime. That is why there is no list editor and no
 // *Reset models* — content the user must not edit is not shown as editable at all. Ordered by category
-// (pro -> flash -> flash-lite), which also runs most- to least-expensive.
+// (pro -> flash -> flash-lite), one per category, which also runs most- to least-expensive.
 //
-// Verified live 2026-07-16: all four resolve AND accept image input. mumbler proved these same four ids
-// for AUDIO; that is a different modality on a different app, so it was re-proven here rather than
-// assumed to carry over (gptimg shipped two capability claims that had never met the API). Verification
-// is a DESIGN-TIME act — the app itself never queries the model-list endpoint.
+// Provenance differs per entry, and the difference is the point of writing it down:
+//   gemini-3.1-pro-preview  — verified live 2026-07-16: resolves AND accepts image input.
+//   gemini-3.7-flash        — added 2026-08-20, replacing gemini-3.5-flash.
+//   gemini-3.5-flash-lite   — added 2026-08-20, replacing gemini-3.1-flash-lite.
+// The two 2026-08-20 entries are DOC-VERIFIED ONLY: taken from Google's published model list after
+// gemini-3-flash-preview was found shut down, and never yet called with an image from this app. That
+// is a weaker bar than the entry above them met, and it stays written here until a live check closes it.
+// mumbler proved the earlier ids for AUDIO; a different modality on a different app, so it was re-proven
+// here rather than assumed to carry over (gptimg shipped two capability claims that had never met the
+// API). Verification is a DESIGN-TIME act — the app itself never queries the model-list endpoint.
 export const GEMINI_MODELS = [
   "gemini-3.1-pro-preview",
-  "gemini-3.5-flash",
-  "gemini-3-flash-preview",
-  "gemini-3.1-flash-lite"
+  "gemini-3.7-flash",
+  "gemini-3.5-flash-lite"
 ] as const;
 
 export type GeminiModel = (typeof GEMINI_MODELS)[number];
@@ -29,7 +34,7 @@ export type GeminiModel = (typeof GEMINI_MODELS)[number];
 // A cheaper or stronger model is the user's opt-in. Typed as GeminiModel so a default that is not on
 // the list above fails to COMPILE, rather than shipping a selection the Model picker cannot show.
 // (Nothing checked this before; it was a standalone string next to a list it merely resembled.)
-export const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.5-flash";
+export const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.7-flash";
 
 export function defaultOutputSettings(): OutputSettings {
   return {

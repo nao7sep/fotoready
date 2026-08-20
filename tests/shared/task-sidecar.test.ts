@@ -15,7 +15,7 @@ const original = {
 const vision: VisionResult = {
   description: "A pier at sunset.",
   slugCandidates: ["sunset-pier", "pier"],
-  model: "gemini-3-flash-preview",
+  model: "gemini-3.7-flash",
   ranAt: "2026-06-04T00:00:00.000Z"
 };
 

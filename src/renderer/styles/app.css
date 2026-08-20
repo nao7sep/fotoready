@@ -710,8 +710,9 @@ select:disabled {
 
 .status-dot {
   flex: 0 0 16px;
-  font-size: 12px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .row-checkbox {
@@ -1656,10 +1657,14 @@ select:disabled {
   color: var(--accent-soft-text);
 }
 
+/* A colour swatch rather than a mark: at this size no glyph or icon is legible, so the
+   state is carried by colour on a drawn circle. */
 .rename-preview-dot {
   flex: 0 0 auto;
-  font-size: 9px;
-  line-height: 1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .rename-preview-dot.state-slug-generated {

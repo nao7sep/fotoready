@@ -1,5 +1,5 @@
 import React from "react";
-import { Pencil, Save, X } from "lucide-react";
+import { Circle, CircleDot, LoaderCircle, Pencil, Save, X } from "lucide-react";
 import type { PrivacyWarning, QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
@@ -48,7 +48,7 @@ export function TasksPanel({
             onClick={() => onSelect(task.id)}
             {...listbox.getOptionProps(task.id)}
           >
-            <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true">{statusIndicator(task)}</span>
+            <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true"><StatusIndicator task={task} /></span>
             <span className="task-copy">
               <span className="row-title">{taskLabel(task, originals)}</span>
               <span className="row-detail">{task.pipeline.ops.length} ops · {taskQueueDetail(task, queue)}</span>
@@ -102,12 +102,17 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
   );
 }
 
-function statusIndicator(task: Task): string {
-  if (task.error) return "x";
-  if (task.visionRunning) return "◐";
-  if (task.status === "processing") return "◐";
-  if (task.status === "queued") return "◔";
-  return "●";
+/**
+ * The progress mark on a task row. This is a second axis from the row's colour, which
+ * comes from `taskVisualState` — the mark says how far along, the colour says what kind
+ * of result. Previously `x ◐ ◔ ●`, whose fill fractions were unreadable at 12px; the
+ * states are now distinct shapes from the icon set this app already uses.
+ */
+function StatusIndicator({ task }: { task: Task }): React.JSX.Element {
+  if (task.error) return <X size={12} />;
+  if (task.visionRunning || task.status === "processing") return <LoaderCircle size={12} />;
+  if (task.status === "queued") return <Circle size={12} />;
+  return <CircleDot size={12} />;
 }
 
 function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string }>): string {

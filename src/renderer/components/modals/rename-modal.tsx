@@ -242,7 +242,7 @@ function RenamePreviewRow({
     <div className={`rename-preview-row ${item.status}${showSlugEditor ? "" : " no-side"}`} key={item.taskId}>
       <div className="rename-preview-main">
         <span className={`rename-preview-state state-${visualState}`}>
-          <span className={`rename-preview-dot state-${visualState}`} aria-hidden="true">●</span>
+          <span className={`rename-preview-dot state-${visualState}`} aria-hidden="true" />
           <span>{stateText}</span>
         </span>
         <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? (item.status === "not-saved" ? "Not saved yet" : (item.issue ?? "Unavailable"))}</span>

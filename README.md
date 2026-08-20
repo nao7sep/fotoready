@@ -20,7 +20,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 
 ## Download
 
-Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows are on the [Releases](https://github.com/nao7sep/fotoready/releases) page. These builds are **unsigned**, so the OS warns the first time you open one:
+Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows are on the [Releases](https://github.com/nao7sep/fotoready/releases/latest) page. These builds are **unsigned**, so the OS warns the first time you open one:
 
 - **macOS** — right-click the app and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/FotoReady.app`).
 - **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.

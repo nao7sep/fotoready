@@ -75,6 +75,7 @@ export class GeminiVisionProvider {
         }
       })
     );
+    assertUsableResponse(response, "image");
     return parseDescription(response.text ?? "");
   }
 
@@ -92,6 +93,7 @@ export class GeminiVisionProvider {
         }
       })
     );
+    assertUsableResponse(response, "description");
     return parseSlugs(response.text ?? "");
   }
 }
@@ -166,6 +168,29 @@ function descriptionPrompt(prompt: string): string {
 
 function slugPrompt(description: string, prompt: string): string {
   return `${prompt.trim()}\n\nDescription: ${description}`;
+}
+
+/**
+ * The provider's own account of a result that is not what was asked for, read BEFORE the text
+ * (ai-model-routing-conventions: *never invent a cause the provider gave you*).
+ *
+ * Reading only `.text` turns a refusal into "returned an empty description response", which is
+ * a statement about our parsing when the truth is that the image was rejected — the user can act
+ * on the second and not the first. MAX_TOKENS is the quieter case: the text is there and reads
+ * like a complete short description.
+ */
+function assertUsableResponse(response: { promptFeedback?: { blockReason?: string }; candidates?: { finishReason?: string }[] }, what: string): void {
+  const blockReason = response.promptFeedback?.blockReason;
+  if (blockReason) {
+    throw new Error(`Gemini refused this ${what} (${blockReason}). The input was rejected, not lost.`);
+  }
+  const finishReason = response.candidates?.[0]?.finishReason;
+  if (finishReason === "MAX_TOKENS") {
+    throw new Error(`Gemini stopped at its output limit, so this ${what} is truncated rather than complete.`);
+  }
+  if (finishReason && finishReason !== "STOP") {
+    throw new Error(`Gemini stopped early (${finishReason}), so this ${what} is incomplete.`);
+  }
 }
 
 function parseDescription(raw: string): string {

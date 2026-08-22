@@ -62,6 +62,8 @@ export async function importDirectoryAssets(
 
     const entry = directoryAssetFromFileName(dir, sourceFileName);
     try {
+      // not recorded: imported LUTs and stamps are copied instruments, including
+      // text-based .cube/.svg files, not managed text the user edits in place.
       await fs.copyFile(absoluteSource, entry.path, fsConstants.COPYFILE_EXCL);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {

@@ -95,6 +95,9 @@ export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<
   const { outputPath, sourcePath, stripActive, keep, injectFields, savedAt, writeSoftwareTag, writeModifyDate } = input;
   const modifyDate = exifDate(savedAt);
 
+  // not recorded: ExifTool mutates the generated output image and may create its
+  // disposable `_original` binary; output is harvested by the user, not reloaded as app data.
+
   // Pass 1: copy every tag from the source. Use a no-op write target (just the args)
   // when both stamps are off — exiftool-vendored requires the tags object, but it can
   // be empty as long as the args carry the -TagsFromFile copy.
@@ -152,6 +155,7 @@ export async function readSourceMetadataSummary(sourcePath: string, logger?: Log
 export async function injectMetadata(outputPath: string, fields: MetadataFields): Promise<void> {
   const tags = metadataFieldsToTags(fields);
   if (Object.keys(tags).length === 0) return;
+  // not recorded: this mutates the generated output image; it is user output, not managed app text.
   await exiftool.write(outputPath, tags, ["-overwrite_original"]);
   await removeExiftoolOriginal(outputPath);
 }

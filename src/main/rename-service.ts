@@ -208,6 +208,8 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
 }
 
 async function moveFile(from: string, to: string): Promise<void> {
+  // not recorded: this moves an output image or its colocated output sidecar; a
+  // cross-volume fallback copies the same harvested output rather than saving app data.
   try {
     await fs.rename(from, to);
     return;

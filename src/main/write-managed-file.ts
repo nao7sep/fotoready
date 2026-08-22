@@ -10,11 +10,10 @@
  * silent: {@link record} catches, logs once at `warn`, and swallows every failure, so a backup problem can
  * never throw back into this write or affect the save's success.
  *
- * Not every atomic write is a managed-text write. The three write sites that deliberately do NOT record —
- * `api-keys.json` (a secret; never recorded), the output `.json` sidecar (colocated with output images,
- * excluded by the binary-bearing-directory rule), and any binary — keep calling {@link atomicWriteFile}
- * directly with no `afterWrite`. That per-write-site split IS the record/no-record decision, made at
- * authoring time by the call site, never by sniffing content here.
+ * Not every atomic write is a managed-text write. Secrets, imported instruments, output images and
+ * sidecars, logs, and recovery artifacts keep using their own unrecorded paths, with the reason beside
+ * each logical write site. That per-write-site split IS the record/no-record decision, made at authoring
+ * time by the call site, never by sniffing content here.
  */
 
 import { atomicWriteFile } from "@adapters/atomic-file";

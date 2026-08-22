@@ -84,6 +84,8 @@ async function backupInvalidFile(filePath: string): Promise<string | null> {
   // The copy either lands or its failure propagates — swallowing it would let
   // the caller reset over the very bytes the copy exists to preserve
   // (storage-path conventions).
+  // not recorded: this is a recovery copy of an already-unreadable managed file;
+  // the subsequent default save records the new live config.json.
   await fs.copyFile(filePath, backupPath);
   return backupPath;
 }

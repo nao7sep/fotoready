@@ -45,9 +45,7 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  // recorded: state.json is durable managed text — window geometry, recent list, last selection. It is
-  // recorded on every save DELIBERATELY (data-backup conventions): dedup absorbs the churn, and capturing
-  // it is what quietly protects the durable registries that live in it. This is NOT the old
-  // exclude-volatile rule; state.json goes through the managed-text choke point like config.json.
+  // recorded: state.json is user-meaningful managed text — window size, pane widths, and histogram
+  // placement. It is recorded on every save deliberately; dedup absorbs the interaction churn.
   await writeManagedFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
 }

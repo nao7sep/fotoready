@@ -259,6 +259,7 @@ export class ApiKeyStore {
     // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
     const movedTo = path.join(path.dirname(this.filePath), `${path.parse(this.filePath).name}-${utcStamp()}.invalid`);
     try {
+      // not recorded: both the live file and this corrupt quarantine contain secrets.
       await fs.rename(this.filePath, movedTo);
       return movedTo;
     } catch {

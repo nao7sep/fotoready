@@ -536,12 +536,6 @@ select:disabled {
   font-size: 12px;
 }
 
-.originals-panel.drag-active .drop-target {
-  border-color: var(--brand-primary);
-  color: var(--brand-primary-text);
-  background: var(--brand-status-bg);
-}
-
 .empty-state {
   flex: 1;
   display: grid;

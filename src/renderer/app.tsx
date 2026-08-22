@@ -31,6 +31,7 @@ import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
+import { acceptsLocalFileDrag, DropHighlightLease, localImportPaths } from "./external-file-drop";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -85,6 +86,17 @@ function App(): React.JSX.Element {
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
   const globalDragDepthRef = useRef(0);
+  const globalDropLeaseRef = useRef<DropHighlightLease | null>(null);
+  if (globalDropLeaseRef.current === null) {
+    globalDropLeaseRef.current = new DropHighlightLease(
+      (active) => {
+        if (!active) globalDragDepthRef.current = 0;
+        setGlobalDropActive(active);
+      },
+      (callback, delayMs) => window.setTimeout(callback, delayMs),
+      (handle) => window.clearTimeout(handle)
+    );
+  }
   // Pane widths live in state.json (via the state IPC), not localStorage, so the main process can size
   // the window from them. Until state.json loads, fall back to the shipped defaults — same async
   // pattern as showHistogram below. A drag persists the new intent; a window resize persists nothing.
@@ -139,6 +151,11 @@ function App(): React.JSX.Element {
   const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, previewStateKey: previewConfig.previewStateKey } : null;
   const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
   const previewStateKey = previewRequest?.previewStateKey ?? null;
+
+  useEffect(() => {
+    const lease = globalDropLeaseRef.current;
+    return () => lease?.dispose();
+  }, []);
 
   useEffect(() => {
     void Promise.all([
@@ -521,14 +538,6 @@ function App(): React.JSX.Element {
     await refreshProject(await api.vision.runForTask(taskId, options));
   }
 
-  async function addDroppedFiles(files: FileList | File[]): Promise<void> {
-    const sourcePaths = Array.from(files)
-      .map((file) => window.api.system.filePathForFile(file))
-      .filter((filePath) => filePath.length > 0);
-    if (sourcePaths.length === 0) return;
-    await addOriginalPaths(sourcePaths);
-  }
-
   function openSettings(initialTab: SettingsTab = "save"): void {
     setSettingsInitialTab(initialTab);
     setSettingsDraft(settings);
@@ -615,34 +624,47 @@ function App(): React.JSX.Element {
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
   const hasJpegEstimate = settings?.enableJpegQualityEstimate && activeOriginal?.jpegQualityEstimate !== null;
 
+  function clearGlobalDrop(): void {
+    globalDragDepthRef.current = 0;
+    globalDropLeaseRef.current?.clear();
+  }
+
   return (
     <main
-      className={`app-shell ${globalDropActive ? "global-drop-active" : ""}`}
+      className="app-shell"
       onDragEnterCapture={(event) => {
-        if (!hasFileDrag(event.dataTransfer)) return;
+        if (!acceptsLocalFileDrag(event.dataTransfer, window.api.system.filePathForFile)) return;
         event.preventDefault();
         globalDragDepthRef.current += 1;
-        setGlobalDropActive(true);
+        globalDropLeaseRef.current?.renew();
       }}
       onDragOverCapture={(event) => {
-        if (!hasFileDrag(event.dataTransfer)) return;
+        if (!acceptsLocalFileDrag(event.dataTransfer, window.api.system.filePathForFile)) {
+          event.dataTransfer.dropEffect = "none";
+          return;
+        }
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
+        globalDropLeaseRef.current?.renew();
       }}
       onDragLeaveCapture={(event) => {
-        if (!hasFileDrag(event.dataTransfer)) return;
+        if (globalDragDepthRef.current === 0) return;
         event.preventDefault();
         globalDragDepthRef.current = Math.max(0, globalDragDepthRef.current - 1);
-        if (globalDragDepthRef.current === 0) setGlobalDropActive(false);
+        if (globalDragDepthRef.current === 0) globalDropLeaseRef.current?.clear();
       }}
       onDropCapture={(event) => {
-        if (!hasFileDrag(event.dataTransfer)) return;
+        const sourcePaths = localImportPaths(event.dataTransfer.files, window.api.system.filePathForFile);
+        if (sourcePaths.length === 0) {
+          clearGlobalDrop();
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        globalDragDepthRef.current = 0;
-        setGlobalDropActive(false);
-        void addDroppedFiles(event.dataTransfer.files);
+        clearGlobalDrop();
+        void addOriginalPaths(sourcePaths);
       }}
+      onDragEndCapture={clearGlobalDrop}
     >
       {globalDropActive ? <div className="global-drop-overlay">Drop image files anywhere to import them</div> : null}
       <header className="top-bar">
@@ -686,7 +708,6 @@ function App(): React.JSX.Element {
             originals={project?.originals ?? []}
             thumbnails={originalThumbnails}
             onAdd={() => void addOriginals()}
-            onDropFiles={(sourcePaths) => void addOriginalPaths(sourcePaths)}
             onRemove={(originalId) => void removeOriginal(originalId)}
             onSelect={(originalId) => void selectOriginal(originalId)}
           />
@@ -1001,11 +1022,6 @@ function basename(sourcePath: string): string {
 
 function hasWorkspaceWork(project: Project | undefined, queue: QueueSnapshot): boolean {
   return Boolean(project && (project.originals.length > 0 || project.tasks.length > 0 || queue.total > 0));
-}
-
-function hasFileDrag(dataTransfer: DataTransfer | null): boolean {
-  if (!dataTransfer) return false;
-  return Array.from(dataTransfer.types).includes("Files");
 }
 
 function savedOutputDeletePaths(task: Task): string[] {

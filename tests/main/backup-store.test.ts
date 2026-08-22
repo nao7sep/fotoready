@@ -116,6 +116,27 @@ describe("record: BLOB fidelity, hash, size, path, and timestamp shape", () => {
 });
 
 describe("dedup by content hash, per path", () => {
+  it("locks the latest-row decision and insert in one immediate transaction", async () => {
+    const transactionSql: string[] = [];
+    vi.resetModules();
+    vi.doMock("node:sqlite", async (importActual) => {
+      const actual = await importActual<typeof import("node:sqlite")>();
+      class TracedDb extends actual.DatabaseSync {
+        override exec(sql: string): void {
+          if (/^\s*(BEGIN IMMEDIATE|COMMIT|ROLLBACK)/i.test(sql)) transactionSql.push(sql.trim());
+          super.exec(sql);
+        }
+      }
+      return { ...actual, DatabaseSync: TracedDb };
+    });
+
+    const { record } = await import("@main/backup-store");
+    record(path.join(root, "config.json"), Buffer.from("serialized", "utf8"));
+
+    expect(transactionSql).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
+    expect(readRows(root)).toHaveLength(1);
+  });
+
   it("skips an unchanged re-save (no new row) but records a genuinely changed save", async () => {
     const { record } = await import("@main/backup-store");
     const file = path.join(root, "config.json");
@@ -178,10 +199,16 @@ describe("best-effort: a record failure never throws, logs one warn, and does no
     // Now make the NEXT open's insert throw: wrap DatabaseSync so prepare() of the INSERT yields a
     // statement whose run() throws. get()/exec() still work, so open + dedup lookup succeed and the failure
     // is isolated to the insert — exactly the "an insert throws" case the convention names.
+    const transactionSql: string[] = [];
     vi.resetModules();
     vi.doMock("node:sqlite", async (importActual) => {
       const actual = await importActual<typeof import("node:sqlite")>();
       class FailingInsertDb extends actual.DatabaseSync {
+        override exec(sql: string): void {
+          if (/^\s*(BEGIN IMMEDIATE|COMMIT|ROLLBACK)/i.test(sql)) transactionSql.push(sql.trim());
+          super.exec(sql);
+        }
+
         override prepare(sql: string): StatementSync {
           const stmt = super.prepare(sql);
           if (/^\s*INSERT/i.test(sql)) {
@@ -213,6 +240,9 @@ describe("best-effort: a record failure never throws, logs one warn, and does no
     expect(logCalls.warn[0]!.fields?.file).toBe(path.join(root, "config.json"));
     expect(logCalls.warn[0]!.fields?.err).toBeDefined();
     expect(logCalls.error).toHaveLength(0);
+    expect(transactionSql).toContain("BEGIN IMMEDIATE");
+    expect(transactionSql).toContain("ROLLBACK");
+    expect(transactionSql).not.toContain("COMMIT");
 
     // The earlier good row is untouched — the failure disturbed nothing that had already been recorded.
     const rows = readRows(root);

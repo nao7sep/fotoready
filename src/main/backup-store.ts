@@ -83,9 +83,9 @@ let initialized = false;
 
 /**
  * Open and initialize the store once (create the table if absent, switch on WAL). Best-effort: on any
- * failure it logs ONE warn, leaves recording disabled for the session, and never throws. WAL is what lets
- * the tolerated two-instance case (two fotoready windows writing at once) serialize safely without a
- * cross-process lock.
+ * failure it logs ONE warn, leaves recording disabled for the session, and never throws. WAL plus the
+ * `BEGIN IMMEDIATE` record transaction lets the tolerated two-instance case serialize the latest-row
+ * dedup decision with its insert without a separate cross-process lock.
  */
 function ensureOpen(): DatabaseSync | null {
   if (initialized) return db;
@@ -145,23 +145,41 @@ function sha256(bytes: Buffer): string {
 export function record(absolutePath: string, bytes: Buffer): void {
   const store = ensureOpen();
   if (!store) return; // open failed earlier; disabled for the session (already warned once)
+  let transactionOpen = false;
   try {
     const hash = sha256(bytes);
+    // The latest-row read and conditional insert are one cross-process decision. A deferred/read-only
+    // transaction would let two app instances both observe the same previous row and then both insert;
+    // IMMEDIATE takes SQLite's write reservation before the SELECT, so the second instance re-checks only
+    // after the first commits. busy_timeout above bounds lock contention.
+    store.exec("BEGIN IMMEDIATE");
+    transactionOpen = true;
     const latest = store
       .prepare("SELECT content_sha256 AS h FROM backups WHERE path = ? ORDER BY id DESC LIMIT 1")
       .get(absolutePath) as { h: string } | undefined;
-    if (latest?.h === hash) return; // unchanged since the last recorded version — dedup skip
-
-    store
-      .prepare(
-        "INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?, ?, ?, ?, ?)"
-      )
-      .run(absolutePath, bytes, hash, bytes.byteLength, new Date().toISOString());
+    if (latest?.h !== hash) {
+      store
+        .prepare(
+          "INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?, ?, ?, ?, ?)"
+        )
+        .run(absolutePath, bytes, hash, bytes.byteLength, new Date().toISOString());
+    }
+    store.exec("COMMIT");
+    transactionOpen = false;
   } catch (err) {
+    let rollbackErr: unknown;
+    if (transactionOpen) {
+      try {
+        store.exec("ROLLBACK");
+      } catch (error) {
+        rollbackErr = error;
+      }
+    }
     logger.warn("backup store: failed to record a managed write", {
       mod: "main.backup-store",
       file: absolutePath,
-      err
+      err,
+      ...(rollbackErr ? { rollbackErr } : {})
     });
   }
 }

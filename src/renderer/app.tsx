@@ -364,17 +364,25 @@ function App(): React.JSX.Element {
   }
 
   async function removeOriginal(originalId: string): Promise<void> {
-    const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
-    if (settings?.confirmDeleteOriginals) {
-      const confirmed = await confirmer.confirm({
-        title: "Remove original?",
-        message: `This removes the original from the app and also removes ${taskCount} related task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
-        confirmLabel: "Remove",
-        danger: false
+    try {
+      const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
+      if (settings?.confirmDeleteOriginals) {
+        const confirmed = await confirmer.confirm({
+          title: "Remove original?",
+          message: `This removes the original from the app and also removes ${taskCount} related task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
+          confirmLabel: "Remove",
+          danger: false
+        });
+        if (!confirmed) return;
+      }
+      await refreshProject(await api.project.removeOriginal(originalId));
+    } catch (error) {
+      console.error(error);
+      await confirmer.alert({
+        title: "Couldn't remove original",
+        message: error instanceof Error ? error.message : String(error)
       });
-      if (!confirmed) return;
     }
-    await refreshProject(await api.project.removeOriginal(originalId));
   }
 
   async function selectTask(taskId: string): Promise<void> {

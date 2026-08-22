@@ -58,7 +58,6 @@ export async function processTask(
     const finalFacts = await applyMetadataPolicy(result.outputPath, sourcePath, task, settings, savedAt);
 
     task.pipeline = result.appliedPipeline;
-    task.status = "saved";
     task.output = {
       stagedPath: result.outputPath,
       stagedParamsPath: "",
@@ -70,6 +69,10 @@ export async function processTask(
       renamedAt: null
     };
     task.output.stagedParamsPath = await writeTaskSidecarFile(result.outputPath, original, task, result.appliedPipeline);
+    // Publish `saved` only after every output artifact is complete. Until the sidecar write lands, the
+    // task remains `processing`, which also keeps task/original removal from dropping ownership of work
+    // that can still mutate the filesystem.
+    task.status = "saved";
     task.updatedAt = nowIso();
     logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
     await onUpdate?.();

@@ -98,10 +98,10 @@ function decodeApiKey(stored: string): string | null {
 
 // Canonicalize the on-disk shape `{ keys: { id: value } }`: ids lowercased and
 // matched against the id grammar, values kept only when strings.
-function normalize(raw: unknown): ApiKeysFile {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { keys: {} };
+function normalize(raw: unknown): ApiKeysFile | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const rawKeys = (raw as { keys?: unknown }).keys;
-  if (!rawKeys || typeof rawKeys !== "object" || Array.isArray(rawKeys)) return { keys: {} };
+  if (!rawKeys || typeof rawKeys !== "object" || Array.isArray(rawKeys)) return null;
   const keys: Record<string, string> = {};
   for (const [id, value] of Object.entries(rawKeys as Record<string, unknown>)) {
     const canonical = id.toLowerCase();
@@ -112,6 +112,8 @@ function normalize(raw: unknown): ApiKeysFile {
 
 export class ApiKeyStore {
   #chain: Promise<unknown> = Promise.resolve();
+  #modeInspectionWarned = false;
+  #modeRepairWarned = false;
   #modeWarned = false;
 
   constructor(
@@ -198,27 +200,46 @@ export class ApiKeyStore {
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
   // file widened mid-session must be re-tightened on the very next access, not
-  // just once at startup. Only the WARNING is once-per-session; the chmod
-  // itself is unconditional whenever the file is found group/world-readable,
-  // so a file re-widened after the first warning still gets tightened back.
+  // just once at startup. Each warning kind is once-per-session; the chmod itself
+  // is unconditional whenever the file is found group/world-readable, so a file
+  // re-widened after the first warning still gets tightened back.
   private async warnIfInsecureMode(): Promise<void> {
     if (!ENFORCE_FILE_MODE) return;
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
     try {
-      const stat = await fs.stat(this.filePath);
-      if ((stat.mode & 0o077) !== 0) {
-        if (!this.#modeWarned) {
-          this.#modeWarned = true;
-          const octal = (stat.mode & 0o777).toString(8).padStart(3, "0");
-          this.logger?.warn("api key file is readable beyond the owner; tightening to 0600", {
-            mod: "api-keys",
-            apiKeysPath: this.filePath,
-            mode: octal,
-          });
-        }
-        await fs.chmod(this.filePath, SECRETS_FILE_MODE).catch(() => {});
+      stat = await fs.stat(this.filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !this.#modeInspectionWarned) {
+        this.#modeInspectionWarned = true;
+        this.logger?.warn("could not inspect api key file permissions", {
+          mod: "api-keys",
+          apiKeysPath: this.filePath,
+          err: error,
+        });
       }
-    } catch {
-      // No file yet, or stat failed — nothing to warn about.
+      return;
+    }
+    if ((stat.mode & 0o077) === 0) return;
+    if (!this.#modeWarned) {
+      this.#modeWarned = true;
+      const octal = (stat.mode & 0o777).toString(8).padStart(3, "0");
+      this.logger?.warn("api key file is readable beyond the owner; tightening to 0600", {
+        mod: "api-keys",
+        apiKeysPath: this.filePath,
+        mode: octal,
+      });
+    }
+    try {
+      await fs.chmod(this.filePath, SECRETS_FILE_MODE);
+    } catch (error) {
+      if (!this.#modeRepairWarned) {
+        this.#modeRepairWarned = true;
+        this.logger?.warn("could not tighten api key file permissions to 0600", {
+          mod: "api-keys",
+          apiKeysPath: this.filePath,
+          err: error,
+        });
+      }
     }
   }
 
@@ -238,8 +259,9 @@ export class ApiKeyStore {
       });
       return { keys: {} };
     }
+    let parsed: unknown;
     try {
-      return normalize(JSON.parse(text));
+      parsed = JSON.parse(text);
     } catch (error) {
       const movedTo = await this.moveAsideInvalid();
       this.logger?.warn("api key file was not valid JSON; set aside and treating as empty", {
@@ -250,6 +272,15 @@ export class ApiKeyStore {
       });
       return { keys: {} };
     }
+    const normalized = normalize(parsed);
+    if (normalized) return normalized;
+    const movedTo = await this.moveAsideInvalid();
+    this.logger?.warn("api key file had an unexpected shape; set aside and treating as empty", {
+      mod: "api-keys",
+      apiKeysPath: this.filePath,
+      movedTo,
+    });
+    return { keys: {} };
   }
 
   // Move the unreadable file aside to a timestamped neighbour (handled once, not

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { homedir } from "node:os";
 import type { AssetImportResult, LutEntry } from "@shared/types/ipc";
+import type { Logger } from "@shared/types/log";
 import {
   compareAssetFileNames,
   deleteDirectoryAssets,
@@ -13,11 +14,11 @@ import {
 
 const LUT_EXTENSIONS = [".cube"] as const;
 
-export async function listLuts(lutFolder: string, defaultLutDir: string, bundledLutsDir: string): Promise<LutEntry[]> {
+export async function listLuts(lutFolder: string, defaultLutDir: string, bundledLutsDir: string, logger?: Logger): Promise<LutEntry[]> {
   const dir = resolveLutDir(lutFolder, defaultLutDir);
   const [builtInEntries, userEntries] = await Promise.all([
-    readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS),
-    listDirectoryAssets(dir, LUT_EXTENSIONS)
+    readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS, logger),
+    listDirectoryAssets(dir, LUT_EXTENSIONS, logger)
   ]);
   return [
     ...builtInEntries.map((entry) => ({
@@ -33,10 +34,10 @@ export async function listLuts(lutFolder: string, defaultLutDir: string, bundled
   ].sort((left, right) => compareAssetFileNames(left.name, right.name));
 }
 
-export async function importLuts(filePaths: readonly string[], lutFolder: string, defaultLutDir: string, bundledLutsDir: string): Promise<AssetImportResult[]> {
+export async function importLuts(filePaths: readonly string[], lutFolder: string, defaultLutDir: string, bundledLutsDir: string, logger?: Logger): Promise<AssetImportResult[]> {
   const dir = resolveLutDir(lutFolder, defaultLutDir);
-  const builtInEntries = await readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS);
-  const imported = await importDirectoryAssets(filePaths, dir, LUT_EXTENSIONS, builtInEntries);
+  const builtInEntries = await readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS, logger);
+  const imported = await importDirectoryAssets(filePaths, dir, LUT_EXTENSIONS, builtInEntries, logger);
   return imported.map((result) => ({
     fileName: result.entry.fileName,
     path: result.entry.path,

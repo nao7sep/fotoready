@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -115,6 +116,26 @@ describe("ApiKeyStore", () => {
     expect(entries).not.toContain("api-keys.json");
   });
 
+  it("preserves valid JSON of the wrong shape before a later save creates a fresh store", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const original = `${JSON.stringify({ gemini: "recover-me" })}\n`;
+    fs.writeFileSync(filePath, original);
+    const store = new ApiKeyStore(filePath, logger);
+
+    await expect(store.resolve(["gemini"])).resolves.toBeNull();
+    const invalidName = fs.readdirSync(tmpDir).find((entry) => entry.startsWith("api-keys-") && entry.endsWith(".invalid"));
+    expect(invalidName).toBeDefined();
+    expect(fs.readFileSync(path.join(tmpDir, invalidName!), "utf8")).toBe(original);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/unexpected shape/i),
+      expect.objectContaining({ movedTo: path.join(tmpDir, invalidName!) }),
+    );
+
+    await store.set(["gemini"], "new-key");
+    expect(await store.resolve(["gemini"])).toBe("new-key");
+    expect(fs.readFileSync(path.join(tmpDir, invalidName!), "utf8")).toBe(original);
+  });
+
   it.runIf(isPosix)("writes the secrets file with 0600 permissions on POSIX", async () => {
     const store = new ApiKeyStore(filePath);
     await store.set(["gemini"], "stored-key");
@@ -168,6 +189,21 @@ describe("ApiKeyStore", () => {
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
     // The chmod repeats every time; only the warning stays once-per-session.
     expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it.runIf(isPosix)("logs a failed permission repair while keeping the stored key readable", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    fs.writeFileSync(filePath, `${JSON.stringify({ keys: { gemini: "stored-key" } })}\n`);
+    fs.chmodSync(filePath, 0o644);
+    const chmod = vi.spyOn(fsPromises, "chmod").mockRejectedValueOnce(new Error("chmod denied"));
+    const store = new ApiKeyStore(filePath, logger);
+
+    await expect(store.resolve(["gemini"])).resolves.toBe("stored-key");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/could not tighten/i),
+      expect.objectContaining({ apiKeysPath: filePath, err: expect.any(Error) }),
+    );
+    chmod.mockRestore();
   });
 
   it("treats a malformed obf: value as absent, warns naming the key id, and never returns garbage", async () => {

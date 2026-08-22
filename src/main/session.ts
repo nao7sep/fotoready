@@ -30,6 +30,7 @@ import { normalizeSlugCandidate } from "@core/slug/rules";
 import { computePrivacyWarning } from "@main/privacy-warning";
 import type { PrivacyWarning } from "@shared/types/ipc";
 import type { AppLogger } from "@main/logger";
+import { isTaskBusyForRemoval } from "@main/task-removal";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -140,7 +141,11 @@ export class ProjectSession {
       throw new Error(`Original not found: ${originalId}`);
     }
 
-    const removedTaskIds = new Set(this.#project.tasks.filter((task) => task.originalId === originalId).map((task) => task.id));
+    const removedTasks = this.#project.tasks.filter((task) => task.originalId === originalId);
+    if (removedTasks.some(isTaskBusyForRemoval)) {
+      throw new Error("This original has queued or running work. Cancel queued saves or wait for active work to finish before removing it.");
+    }
+    const removedTaskIds = new Set(removedTasks.map((task) => task.id));
     this.#project.originals.splice(originalIndex, 1);
     this.#project.tasks = this.#project.tasks.filter((task) => !removedTaskIds.has(task.id));
     for (const taskId of removedTaskIds) {
@@ -185,6 +190,10 @@ export class ProjectSession {
     const index = this.#project.tasks.findIndex((task) => task.id === taskId);
     if (index === -1) {
       throw new Error(`Task not found: ${taskId}`);
+    }
+    const task = this.#project.tasks[index];
+    if (isTaskBusyForRemoval(task)) {
+      throw new Error("This task has queued or running work. Cancel a queued save or wait for active work to finish before deleting it.");
     }
 
     this.#project.tasks.splice(index, 1);

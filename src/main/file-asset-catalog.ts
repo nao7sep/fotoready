@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, type Dirent } from "node:fs";
 import path from "node:path";
 import { shell } from "electron";
+import type { Logger } from "@shared/types/log";
 
 export type DirectoryAsset = {
   extension: string;
@@ -14,14 +15,24 @@ export type DirectoryAssetImportResult = {
   status: "imported" | "skipped-name-conflict";
 };
 
-export async function listDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
+export async function listDirectoryAssets(dir: string, extensions: readonly string[], logger?: Logger): Promise<DirectoryAsset[]> {
   await fs.mkdir(dir, { recursive: true });
-  return readDirectoryAssets(dir, extensions);
+  return readDirectoryAssets(dir, extensions, logger);
 }
 
-export async function readDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
+export async function readDirectoryAssets(dir: string, extensions: readonly string[], logger?: Logger): Promise<DirectoryAsset[]> {
   const allowed = new Set(extensions.map((extension) => extension.toLowerCase()));
-  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  let entries: Dirent<string>[];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    logger?.warn("could not read asset library directory; treating it as empty", {
+      mod: "assets.catalog",
+      assetDir: dir,
+      err: error,
+    });
+    return [];
+  }
   return entries
     .filter((entry) => entry.isFile() && allowed.has(path.extname(entry.name).toLowerCase()))
     .map((entry) => directoryAssetFromFileName(dir, entry.name))
@@ -32,12 +43,13 @@ export async function importDirectoryAssets(
   filePaths: readonly string[],
   dir: string,
   extensions: readonly string[],
-  reservedAssets: readonly DirectoryAsset[] = []
+  reservedAssets: readonly DirectoryAsset[] = [],
+  logger?: Logger
 ): Promise<DirectoryAssetImportResult[]> {
   const allowed = new Set(extensions.map((extension) => extension.toLowerCase()));
   await fs.mkdir(dir, { recursive: true });
   const knownAssets = new Map<string, DirectoryAsset>();
-  for (const entry of [...reservedAssets, ...(await readDirectoryAssets(dir, extensions))]) {
+  for (const entry of [...reservedAssets, ...(await readDirectoryAssets(dir, extensions, logger))]) {
     knownAssets.set(normalizeAssetFileName(entry.fileName), entry);
   }
 

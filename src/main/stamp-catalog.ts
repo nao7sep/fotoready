@@ -1,6 +1,7 @@
 import path from "node:path";
 import { homedir } from "node:os";
 import type { AssetImportResult, StampEntry } from "@shared/types/ipc";
+import type { Logger } from "@shared/types/log";
 import {
   compareAssetFileNames,
   deleteDirectoryAssets,
@@ -13,11 +14,11 @@ import {
 
 const STAMP_EXTENSIONS = [".png", ".svg"] as const;
 
-export async function listStamps(stampFolder: string, defaultStampDir: string, bundledStampsDir: string): Promise<StampEntry[]> {
+export async function listStamps(stampFolder: string, defaultStampDir: string, bundledStampsDir: string, logger?: Logger): Promise<StampEntry[]> {
   const dir = resolveStampDir(stampFolder, defaultStampDir);
   const [builtInEntries, userEntries] = await Promise.all([
-    readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS),
-    listDirectoryAssets(dir, STAMP_EXTENSIONS)
+    readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS, logger),
+    listDirectoryAssets(dir, STAMP_EXTENSIONS, logger)
   ]);
   return [
     ...builtInEntries.map((entry) => ({
@@ -35,10 +36,10 @@ export async function listStamps(stampFolder: string, defaultStampDir: string, b
   ].sort((left, right) => compareAssetFileNames(left.name, right.name));
 }
 
-export async function importStamps(filePaths: readonly string[], stampFolder: string, defaultStampDir: string, bundledStampsDir: string): Promise<AssetImportResult[]> {
+export async function importStamps(filePaths: readonly string[], stampFolder: string, defaultStampDir: string, bundledStampsDir: string, logger?: Logger): Promise<AssetImportResult[]> {
   const dir = resolveStampDir(stampFolder, defaultStampDir);
-  const builtInEntries = await readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS);
-  const entries = await importDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS, builtInEntries);
+  const builtInEntries = await readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS, logger);
+  const entries = await importDirectoryAssets(filePaths, dir, STAMP_EXTENSIONS, builtInEntries, logger);
   return entries.map((result) => ({
     fileName: result.entry.fileName,
     path: result.entry.path,

@@ -31,7 +31,7 @@ import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
-import { acceptsLocalFileDrag, DropHighlightLease, localImportPaths } from "./external-file-drop";
+import { acceptsImportFileDragOffer, DropHighlightLease, localImportPaths } from "./external-file-drop";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -633,13 +633,13 @@ function App(): React.JSX.Element {
     <main
       className="app-shell"
       onDragEnterCapture={(event) => {
-        if (!acceptsLocalFileDrag(event.dataTransfer, window.api.system.filePathForFile)) return;
+        if (!acceptsImportFileDragOffer(event.dataTransfer)) return;
         event.preventDefault();
         globalDragDepthRef.current += 1;
         globalDropLeaseRef.current?.renew();
       }}
       onDragOverCapture={(event) => {
-        if (!acceptsLocalFileDrag(event.dataTransfer, window.api.system.filePathForFile)) {
+        if (!acceptsImportFileDragOffer(event.dataTransfer)) {
           event.dataTransfer.dropEffect = "none";
           return;
         }

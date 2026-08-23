@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptsLocalFileDrag, DropHighlightLease, localImportPaths } from "@renderer/external-file-drop";
+import { acceptsImportFileDragOffer, DropHighlightLease, localImportPaths } from "@renderer/external-file-drop";
 
 function file(name: string): File {
   return { name } as File;
@@ -20,7 +20,7 @@ function transfer(
 }
 
 describe("external file-drop acceptance", () => {
-  it("accepts supported local image and sidecar files", () => {
+  it("accepts a supported drag-time candidate before Electron exposes its local path", () => {
     const jpeg = file("photo.jpg");
     const sidecar = file("photo.fotoready.json");
     const offered = transfer([
@@ -28,20 +28,31 @@ describe("external file-drop acceptance", () => {
       { file: sidecar, path: "/photos/photo.fotoready.json" }
     ]);
 
-    expect(acceptsLocalFileDrag(offered.dataTransfer, offered.pathForFile)).toBe(true);
+    expect(acceptsImportFileDragOffer(offered.dataTransfer)).toBe(true);
+    expect(localImportPaths([jpeg, sidecar], () => "")).toEqual([]);
     expect(localImportPaths([jpeg, sidecar], offered.pathForFile)).toEqual([
       "/photos/photo.jpg",
       "/photos/photo.fotoready.json"
     ]);
   });
 
-  it("rejects text/URL drags, remote Files, and unsupported local files", () => {
-    const remote = file("remote.jpg");
+  it("rejects URL/non-file offers and unsupported file candidates", () => {
     const gif = file("animation.gif");
-    expect(acceptsLocalFileDrag(transfer([], ["text/uri-list", "text/plain"]).dataTransfer, () => "")).toBe(false);
-    expect(acceptsLocalFileDrag(transfer([{ file: remote, path: "" }]).dataTransfer, () => "")).toBe(false);
+    expect(acceptsImportFileDragOffer(transfer([], ["text/uri-list", "text/plain"]).dataTransfer)).toBe(false);
+    expect(acceptsImportFileDragOffer({
+      types: ["Files"],
+      items: [{ kind: "string", getAsFile: () => null }]
+    } as unknown as DataTransfer)).toBe(false);
     const unsupported = transfer([{ file: gif, path: "/photos/animation.gif" }]);
-    expect(acceptsLocalFileDrag(unsupported.dataTransfer, unsupported.pathForFile)).toBe(false);
+    expect(acceptsImportFileDragOffer(unsupported.dataTransfer)).toBe(false);
+  });
+
+  it("rejects a supported candidate at drop when Electron cannot prove a local path", () => {
+    const remote = file("remote.jpg");
+    const offered = transfer([{ file: remote, path: "" }]);
+
+    expect(acceptsImportFileDragOffer(offered.dataTransfer)).toBe(true);
+    expect(localImportPaths([remote], offered.pathForFile)).toEqual([]);
   });
 
   it("fails closed when a malformed drag item cannot expose its file", () => {
@@ -50,7 +61,7 @@ describe("external file-drop acceptance", () => {
       items: [{ kind: "file", getAsFile: () => { throw new Error("unavailable"); } }]
     } as unknown as DataTransfer;
 
-    expect(acceptsLocalFileDrag(dataTransfer, () => "/photos/photo.jpg")).toBe(false);
+    expect(acceptsImportFileDragOffer(dataTransfer)).toBe(false);
   });
 
   it("keeps only unique, supported paths and fails closed when provenance lookup throws", () => {

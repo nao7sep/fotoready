@@ -25,20 +25,22 @@ export function localImportPaths(files: Iterable<File> | ArrayLike<File>, pathFo
   return [...paths];
 }
 
-/** True only when the offered MIME collection contains at least one consumable local file item. */
-export function acceptsLocalFileDrag(dataTransfer: DataTransfer | null, pathForFile: PathForFile): boolean {
+/**
+ * True when drag-time data offers a supported file candidate. Chromium may withhold the Electron
+ * filesystem path until `drop`, so local provenance remains the final authority in localImportPaths.
+ */
+export function acceptsImportFileDragOffer(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer || !Array.from(dataTransfer.types).includes("Files")) return false;
-  const files: File[] = [];
   for (const item of Array.from(dataTransfer.items)) {
     if (item.kind !== "file") continue;
     try {
       const file = item.getAsFile();
-      if (file) files.push(file);
+      if (file && allowedExtensions.has(extensionOf(file.name))) return true;
     } catch {
-      // Malformed or inaccessible drag items are not evidence of an importable local file.
+      // Malformed or inaccessible drag items are not supported file candidates.
     }
   }
-  return localImportPaths(files, pathForFile).length > 0;
+  return false;
 }
 
 function extensionOf(filePath: string): string {

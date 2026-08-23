@@ -31,7 +31,12 @@ import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
-import { acceptsImportFileDragOffer, DropHighlightLease, localImportPaths } from "./external-file-drop";
+import {
+  DropHighlightLease,
+  hasFileDragType,
+  inspectImportFileDragOffer,
+  localImportPaths
+} from "./external-file-drop";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -633,17 +638,27 @@ function App(): React.JSX.Element {
     <main
       className="app-shell"
       onDragEnterCapture={(event) => {
-        if (!acceptsImportFileDragOffer(event.dataTransfer)) return;
+        const offer = inspectImportFileDragOffer(event.dataTransfer);
+        if (offer === "rejected") return;
         event.preventDefault();
+        if (offer === "delivery-only") {
+          clearGlobalDrop();
+          return;
+        }
         globalDragDepthRef.current += 1;
         globalDropLeaseRef.current?.renew();
       }}
       onDragOverCapture={(event) => {
-        if (!acceptsImportFileDragOffer(event.dataTransfer)) {
+        const offer = inspectImportFileDragOffer(event.dataTransfer);
+        if (offer === "rejected") {
           event.dataTransfer.dropEffect = "none";
           return;
         }
         event.preventDefault();
+        if (offer === "delivery-only") {
+          clearGlobalDrop();
+          return;
+        }
         event.dataTransfer.dropEffect = "copy";
         globalDropLeaseRef.current?.renew();
       }}
@@ -654,14 +669,14 @@ function App(): React.JSX.Element {
         if (globalDragDepthRef.current === 0) globalDropLeaseRef.current?.clear();
       }}
       onDropCapture={(event) => {
-        const sourcePaths = localImportPaths(event.dataTransfer.files, window.api.system.filePathForFile);
-        if (sourcePaths.length === 0) {
-          clearGlobalDrop();
-          return;
-        }
+        if (!hasFileDragType(event.dataTransfer)) return;
         event.preventDefault();
         event.stopPropagation();
+        const sourcePaths = localImportPaths(event.dataTransfer.files, window.api.system.filePathForFile);
         clearGlobalDrop();
+        if (sourcePaths.length === 0) {
+          return;
+        }
         void addOriginalPaths(sourcePaths);
       }}
       onDragEndCapture={clearGlobalDrop}

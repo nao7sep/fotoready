@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptsImportFileDragOffer, DropHighlightLease, localImportPaths } from "@renderer/external-file-drop";
+import { DropHighlightLease, inspectImportFileDragOffer, localImportPaths } from "@renderer/external-file-drop";
 
 function file(name: string): File {
   return { name } as File;
@@ -28,7 +28,7 @@ describe("external file-drop acceptance", () => {
       { file: sidecar, path: "/photos/photo.fotoready.json" }
     ]);
 
-    expect(acceptsImportFileDragOffer(offered.dataTransfer)).toBe(true);
+    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("accepted");
     expect(localImportPaths([jpeg, sidecar], () => "")).toEqual([]);
     expect(localImportPaths([jpeg, sidecar], offered.pathForFile)).toEqual([
       "/photos/photo.jpg",
@@ -38,30 +38,40 @@ describe("external file-drop acceptance", () => {
 
   it("rejects URL/non-file offers and unsupported file candidates", () => {
     const gif = file("animation.gif");
-    expect(acceptsImportFileDragOffer(transfer([], ["text/uri-list", "text/plain"]).dataTransfer)).toBe(false);
-    expect(acceptsImportFileDragOffer({
+    expect(inspectImportFileDragOffer(transfer([], ["text/uri-list", "text/plain"]).dataTransfer)).toBe("rejected");
+    expect(inspectImportFileDragOffer({
       types: ["Files"],
       items: [{ kind: "string", getAsFile: () => null }]
-    } as unknown as DataTransfer)).toBe(false);
+    } as unknown as DataTransfer)).toBe("rejected");
     const unsupported = transfer([{ file: gif, path: "/photos/animation.gif" }]);
-    expect(acceptsImportFileDragOffer(unsupported.dataTransfer)).toBe(false);
+    expect(inspectImportFileDragOffer(unsupported.dataTransfer)).toBe("rejected");
+  });
+
+  it("allows protected Finder file data to reach drop without claiming accepted support", () => {
+    expect(inspectImportFileDragOffer({ types: ["Files"], items: [] } as unknown as DataTransfer)).toBe(
+      "delivery-only"
+    );
+    expect(inspectImportFileDragOffer({
+      types: ["Files"],
+      items: [{ kind: "file", getAsFile: () => null }]
+    } as unknown as DataTransfer)).toBe("delivery-only");
   });
 
   it("rejects a supported candidate at drop when Electron cannot prove a local path", () => {
     const remote = file("remote.jpg");
     const offered = transfer([{ file: remote, path: "" }]);
 
-    expect(acceptsImportFileDragOffer(offered.dataTransfer)).toBe(true);
+    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("accepted");
     expect(localImportPaths([remote], offered.pathForFile)).toEqual([]);
   });
 
-  it("fails closed when a malformed drag item cannot expose its file", () => {
+  it("treats an inaccessible file item as protected delivery-only data", () => {
     const dataTransfer = {
       types: ["Files"],
       items: [{ kind: "file", getAsFile: () => { throw new Error("unavailable"); } }]
     } as unknown as DataTransfer;
 
-    expect(acceptsImportFileDragOffer(dataTransfer)).toBe(false);
+    expect(inspectImportFileDragOffer(dataTransfer)).toBe("delivery-only");
   });
 
   it("keeps only unique, supported paths and fails closed when provenance lookup throws", () => {

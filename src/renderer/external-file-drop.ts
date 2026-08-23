@@ -3,6 +3,7 @@ import { IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 type PathForFile = (file: File) => string;
 type Schedule = (callback: () => void, delayMs: number) => number;
 type CancelSchedule = (handle: number) => void;
+export type ImportFileDragOffer = "rejected" | "delivery-only" | "accepted";
 
 const allowedExtensions = new Set(IMPORT_FILE_EXTENSIONS.map((extension) => `.${extension}`));
 
@@ -26,21 +27,37 @@ export function localImportPaths(files: Iterable<File> | ArrayLike<File>, pathFo
 }
 
 /**
- * True when drag-time data offers a supported file candidate. Chromium may withhold the Electron
- * filesystem path until `drop`, so local provenance remains the final authority in localImportPaths.
+ * Separates mechanical drop delivery from the accepted affordance. Chromium may protect all item
+ * details during a Finder drag, but `preventDefault` is still required before it will deliver drop.
+ * Local provenance remains the final authority in localImportPaths.
  */
-export function acceptsImportFileDragOffer(dataTransfer: DataTransfer | null): boolean {
-  if (!dataTransfer || !Array.from(dataTransfer.types).includes("Files")) return false;
-  for (const item of Array.from(dataTransfer.items)) {
+export function inspectImportFileDragOffer(dataTransfer: DataTransfer | null): ImportFileDragOffer {
+  if (!hasFileDragType(dataTransfer)) return "rejected";
+  const items = Array.from(dataTransfer.items);
+  if (items.length === 0) return "delivery-only";
+
+  let protectedFile = false;
+  let sawFileItem = false;
+  for (const item of items) {
     if (item.kind !== "file") continue;
+    sawFileItem = true;
     try {
       const file = item.getAsFile();
-      if (file && allowedExtensions.has(extensionOf(file.name))) return true;
+      if (!file) {
+        protectedFile = true;
+      } else if (allowedExtensions.has(extensionOf(file.name))) {
+        return "accepted";
+      }
     } catch {
-      // Malformed or inaccessible drag items are not supported file candidates.
+      protectedFile = true;
     }
   }
-  return false;
+  if (sawFileItem && protectedFile) return "delivery-only";
+  return "rejected";
+}
+
+export function hasFileDragType(dataTransfer: DataTransfer | null): dataTransfer is DataTransfer {
+  return Boolean(dataTransfer && Array.from(dataTransfer.types).includes("Files"));
 }
 
 function extensionOf(filePath: string): string {

@@ -22,7 +22,6 @@ describe("resolveProjectOutputDir", () => {
     // own directory — not the launch working directory.
     const resolved = resolveProjectOutputDir("out/web", source);
     expect(resolved).toBe(path.resolve(path.dirname(source), "out/web"));
-    expect(resolved).toBe("/photos/trip/out/web");
     expect(resolved).not.toBe(path.resolve(process.cwd(), "out/web"));
   });
 });

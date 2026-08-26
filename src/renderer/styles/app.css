@@ -3,7 +3,7 @@
   /* UI (chrome) font. The Settings → App "UI font" field overrides this variable at runtime with a
      verbatim, engine-resolved family string; blank reverts to this default. Family only — no UI
      font-size knob. The text-watermark font is a separate content-output setting, not this. */
-  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-family: var(--font-ui);
   --app-bg: #f5f5f4;
   --surface-bg: #ffffff;
@@ -123,6 +123,7 @@ body {
   margin: 0;
   background: var(--app-bg);
   color: var(--text-color);
+  font-size: 13px;
 }
 
 button,
@@ -330,7 +331,7 @@ button {
 .app-menu-section {
   padding: 8px 10px 4px;
   color: var(--brand-primary-soft-text);
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1210,7 +1211,7 @@ select:disabled {
   display: grid;
   gap: 4px;
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .field-grid label.toggle-row {
@@ -1266,7 +1267,7 @@ select:disabled {
 
 .asset-source-label {
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1309,7 +1310,7 @@ select:disabled {
   align-items: center;
   gap: 6px;
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .slider-row input[type="range"] {
@@ -1331,7 +1332,7 @@ select:disabled {
   align-items: center;
   gap: 8px;
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .conceal-color-row input[type="color"],
@@ -1954,7 +1955,7 @@ select:disabled {
 
 .vision-description span {
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2176,7 +2177,7 @@ select:disabled {
 
 .hsl-band-heading span {
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .hsl-band-sliders {
@@ -2185,7 +2186,7 @@ select:disabled {
 }
 
 .hsl-band .slider-row {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .hsl-band .slider-row .slider-value {

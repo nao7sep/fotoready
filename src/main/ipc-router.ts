@@ -10,7 +10,7 @@ import type { UiState } from "@shared/types/state";
 import { APP_NAME, IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
-import type { PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { saveState } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
@@ -221,14 +221,23 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
 
     if (result.canceled || result.filePaths.length === 0) {
-      return ctx.projectSession.snapshot();
+      return {
+        snapshot: ctx.projectSession.snapshot(),
+        canceled: true,
+        acceptedImages: 0,
+        addedOriginals: 0,
+        restoredTasks: 0,
+        succeededPaths: [],
+        issues: []
+      };
     }
 
-    return publishResult(ctx.projectSession.addOriginals(result.filePaths));
+    const normalized = normalizeAddOriginalsPaths(result.filePaths, ctx.logger);
+    return publishResult(ctx.projectSession.addOriginals(normalized.paths, normalized.issues));
   });
   handle("project.addOriginals", "info", async (_event, sourcePaths: string[]) => {
     const normalized = normalizeAddOriginalsPaths(sourcePaths, ctx.logger);
-    return publishResult(ctx.projectSession.addOriginals(normalized));
+    return publishResult(ctx.projectSession.addOriginals(normalized.paths, normalized.issues));
   });
   handle("project.removeOriginal", "info", async (_event, originalId: string) => publishResult(ctx.projectSession.removeOriginal(originalId)));
   handle("project.selectOriginal", "info", async (_event, originalId: string) => publishResult(ctx.projectSession.selectOriginal(originalId)));
@@ -309,11 +318,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("queues.snapshot", "debug", async () => ctx.projectSession.queueSnapshot());
 }
 
-function normalizeAddOriginalsPaths(sourcePaths: unknown, logger: AppLogger): string[] {
-  if (!Array.isArray(sourcePaths)) return [];
+function normalizeAddOriginalsPaths(
+  sourcePaths: unknown,
+  logger: AppLogger
+): { paths: string[]; issues: OriginalImportIssue[] } {
+  if (!Array.isArray(sourcePaths)) return { paths: [], issues: [] };
   const allowed = new Set<string>(IMPORT_FILE_EXTENSIONS.map((extension) => `.${extension}`));
   const seen = new Set<string>();
   const accepted: string[] = [];
+  const issues: OriginalImportIssue[] = [];
   for (const entry of sourcePaths) {
     if (typeof entry !== "string" || entry.trim().length === 0) continue;
     const resolved = path.resolve(entry);
@@ -322,9 +335,15 @@ function normalizeAddOriginalsPaths(sourcePaths: unknown, logger: AppLogger): st
     const extension = path.extname(resolved).toLowerCase();
     if (!allowed.has(extension)) {
       logger.warn("addOriginals rejected unsupported extension", { mod: "main.ipc", filePath: resolved, extension });
+      issues.push({
+        filePath: resolved,
+        kind: "unsupported",
+        severity: "warning",
+        reason: "Use JPEG, PNG, WebP, AVIF, TIFF, or a FotoReady JSON task sidecar."
+      });
       continue;
     }
     accepted.push(resolved);
   }
-  return accepted;
+  return { paths: accepted, issues };
 }

@@ -70,6 +70,23 @@ export type ProjectSnapshot = {
   privacyWarnings: Record<string, PrivacyWarning>;
 };
 
+export type OriginalImportIssue = {
+  filePath: string;
+  kind: "duplicate" | "unsupported" | "invalid" | "failed";
+  severity: "info" | "warning" | "error";
+  reason: string;
+};
+
+export type OriginalImportResult = {
+  snapshot: ProjectSnapshot;
+  canceled: boolean;
+  acceptedImages: number;
+  addedOriginals: number;
+  restoredTasks: number;
+  succeededPaths: string[];
+  issues: OriginalImportIssue[];
+};
+
 export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "pickerLabel" | "category" | "defaultParams" | "previewBehavior" | "metadataOnly">;
 
 export type PreviewResult = {
@@ -189,8 +206,8 @@ export type FotoReadyApi = {
     current(): Promise<ProjectSnapshot>;
     setOutputDirFromDialog(): Promise<ProjectSnapshot>;
     clearOutputDir(): Promise<ProjectSnapshot>;
-    addOriginals(sourcePaths: string[]): Promise<ProjectSnapshot>;
-    addOriginalsFromDialog(): Promise<ProjectSnapshot>;
+    addOriginals(sourcePaths: string[]): Promise<OriginalImportResult>;
+    addOriginalsFromDialog(): Promise<OriginalImportResult>;
     removeOriginal(originalId: string): Promise<ProjectSnapshot>;
     selectOriginal(originalId: string): Promise<ProjectSnapshot>;
   };

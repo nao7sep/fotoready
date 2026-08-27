@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, OriginalImportResult, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { APP_NAME } from "@shared/constants";
 import { formatLabel, resolveOutputFormat } from "@shared/output-format";
@@ -32,11 +32,15 @@ import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingShortcutTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import {
-  DropHighlightLease,
-  hasFileDragType,
-  inspectImportFileDragOffer,
-  localImportPaths
+  denyUnhandledExternalDrop,
 } from "./external-file-drop";
+import {
+  inaccessibleOriginalImportFeedback,
+  originalImportFailureFeedback,
+  queueRefreshFailureFeedback,
+  settleOriginalImportFeedback,
+  type OriginalImportFeedback,
+} from "./original-import-feedback";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -66,7 +70,7 @@ function App(): React.JSX.Element {
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("save");
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
-  const [globalDropActive, setGlobalDropActive] = useState(false);
+  const [originalImportFeedback, setOriginalImportFeedback] = useState<OriginalImportFeedback | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
@@ -90,18 +94,6 @@ function App(): React.JSX.Element {
   const showOriginals = useEditorStore((state) => state.showOriginals);
   const showTasks = useEditorStore((state) => state.showTasks);
   const showOps = useEditorStore((state) => state.showOps);
-  const globalDragDepthRef = useRef(0);
-  const globalDropLeaseRef = useRef<DropHighlightLease | null>(null);
-  if (globalDropLeaseRef.current === null) {
-    globalDropLeaseRef.current = new DropHighlightLease(
-      (active) => {
-        if (!active) globalDragDepthRef.current = 0;
-        setGlobalDropActive(active);
-      },
-      (callback, delayMs) => window.setTimeout(callback, delayMs),
-      (handle) => window.clearTimeout(handle)
-    );
-  }
   // Pane widths live in state.json (via the state IPC), not localStorage, so the main process can size
   // the window from them. Until state.json loads, fall back to the shipped defaults — same async
   // pattern as showHistogram below. A drag persists the new intent; a window resize persists nothing.
@@ -156,11 +148,6 @@ function App(): React.JSX.Element {
   const previewRequest = previewConfig ? { taskId: previewConfig.taskId, options: previewConfig.options, previewStateKey: previewConfig.previewStateKey } : null;
   const previewScaleMode: ImageFitMode = previewConfig?.previewScaleMode ?? "fit";
   const previewStateKey = previewRequest?.previewStateKey ?? null;
-
-  useEffect(() => {
-    const lease = globalDropLeaseRef.current;
-    return () => lease?.dispose();
-  }, []);
 
   useEffect(() => {
     void Promise.all([
@@ -365,12 +352,44 @@ function App(): React.JSX.Element {
   }, [previewStateKey, settings?.previewDebounceMs]);
 
   async function addOriginals(): Promise<void> {
-    await refreshProject(await api.project.addOriginalsFromDialog());
+    try {
+      await applyOriginalImportResult(await api.project.addOriginalsFromDialog());
+    } catch (error) {
+      reportOriginalImportFailure(error);
+    }
   }
 
-  async function addOriginalPaths(sourcePaths: string[]): Promise<void> {
-    if (sourcePaths.length === 0) return;
-    await refreshProject(await api.project.addOriginals(sourcePaths));
+  async function addOriginalPaths(sourcePaths: string[], inaccessibleNames: string[]): Promise<void> {
+    if (sourcePaths.length === 0) {
+      setOriginalImportFeedback(inaccessibleOriginalImportFeedback(inaccessibleNames));
+      return;
+    }
+    try {
+      const result = await api.project.addOriginals(sourcePaths);
+      await applyOriginalImportResult(result, inaccessibleNames);
+    } catch (error) {
+      reportOriginalImportFailure(error);
+    }
+  }
+
+  async function applyOriginalImportResult(
+    result: OriginalImportResult,
+    inaccessibleNames: string[] = []
+  ): Promise<void> {
+    setProjectSnapshot(result.snapshot);
+    try {
+      setQueue(await api.queues.snapshot());
+    } catch (error) {
+      console.error(error);
+      setOriginalImportFeedback(queueRefreshFailureFeedback());
+      return;
+    }
+    setOriginalImportFeedback((current) => settleOriginalImportFeedback(current, result, inaccessibleNames));
+  }
+
+  function reportOriginalImportFailure(error: unknown): void {
+    console.error(error);
+    setOriginalImportFeedback(originalImportFailureFeedback(error));
   }
 
   async function setOutputDir(): Promise<void> {
@@ -629,59 +648,8 @@ function App(): React.JSX.Element {
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
   const hasJpegEstimate = settings?.enableJpegQualityEstimate && activeOriginal?.jpegQualityEstimate !== null;
 
-  function clearGlobalDrop(): void {
-    globalDragDepthRef.current = 0;
-    globalDropLeaseRef.current?.clear();
-  }
-
   return (
-    <main
-      className="app-shell"
-      onDragEnterCapture={(event) => {
-        const offer = inspectImportFileDragOffer(event.dataTransfer);
-        if (offer === "rejected") return;
-        event.preventDefault();
-        if (offer === "delivery-only") {
-          clearGlobalDrop();
-          return;
-        }
-        globalDragDepthRef.current += 1;
-        globalDropLeaseRef.current?.renew();
-      }}
-      onDragOverCapture={(event) => {
-        const offer = inspectImportFileDragOffer(event.dataTransfer);
-        if (offer === "rejected") {
-          event.dataTransfer.dropEffect = "none";
-          return;
-        }
-        event.preventDefault();
-        if (offer === "delivery-only") {
-          clearGlobalDrop();
-          return;
-        }
-        event.dataTransfer.dropEffect = "copy";
-        globalDropLeaseRef.current?.renew();
-      }}
-      onDragLeaveCapture={(event) => {
-        if (globalDragDepthRef.current === 0) return;
-        event.preventDefault();
-        globalDragDepthRef.current = Math.max(0, globalDragDepthRef.current - 1);
-        if (globalDragDepthRef.current === 0) globalDropLeaseRef.current?.clear();
-      }}
-      onDropCapture={(event) => {
-        if (!hasFileDragType(event.dataTransfer)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const sourcePaths = localImportPaths(event.dataTransfer.files, window.api.system.filePathForFile);
-        clearGlobalDrop();
-        if (sourcePaths.length === 0) {
-          return;
-        }
-        void addOriginalPaths(sourcePaths);
-      }}
-      onDragEndCapture={clearGlobalDrop}
-    >
-      {globalDropActive ? <div className="global-drop-overlay">Drop image files anywhere to import them</div> : null}
+    <main className="app-shell">
       <header className="top-bar">
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
@@ -722,7 +690,10 @@ function App(): React.JSX.Element {
             activeOriginalId={activeOriginal?.id ?? null}
             originals={project?.originals ?? []}
             thumbnails={originalThumbnails}
+            feedback={originalImportFeedback}
             onAdd={() => void addOriginals()}
+            onDismissFeedback={() => setOriginalImportFeedback(null)}
+            onDropFiles={(paths, inaccessibleNames) => void addOriginalPaths(paths, inaccessibleNames)}
             onRemove={(originalId) => void removeOriginal(originalId)}
             onSelect={(originalId) => void selectOriginal(originalId)}
           />
@@ -1064,6 +1035,9 @@ function stringifyLogArgs(args: unknown[]): string {
     }
   }).join(" ");
 }
+
+window.addEventListener("dragover", denyUnhandledExternalDrop);
+window.addEventListener("drop", denyUnhandledExternalDrop);
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

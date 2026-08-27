@@ -9,10 +9,17 @@ import { validateOutputSettings } from "@shared/validation/pipeline";
 import { assertBoolean, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
 import { atomicWriteFile } from "@adapters/atomic-file";
+import type { OriginalImportIssue } from "@shared/types/ipc";
+import type { Logger } from "@shared/types/log";
 
 export type LoadedTaskSidecar = {
   path: string;
   sidecar: TaskSidecar;
+};
+
+export type TaskSidecarLoadResult = {
+  loaded: LoadedTaskSidecar[];
+  rejected: OriginalImportIssue[];
 };
 
 export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline): Promise<string> {
@@ -41,19 +48,64 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
   return sidecarPath;
 }
 
-export async function loadTaskSidecars(filePaths: string[]): Promise<LoadedTaskSidecar[]> {
+export async function loadTaskSidecars(
+  filePaths: string[],
+  logger?: Logger
+): Promise<TaskSidecarLoadResult> {
   const loaded: LoadedTaskSidecar[] = [];
+  const rejected: TaskSidecarLoadResult["rejected"] = [];
   for (const filePath of filePaths) {
     if (!isTaskSidecarPath(filePath)) continue;
+    let source: string;
     try {
-      const parsed = JSON.parse(await fs.readFile(filePath, "utf8"));
-      if (!isTaskSidecar(parsed)) continue;
+      source = await fs.readFile(filePath, "utf8");
+    } catch (error) {
+      logger?.error("task sidecar read failed", { mod: "main.task-sidecar", filePath, err: error });
+      rejected.push({
+        filePath,
+        kind: "failed",
+        severity: "error",
+        reason: "FotoReady could not read this task sidecar. Check that it still exists and is accessible."
+      });
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch (error) {
+      logger?.warn("task sidecar JSON was invalid", { mod: "main.task-sidecar", filePath, err: error });
+      rejected.push({
+        filePath,
+        kind: "invalid",
+        severity: "warning",
+        reason: "This JSON file is not a valid FotoReady task sidecar."
+      });
+      continue;
+    }
+    if (!isTaskSidecar(parsed)) {
+      logger?.warn("task sidecar shape was invalid", { mod: "main.task-sidecar", filePath });
+      rejected.push({
+        filePath,
+        kind: "invalid",
+        severity: "warning",
+        reason: "This JSON file is not a valid FotoReady task sidecar."
+      });
+      continue;
+    }
+    try {
       loaded.push({ path: filePath, sidecar: normalizeTaskSidecar(parsed) });
-    } catch {
-      // Ignore invalid sidecars during mixed drag-and-drop import.
+    } catch (error) {
+      logger?.warn("task sidecar values were invalid", { mod: "main.task-sidecar", filePath, err: error });
+      rejected.push({
+        filePath,
+        kind: "invalid",
+        severity: "warning",
+        reason: "This JSON file is not a valid FotoReady task sidecar."
+      });
     }
   }
-  return loaded;
+  return { loaded, rejected };
 }
 
 export function sidecarPathForOutput(outputPath: string): string {

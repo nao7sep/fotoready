@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DropHighlightLease, inspectImportFileDragOffer, localImportPaths } from "@renderer/external-file-drop";
+import {
+  DropHighlightLease,
+  denyUnhandledExternalDrop,
+  inspectImportFileDragOffer,
+  localDropFiles,
+} from "@renderer/external-file-drop";
 
 function file(name: string): File {
   return { name } as File;
@@ -20,7 +25,7 @@ function transfer(
 }
 
 describe("external file-drop acceptance", () => {
-  it("accepts a supported drag-time candidate before Electron exposes its local path", () => {
+  it("keeps a supported-name candidate neutral until Electron exposes its local path", () => {
     const jpeg = file("photo.jpg");
     const sidecar = file("photo.fotoready.json");
     const offered = transfer([
@@ -28,15 +33,18 @@ describe("external file-drop acceptance", () => {
       { file: sidecar, path: "/photos/photo.fotoready.json" }
     ]);
 
-    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("accepted");
-    expect(localImportPaths([jpeg, sidecar], () => "")).toEqual([]);
-    expect(localImportPaths([jpeg, sidecar], offered.pathForFile)).toEqual([
-      "/photos/photo.jpg",
-      "/photos/photo.fotoready.json"
-    ]);
+    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("delivery-only");
+    expect(localDropFiles([jpeg, sidecar], () => "")).toEqual({
+      paths: [],
+      inaccessibleNames: ["photo.jpg", "photo.fotoready.json"],
+    });
+    expect(localDropFiles([jpeg, sidecar], offered.pathForFile)).toEqual({
+      paths: ["/photos/photo.jpg", "/photos/photo.fotoready.json"],
+      inaccessibleNames: [],
+    });
   });
 
-  it("rejects URL/non-file offers and unsupported file candidates", () => {
+  it("rejects URL/non-file offers but delivers unsupported files for committed feedback", () => {
     const gif = file("animation.gif");
     expect(inspectImportFileDragOffer(transfer([], ["text/uri-list", "text/plain"]).dataTransfer)).toBe("rejected");
     expect(inspectImportFileDragOffer({
@@ -44,7 +52,7 @@ describe("external file-drop acceptance", () => {
       items: [{ kind: "string", getAsFile: () => null }]
     } as unknown as DataTransfer)).toBe("rejected");
     const unsupported = transfer([{ file: gif, path: "/photos/animation.gif" }]);
-    expect(inspectImportFileDragOffer(unsupported.dataTransfer)).toBe("rejected");
+    expect(inspectImportFileDragOffer(unsupported.dataTransfer)).toBe("delivery-only");
   });
 
   it("allows protected Finder file data to reach drop without claiming accepted support", () => {
@@ -61,8 +69,11 @@ describe("external file-drop acceptance", () => {
     const remote = file("remote.jpg");
     const offered = transfer([{ file: remote, path: "" }]);
 
-    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("accepted");
-    expect(localImportPaths([remote], offered.pathForFile)).toEqual([]);
+    expect(inspectImportFileDragOffer(offered.dataTransfer)).toBe("delivery-only");
+    expect(localDropFiles([remote], offered.pathForFile)).toEqual({
+      paths: [],
+      inaccessibleNames: ["remote.jpg"],
+    });
   });
 
   it("treats an inaccessible file item as protected delivery-only data", () => {
@@ -83,10 +94,13 @@ describe("external file-drop acceptance", () => {
       [duplicate, "C:\\Photos\\one.PNG"]
     ]);
 
-    expect(localImportPaths([first, duplicate, inaccessible], (candidate) => {
+    expect(localDropFiles([first, duplicate, inaccessible], (candidate) => {
       if (candidate === inaccessible) throw new Error("not a local file");
       return paths.get(candidate) ?? "";
-    })).toEqual(["C:\\Photos\\one.PNG"]);
+    })).toEqual({
+      paths: ["C:\\Photos\\one.PNG"],
+      inaccessibleNames: ["two.jpg"],
+    });
   });
 });
 
@@ -150,5 +164,50 @@ describe("DropHighlightLease", () => {
     lease.dispose();
     expect(changes).toEqual([true]);
     expect(callbacks.size).toBe(0);
+  });
+});
+
+describe("desktop drop boundary", () => {
+  it("denies unowned data without overriding an owned import", () => {
+    const unowned = {
+      defaultPrevented: false,
+      preventDefault(this: { defaultPrevented: boolean }) {
+        this.defaultPrevented = true;
+      },
+      dataTransfer: { dropEffect: "copy" },
+    } as unknown as DragEvent;
+    denyUnhandledExternalDrop(unowned);
+    expect(unowned.defaultPrevented).toBe(true);
+    expect(unowned.dataTransfer?.dropEffect).toBe("none");
+
+    const owned = {
+      defaultPrevented: true,
+      preventDefault() {},
+      dataTransfer: { dropEffect: "copy" },
+    } as unknown as DragEvent;
+    denyUnhandledExternalDrop(owned);
+    expect(owned.dataTransfer?.dropEffect).toBe("copy");
+
+    const editableText = {
+      defaultPrevented: false,
+      preventDefault(this: { defaultPrevented: boolean }) {
+        this.defaultPrevented = true;
+      },
+      target: { closest: () => ({}) },
+      dataTransfer: { types: ["text/plain"], dropEffect: "copy" },
+    } as unknown as DragEvent;
+    denyUnhandledExternalDrop(editableText);
+    expect(editableText.defaultPrevented).toBe(false);
+
+    const editableFileItem = {
+      defaultPrevented: false,
+      preventDefault(this: { defaultPrevented: boolean }) {
+        this.defaultPrevented = true;
+      },
+      target: { closest: () => ({}) },
+      dataTransfer: { types: [], items: [{ kind: "file" }], dropEffect: "copy" },
+    } as unknown as DragEvent;
+    denyUnhandledExternalDrop(editableFileItem);
+    expect(editableFileItem.defaultPrevented).toBe(true);
   });
 });

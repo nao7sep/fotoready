@@ -8,7 +8,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { LutEntry, LutPreviewEntry, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
@@ -17,7 +17,7 @@ import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
-import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
+import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { resolveVisionRunMode } from "@shared/vision-run-mode";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
@@ -89,30 +89,101 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async addOriginals(sourcePaths: string[]): Promise<ProjectSessionSnapshot> {
-    const sidecars = await loadTaskSidecars(sourcePaths);
+  async addOriginals(
+    sourcePaths: string[],
+    initialIssues: OriginalImportIssue[] = []
+  ): Promise<OriginalImportResult> {
+    const sidecarResult = await loadTaskSidecars(sourcePaths, this.logger);
+    const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
+    const sidecars = [...sidecarResult.loaded];
+    const usedSidecarPaths = new Set<string>();
+    let acceptedImages = 0;
+    let addedOriginals = 0;
+    let restoredTasks = 0;
+    const succeededPaths = new Set<string>();
+
     for (const sourcePath of sourcePaths) {
       if (isTaskSidecarPath(sourcePath)) continue;
-      const original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate, this.logger);
+      let original: Original;
+      try {
+        original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate, this.logger);
+      } catch (error) {
+        const failedToRead = typeof (error as NodeJS.ErrnoException | null)?.code === "string";
+        const logFields = { mod: "main.session", filePath: sourcePath, err: error };
+        if (failedToRead) this.logger?.error("original import failed", logFields);
+        else this.logger?.warn("original image was invalid", logFields);
+        issues.push({
+          filePath: sourcePath,
+          kind: failedToRead ? "failed" : "invalid",
+          severity: failedToRead ? "error" : "warning",
+          reason: failedToRead
+            ? "FotoReady could not read this image. Check that it still exists and is accessible."
+            : error instanceof Error ? error.message : "This file could not be opened as a supported image."
+        });
+        continue;
+      }
       const existing = this.#project.originals.find((item) => item.sourceHash === original.sourceHash);
       const targetOriginal = existing ?? original;
+      acceptedImages += 1;
 
-      if (!existing) {
+      if (existing) {
+        issues.push({
+          filePath: sourcePath,
+          kind: "duplicate",
+          severity: "info",
+          reason: "This original is already in the project."
+        });
+      } else {
         this.#project.originals.push(original);
+        addedOriginals += 1;
+        succeededPaths.add(sourcePath);
       }
 
-      const matchedSidecar = matchingTaskSidecar(targetOriginal, sidecars);
+      const matchedSidecar = matchingTaskSidecar(
+        targetOriginal,
+        sidecars.filter((sidecar) => !usedSidecarPaths.has(sidecar.path))
+      );
       if (matchedSidecar) {
+        usedSidecarPaths.add(matchedSidecar.path);
         const task = createTaskFromSidecar(targetOriginal, this.settings, matchedSidecar.sidecar);
         this.#project.tasks.push(task);
         this.#activeTaskId = task.id;
+        restoredTasks += 1;
+        succeededPaths.add(matchedSidecar.path);
         continue;
       }
 
       this.selectOriginal(targetOriginal.id);
     }
 
-    return this.snapshot();
+    for (const sidecar of sidecars) {
+      if (usedSidecarPaths.has(sidecar.path)) continue;
+      const targetOriginal = this.#project.originals.find((original) => matchingTaskSidecar(original, [sidecar]));
+      if (!targetOriginal) {
+        issues.push({
+          filePath: sidecar.path,
+          kind: "invalid",
+          severity: "warning",
+          reason: "Its original image is not in this project. Add the matching image with the sidecar."
+        });
+        continue;
+      }
+      const task = createTaskFromSidecar(targetOriginal, this.settings, sidecar.sidecar);
+      this.#project.tasks.push(task);
+      this.#activeTaskId = task.id;
+      restoredTasks += 1;
+      succeededPaths.add(sidecar.path);
+    }
+
+    return {
+      snapshot: this.snapshot(),
+      canceled: false,
+      acceptedImages,
+      addedOriginals,
+      restoredTasks,
+      succeededPaths: [...succeededPaths],
+      issues
+    };
   }
 
   selectOriginal(originalId: string): ProjectSessionSnapshot {
@@ -669,7 +740,7 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings): Ta
   };
 }
 
-function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: Awaited<ReturnType<typeof loadTaskSidecars>>[number]["sidecar"]): Task {
+function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: LoadedTaskSidecar["sidecar"]): Task {
   const task = createTaskForOriginal(original, settings);
   task.pipeline = structuredClone(sidecar.task.pipeline);
   task.generateDescription = sidecar.task.generateDescription;

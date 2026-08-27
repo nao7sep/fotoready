@@ -1,29 +1,48 @@
-import { IMPORT_FILE_EXTENSIONS } from "@shared/constants";
-
 type PathForFile = (file: File) => string;
 type Schedule = (callback: () => void, delayMs: number) => number;
 type CancelSchedule = (handle: number) => void;
-export type ImportFileDragOffer = "rejected" | "delivery-only" | "accepted";
-
-const allowedExtensions = new Set(IMPORT_FILE_EXTENSIONS.map((extension) => `.${extension}`));
+export type ImportFileDragOffer = "rejected" | "delivery-only";
 
 export const DROP_HIGHLIGHT_LEASE_MS = 1_200;
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  return Boolean((target as Element | null)?.closest?.(
+    "textarea, [contenteditable='true'], input:not([type]), input[type='text'], input[type='search'], input[type='url'], input[type='email'], input[type='number'], input[type='password'], input[type='tel']",
+  ));
+}
+
+/** Refuse every external drop that did not reach an owned product target. The
+ * app-shell handlers prevent and stop supported file offers first; native
+ * non-file text/link editing remains available. */
+export function denyUnhandledExternalDrop(event: DragEvent): void {
+  if (event.defaultPrevented) return;
+  const hasFiles = Array.from(event.dataTransfer?.types ?? []).includes("Files") ||
+    Array.from(event.dataTransfer?.items ?? []).some((item) => item.kind === "file");
+  if (!hasFiles && isEditableTarget(event.target)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
+}
+
 /**
- * Resolves only files that Electron can prove came from the local filesystem and whose extension
- * the import boundary supports. Browser-created Files and remote URL/image drags resolve to no path.
+ * Resolves only files that Electron can prove came from the local filesystem. Product admission
+ * remains in the main process, shared by the picker and drop paths.
  */
-export function localImportPaths(files: Iterable<File> | ArrayLike<File>, pathForFile: PathForFile): string[] {
+export function localDropFiles(
+  files: Iterable<File> | ArrayLike<File>,
+  pathForFile: PathForFile
+): { paths: string[]; inaccessibleNames: string[] } {
   const paths = new Set<string>();
+  const inaccessibleNames: string[] = [];
   for (const file of Array.from(files)) {
     try {
       const filePath = pathForFile(file);
-      if (filePath && allowedExtensions.has(extensionOf(filePath))) paths.add(filePath);
+      if (filePath) paths.add(filePath);
+      else inaccessibleNames.push(file.name || "Dropped file");
     } catch {
-      // A synthetic or inaccessible File has no local provenance and is not an import candidate.
+      inaccessibleNames.push(file.name || "Dropped file");
     }
   }
-  return [...paths];
+  return { paths: [...paths], inaccessibleNames };
 }
 
 /**
@@ -34,36 +53,12 @@ export function localImportPaths(files: Iterable<File> | ArrayLike<File>, pathFo
 export function inspectImportFileDragOffer(dataTransfer: DataTransfer | null): ImportFileDragOffer {
   if (!hasFileDragType(dataTransfer)) return "rejected";
   const items = Array.from(dataTransfer.items);
-  if (items.length === 0) return "delivery-only";
-
-  let protectedFile = false;
-  let sawFileItem = false;
-  for (const item of items) {
-    if (item.kind !== "file") continue;
-    sawFileItem = true;
-    try {
-      const file = item.getAsFile();
-      if (!file) {
-        protectedFile = true;
-      } else if (allowedExtensions.has(extensionOf(file.name))) {
-        return "accepted";
-      }
-    } catch {
-      protectedFile = true;
-    }
-  }
-  if (sawFileItem && protectedFile) return "delivery-only";
-  return "rejected";
+  if (items.length > 0 && !items.some((item) => item.kind === "file")) return "rejected";
+  return "delivery-only";
 }
 
 export function hasFileDragType(dataTransfer: DataTransfer | null): dataTransfer is DataTransfer {
   return Boolean(dataTransfer && Array.from(dataTransfer.types).includes("Files"));
-}
-
-function extensionOf(filePath: string): string {
-  const separator = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-  const dot = filePath.lastIndexOf(".");
-  return dot > separator ? filePath.slice(dot).toLowerCase() : "";
 }
 
 /**

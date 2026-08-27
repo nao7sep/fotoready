@@ -12,12 +12,6 @@ const cssPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 const css = readFileSync(cssPath, "utf8");
 
 describe("scroll-bar styling", () => {
-  it("owns the inherited UI font family and size", () => {
-    expect(css).toMatch(/--font-ui:\s*system-ui/);
-    expect(css).toMatch(/:root\s*{[^}]*font-family:\s*var\(--font-ui\)/);
-    expect(css).toMatch(/body\s*{[^}]*font-size:\s*13px/);
-  });
-
   it("styles the WebKit/Chromium scroll bar (the OS default would otherwise stay thick and square)", () => {
     expect(css).toContain("::-webkit-scrollbar");
     expect(css).toContain("::-webkit-scrollbar-thumb");

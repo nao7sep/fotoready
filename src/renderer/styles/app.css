@@ -212,7 +212,7 @@ button {
   padding: 1px 8px;
   border-radius: 9px;
   border: 1px solid transparent;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 18px;
   white-space: nowrap;
@@ -266,7 +266,6 @@ button {
 .status-active-label {
   font-style: italic;
   color: var(--brand-primary-soft-text);
-  font-size: 11px;
   min-width: 0;
   max-width: 280px;
   overflow: hidden;
@@ -701,7 +700,7 @@ select:disabled {
 
 .row-detail {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted-color);
 }
 
@@ -978,7 +977,6 @@ select:disabled {
 .error-strip strong {
   flex: 0 0 auto;
   text-transform: uppercase;
-  font-size: 11px;
   line-height: 26px;
 }
 
@@ -1631,7 +1629,7 @@ select:disabled {
   gap: 8px;
   min-width: 0;
   color: var(--text-muted-color);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .rename-preview-state.state-error {
@@ -1866,7 +1864,7 @@ select:disabled {
   background-color: var(--surface-bg);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .asset-picker-preview img {
@@ -2211,7 +2209,7 @@ select:disabled {
 
 .field-help {
   color: var(--text-soft-color);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -2253,7 +2251,7 @@ select:disabled {
 
 .shortcut-row-copy small {
   color: var(--text-soft-color);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 

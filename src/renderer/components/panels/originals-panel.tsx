@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { ImagePlus, Trash2, X } from "lucide-react";
 import type { Original } from "@shared/types/project";
 import { formatLabel } from "@shared/output-format";
 import { useListbox } from "@renderer/components/useListbox";
 import {
-  DropHighlightLease,
   hasFileDragType,
   inspectImportFileDragOffer,
   localDropFiles,
@@ -34,22 +33,6 @@ export function OriginalsPanel({
 }): React.JSX.Element {
   const [dropActive, setDropActive] = useState(false);
   const dragDepthRef = useRef(0);
-  const leaseRef = useRef<DropHighlightLease | null>(null);
-  if (leaseRef.current === null) {
-    leaseRef.current = new DropHighlightLease(
-      (active) => {
-        if (!active) dragDepthRef.current = 0;
-        setDropActive(active);
-      },
-      (callback, delayMs) => window.setTimeout(callback, delayMs),
-      (handle) => window.clearTimeout(handle),
-    );
-  }
-
-  useEffect(() => {
-    const lease = leaseRef.current;
-    return () => lease?.dispose();
-  }, []);
 
   const listbox = useListbox({
     ids: originals.map((original) => original.id),
@@ -60,7 +43,7 @@ export function OriginalsPanel({
 
   function clearDrop(): void {
     dragDepthRef.current = 0;
-    leaseRef.current?.clear();
+    setDropActive(false);
   }
 
   return (
@@ -73,19 +56,19 @@ export function OriginalsPanel({
           event.preventDefault();
           event.dataTransfer.dropEffect = "copy";
           dragDepthRef.current += 1;
-          leaseRef.current?.renew();
+          setDropActive(true);
         }}
         onDragOver={(event) => {
           if (inspectImportFileDragOffer(event.dataTransfer) === "rejected") return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "copy";
-          leaseRef.current?.renew();
+          setDropActive(true);
         }}
         onDragLeave={(event) => {
           if (dragDepthRef.current === 0) return;
           event.preventDefault();
           dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-          if (dragDepthRef.current === 0) leaseRef.current?.clear();
+          if (dragDepthRef.current === 0) setDropActive(false);
         }}
         onDrop={(event) => {
           if (!hasFileDragType(event.dataTransfer)) return;

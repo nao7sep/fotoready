@@ -45,6 +45,7 @@ export class ProjectSession {
   #lastTaskUndoHistoryGroup = new Map<string, string | null>();
   #previewService: PreviewService;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
+  #originalImportTail: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -89,9 +90,23 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  async addOriginals(
+  addOriginals(
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[] = []
+  ): Promise<OriginalImportResult> {
+    const paths = [...sourcePaths];
+    const issues = [...initialIssues];
+    const operation = this.#originalImportTail.then(
+      () => this.#addOriginals(paths, issues),
+      () => this.#addOriginals(paths, issues),
+    );
+    this.#originalImportTail = operation.catch(() => undefined);
+    return operation;
+  }
+
+  async #addOriginals(
+    sourcePaths: string[],
+    initialIssues: OriginalImportIssue[]
   ): Promise<OriginalImportResult> {
     const sidecarResult = await loadTaskSidecars(sourcePaths, this.logger);
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];

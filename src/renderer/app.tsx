@@ -29,7 +29,7 @@ import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
-import { isTextEditingShortcutTarget } from "./utils/editing-target";
+import { isTextEditingTarget } from "./utils/editing-target";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import {
   denyUnhandledExternalDrop,
@@ -235,7 +235,7 @@ function App(): React.JSX.Element {
         isMac &&
         event.ctrlKey &&
         !event.metaKey &&
-        isTextEditingShortcutTarget(event.target)
+        isTextEditingTarget(event.target)
       ) {
         return;
       }
@@ -250,7 +250,7 @@ function App(): React.JSX.Element {
         event.preventDefault();
         if (activeTask?.status === "not-saved") void saveTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "z" && !event.shiftKey) {
-        if (isTextEditingShortcutTarget(event.target)) return;
+        if (isTextEditingTarget(event.target)) return;
         event.preventDefault();
         if (activeTask?.status === "not-saved") void undoTask(activeTask.id);
       } else if (mod && event.key.toLowerCase() === "r") {

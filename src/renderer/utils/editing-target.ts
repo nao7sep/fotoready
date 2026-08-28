@@ -16,7 +16,7 @@ export type EditingTargetLike = {
   readonly parentElement?: EditingTargetLike | null;
 };
 
-export function isTextEditingShortcutTarget(target: EventTarget | null): boolean {
+export function isTextEditingTarget(target: EventTarget | null): boolean {
   let current: EditingTargetLike | null = isEditingTargetLike(target) ? target : null;
   while (current) {
     if (isTextEditingTargetLike(current)) return true;

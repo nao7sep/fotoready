@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTextEditingTargetLike, isTextEditingShortcutTarget, type EditingTargetLike } from "@renderer/utils/editing-target";
+import { isTextEditingTargetLike, isTextEditingTarget, type EditingTargetLike } from "@renderer/utils/editing-target";
 
 function element(tagName: string, options: Partial<EditingTargetLike> = {}): EditingTargetLike {
   return { tagName, ...options };
@@ -24,16 +24,16 @@ describe("isTextEditingTargetLike", () => {
   });
 });
 
-describe("isTextEditingShortcutTarget", () => {
+describe("isTextEditingTarget", () => {
   it("walks up from children inside a contenteditable host", () => {
     const host = element("div", { isContentEditable: true });
     const child = element("span", { parentElement: host });
-    expect(isTextEditingShortcutTarget(child as EventTarget)).toBe(true);
+    expect(isTextEditingTarget(child as EventTarget)).toBe(true);
   });
 
   it("does not classify non-editable controls as text editing targets", () => {
-    expect(isTextEditingShortcutTarget(element("input", { type: "range" }) as EventTarget)).toBe(false);
-    expect(isTextEditingShortcutTarget(element("button") as EventTarget)).toBe(false);
-    expect(isTextEditingShortcutTarget(null)).toBe(false);
+    expect(isTextEditingTarget(element("input", { type: "range" }) as EventTarget)).toBe(false);
+    expect(isTextEditingTarget(element("button") as EventTarget)).toBe(false);
+    expect(isTextEditingTarget(null)).toBe(false);
   });
 });

@@ -1,15 +1,7 @@
+import { isTextEditingTarget } from "./utils/editing-target";
+
 type PathForFile = (file: File) => string;
-type Schedule = (callback: () => void, delayMs: number) => number;
-type CancelSchedule = (handle: number) => void;
 export type ImportFileDragOffer = "rejected" | "delivery-only";
-
-export const DROP_HIGHLIGHT_LEASE_MS = 1_200;
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return Boolean((target as Element | null)?.closest?.(
-    "textarea, [contenteditable='true'], input:not([type]), input[type='text'], input[type='search'], input[type='url'], input[type='email'], input[type='number'], input[type='password'], input[type='tel']",
-  ));
-}
 
 /** Refuse every external drop that did not reach an owned product target. The
  * app-shell handlers prevent and stop supported file offers first; native
@@ -18,7 +10,7 @@ export function denyUnhandledExternalDrop(event: DragEvent): void {
   if (event.defaultPrevented) return;
   const hasFiles = Array.from(event.dataTransfer?.types ?? []).includes("Files") ||
     Array.from(event.dataTransfer?.items ?? []).some((item) => item.kind === "file");
-  if (!hasFiles && isEditableTarget(event.target)) return;
+  if (!hasFiles && isTextEditingTarget(event.target)) return;
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
 }
@@ -59,50 +51,4 @@ export function inspectImportFileDragOffer(dataTransfer: DataTransfer | null): I
 
 export function hasFileDragType(dataTransfer: DataTransfer | null): dataTransfer is DataTransfer {
   return Boolean(dataTransfer && Array.from(dataTransfer.types).includes("Files"));
-}
-
-/**
- * Renderer highlight state backed by a renewable lease. External OS drags are not guaranteed to
- * deliver drop, leave, or dragend when cancelled; the missing refresh expires independently.
- */
-export class DropHighlightLease {
-  private active = false;
-  private handle: number | null = null;
-
-  public constructor(
-    private readonly onActiveChange: (active: boolean) => void,
-    private readonly schedule: Schedule,
-    private readonly cancelSchedule: CancelSchedule,
-    private readonly leaseMs = DROP_HIGHLIGHT_LEASE_MS
-  ) {}
-
-  public renew(): void {
-    if (!this.active) {
-      this.active = true;
-      this.onActiveChange(true);
-    }
-    if (this.handle !== null) this.cancelSchedule(this.handle);
-    this.handle = this.schedule(() => this.clear(), this.leaseMs);
-  }
-
-  public clear(): void {
-    this.cancelTimer();
-    if (this.active) {
-      this.active = false;
-      this.onActiveChange(false);
-    }
-  }
-
-  /** Cancels the lease without publishing state during React unmount. */
-  public dispose(): void {
-    this.cancelTimer();
-    this.active = false;
-  }
-
-  private cancelTimer(): void {
-    if (this.handle !== null) {
-      this.cancelSchedule(this.handle);
-      this.handle = null;
-    }
-  }
 }

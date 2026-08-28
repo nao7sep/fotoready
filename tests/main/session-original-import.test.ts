@@ -32,15 +32,17 @@ function session() {
 }
 
 describe("ProjectSession original import results", () => {
-  it("reports a repeated original by content as information", async () => {
+  it("serializes simultaneous imports and reports repeated content as information", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-original-"));
     roots.push(root);
     const imagePath = path.join(root, "photo.png");
     await sharp({ create: { width: 2, height: 2, channels: 4, background: "red" } }).png().toFile(imagePath);
     const project = session().value;
 
-    const first = await project.addOriginals([imagePath]);
-    const repeated = await project.addOriginals([imagePath]);
+    const [first, repeated] = await Promise.all([
+      project.addOriginals([imagePath]),
+      project.addOriginals([imagePath]),
+    ]);
 
     expect(first.addedOriginals).toBe(1);
     expect(first.issues).toEqual([]);

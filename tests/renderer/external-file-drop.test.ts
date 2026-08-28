@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DropHighlightLease,
   denyUnhandledExternalDrop,
   inspectImportFileDragOffer,
   localDropFiles,
@@ -104,69 +103,6 @@ describe("external file-drop acceptance", () => {
   });
 });
 
-describe("DropHighlightLease", () => {
-  it("renews one lease and independently clears a cancelled OS drag", () => {
-    const changes: boolean[] = [];
-    const callbacks = new Map<number, () => void>();
-    let nextHandle = 1;
-    const lease = new DropHighlightLease(
-      (active) => changes.push(active),
-      (callback) => {
-        const handle = nextHandle++;
-        callbacks.set(handle, callback);
-        return handle;
-      },
-      (handle) => callbacks.delete(handle),
-      10
-    );
-
-    lease.renew();
-    lease.renew();
-    expect(changes).toEqual([true]);
-    expect([...callbacks.keys()]).toEqual([2]);
-
-    callbacks.get(2)!(); // no drop, leave, or dragend: the renewable lease expires
-    expect(changes).toEqual([true, false]);
-    expect(callbacks.size).toBe(0);
-  });
-
-  it("clears synchronously on ordinary leave/drop cleanup", () => {
-    const changes: boolean[] = [];
-    const callbacks = new Map<number, () => void>();
-    const lease = new DropHighlightLease(
-      (active) => changes.push(active),
-      (callback) => {
-        callbacks.set(1, callback);
-        return 1;
-      },
-      (handle) => callbacks.delete(handle)
-    );
-
-    lease.renew();
-    lease.clear();
-    expect(changes).toEqual([true, false]);
-    expect(callbacks.size).toBe(0);
-  });
-
-  it("disposes without publishing a state update during unmount", () => {
-    const changes: boolean[] = [];
-    const callbacks = new Map<number, () => void>();
-    const lease = new DropHighlightLease(
-      (active) => changes.push(active),
-      (callback) => {
-        callbacks.set(1, callback);
-        return 1;
-      },
-      (handle) => callbacks.delete(handle)
-    );
-
-    lease.renew();
-    lease.dispose();
-    expect(changes).toEqual([true]);
-    expect(callbacks.size).toBe(0);
-  });
-});
-
 describe("desktop drop boundary", () => {
   it("denies unowned data without overriding an owned import", () => {
     const unowned = {
@@ -193,7 +129,7 @@ describe("desktop drop boundary", () => {
       preventDefault(this: { defaultPrevented: boolean }) {
         this.defaultPrevented = true;
       },
-      target: { closest: () => ({}) },
+      target: { tagName: "TEXTAREA" },
       dataTransfer: { types: ["text/plain"], dropEffect: "copy" },
     } as unknown as DragEvent;
     denyUnhandledExternalDrop(editableText);
@@ -204,7 +140,7 @@ describe("desktop drop boundary", () => {
       preventDefault(this: { defaultPrevented: boolean }) {
         this.defaultPrevented = true;
       },
-      target: { closest: () => ({}) },
+      target: { tagName: "TEXTAREA" },
       dataTransfer: { types: [], items: [{ kind: "file" }], dropEffect: "copy" },
     } as unknown as DragEvent;
     denyUnhandledExternalDrop(editableFileItem);

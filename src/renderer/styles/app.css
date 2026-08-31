@@ -574,8 +574,11 @@ select:disabled {
   flex: 1;
   display: grid;
   place-items: center;
+  padding: 10px;
   color: var(--brand-primary-soft-text);
   background: var(--brand-primary-soft-bg);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .canvas-placeholder {

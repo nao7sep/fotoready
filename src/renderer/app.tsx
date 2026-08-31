@@ -776,7 +776,7 @@ function App(): React.JSX.Element {
             ) : null}
           </div>
           {activeTask?.error ? (
-            <div className="error-strip">
+            <div className="error-strip" role="alert" aria-atomic="true">
               <strong>{errorStageLabel(activeTask.error.stage)}</strong>
               <span>{activeTask.error.message}</span>
               {activeTask.error.retryable ? (

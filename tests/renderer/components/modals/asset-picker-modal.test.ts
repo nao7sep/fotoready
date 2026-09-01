@@ -66,6 +66,7 @@ describe("StampPickerModal groups", () => {
     });
 
     await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledTimes(1));
+    expect(document.querySelector('[role="dialog"]')?.classList.contains("asset-picker-modal")).toBe(true);
     expect(mocks.thumbnail).toHaveBeenCalledWith("/laughing-face.png", 64);
     expect(selectedTab()?.textContent).toBe("Reactions");
     expect(document.body.textContent).toContain("Laughing face");

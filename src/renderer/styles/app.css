@@ -1444,6 +1444,23 @@ select:disabled {
   max-height: 85vh;
 }
 
+/* LUTs and stamps are visual libraries: every additional row and column exposes
+   more real choices. Give the picker a definite viewport-relative canvas instead
+   of leaving its auto-filling grid inside the form-sized Wide modal. */
+.asset-picker-modal {
+  width: 85vw;
+  height: 85vh;
+  max-height: 85vh;
+}
+
+.asset-picker-modal .modal-body {
+  overflow: hidden;
+}
+
+.asset-picker-modal .asset-picker {
+  min-height: 0;
+}
+
 .modal-body {
   display: flex;
   flex-direction: column;

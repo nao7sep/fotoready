@@ -25,6 +25,7 @@ export function ModalShell({
   title,
   size = "default",
   tall = false,
+  surfaceClassName,
   onClose,
   footer,
   children
@@ -32,6 +33,8 @@ export function ModalShell({
   title: string;
   size?: ModalSize;
   tall?: boolean;
+  /** A feature-owned hook for a justified outer-surface layout, such as a visual browser. */
+  surfaceClassName?: string;
   onClose(): void;
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -101,7 +104,14 @@ export function ModalShell({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <section className={`modal modal-${size}${tall ? " modal-tall" : ""}`} ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <section
+        className={`modal modal-${size}${tall ? " modal-tall" : ""}${surfaceClassName ? ` ${surfaceClassName}` : ""}`}
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
         <header className="modal-header">
           <h2 id={titleId}>{title}</h2>
           <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={onClose}>

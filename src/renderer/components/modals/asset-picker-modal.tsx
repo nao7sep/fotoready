@@ -340,6 +340,7 @@ export function AssetPickerModal<T extends PickerEntry>({
       title={title}
       size="wide"
       tall
+      surfaceClassName="asset-picker-modal"
       onClose={onClose}
       footer={
         <>

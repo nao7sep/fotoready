@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "stamps": [
+    { "slug": "censor-bar", "file": "censor-bar.png", "group": "cover", "label": "Censor bar" },
+    { "slug": "check", "file": "check.png", "group": "marks", "label": "Check" },
+    { "slug": "cover-blob", "file": "cover-blob.png", "group": "cover", "label": "Cover blob" },
+    { "slug": "exclamation-comic", "file": "exclamation-comic.png", "group": "marks", "label": "Exclamation" },
+    { "slug": "heart", "file": "heart.png", "group": "marks", "label": "Heart" }
+  ]
+}

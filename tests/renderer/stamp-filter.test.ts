@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import type { StampEntry } from "@shared/types/ipc";
+import { filterStampsByGroup, initialStampGroupFilter } from "@renderer/stamp-filter";
+
+const stamps: StampEntry[] = [
+  { slug: "cover-blob", name: "Cover blob", path: "/cover-blob.png", format: "png", builtin: true, groupId: "cover" },
+  { slug: "heart", name: "Heart", path: "/heart.png", format: "png", builtin: true, groupId: "marks" },
+  { slug: "mine", name: "mine.svg", path: "/mine.svg", format: "svg", builtin: false, groupId: "imported" }
+];
+
+describe("filterStampsByGroup", () => {
+  it("keeps the complete order for All and isolates each stored group", () => {
+    expect(filterStampsByGroup(stamps, "all").map((stamp) => stamp.slug)).toEqual(["cover-blob", "heart", "mine"]);
+    expect(filterStampsByGroup(stamps, "cover").map((stamp) => stamp.slug)).toEqual(["cover-blob"]);
+    expect(filterStampsByGroup(stamps, "imported").map((stamp) => stamp.slug)).toEqual(["mine"]);
+  });
+
+  it("returns an empty visible collection for an unfilled group", () => {
+    expect(filterStampsByGroup(stamps, "bubbles")).toEqual([]);
+  });
+
+  it("starts in the selected stamp's group or the first populated group", () => {
+    expect(initialStampGroupFilter(stamps, "/mine.svg")).toBe("imported");
+    expect(initialStampGroupFilter(stamps, "")).toBe("cover");
+    expect(initialStampGroupFilter([], "")).toBe("all");
+  });
+});

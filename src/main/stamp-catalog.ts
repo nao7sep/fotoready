@@ -11,6 +11,7 @@ import {
   listDirectoryAssets,
   readDirectoryAssets
 } from "./file-asset-catalog";
+import { readBuiltinStampCatalog } from "./builtin-stamp-catalog";
 
 const STAMP_EXTENSIONS = [".png", ".svg"] as const;
 
@@ -20,16 +21,29 @@ export async function listStamps(stampFolder: string, defaultStampDir: string, b
     readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS, logger),
     listDirectoryAssets(dir, STAMP_EXTENSIONS, logger)
   ]);
+  const catalogEntries = await readBuiltinStampCatalog(
+    bundledStampsDir,
+    builtInEntries.map((entry) => entry.fileName)
+  );
+  const builtInEntriesByFileName = new Map(builtInEntries.map((entry) => [entry.fileName, entry]));
   return [
-    ...builtInEntries.map((entry) => ({
-      builtin: true,
-      format: entry.extension.slice(1) as StampEntry["format"],
-      name: entry.fileName,
-      path: entry.path
-    })),
+    ...catalogEntries.map((catalogEntry) => {
+      const entry = builtInEntriesByFileName.get(catalogEntry.file);
+      if (!entry) throw new Error(`Built-in stamp asset is missing after catalog validation: ${catalogEntry.file}`);
+      return {
+        slug: catalogEntry.slug,
+        builtin: true,
+        format: entry.extension.slice(1) as StampEntry["format"],
+        groupId: catalogEntry.group,
+        name: catalogEntry.label,
+        path: entry.path
+      };
+    }),
     ...userEntries.map((entry) => ({
+      slug: path.parse(entry.fileName).name,
       builtin: false,
       format: entry.extension.slice(1) as StampEntry["format"],
+      groupId: "imported" as const,
       name: entry.fileName,
       path: entry.path
     }))

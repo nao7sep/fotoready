@@ -152,10 +152,12 @@ export type LutEntry = {
 };
 
 export type StampEntry = {
+  slug: string;
   name: string;
   path: string;
   format: "png" | "svg";
   builtin: boolean;
+  groupId: import("@shared/stamp-groups").StampGroupId;
 };
 
 export type AssetImportResult = {

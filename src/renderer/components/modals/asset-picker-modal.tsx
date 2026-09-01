@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { fileNameFromPath } from "@shared/file-path";
 import type {
@@ -8,7 +8,9 @@ import type {
   PreviewRenderOptions,
   StampEntry
 } from "@shared/types/ipc";
+import { STAMP_GROUP_FILTERS, type StampGroupFilterId } from "@shared/stamp-groups";
 import { api } from "@renderer/ipc/client";
+import { filterStampsByGroup, initialStampGroupFilter } from "@renderer/stamp-filter";
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { useConfirmer } from "./confirmer";
 import { ModalShell } from "./modal-shell";
@@ -28,9 +30,14 @@ type AssetPickerModalProps<T extends PickerEntry> = {
   title: string;
   selectedPath: string;
   loading?: boolean;
+  controls?: React.ReactNode;
+  contentId?: string;
+  contentLabelledBy?: string;
+  emptyMessage?: string;
   onClose(): void;
   onDelete(entries: T[]): Promise<void>;
   onImport(filePaths: string[]): Promise<AssetImportResult[]>;
+  onImportComplete?(results: AssetImportResult[]): void;
   onRefresh(): Promise<void>;
   onUse(entry: T | null): void | Promise<void>;
 };
@@ -43,9 +50,14 @@ export function AssetPickerModal<T extends PickerEntry>({
   title,
   selectedPath,
   loading = false,
+  controls,
+  contentId,
+  contentLabelledBy,
+  emptyMessage = "No items in this library",
   onClose,
   onDelete,
   onImport,
+  onImportComplete,
   onRefresh,
   onUse
 }: AssetPickerModalProps<T>): React.JSX.Element {
@@ -164,6 +176,7 @@ export function AssetPickerModal<T extends PickerEntry>({
 
       const imported = await onImport(filePaths);
       await onRefresh();
+      onImportComplete?.(imported);
 
       const importedEntries = imported.filter((entry) => entry.status === "imported");
       const skippedEntries = imported.filter((entry) => entry.status === "skipped-name-conflict");
@@ -355,6 +368,7 @@ export function AssetPickerModal<T extends PickerEntry>({
       }
     >
       <div className="asset-picker" style={{ "--asset-picker-preview-size": `${previewLongEdge}px` } as React.CSSProperties}>
+        {controls}
         {loading ? <div className="modal-warning">Preparing previews...</div> : null}
         {notice ? <div className="modal-warning">{notice}</div> : null}
         {errors.map((message, index) => (
@@ -365,7 +379,12 @@ export function AssetPickerModal<T extends PickerEntry>({
             </button>
           </div>
         ))}
-        <div className="asset-picker-scroll">
+        <div
+          aria-labelledby={contentLabelledBy}
+          className="asset-picker-scroll"
+          id={contentId}
+          role={contentId ? "tabpanel" : undefined}
+        >
           <div
             aria-multiselectable
             className="asset-picker-grid"
@@ -405,7 +424,7 @@ export function AssetPickerModal<T extends PickerEntry>({
                 </button>
               );
             }) : (
-              <div className="ops-empty">No items in this library</div>
+              <div className="ops-empty">{emptyMessage}</div>
             )}
           </div>
         </div>
@@ -528,17 +547,46 @@ export function StampPickerModal({
   onReload(): Promise<void>;
   onUse(path: string): void | Promise<void>;
 }): React.JSX.Element {
+  const [groupId, setGroupId] = useState<StampGroupFilterId>(() => initialStampGroupFilter(stamps, selectedPath));
+  const groupTabsRef = useRef<HTMLDivElement>(null);
+  const groupPanelId = useId();
+  const visibleStamps = useMemo(() => filterStampsByGroup(stamps, groupId), [groupId, stamps]);
+  const activeGroupIndex = STAMP_GROUP_FILTERS.findIndex((group) => group.id === groupId);
+  const activeGroupTabId = `${groupPanelId}-${groupId}-tab`;
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  function selectGroupAt(index: number): void {
+    const group = STAMP_GROUP_FILTERS[index];
+    if (!group) return;
+    setGroupId(group.id);
+    requestAnimationFrame(() => {
+      const tab = groupTabsRef.current?.querySelector<HTMLElement>(`[data-stamp-group-index="${index}"]`);
+      tab?.focus();
+    });
+  }
+
+  function handleGroupKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    let targetIndex: number | null = null;
+    if (event.key === "ArrowRight") targetIndex = Math.min(activeGroupIndex + 1, STAMP_GROUP_FILTERS.length - 1);
+    else if (event.key === "ArrowLeft") targetIndex = Math.max(activeGroupIndex - 1, 0);
+    else if (event.key === "Home") targetIndex = 0;
+    else if (event.key === "End") targetIndex = STAMP_GROUP_FILTERS.length - 1;
+    if (targetIndex === null) return;
+    event.preventDefault();
+    selectGroupAt(targetIndex);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    if (stamps.length === 0) {
+    if (visibleStamps.length === 0) {
       setPreviewMap({});
+      setLoading(false);
       return;
     }
     setLoading(true);
     setPreviewMap({});
-    void runWithConcurrency(stamps, 6, async (stamp) => {
+    void runWithConcurrency(visibleStamps, 6, async (stamp) => {
       if (cancelled) return;
       try {
         const thumbnail = await api.assets.thumbnail(stamp.path, previewLongEdge);
@@ -555,15 +603,52 @@ export function StampPickerModal({
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [previewLongEdge, stamps]);
+  }, [previewLongEdge, visibleStamps]);
 
-  const entries = stamps.map((stamp) => ({
+  const entries = visibleStamps.map((stamp) => ({
     ...stamp,
     name: stamp.name || fileNameFromPath(stamp.path),
     previewDataUrl: previewMap[stamp.path]
   }));
+  const emptyMessage = groupId === "all"
+    ? "No stamps in this library"
+    : groupId === "imported"
+      ? "No imported stamps"
+      : "No stamps in this group";
   return (
     <AssetPickerModal
+      contentId={groupPanelId}
+      contentLabelledBy={activeGroupTabId}
+      controls={(
+        <div
+          aria-label="Stamp groups"
+          className="asset-picker-groups"
+          onKeyDown={handleGroupKeyDown}
+          ref={groupTabsRef}
+          role="tablist"
+        >
+          {STAMP_GROUP_FILTERS.map((group, index) => {
+            const selected = group.id === groupId;
+            return (
+              <button
+                aria-controls={groupPanelId}
+                aria-selected={selected}
+                className={selected ? "active" : ""}
+                data-stamp-group-index={index}
+                id={`${groupPanelId}-${group.id}-tab`}
+                key={group.id}
+                onClick={() => setGroupId(group.id)}
+                role="tab"
+                tabIndex={selected ? 0 : -1}
+                type="button"
+              >
+                {group.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      emptyMessage={emptyMessage}
       entries={entries}
       extensions={["png", "svg"]}
       importTitle="Import stamps"
@@ -574,6 +659,7 @@ export function StampPickerModal({
       onClose={onClose}
       onDelete={(entriesToDelete) => api.stamps.delete(entriesToDelete.map((entry) => entry.path))}
       onImport={(filePaths) => api.stamps.import(filePaths)}
+      onImportComplete={() => setGroupId("imported")}
       onRefresh={onReload}
       onUse={(entry) => onUse(entry?.path ?? "")}
     />

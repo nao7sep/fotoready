@@ -8,6 +8,7 @@ export function filterStampsByGroup(stamps: readonly StampEntry[], groupId: Stam
 export function initialStampGroupFilter(stamps: readonly StampEntry[], selectedPath: string): StampGroupFilterId {
   const selected = stamps.find((stamp) => stamp.path === selectedPath);
   if (selected) return selected.groupId;
+  if (stamps.some((stamp) => stamp.groupId === "reactions")) return "reactions";
   return STAMP_GROUP_FILTERS
     .map((group) => group.id)
     .find((groupId) => groupId !== "all" && stamps.some((stamp) => stamp.groupId === groupId)) ?? "all";

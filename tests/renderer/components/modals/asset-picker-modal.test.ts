@@ -27,6 +27,7 @@ vi.mock("@renderer/ipc/client", () => ({
 const stamps: StampEntry[] = [
   { slug: "cover-blob", name: "Cover blob", path: "/cover-blob.png", format: "png", builtin: true, groupId: "cover" },
   { slug: "heart", name: "Heart", path: "/heart.png", format: "png", builtin: true, groupId: "marks" },
+  { slug: "laughing-face", name: "Laughing face", path: "/laughing-face.png", format: "png", builtin: true, groupId: "reactions" },
   { slug: "mine", name: "mine.svg", path: "/mine.svg", format: "svg", builtin: false, groupId: "imported" }
 ];
 
@@ -48,7 +49,7 @@ afterEach(async () => {
 });
 
 describe("StampPickerModal groups", () => {
-  it("loads only the initial visible group and keeps empty groups usable", async () => {
+  it("loads Reactions by default and keeps empty groups usable", async () => {
     await act(async () => {
       root.render(createElement(
         ConfirmerProvider,
@@ -65,16 +66,17 @@ describe("StampPickerModal groups", () => {
     });
 
     await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledTimes(1));
-    expect(mocks.thumbnail).toHaveBeenCalledWith("/cover-blob.png", 64);
-    expect(selectedTab()?.textContent).toBe("Cover");
-    expect(document.body.textContent).toContain("Cover blob");
+    expect(mocks.thumbnail).toHaveBeenCalledWith("/laughing-face.png", 64);
+    expect(selectedTab()?.textContent).toBe("Reactions");
+    expect(document.body.textContent).toContain("Laughing face");
+    expect(document.body.textContent).not.toContain("Cover blob");
     expect(document.body.textContent).not.toContain("Heart");
 
-    await clickTab("Marks");
-    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/heart.png", 64));
-    expect(selectedTab()?.textContent).toBe("Marks");
-    expect(document.body.textContent).toContain("Heart");
-    expect(document.body.textContent).not.toContain("Cover blob");
+    await clickTab("Cover");
+    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/cover-blob.png", 64));
+    expect(selectedTab()?.textContent).toBe("Cover");
+    expect(document.body.textContent).toContain("Cover blob");
+    expect(document.body.textContent).not.toContain("Laughing face");
 
     await clickTab("Bubbles");
     expect(selectedTab()?.textContent).toBe("Bubbles");

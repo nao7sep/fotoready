@@ -11,7 +11,8 @@ import {
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
   computeMinWindowHeight,
-  computeMinWindowWidth
+  computeMinWindowWidth,
+  computeNativeMinWindowSize
 } from "@shared/layout/workspace-metrics";
 
 describe("workspace-metrics", () => {
@@ -95,16 +96,32 @@ describe("workspace-metrics", () => {
       expect(clamped).toEqual({ width: 1440, height: 900 });
     });
 
-    it("never returns below the content minimum, even on a screen smaller than the minimum", () => {
-      // A screen narrower than the content minimum: the minimum wins (content must not truncate).
+    it("keeps the native window inside a work area smaller than the content floor", () => {
+      // The renderer keeps the complete floor and scrolls it; native title-bar controls stay reachable.
       const clamped = clampWindowSizeToWorkArea({ width: 800, height: 400 }, { width: 900, height: 500 });
-      expect(clamped.width).toBe(computeMinWindowWidth());
+      expect(clamped.width).toBe(900);
       expect(clamped.height).toBe(computeMinWindowHeight());
     });
 
     it("ignores a non-finite work area (leaves the size floored at the minimum)", () => {
       const clamped = clampWindowSizeToWorkArea({ width: 1400, height: 900 }, { width: Number.NaN, height: 0 });
       expect(clamped).toEqual({ width: 1400, height: 900 });
+    });
+  });
+
+  describe("computeNativeMinWindowSize", () => {
+    it("uses the full derived floor while it fits", () => {
+      expect(computeNativeMinWindowSize({ width: 2560, height: 1440 })).toEqual({
+        width: computeMinWindowWidth(),
+        height: computeMinWindowHeight()
+      });
+    });
+
+    it("caps only an impossible axis to the usable work area", () => {
+      expect(computeNativeMinWindowSize({ width: 900, height: 1000 })).toEqual({
+        width: 900,
+        height: computeMinWindowHeight()
+      });
     });
   });
 

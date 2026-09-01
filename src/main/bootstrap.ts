@@ -17,8 +17,7 @@ import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
-  computeMinWindowHeight,
-  computeMinWindowWidth
+  computeNativeMinWindowSize
 } from "@shared/layout/workspace-metrics";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
@@ -40,10 +39,11 @@ export function buildWindowOptions(
 ): BrowserWindowConstructorOptions {
   const requested = savedSize ?? { width: computeFirstRunWindowWidth(), height: computeFirstRunWindowHeight() };
   const size = clampWindowSizeToWorkArea(requested, workArea);
+  const nativeMinimum = computeNativeMinWindowSize(workArea);
   return {
     title: APP_NAME,
-    minWidth: computeMinWindowWidth(),
-    minHeight: computeMinWindowHeight(),
+    minWidth: nativeMinimum.width,
+    minHeight: nativeMinimum.height,
     width: size.width,
     height: size.height,
     backgroundColor: APP_BACKGROUND_COLOR,
@@ -144,6 +144,18 @@ export async function bootstrap(): Promise<void> {
       buildWindowOptions(path.join(__dirname, "../preload/index.mjs"), workAreaSize, uiState.windowSize)
     );
     installCloseGuard(win, exitState);
+
+    // A move to another display or a work-area change can make the complete content floor
+    // physically impossible. Keep native chrome reachable there; the renderer preserves and
+    // scrolls the full floor. Restore the full native minimum automatically when it fits again.
+    const syncNativeMinimum = (): void => {
+      const display = screen.getDisplayMatching(win.getBounds());
+      const minimum = computeNativeMinWindowSize(display.workAreaSize);
+      win.setMinimumSize(minimum.width, minimum.height);
+    };
+    win.on("move", syncNativeMinimum);
+    screen.on("display-metrics-changed", syncNativeMinimum);
+    win.once("closed", () => screen.off("display-metrics-changed", syncNativeMinimum));
 
     // Remember the window's size (only size, never position — a monitor change can't strand it
     // off-screen). Debounced on resize so a drag writes state.json once it settles; flushed on close so

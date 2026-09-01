@@ -90,20 +90,6 @@ export function computeMinWindowHeight(): number {
 }
 
 /**
- * The native minimum is allowed to protect the complete content floor only while that floor fits
- * the active display. On a smaller work area the native shell stays reachable and the renderer's
- * explicit viewport scrolls the unchanged complete floor instead.
- */
-export function computeNativeMinWindowSize(
-  workArea: { width: number; height: number }
-): { width: number; height: number } {
-  return {
-    width: capMinimumToWorkArea(computeMinWindowWidth(), workArea.width),
-    height: capMinimumToWorkArea(computeMinWindowHeight(), workArea.height)
-  };
-}
-
-/**
  * Content height (px) a fresh install opens with — taller than the bare CONTENT_MIN_HEIGHT so the
  * preview is usable out of the box, but deliberately modest: there is no point starting large when the
  * window size is remembered after the first resize.
@@ -127,11 +113,11 @@ export function computeFirstRunWindowHeight(): number {
 }
 
 /**
- * Clamp a remembered window size to the current display: never below the native minimum that fits
- * that work area, and never larger than the work area. The complete content floor remains unchanged
- * in the renderer and scrolls when it is larger than this native bound. Applied on every restore so
- * unplugging a large external monitor yields a reachable window. Pure — unit-tested without a real
- * display.
+ * Clamp a remembered window size to the current display: never below the content minimum (a smaller
+ * screen shrinks the window toward the minimum, and when the minimum itself exceeds a tiny screen the
+ * minimum wins — a window wider than the screen beats truncated content), never larger than the work
+ * area. Applied on every restore so unplugging a large external monitor yields a window that fits.
+ * Pure — unit-tested without a real display.
  */
 export function clampWindowSizeToWorkArea(
   size: { width: number; height: number },
@@ -146,13 +132,7 @@ export function clampWindowSizeToWorkArea(
 function clampWindowDimension(value: number, min: number, workArea: number): number {
   const rounded = Number.isFinite(value) ? Math.round(value) : min;
   const capped = Number.isFinite(workArea) && workArea > 0 ? Math.min(rounded, Math.round(workArea)) : rounded;
-  return Math.max(capMinimumToWorkArea(min, workArea), capped);
-}
-
-function capMinimumToWorkArea(min: number, workArea: number): number {
-  return Number.isFinite(workArea) && workArea > 0
-    ? Math.min(min, Math.round(workArea))
-    : min;
+  return Math.max(min, capped);
 }
 
 /**

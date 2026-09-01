@@ -25,7 +25,6 @@ import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout, type WorkspaceWidths } from "./layout/workspace-layout";
 import { PANE_DEFAULTS } from "@shared/layout/workspace-metrics";
-import { WORKSPACE_FLOOR_STYLE, WORKSPACE_VIEWPORT_STYLE } from "./layout/window-floor";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
@@ -650,8 +649,7 @@ function App(): React.JSX.Element {
   const hasJpegEstimate = settings?.enableJpegQualityEstimate && activeOriginal?.jpegQualityEstimate !== null;
 
   return (
-    <div style={WORKSPACE_VIEWPORT_STYLE}>
-      <main className="app-shell" style={WORKSPACE_FLOOR_STYLE}>
+    <main className="app-shell">
       <header className="top-bar">
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
@@ -886,8 +884,7 @@ function App(): React.JSX.Element {
           onOpenSettings={() => void openSettings("vision")}
         />
       </footer>
-      </main>
-    </div>
+    </main>
   );
 }
 

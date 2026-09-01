@@ -7,8 +7,7 @@ import {
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
   computeMinWindowHeight,
-  computeMinWindowWidth,
-  computeNativeMinWindowSize
+  computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
@@ -30,19 +29,11 @@ describe("buildWindowOptions", () => {
   const options = buildWindowOptions("/tmp/preload.mjs", workArea, null);
 
   it("uses the derived minimum size, not hand-typed literals", () => {
-    expect(options.minWidth).toBe(computeNativeMinWindowSize(workArea).width);
-    expect(options.minHeight).toBe(computeNativeMinWindowSize(workArea).height);
+    expect(options.minWidth).toBe(computeMinWindowWidth());
+    expect(options.minHeight).toBe(computeMinWindowHeight());
     // The old magic literals must be gone.
     expect(options.minWidth).not.toBe(1024);
     expect(options.minHeight).not.toBe(640);
-  });
-
-  it("caps an impossible native minimum while leaving the renderer floor derived", () => {
-    const small = { width: 900, height: 500 };
-    const opts = buildWindowOptions("/tmp/preload.mjs", small, null);
-    expect(opts.minWidth).toBe(small.width);
-    expect(opts.minHeight).toBe(computeMinWindowHeight());
-    expect(computeMinWindowWidth()).toBeGreaterThan(opts.minWidth!);
   });
 
   it("first run (no saved size) opens at the derived first-run size, not a fixed literal", () => {

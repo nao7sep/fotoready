@@ -558,8 +558,11 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.clearVision(activeTask.id));
   }
 
-  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<void> {
-    await refreshProject(await api.vision.runForTask(taskId, options));
+  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<string | null> {
+    const snapshot = await api.vision.runForTask(taskId, options);
+    await refreshProject(snapshot);
+    const error = snapshot.project.tasks.find((task) => task.id === taskId)?.error;
+    return error?.stage === "vision" ? error.message : null;
   }
 
   function openSettings(initialTab: SettingsTab = "save"): void {
@@ -832,12 +835,17 @@ function App(): React.JSX.Element {
           outputDirPath={project?.outputDir ?? null}
           onClearOutputDir={clearOutputDir}
           onClose={() => setRenameOpen(false)}
+          onOpenSettings={() => {
+            setRenameOpen(false);
+            openSettings("vision");
+          }}
           onPreview={(templateId) => api.rename.preview(templateId)}
           onRegenerateSlug={async (taskId) => {
             const task = project?.tasks.find((candidate) => candidate.id === taskId);
             if (!task?.output) return;
             const mode = resolveSlugRegenerationMode(task.output.vision?.description);
-            await runVisionForTask(taskId, { mode });
+            const failure = await runVisionForTask(taskId, { mode });
+            if (failure) throw new Error(failure);
           }}
           onRun={async (templateId, summary) => {
             await refreshProject(await api.rename.run(templateId));

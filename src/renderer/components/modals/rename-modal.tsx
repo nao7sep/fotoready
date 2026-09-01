@@ -17,6 +17,7 @@ export function RenameModal({
   outputDirPath,
   onClearOutputDir,
   onClose,
+  onOpenSettings,
   onPreview,
   onRegenerateSlug,
   onRun,
@@ -28,6 +29,7 @@ export function RenameModal({
   outputDirPath: string | null;
   onClearOutputDir(): Promise<void>;
   onClose(): void;
+  onOpenSettings(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
   onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<void>;
@@ -41,6 +43,7 @@ export function RenameModal({
   const [runBusy, setRunBusy] = useState(false);
   const [actionTaskIds, setActionTaskIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [settingsRecovery, setSettingsRecovery] = useState(false);
   const modalBusy = runBusy;
   const hasPendingSlugDrafts = Boolean(
     preview?.usesSlug
@@ -72,6 +75,7 @@ export function RenameModal({
     async function loadPreview(): Promise<void> {
       setPreviewBusy(true);
       setError(null);
+      setSettingsRecovery(false);
       await onPreview(templateId)
       .then((result) => {
         if (!cancelled) setPreview(result);
@@ -94,6 +98,7 @@ export function RenameModal({
   async function confirm(): Promise<void> {
     setRunBusy(true);
     setError(null);
+    setSettingsRecovery(false);
     try {
       await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
     } catch (caught) {
@@ -145,7 +150,16 @@ export function RenameModal({
         <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need{preview.blockedCount === 1 ? "s" : ""} attention before rename.</div>
       ) : null}
 
-      {error ? <div className="modal-error">{error}</div> : null}
+      {error ? (
+        <div className="modal-error" role="alert">
+          <span>{error}</span>
+          {settingsRecovery ? (
+            <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>
+              Open Settings
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="rename-preview-list">
         {preview?.items.length ? preview.items.map((item) => (
@@ -158,10 +172,13 @@ export function RenameModal({
             onRegenerateSlug={async (taskId) => {
               setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
               setError(null);
+              setSettingsRecovery(false);
               try {
                 await onRegenerateSlug(taskId);
               } catch (caught) {
-                setError(caught instanceof Error ? caught.message : String(caught));
+                const message = caught instanceof Error ? caught.message : String(caught);
+                setError(message);
+                setSettingsRecovery(/settings|gemini/i.test(message));
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }
@@ -169,6 +186,7 @@ export function RenameModal({
             onSetRenameSlug={async (taskId, customSlug) => {
               setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
               setError(null);
+              setSettingsRecovery(false);
               try {
                 await onSetRenameSlug(taskId, customSlug);
               } catch (caught) {

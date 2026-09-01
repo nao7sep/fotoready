@@ -1842,6 +1842,11 @@ select:disabled {
   margin-top: 6px;
 }
 
+.modal-error .toolbar-button {
+  display: block;
+  margin-top: 6px;
+}
+
 .modal-error {
   color: var(--danger-text);
   background: var(--danger-soft-bg);

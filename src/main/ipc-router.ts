@@ -203,9 +203,12 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     };
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
     if (result.canceled || result.filePaths.length === 0) {
-      return ctx.projectSession.snapshot();
+      return { snapshot: ctx.projectSession.snapshot(), cancelled: true };
     }
-    return publishResult(ctx.projectSession.setOutputDir(result.filePaths[0]));
+    return {
+      snapshot: await publishResult(ctx.projectSession.setOutputDir(result.filePaths[0])),
+      cancelled: false
+    };
   });
   handle("project.clearOutputDir", "info", async () => publishResult(ctx.projectSession.setOutputDir("")));
   handle("project.addOriginalsFromDialog", "info", async (event) => {

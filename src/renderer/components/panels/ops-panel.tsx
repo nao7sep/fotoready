@@ -10,6 +10,8 @@ import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
 import { useDraftField } from "@renderer/components/useDraftField";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
+import { OwnedFailureList } from "@renderer/components/owned-failure-list";
+import type { OwnedFailures } from "@renderer/owned-failures";
 
 const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
 const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> = {
@@ -29,6 +31,9 @@ type OpsPanelProps = {
   originalSize: { width: number; height: number } | null;
   visionGenerating: boolean;
   visionGenerationMode: VisionRunMode | null;
+  opFailures: OwnedFailures;
+  outputFailures: OwnedFailures;
+  onDismissFailure(key: string): void;
   onClearVision(): void;
   onOpenSettings(): void;
   onGenerateVision(mode: VisionRunMode): void;
@@ -54,6 +59,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   const { activeTask, opCatalog, pendingRevealOpId, selectedOpId } = props;
   const currentOpsRef = useRef<HTMLDivElement>(null);
   const opRefs = useRef(new Map<string, HTMLElement>());
+  const panelOpFailures = failuresOutsideConsequencePrefix(props.opFailures, "op:");
 
   useEffect(() => {
     if (!pendingRevealOpId) return;
@@ -70,8 +76,9 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
     // the editor, so the splitter count is unambiguous.
     <div className="ops-region" style={{ gridTemplateColumns: `minmax(0, 1fr) ${props.addOpsWidth}px` }}>
       <aside className="panel ops-panel ops-edit-pane">
-        <section className="op-section current-ops-section">
+        <section className={`op-section current-ops-section${Object.keys(panelOpFailures).length > 0 ? " has-owned-failures" : ""}`}>
           <h3>Ops</h3>
+          <OwnedFailureList className="panel-owned-failures" failures={panelOpFailures} onDismiss={props.onDismissFailure} />
           <div className="current-ops" ref={currentOpsRef}>
             {activeTask ? (
               activeTask.pipeline.ops.length ? activeTask.pipeline.ops.map((op, index) => (
@@ -86,6 +93,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   assetPickerPreviewLongEdge={props.settings?.assetPickerPreviewLongEdge ?? DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE}
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={activeTask.status !== "not-saved"}
+                  failures={failuresForConsequencePrefix(props.opFailures, `op:${op.id}:`)}
                   index={index}
                   key={op.id}
                   luts={props.luts}
@@ -93,6 +101,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   opCount={activeTask.pipeline.ops.length}
                   taskId={activeTask.id}
                   onEnabledChange={(enabled) => props.onOpEnabledChange(op.id, enabled)}
+                  onDismissFailure={props.onDismissFailure}
                   onMove={(toIndex) => props.onMoveOp(op.id, toIndex)}
                   onParamChange={(key, value, options) => props.onOpParamChange(op.id, key, value, options)}
                   onParamsChange={(patch, options) => props.onOpParamsChange(op.id, patch, options)}
@@ -111,6 +120,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
         </section>
         <section className="op-section output-section">
           <h3>Output</h3>
+          <OwnedFailureList failures={props.outputFailures} onDismiss={props.onDismissFailure} />
           <div className="output-fixed">
             <OutputControls
               hasGeminiApiKey={props.hasGeminiApiKey}
@@ -210,11 +220,13 @@ function PipelineOpCard({
   cardRef,
   catalogItem,
   disabled,
+  failures,
   index,
   op,
   opCount,
   taskId,
   onEnabledChange,
+  onDismissFailure,
   luts,
   onMove,
   onParamChange,
@@ -232,12 +244,14 @@ function PipelineOpCard({
   cardRef(element: HTMLElement | null): void;
   catalogItem: OpCatalogItem | null;
   disabled: boolean;
+  failures: OwnedFailures;
   index: number;
   luts: LutEntry[];
   op: OpInstance;
   opCount: number;
   taskId: string;
   onEnabledChange(enabled: boolean): void;
+  onDismissFailure(key: string): void;
   onMove(toIndex: number): void;
   onParamChange(key: string, value: unknown, options?: TaskEditOptions): void;
   onParamsChange(patch: Record<string, unknown>, options?: TaskEditOptions): void;
@@ -297,6 +311,7 @@ function PipelineOpCard({
           </button>
         </div>
       </div>
+      <OwnedFailureList failures={failures} onDismiss={onDismissFailure} />
       {Card ? (
         <Card
           params={op.params}
@@ -320,6 +335,19 @@ function PipelineOpCard({
       )}
     </section>
   );
+}
+
+function failuresForConsequencePrefix(failures: OwnedFailures, prefix: string): OwnedFailures {
+  return Object.fromEntries(Object.entries(failures).filter(([key]) => failureConsequence(key).startsWith(prefix)));
+}
+
+function failuresOutsideConsequencePrefix(failures: OwnedFailures, prefix: string): OwnedFailures {
+  return Object.fromEntries(Object.entries(failures).filter(([key]) => !failureConsequence(key).startsWith(prefix)));
+}
+
+function failureConsequence(key: string): string {
+  const separator = key.indexOf("\0");
+  return separator < 0 ? key : key.slice(separator + 1);
 }
 
 function OutputControls({

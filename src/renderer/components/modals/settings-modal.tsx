@@ -8,6 +8,8 @@ import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from 
 import { GEMINI_MODELS, defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
+import { OperationResult } from "../operation-result";
+import { presentFailure } from "../../present-failure";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
 
@@ -55,12 +57,44 @@ export function AppSettingsModal({
   onClearApiKey(): void;
   onKeepApiKey(): void;
   onClose(): void;
-  onSaveSettings(): void;
+  onSaveSettings(): Promise<void>;
   settingsDraft: GlobalSettings | null;
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
+  const [saveFailure, setSaveFailure] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  async function save(): Promise<void> {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveFailure(null);
+    try {
+      await onSaveSettings();
+    } catch (error) {
+      setSaveFailure(presentFailure(
+        error,
+        "Some settings changes could not be saved. Any changes that succeeded are already in use; the remaining changes stay open so you can try again.",
+        "settings save failed"
+      ));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function updateSettingsDraft(next: GlobalSettings): void {
+    setSaveFailure(null);
+    setSettingsDraft(next);
+  }
+
+  function updateApiKeyDraft(next: string): void {
+    setSaveFailure(null);
+    onApiKeyDraftChange(next);
+  }
 
   // The settings tabs are a tablist: one tab stop (roving tabindex), Left/Right
   // move and activate immediately (switching a settings page is cheap), Home/End
@@ -91,14 +125,16 @@ export function AppSettingsModal({
       title="Settings"
       size="default"
       tall
+      closeDisabled={saving}
       onClose={onClose}
       footer={
         <>
-          <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-action" type="button" disabled={!settingsDraft || !hasChanges} onClick={onSaveSettings}>Save</button>
+          <button className="toolbar-button" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
         </>
       }
     >
+      <fieldset className="settings-busy-fieldset" disabled={saving} aria-busy={saving ? "true" : undefined}>
       <div
         ref={tablistRef}
         role="tablist"
@@ -121,26 +157,37 @@ export function AppSettingsModal({
           </button>
         ))}
       </div>
+      {saveFailure ? (
+        <OperationResult
+          className="modal-error"
+          dismissLabel="Close settings result"
+          severity="error"
+          onDismiss={() => setSaveFailure(null)}
+        >
+          {saveFailure}
+        </OperationResult>
+      ) : null}
       {settingsDraft ? (
         <div className="settings-page">
-          {tab === "save" ? <SaveTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
-          {tab === "metadata" ? <MetadataTab settings={settingsDraft} setSettings={setSettingsDraft} /> : null}
+          {tab === "save" ? <SaveTab settings={settingsDraft} setSettings={updateSettingsDraft} /> : null}
+          {tab === "metadata" ? <MetadataTab settings={settingsDraft} setSettings={updateSettingsDraft} /> : null}
           {tab === "vision" ? (
             <VisionTab
               apiKeyDraft={apiKeyDraft}
               apiKeyClearRequested={apiKeyClearRequested}
               hasGeminiApiKey={hasGeminiApiKey}
-              onApiKeyDraftChange={onApiKeyDraftChange}
-              onClearApiKey={onClearApiKey}
-              onKeepApiKey={onKeepApiKey}
+              onApiKeyDraftChange={updateApiKeyDraft}
+              onClearApiKey={() => { setSaveFailure(null); onClearApiKey(); }}
+              onKeepApiKey={() => { setSaveFailure(null); onKeepApiKey(); }}
               settings={settingsDraft}
-              setSettings={setSettingsDraft}
+              setSettings={updateSettingsDraft}
             />
           ) : null}
-          {tab === "assets" ? <AssetsTab settings={settingsDraft} setSettings={setSettingsDraft} systemInfo={systemInfo} /> : null}
-          {tab === "app" ? <AppTab settings={settingsDraft} setSettings={setSettingsDraft} systemInfo={systemInfo} /> : null}
+          {tab === "assets" ? <AssetsTab settings={settingsDraft} setSettings={updateSettingsDraft} systemInfo={systemInfo} /> : null}
+          {tab === "app" ? <AppTab settings={settingsDraft} setSettings={updateSettingsDraft} systemInfo={systemInfo} /> : null}
         </div>
       ) : null}
+      </fieldset>
     </ModalShell>
   );
 }
@@ -695,15 +742,47 @@ function PathField({
   value: string;
   onChange(value: string): void;
 }): React.JSX.Element {
+  const [pickFailure, setPickFailure] = useState<string | null>(null);
+  const inputId = useId();
+
+  function change(next: string): void {
+    setPickFailure(null);
+    onChange(next);
+  }
+
+  async function choose(): Promise<void> {
+    try {
+      const picked = await pick();
+      if (picked !== null) change(picked);
+    } catch (error) {
+      setPickFailure(presentFailure(
+        error,
+        "That location could not be chosen. The current path is unchanged; try again.",
+        "settings path picker failed",
+        { field: label }
+      ));
+    }
+  }
+
   return (
-    <label className="stacked-field span-two">
-      {label}
+    <div className="stacked-field span-two">
+      <label htmlFor={inputId}>{label}</label>
       <div className="settings-path-row">
-        <input type="text" placeholder={emptyLabel} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
-        <button className="toolbar-button" type="button" onClick={() => void pick().then((picked) => picked !== null ? onChange(picked) : undefined)}>{buttonLabel}</button>
-        {allowClear ? <button className="toolbar-button" type="button" onClick={() => onChange("")}>Clear</button> : null}
+        <input id={inputId} type="text" placeholder={emptyLabel} value={value} onChange={(event) => change(event.currentTarget.value)} />
+        <button className="toolbar-button" type="button" onClick={() => void choose()}>{buttonLabel}</button>
+        {allowClear ? <button className="toolbar-button" type="button" onClick={() => change("")}>Clear</button> : null}
       </div>
-    </label>
+      {pickFailure ? (
+        <OperationResult
+          className="modal-error"
+          dismissLabel="Close path result"
+          severity="error"
+          onDismiss={() => setPickFailure(null)}
+        >
+          {pickFailure}
+        </OperationResult>
+      ) : null}
+    </div>
   );
 }
 

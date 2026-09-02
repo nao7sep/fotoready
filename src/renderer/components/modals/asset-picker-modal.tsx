@@ -246,9 +246,22 @@ export function AssetPickerModal<T extends PickerEntry>({
       setOperationError("delete", null);
       setPendingReselectIndex(Number.isFinite(deletedIndex) ? deletedIndex : 0);
     } catch (deleteError) {
+      let refreshed = true;
+      try {
+        await onRefresh();
+      } catch (refreshError) {
+        refreshed = false;
+        presentFailure(
+          refreshError,
+          "",
+          "renderer asset library refresh after deletion failed",
+        );
+      }
       setOperationError("delete", presentFailure(
         deleteError,
-        "The selected assets could not be moved to the trash. They remain in the library; try again.",
+        refreshed
+          ? "Some selected files may already be in Trash. The library list was refreshed; review it, then try any remaining items again."
+          : "Some selected files may already be in Trash, and the library list could not be refreshed. Close and reopen this picker after restoring access to the library folder.",
         "renderer asset deletion failed",
       ));
     }

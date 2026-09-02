@@ -288,7 +288,9 @@ describe("runRename", () => {
       return realRename(from as never, to as never);
     });
 
-    await expect(runRename(project, SLUG_ONLY)).rejects.toThrow(/sidecar failure/i);
+    await expect(runRename(project, SLUG_ONLY)).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: expect.stringMatching(/sidecar failure/i) })
+    });
 
     // Image is back at its staged path; the proposed name was not left behind.
     await expect(fs.access(staged)).resolves.toBeUndefined();
@@ -296,5 +298,31 @@ describe("runRename", () => {
     // The task output still points at the staged location (never committed the rename).
     expect(task.output?.finalPath).toBeNull();
     expect(task.output?.renamedAt).toBeNull();
+  });
+
+  it("reports completed task ids and leaves the project snapshot truthful after a later failure", async () => {
+    const staged1 = await writeImage("staged-1.jpg");
+    const staged2 = await writeImage("staged-2.jpg");
+    await writeSidecar(staged1);
+    await writeSidecar(staged2);
+    const first = makeTask({ id: "t1", originalId: "o1", customSlug: "first", stagedPath: staged1 });
+    const second = makeTask({ id: "t2", originalId: "o2", customSlug: "second", stagedPath: staged2 });
+    const project: Project = {
+      outputDir: workDir,
+      originals: [makeOriginal("o1", "one.jpg"), makeOriginal("o2", "two.jpg")],
+      tasks: [first, second]
+    };
+    const realRename = fs.rename;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (String(to).endsWith("second.json")) {
+        throw Object.assign(new Error("simulated second sidecar failure"), { code: "EACCES" });
+      }
+      return realRename(from as never, to as never);
+    });
+
+    await expect(runRename(project, SLUG_ONLY)).rejects.toMatchObject({ completedTaskIds: ["t1"] });
+    expect(first.output?.finalPath).toBe(path.join(workDir, "first.jpg"));
+    expect(second.output?.finalPath).toBeNull();
+    await expect(fs.access(staged2)).resolves.toBeUndefined();
   });
 });

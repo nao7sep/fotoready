@@ -118,7 +118,8 @@ describe("RenameModal vision recovery", () => {
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent)
       .toContain("The rename preview could not be prepared. Saved files are unchanged; try again.");
-    expect(error?.querySelector("svg")).toBeNull();
+    expect(error?.querySelectorAll("svg")).toHaveLength(1);
+    expect(error?.querySelector(".operation-result-close-icon")).not.toBeNull();
   });
 
   it("keeps a failed rename run assertive and inside the modal", async () => {
@@ -130,15 +131,78 @@ describe("RenameModal vision recovery", () => {
     await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
     await clickButton("Rename all");
     expect(document.querySelector('[role="alert"]')?.textContent)
-      .toContain("Files could not be renamed. Existing filenames are unchanged; resolve any blocked items and try again.");
+      .toContain("Some files may already have their new names");
+  });
+
+  it("owns an output folder failure without exposing bridge diagnostics", async () => {
+    await renderModal({
+      onSetOutputDir: async () => {
+        throw new Error("Error invoking remote method: EACCES /private/tmp/FOTOREADY_RENAME_SENTINEL");
+      }
+    });
+
+    await clickButton("Change");
+    const result = document.querySelector('[role="alert"]');
+    expect(result?.textContent).toContain("The current folder is still in use");
+    expect(result?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_RENAME_SENTINEL|invoking remote method/i);
+    expect(result?.querySelectorAll("svg")).toHaveLength(1);
+  });
+
+  it("retains unrelated preview and output-folder failures independently", async () => {
+    await renderModal({
+      onPreview: async () => { throw new Error("preview rejected"); },
+      onSetOutputDir: async () => { throw new Error("output picker rejected"); }
+    });
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="alert"]')).toHaveLength(1));
+
+    await clickButton("Change");
+    expect(document.querySelectorAll('[role="alert"]')).toHaveLength(2);
+    expect(document.body.textContent).toContain("The rename preview could not be prepared");
+    expect(document.body.textContent).toContain("The current folder is still in use");
+  });
+
+  it("keeps the modal open and reconciled after a stopped partial rename", async () => {
+    await renderModal({ onPreview: async () => readyPreview, onRun: async () => "stopped" });
+    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+
+    await clickButton("Rename all");
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Some files may already have their new names");
+  });
+
+  it("blocks every close path while a rename batch is running", async () => {
+    let finishRun: ((outcome: "stopped") => void) | undefined;
+    const running = new Promise<"stopped">((resolve) => { finishRun = resolve; });
+    const onClose = vi.fn();
+    await renderModal({ onClose, onPreview: async () => readyPreview, onRun: async () => running });
+    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+
+    await clickButton("Rename all");
+    const cancel = button("Cancel");
+    const headerClose = document.querySelector<HTMLButtonElement>(".modal-header-close");
+    expect(cancel?.disabled).toBe(true);
+    expect(headerClose?.disabled).toBe(true);
+
+    await act(async () => {
+      cancel?.click();
+      headerClose?.click();
+      document.querySelector<HTMLElement>(".modal-backdrop")?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => finishRun?.("stopped"));
+    expect(button("Cancel")?.disabled).toBe(false);
   });
 });
 
 async function renderModal(overrides: {
   onOpenSettings?: () => void;
+  onClose?: () => void;
   onPreview?: () => Promise<RenamePreview>;
   onRegenerateSlug?: (taskId: string) => Promise<void>;
-  onRun?: () => Promise<void>;
+  onRun?: () => Promise<"complete" | "stopped">;
+  onSetOutputDir?: () => Promise<void>;
 } = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(RenameModal, {
@@ -146,13 +210,13 @@ async function renderModal(overrides: {
       outputDirLabel: "output",
       outputDirPath: "/output",
       onClearOutputDir: async () => undefined,
-      onClose: () => undefined,
+      onClose: overrides.onClose ?? (() => undefined),
       onOpenSettings: overrides.onOpenSettings ?? (() => undefined),
       onPreview: overrides.onPreview ?? (async () => preview),
       onRegenerateSlug: overrides.onRegenerateSlug ?? (async () => undefined),
-      onRun: overrides.onRun ?? (async () => undefined),
+      onRun: overrides.onRun ?? (async () => "complete"),
       onSetRenameSlug: async () => undefined,
-      onSetOutputDir: async () => undefined,
+      onSetOutputDir: overrides.onSetOutputDir ?? (async () => undefined),
     }));
   });
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());

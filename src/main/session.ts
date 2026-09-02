@@ -8,11 +8,11 @@ import type { Original, Project, Task } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
-import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
-import { previewRename, runRename } from "@main/rename-service";
+import { previewRename, RenameBatchStoppedError, runRename } from "@main/rename-service";
 import type { VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -535,31 +535,34 @@ export class ProjectSession {
   async setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "not-saved") this.recordTaskEdit(task);
-    const flags = nextMetadataFlags(task, { field: "generateDescription", value: generateDescription });
-    task.generateDescription = flags.generateDescription;
-    task.generateSlug = flags.generateSlug;
-    touchTaskMetadata(task);
-    await this.writeOutputSidecarIfSaved(task);
+    await this.updateTaskMetadata(task, () => {
+      const flags = nextMetadataFlags(task, { field: "generateDescription", value: generateDescription });
+      task.generateDescription = flags.generateDescription;
+      task.generateSlug = flags.generateSlug;
+      touchTaskMetadata(task);
+    });
     return this.snapshot();
   }
 
   async setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "not-saved") this.recordTaskEdit(task);
-    const flags = nextMetadataFlags(task, { field: "generateSlug", value: generateSlug });
-    task.generateDescription = flags.generateDescription;
-    task.generateSlug = flags.generateSlug;
-    touchTaskMetadata(task);
-    await this.writeOutputSidecarIfSaved(task);
+    await this.updateTaskMetadata(task, () => {
+      const flags = nextMetadataFlags(task, { field: "generateSlug", value: generateSlug });
+      task.generateDescription = flags.generateDescription;
+      task.generateSlug = flags.generateSlug;
+      touchTaskMetadata(task);
+    });
     return this.snapshot();
   }
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     if (task.status === "not-saved") this.recordTaskEdit(task);
-    task.customSlug = normalizeOptionalSlug(customSlug);
-    touchTaskMetadata(task);
-    await this.writeOutputSidecarIfSaved(task);
+    await this.updateTaskMetadata(task, () => {
+      task.customSlug = normalizeOptionalSlug(customSlug);
+      touchTaskMetadata(task);
+    });
     return this.snapshot();
   }
 
@@ -605,9 +608,18 @@ export class ProjectSession {
     return previewRename(this.#project, templateId, taskIds, this.logger);
   }
 
-  async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSessionSnapshot> {
-    await runRename(this.#project, templateId, taskIds, this.logger);
-    return this.snapshot();
+  async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenameRunResult> {
+    try {
+      const completedTaskIds = await runRename(this.#project, templateId, taskIds, this.logger);
+      return { snapshot: this.snapshot(), status: "complete", completedTaskIds };
+    } catch (error) {
+      this.logger?.error("rename batch stopped", { mod: "rename", err: error });
+      return {
+        snapshot: this.snapshot(),
+        status: "stopped",
+        completedTaskIds: error instanceof RenameBatchStoppedError ? error.completedTaskIds : []
+      };
+    }
   }
 
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
@@ -641,13 +653,14 @@ export class ProjectSession {
     const task = this.metadataTask(taskId);
     const vision = task.output?.vision ?? null;
     if (!vision) return this.snapshot();
-    if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
-      task.customSlug = null;
-    }
-    if (task.output) task.output.vision = null;
-    if (task.error?.stage === "vision") task.error = null;
-    touchTaskMetadata(task);
-    await this.writeOutputSidecarIfSaved(task);
+    await this.updateTaskMetadata(task, () => {
+      if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
+        task.customSlug = null;
+      }
+      if (task.output) task.output.vision = null;
+      if (task.error?.stage === "vision") task.error = null;
+      touchTaskMetadata(task);
+    });
     return this.snapshot();
   }
 
@@ -695,6 +708,17 @@ export class ProjectSession {
     if (task.output.finalPath) {
       task.output.finalPath = outputPath;
       task.output.finalParamsPath = paramsPath;
+    }
+  }
+
+  private async updateTaskMetadata(task: Task, update: () => void): Promise<void> {
+    const before = task.output ? structuredClone(task) : null;
+    update();
+    try {
+      await this.writeOutputSidecarIfSaved(task);
+    } catch (error) {
+      if (before) Object.assign(task, before);
+      throw error;
     }
   }
 

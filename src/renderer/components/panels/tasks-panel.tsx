@@ -4,6 +4,8 @@ import type { PrivacyWarning, QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
 import { useListbox } from "@renderer/components/useListbox";
+import { OwnedFailureList } from "@renderer/components/owned-failure-list";
+import type { OwnedFailures } from "@renderer/owned-failures";
 
 export function TasksPanel({
   activeTaskId,
@@ -11,7 +13,9 @@ export function TasksPanel({
   queue,
   tasks,
   privacyWarnings,
+  failures,
   onRename,
+  onDismissFailure,
   onSaveAll,
   onCancelAll,
   onSelect
@@ -21,6 +25,8 @@ export function TasksPanel({
   queue: QueueSnapshot;
   tasks: Task[];
   privacyWarnings: Record<string, PrivacyWarning>;
+  failures: OwnedFailures;
+  onDismissFailure(key: string): void;
   onRename(): void;
   onSaveAll(): void;
   onCancelAll(): void;
@@ -37,6 +43,7 @@ export function TasksPanel({
   return (
     <aside className="panel tasks-panel">
       <PanelHeader title="Tasks" />
+      <OwnedFailureList className="panel-owned-failures" failures={failures} onDismiss={onDismissFailure} />
       <div className="list" aria-label="Tasks" {...listbox.listboxProps}>
         {tasks.length === 0 ? (
           <div className="empty-state">No tasks yet</div>

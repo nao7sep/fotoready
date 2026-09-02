@@ -6,6 +6,8 @@ import {
   type AssetOverlayParams
 } from "@shared/asset-overlay";
 import { api } from "@renderer/ipc/client";
+import { reportRendererLog } from "@renderer/renderer-log";
+import { describeError } from "@renderer/present-failure";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
 import { imageBoundsFromOriginalSize, rectFromStage, rectToStage, updateFractionRect, type FractionRect } from "./_overlay-primitives";
@@ -345,7 +347,12 @@ async function readLocalAssetAspectRatio(assetPath: string): Promise<number> {
   try {
     const ar = await api.assets.aspectRatio(assetPath);
     return Number.isFinite(ar) && ar > 0 ? ar : 1;
-  } catch {
+  } catch (error) {
+    reportRendererLog({
+      level: "warn",
+      message: "asset aspect ratio read failed; using fallback",
+      fields: { assetPath, error: describeError(error) }
+    });
     return 1;
   }
 }

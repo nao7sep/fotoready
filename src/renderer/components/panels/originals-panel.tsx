@@ -10,14 +10,18 @@ import {
 } from "@renderer/external-file-drop";
 import type { OriginalImportFeedback } from "@renderer/original-import-feedback";
 import { OperationResult } from "@renderer/components/operation-result";
+import { OwnedFailureList } from "@renderer/components/owned-failure-list";
+import type { OwnedFailures } from "@renderer/owned-failures";
 
 export function OriginalsPanel({
   activeOriginalId,
   originals,
   thumbnails,
   feedback,
+  failures,
   onAdd,
   onDismissFeedback,
+  onDismissFailure,
   onDropFiles,
   onRemove,
   onSelect
@@ -26,8 +30,10 @@ export function OriginalsPanel({
   originals: Original[];
   thumbnails: Record<string, string>;
   feedback: OriginalImportFeedback | null;
+  failures: OwnedFailures;
   onAdd(): void;
   onDismissFeedback(): void;
+  onDismissFailure(key: string): void;
   onDropFiles(paths: string[], inaccessibleNames: string[]): void;
   onRemove(originalId: string): void;
   onSelect(originalId: string): void;
@@ -85,19 +91,26 @@ export function OriginalsPanel({
           {originals.length === 0 ? (
             <div className="empty-state">No originals. Add or drop an image or FotoReady sidecar.</div>
           ) : originals.map((original) => (
-            <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`} key={original.id}>
-              <button className="row-main-action" type="button" onClick={() => onSelect(original.id)} {...listbox.getOptionProps(original.id)}>
-                <span className="thumb">
-                  {thumbnails[original.id] ? <img src={thumbnails[original.id]} alt="" /> : null}
-                </span>
-                <span className="row-copy">
-                  <span className="row-title">{basename(original.sourcePath)}</span>
-                  <span className="row-detail">{original.width}x{original.height} · {formatLabel(original.format)}</span>
-                </span>
-              </button>
-              <button className="icon-button compact row-remove-button" title="Remove original" type="button" tabIndex={-1} onClick={() => onRemove(original.id)}>
-                <Trash2 size={13} />
-              </button>
+            <div className="original-list-entry" key={original.id}>
+              <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`}>
+                <button className="row-main-action" type="button" onClick={() => onSelect(original.id)} {...listbox.getOptionProps(original.id)}>
+                  <span className="thumb">
+                    {thumbnails[original.id] ? <img src={thumbnails[original.id]} alt="" /> : null}
+                  </span>
+                  <span className="row-copy">
+                    <span className="row-title">{basename(original.sourcePath)}</span>
+                    <span className="row-detail">{original.width}x{original.height} · {formatLabel(original.format)}</span>
+                  </span>
+                </button>
+                <button className="icon-button compact row-remove-button" title="Remove original" type="button" tabIndex={-1} onClick={() => onRemove(original.id)}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+              <OwnedFailureList
+                className="original-row-failure"
+                failures={failureForKey(failures, `remove:${original.id}`)}
+                onDismiss={onDismissFailure}
+              />
             </div>
           ))}
         </div>
@@ -116,6 +129,7 @@ export function OriginalsPanel({
             </div>
           </OperationResult>
         ) : null}
+        <OwnedFailureList className="panel-owned-failures" failures={failuresOutsidePrefix(failures, "remove:")} onDismiss={onDismissFailure} />
         <div className="panel-footer">
           <button className="toolbar-button" type="button" onClick={onAdd}>
             <ImagePlus size={14} />
@@ -137,4 +151,12 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
 
 function basename(sourcePath: string): string {
   return sourcePath.split(/[\\/]/).at(-1) ?? sourcePath;
+}
+
+function failureForKey(failures: OwnedFailures, key: string): OwnedFailures {
+  return key in failures ? { [key]: failures[key] } : {};
+}
+
+function failuresOutsidePrefix(failures: OwnedFailures, prefix: string): OwnedFailures {
+  return Object.fromEntries(Object.entries(failures).filter(([key]) => !key.startsWith(prefix)));
 }

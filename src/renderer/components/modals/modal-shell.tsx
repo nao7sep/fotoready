@@ -26,6 +26,7 @@ export function ModalShell({
   size = "default",
   tall = false,
   surfaceClassName,
+  closeDisabled = false,
   onClose,
   footer,
   children
@@ -35,6 +36,8 @@ export function ModalShell({
   tall?: boolean;
   /** A feature-owned hook for a justified outer-surface layout, such as a visual browser. */
   surfaceClassName?: string;
+  /** Blocks every user close path while a genuinely non-interruptible operation is running. */
+  closeDisabled?: boolean;
   onClose(): void;
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -88,6 +91,7 @@ export function ModalShell({
         if (isComposingKeyboardEvent(event)) return;
         event.preventDefault();
         event.stopPropagation();
+        if (closeDisabled) return;
         onClose();
       } else if (event.key === "Tab") {
         trapTabFocus(event, modalRef.current);
@@ -95,13 +99,13 @@ export function ModalShell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [layerId, onClose]);
+  }, [closeDisabled, layerId, onClose]);
 
   return createPortal(
     <div
       className="modal-backdrop"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!closeDisabled && event.target === event.currentTarget) onClose();
       }}
     >
       <section
@@ -114,7 +118,7 @@ export function ModalShell({
       >
         <header className="modal-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="modal-header-close" type="button" aria-label="Close" title="Close" onClick={onClose}>
+          <button className="modal-header-close" type="button" aria-label="Close" title="Close" disabled={closeDisabled} onClick={onClose}>
             <X className="modal-header-close-icon" />
           </button>
         </header>

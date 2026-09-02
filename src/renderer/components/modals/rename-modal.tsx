@@ -6,11 +6,17 @@ import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameI
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
+import type { OwnedActionOutcome } from "@renderer/owned-failures";
 import { ModalShell } from "./modal-shell";
 
 export type RenameRunSummary = {
   renamed: Array<{ from: string; to: string }>;
   skipped: string[];
+};
+
+type RenameFailure = {
+  message: string;
+  settingsRecovery?: boolean;
 };
 
 export function RenameModal({
@@ -29,23 +35,23 @@ export function RenameModal({
   projectSnapshot: ProjectSnapshot;
   outputDirLabel: string;
   outputDirPath: string | null;
-  onClearOutputDir(): Promise<void>;
+  onClearOutputDir(): Promise<void | OwnedActionOutcome>;
   onClose(): void;
   onOpenSettings(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<void>;
+  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<"complete" | "stopped">;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
-  onSetOutputDir(): Promise<void>;
+  onSetOutputDir(): Promise<void | OwnedActionOutcome>;
 }): React.JSX.Element {
   const [dirtySlugDrafts, setDirtySlugDrafts] = useState<Record<string, boolean>>({});
   const [templateId, setTemplateId] = useState<RenameTemplateId>(DEFAULT_RENAME_TEMPLATE_ID);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [runBusy, setRunBusy] = useState(false);
+  const runBusyRef = useRef(false);
   const [actionTaskIds, setActionTaskIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [settingsRecovery, setSettingsRecovery] = useState(false);
+  const [failures, setFailures] = useState<Record<string, RenameFailure>>({});
   const modalBusy = runBusy;
   const hasPendingSlugDrafts = Boolean(
     preview?.usesSlug
@@ -57,6 +63,20 @@ export function RenameModal({
     && !hasPendingSlugDrafts
   );
   const tasksById = new Map(projectSnapshot.project.tasks.map((task) => [task.id, task]));
+  const globalFailures = Object.entries(failures).filter(([key]) => !key.includes("\0"));
+
+  function clearFailure(key: string): void {
+    setFailures((current) => {
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function retainFailure(key: string, failure: RenameFailure): void {
+    setFailures((current) => ({ ...current, [key]: failure }));
+  }
 
   useEffect(() => {
     const activeTaskIds = new Set(preview?.items.map((item) => item.taskId) ?? []);
@@ -77,18 +97,19 @@ export function RenameModal({
     async function loadPreview(): Promise<void> {
       setPreviewBusy(true);
       setPreview(null);
-      setError(null);
-      setSettingsRecovery(false);
+      clearFailure("preview");
       await onPreview(templateId)
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(presentFailure(
-          caught,
-          "The rename preview could not be prepared. Saved files are unchanged; try again.",
-          "renderer rename preview failed",
-        ));
+        if (!cancelled) retainFailure("preview", {
+          message: presentFailure(
+            caught,
+            "The rename preview could not be prepared. Saved files are unchanged; try again.",
+            "renderer rename preview failed",
+          )
+        });
       })
       .finally(() => {
         if (!cancelled) setPreviewBusy(false);
@@ -103,18 +124,42 @@ export function RenameModal({
   }, [projectSnapshot, templateId, outputDirPath]);
 
   async function confirm(): Promise<void> {
+    if (runBusyRef.current) return;
+    runBusyRef.current = true;
     setRunBusy(true);
-    setError(null);
-    setSettingsRecovery(false);
+    clearFailure("run");
     try {
-      await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
+      const outcome = await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
+      if (outcome === "stopped") {
+        retainFailure("run", {
+          message: "The rename stopped before every file was completed. Some files may already have their new names; review the refreshed list, then try the remaining items."
+        });
+        runBusyRef.current = false;
+        setRunBusy(false);
+      }
     } catch (caught) {
-      setError(presentFailure(
-        caught,
-        "Files could not be renamed. Existing filenames are unchanged; resolve any blocked items and try again.",
-        "renderer rename failed",
-      ));
+      retainFailure("run", {
+        message: presentFailure(
+          caught,
+          "The rename stopped before every file was completed. Some files may already have their new names; review the refreshed list, then try the remaining items.",
+          "renderer rename failed",
+        )
+      });
+      runBusyRef.current = false;
       setRunBusy(false);
+    }
+  }
+
+  async function updateOutputDirectory(
+    action: () => Promise<void | OwnedActionOutcome>,
+    operation: string,
+    userMessage: string
+  ): Promise<void> {
+    try {
+      const outcome = await action();
+      if (outcome !== "cancelled") clearFailure("output-directory");
+    } catch (caught) {
+      retainFailure("output-directory", { message: presentFailure(caught, userMessage, operation) });
     }
   }
 
@@ -123,10 +168,11 @@ export function RenameModal({
       title="Rename all"
       size="wide"
       tall
+      closeDisabled={runBusy}
       onClose={onClose}
       footer={
         <>
-          <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="toolbar-button" type="button" disabled={runBusy} onClick={onClose}>Cancel</button>
           <button className="primary-action" type="button" disabled={modalBusy || previewBusy || actionTaskIds.length > 0 || !canRun} onClick={() => void confirm()}>
             Rename all
           </button>
@@ -138,8 +184,16 @@ export function RenameModal({
           <span className="rename-output-dir-label">Output folder</span>
           <span className="rename-output-dir-value" title={outputDirPath ?? ""}>{outputDirLabel}</span>
         </div>
-        <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void onSetOutputDir()}>{outputDirPath ? "Change" : "Choose"}</button>
-        {outputDirPath ? <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void onClearOutputDir()}>Clear</button> : null}
+        <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void updateOutputDirectory(
+          onSetOutputDir,
+          "renderer rename output folder selection failed",
+          "The output folder could not be changed. The current folder is still in use; try again."
+        )}>{outputDirPath ? "Change" : "Choose"}</button>
+        {outputDirPath ? <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void updateOutputDirectory(
+          onClearOutputDir,
+          "renderer rename output folder clear failed",
+          "The output folder could not be cleared. The current folder is still in use; try again."
+        )}>Clear</button> : null}
       </div>
 
       <label className="stacked-field">
@@ -157,16 +211,15 @@ export function RenameModal({
         </OperationResult>
       ) : null}
 
-      {error ? (
-        <OperationResult className="modal-error" severity="error">
-          <span>{error}</span>
-          {settingsRecovery ? (
-            <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>
-              Open Settings
-            </button>
-          ) : null}
-        </OperationResult>
-      ) : null}
+      {globalFailures.map(([key, failure]) => (
+        <RenameFailureNotice
+          disabled={runBusy}
+          failure={failure}
+          key={key}
+          onDismiss={() => clearFailure(key)}
+          onOpenSettings={onOpenSettings}
+        />
+      ))}
 
       <div className="rename-preview-list">
         {preview?.items.length ? preview.items.map((item) => (
@@ -176,37 +229,44 @@ export function RenameModal({
             item={item}
             key={item.taskId}
             task={tasksById.get(item.taskId)}
+            failures={Object.entries(failures).filter(([key]) => key.startsWith(`${item.taskId}\0`))}
+            onDismissFailure={clearFailure}
+            onOpenSettings={onOpenSettings}
             onRegenerateSlug={async (taskId) => {
+              const key = renameTaskFailureKey(taskId, "generate");
               setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
-              setError(null);
-              setSettingsRecovery(false);
+              clearFailure(key);
               try {
                 await onRegenerateSlug(taskId);
               } catch (caught) {
-                setError(presentFailure(
-                  caught,
-                  "A replacement slug could not be generated. Check the Gemini settings, then try again.",
-                  "renderer rename slug generation failed",
-                  { taskId },
-                ));
-                setSettingsRecovery(true);
+                retainFailure(key, {
+                  message: presentFailure(
+                    caught,
+                    "A replacement slug could not be generated. Check the Gemini settings, then try again.",
+                    "renderer rename slug generation failed",
+                    { taskId },
+                  ),
+                  settingsRecovery: true
+                });
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }
             }}
             onSetRenameSlug={async (taskId, customSlug) => {
+              const key = renameTaskFailureKey(taskId, "save");
               setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
-              setError(null);
-              setSettingsRecovery(false);
+              clearFailure(key);
               try {
                 await onSetRenameSlug(taskId, customSlug);
               } catch (caught) {
-                setError(presentFailure(
-                  caught,
-                  "The rename slug could not be saved. Your edit is still shown; try again.",
-                  "renderer rename slug save failed",
-                  { taskId },
-                ));
+                retainFailure(key, {
+                  message: presentFailure(
+                    caught,
+                    "The rename slug could not be saved. Your edit is still shown; try again.",
+                    "renderer rename slug save failed",
+                    { taskId },
+                  )
+                });
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }
@@ -225,7 +285,10 @@ export function RenameModal({
 function RenamePreviewRow({
   actionBusy,
   disabled,
+  failures,
   item,
+  onDismissFailure,
+  onOpenSettings,
   task,
   onDraftStateChange,
   onRegenerateSlug,
@@ -234,7 +297,10 @@ function RenamePreviewRow({
 }: {
   actionBusy: boolean;
   disabled: boolean;
+  failures: Array<[string, RenameFailure]>;
   item: RenamePreviewItem;
+  onDismissFailure(key: string): void;
+  onOpenSettings(): void;
   task: Task | undefined;
   onDraftStateChange(taskId: string, dirty: boolean): void;
   onRegenerateSlug(taskId: string): Promise<void>;
@@ -325,11 +391,47 @@ function RenamePreviewRow({
             >
               {actionBusy ? (item.generatedSlug ? "Regenerating" : "Generating") : item.generatedSlug ? "Regenerate" : "Generate"}
             </button>
+            {failures.map(([key, failure]) => (
+              <RenameFailureNotice
+                disabled={disabled}
+                failure={failure}
+                key={key}
+                onDismiss={() => onDismissFailure(key)}
+                onOpenSettings={onOpenSettings}
+              />
+            ))}
           </div>
         ) : null}
       </div>
     </div>
   );
+}
+
+function RenameFailureNotice({
+  disabled,
+  failure,
+  onDismiss,
+  onOpenSettings
+}: {
+  disabled: boolean;
+  failure: RenameFailure;
+  onDismiss(): void;
+  onOpenSettings(): void;
+}): React.JSX.Element {
+  return (
+    <OperationResult className="modal-error" dismissLabel="Close rename result" severity="error" onDismiss={onDismiss}>
+      <span>{failure.message}</span>
+      {failure.settingsRecovery ? (
+        <button className="toolbar-button compact-text" type="button" disabled={disabled} onClick={onOpenSettings}>
+          Open Settings
+        </button>
+      ) : null}
+    </OperationResult>
+  );
+}
+
+function renameTaskFailureKey(taskId: string, action: "generate" | "save"): string {
+  return `${taskId}\0${action}`;
 }
 
 function renameRunSummary(preview: RenamePreview): RenameRunSummary {

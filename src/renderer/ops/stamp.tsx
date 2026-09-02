@@ -4,6 +4,8 @@ import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_ass
 import type { OpCardProps } from "./op-renderer";
 import type { AssetOverlayParams } from "@shared/asset-overlay";
 import { fileNameFromPath } from "@shared/file-path";
+import { OperationResult } from "@renderer/components/operation-result";
+import { presentFailure } from "@renderer/present-failure";
 
 export const stampRenderer = createAssetOverlayRenderer({
   type: "stamp",
@@ -22,16 +24,44 @@ export const stampRenderer = createAssetOverlayRenderer({
   }
 });
 
-function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProps<AssetOverlayParams>): React.JSX.Element {
+export function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProps<AssetOverlayParams>): React.JSX.Element {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reloadBusy, setReloadBusy] = useState(false);
+  const [reloadFailure, setReloadFailure] = useState<string | null>(null);
+
+  async function openPicker(): Promise<void> {
+    setReloadBusy(true);
+    try {
+      await ctx.reloadStamps?.();
+      setReloadFailure(null);
+      setPickerOpen(true);
+    } catch (error) {
+      setReloadFailure(presentFailure(
+        error,
+        "The stamp library could not be refreshed. The chooser remains closed; restore access to the stamp folder and try again.",
+        "stamp library refresh before chooser failed",
+        { opId: ctx.opId }
+      ));
+    } finally {
+      setReloadBusy(false);
+    }
+  }
+
   return (
     <>
-      <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => {
-        void ctx.reloadStamps?.();
-        setPickerOpen(true);
-      }}>
+      <button className="toolbar-button compact-text" disabled={disabled || reloadBusy} type="button" onClick={() => void openPicker()}>
         Choose stamp...
       </button>
+      {reloadFailure ? (
+        <OperationResult
+          className="modal-error"
+          dismissLabel="Close stamp chooser result"
+          severity="error"
+          onDismiss={() => setReloadFailure(null)}
+        >
+          {reloadFailure}
+        </OperationResult>
+      ) : null}
       {pickerOpen ? (
         <StampPickerModal
           previewLongEdge={ctx.assetPickerPreviewLongEdge}

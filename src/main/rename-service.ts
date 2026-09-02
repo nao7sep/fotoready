@@ -157,11 +157,23 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
   };
 }
 
-export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<void> {
+export class RenameBatchStoppedError extends Error {
+  readonly completedTaskIds: string[];
+
+  constructor(cause: unknown, completedTaskIds: string[]) {
+    super("Rename batch stopped before every item completed", { cause });
+    this.name = "RenameBatchStoppedError";
+    this.completedTaskIds = [...completedTaskIds];
+  }
+}
+
+export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<string[]> {
   const preview = await previewRename(project, templateId, taskIds, logger);
   if (preview.blockedCount > 0) {
     throw new Error(blockedRenameMessage(preview));
   }
+
+  const completedTaskIds: string[] = [];
 
   for (const item of preview.items) {
     if (item.status !== "ready" && item.status !== "unchanged") continue;
@@ -169,48 +181,63 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
     if (!task?.output || !item.currentPath || !item.proposedPath) continue;
     if (item.currentPath === item.proposedPath) continue;
 
-    await fs.mkdir(path.dirname(item.proposedPath), { recursive: true });
-    await ensureNoCollision(item.proposedPath);
+    try {
+      await fs.mkdir(path.dirname(item.proposedPath), { recursive: true });
+      await ensureNoCollision(item.proposedPath);
 
-    const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
-    const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
-    const sidecarMoveNeeded = Boolean(stagedParamsPath) && stagedParamsPath !== proposedParamsPath;
-    if (sidecarMoveNeeded) {
-      await ensureNoCollision(proposedParamsPath);
-    }
+      const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
+      const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
+      const sidecarMoveNeeded = Boolean(stagedParamsPath) && stagedParamsPath !== proposedParamsPath;
+      if (sidecarMoveNeeded) {
+        await ensureNoCollision(proposedParamsPath);
+      }
 
-    await moveFile(item.currentPath, item.proposedPath);
+      await moveFile(item.currentPath, item.proposedPath);
 
-    if (sidecarMoveNeeded) {
-      try {
-        await moveFile(stagedParamsPath, proposedParamsPath);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          try {
-            await moveFile(item.proposedPath, item.currentPath);
-          } catch (rollbackError) {
-            // Image is already at proposedPath; rolling it back failed too. The
-            // original error is thrown below, but the rollback failure is its own
-            // incident worth recording — the file is left under the proposed name.
-            logger?.warn("rename rollback failed; output left at the proposed path", {
-              mod: "rename",
-              from: item.proposedPath,
-              to: item.currentPath,
-              err: rollbackError
-            });
+      if (sidecarMoveNeeded) {
+        try {
+          await moveFile(stagedParamsPath, proposedParamsPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            // A missing optional sidecar does not block the image rename.
+          } else {
+            let rolledBack = false;
+            try {
+              await moveFile(item.proposedPath, item.currentPath);
+              rolledBack = true;
+            } catch (rollbackError) {
+              logger?.warn("rename rollback failed; output left at the proposed path", {
+                mod: "rename",
+                from: item.proposedPath,
+                to: item.currentPath,
+                err: rollbackError
+              });
+            }
+            if (!rolledBack) {
+              task.output.stagedPath = item.proposedPath;
+              task.output.finalPath = item.proposedPath;
+              task.output.renamedAt = nowIso();
+              task.updatedAt = nowIso();
+            }
+            throw error;
           }
-          throw error;
         }
       }
-    }
 
-    task.output.stagedPath = item.proposedPath;
-    task.output.finalPath = item.proposedPath;
-    task.output.stagedParamsPath = proposedParamsPath;
-    task.output.finalParamsPath = proposedParamsPath;
-    task.output.renamedAt = nowIso();
-    task.updatedAt = nowIso();
+      task.output.stagedPath = item.proposedPath;
+      task.output.finalPath = item.proposedPath;
+      task.output.stagedParamsPath = proposedParamsPath;
+      task.output.finalParamsPath = proposedParamsPath;
+      task.output.renamedAt = nowIso();
+      task.updatedAt = nowIso();
+      completedTaskIds.push(task.id);
+    } catch (error) {
+      if (error instanceof RenameBatchStoppedError) throw error;
+      throw new RenameBatchStoppedError(error, completedTaskIds);
+    }
   }
+
+  return completedTaskIds;
 }
 
 async function moveFile(from: string, to: string): Promise<void> {

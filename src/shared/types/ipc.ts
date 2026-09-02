@@ -70,6 +70,17 @@ export type ProjectSnapshot = {
   privacyWarnings: Record<string, PrivacyWarning>;
 };
 
+export type OutputDirectorySelectionResult = {
+  snapshot: ProjectSnapshot;
+  cancelled: boolean;
+};
+
+export type RenameRunResult = {
+  snapshot: ProjectSnapshot;
+  status: "complete" | "stopped";
+  completedTaskIds: string[];
+};
+
 export type OriginalImportIssue = {
   filePath: string;
   kind: "duplicate" | "unsupported" | "invalid" | "failed";
@@ -206,7 +217,7 @@ export type FotoReadyApi = {
   };
   project: {
     current(): Promise<ProjectSnapshot>;
-    setOutputDirFromDialog(): Promise<ProjectSnapshot>;
+    setOutputDirFromDialog(): Promise<OutputDirectorySelectionResult>;
     clearOutputDir(): Promise<ProjectSnapshot>;
     addOriginals(sourcePaths: string[]): Promise<OriginalImportResult>;
     addOriginalsFromDialog(): Promise<OriginalImportResult>;
@@ -253,7 +264,7 @@ export type FotoReadyApi = {
   };
   rename: {
     preview(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview>;
-    run(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSnapshot>;
+    run(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenameRunResult>;
   };
   luts: {
     list(): Promise<LutEntry[]>;

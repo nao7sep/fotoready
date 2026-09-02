@@ -12,7 +12,7 @@ export function presentFailure(
   return userMessage;
 }
 
-function describeError(error: unknown, seen = new WeakSet<object>()): Record<string, unknown> {
+export function describeError(error: unknown, seen = new WeakSet<object>()): Record<string, unknown> {
   if (!(error instanceof Error)) return { value: String(error) };
   if (seen.has(error)) return { cause: "circular" };
   seen.add(error);

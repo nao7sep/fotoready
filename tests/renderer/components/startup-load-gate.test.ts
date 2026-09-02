@@ -28,5 +28,6 @@ describe("required startup hydration", () => {
     expect(host.querySelector('[role="alert"]')).not.toBeNull();
     expect(host.textContent).toContain("FotoReady could not load its workspace");
     expect(host.textContent).toContain("Reload");
+    expect(host.querySelector("button")?.className).toBe("primary-action");
   });
 });

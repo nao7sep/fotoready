@@ -32,7 +32,7 @@ export function StartupLoadGate({ message }: { message: string | null }): React.
       <section style={panelStyle}>
         <h1 style={{ margin: 0, fontSize: "1.25rem" }}>FotoReady could not load its workspace</h1>
         <p style={{ margin: 0 }}>{message}</p>
-        <button className="inline-action" type="button" onClick={() => window.location.reload()}>
+        <button className="primary-action" type="button" onClick={() => window.location.reload()}>
           Reload
         </button>
       </section>

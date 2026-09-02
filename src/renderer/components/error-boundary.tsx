@@ -35,9 +35,10 @@ const cardStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   alignSelf: "flex-start",
   padding: "0.5rem 1rem",
-  border: "1px solid #c4c4c7",
+  border: "1px solid #2f7d6f",
   borderRadius: "6px",
-  background: "#fafafa",
+  color: "#ffffff",
+  background: "#2f7d6f",
   cursor: "pointer",
   fontSize: "0.9rem"
 };

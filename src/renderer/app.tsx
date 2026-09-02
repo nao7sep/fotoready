@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { installWindowActivityState } from "./window-activity";
 import { BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
 import { reportRendererLog } from "./renderer-log";
@@ -1239,6 +1240,7 @@ function stringifyLogArgs(args: unknown[]): string {
 
 window.addEventListener("dragover", denyUnhandledExternalDrop);
 window.addEventListener("drop", denyUnhandledExternalDrop);
+installWindowActivityState(api.lifecycle.onWindowActivityChanged, document.documentElement);
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

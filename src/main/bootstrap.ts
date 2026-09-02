@@ -15,6 +15,7 @@ import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { notifyStartupFailure, requireCorruptSettingsNotice } from "./startup-dialog";
 import { loadRendererWindowContent } from "./window-content";
+import { configureWindowActivity } from "./window-activity";
 import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
@@ -140,6 +141,7 @@ export async function bootstrap(): Promise<void> {
     const win = new BrowserWindow(
       buildWindowOptions(path.join(__dirname, "../preload/index.mjs"), workAreaSize, uiState.windowSize)
     );
+    configureWindowActivity(app, win);
     installCloseGuard(win, exitState);
 
     // Remember the window's size (only size, never position — a monitor change can't strand it

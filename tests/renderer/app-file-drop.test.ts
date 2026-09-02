@@ -86,7 +86,10 @@ describe("FotoReady app file receiver", () => {
           onProjectSnapshot: () => vi.fn(),
           onQueueSnapshot: () => vi.fn()
         },
-        lifecycle: { onCloseRequest: () => vi.fn() }
+        lifecycle: {
+          onCloseRequest: () => vi.fn(),
+          onWindowActivityChanged: () => vi.fn()
+        }
       }
     });
 

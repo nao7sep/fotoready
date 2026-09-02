@@ -283,6 +283,7 @@ export type FotoReadyApi = {
   lifecycle: {
     approveClose(allow: boolean): Promise<void>;
     onCloseRequest(callback: (request: CloseRequest) => void): () => void;
+    onWindowActivityChanged(callback: (active: boolean) => void): () => void;
   };
   events: {
     onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;

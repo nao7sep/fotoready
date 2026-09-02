@@ -2524,3 +2524,10 @@ kbd {
   background: var(--button-bg);
   font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+/* Native application inactivity is distinct from DOM focus on macOS. Keep the
+   keyboard target legible, but mute the active-window accent while another app
+   owns the menu bar. */
+[data-window-inactive] :focus-visible {
+  outline-color: var(--border-strong-color);
+}

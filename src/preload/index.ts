@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { FotoReadyApi } from "@shared/types/ipc";
+import { WINDOW_ACTIVITY_CHANNEL } from "@shared/window-activity";
 
 const api: FotoReadyApi = {
   system: {
@@ -94,6 +95,13 @@ const api: FotoReadyApi = {
       const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) => callback(request);
       ipcRenderer.on("lifecycle.close-requested", listener);
       return () => ipcRenderer.off("lifecycle.close-requested", listener);
+    },
+    onWindowActivityChanged: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, active: unknown) => {
+        if (typeof active === "boolean") callback(active);
+      };
+      ipcRenderer.on(WINDOW_ACTIVITY_CHANNEL, listener);
+      return () => ipcRenderer.off(WINDOW_ACTIVITY_CHANNEL, listener);
     }
   },
   events: {

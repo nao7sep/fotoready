@@ -15,6 +15,10 @@ function declarations(selector: string): string {
 }
 
 describe("message gutters", () => {
+  it("separates shell results from both the toolbar and the workspace", () => {
+    expect(declarations(".app-shell-result-stack")).toMatch(/margin:\s*8px 12px/);
+  });
+
   it("keeps shared pane empty-state copy away from narrow Windows pane edges", () => {
     const rule = declarations(".empty-state");
 

@@ -157,7 +157,7 @@ button {
   gap: 6px;
   min-width: 0;
   max-height: min(180px, 30vh);
-  margin: 8px 12px 0;
+  margin: 8px 12px;
   overflow-y: auto;
 }
 

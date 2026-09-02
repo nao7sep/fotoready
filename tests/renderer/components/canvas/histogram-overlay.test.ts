@@ -45,8 +45,9 @@ describe("HistogramOverlay results", () => {
 
     await vi.waitFor(() => expect(document.querySelector('[role="alert"]')).not.toBeNull());
     const error = document.querySelector('[role="alert"]');
-    expect(error?.textContent).toContain("Error: Histogram failed");
-    expect(error?.querySelector("svg")).not.toBeNull();
+    expect(error?.textContent).toContain("Histogram failed");
+    expect(error?.textContent).not.toContain("Error:");
+    expect(error?.querySelector("svg")).toBeNull();
     expect(error?.closest(".histogram-overlay")?.classList.contains("has-error")).toBe(true);
 
     const retry = [...document.querySelectorAll<HTMLButtonElement>("button")]

@@ -5,6 +5,7 @@ import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplate
 import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { OperationResult } from "@renderer/components/operation-result";
+import { presentFailure } from "@renderer/present-failure";
 import { ModalShell } from "./modal-shell";
 
 export type RenameRunSummary = {
@@ -83,7 +84,11 @@ export function RenameModal({
         if (!cancelled) setPreview(result);
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : String(caught));
+        if (!cancelled) setError(presentFailure(
+          caught,
+          "The rename preview could not be prepared. Saved files are unchanged; try again.",
+          "renderer rename preview failed",
+        ));
       })
       .finally(() => {
         if (!cancelled) setPreviewBusy(false);
@@ -104,15 +109,13 @@ export function RenameModal({
     try {
       await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
     } catch (caught) {
-      const message = renameErrorMessage(caught);
-      setError(`Couldn't rename files. ${message}`);
+      setError(presentFailure(
+        caught,
+        "Files could not be renamed. Existing filenames are unchanged; resolve any blocked items and try again.",
+        "renderer rename failed",
+      ));
       setRunBusy(false);
     }
-  }
-
-  function renameErrorMessage(caught: unknown): string {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    return message.replace(/^Error invoking remote method 'rename\.run': Error: /, "");
   }
 
   return (
@@ -180,9 +183,13 @@ export function RenameModal({
               try {
                 await onRegenerateSlug(taskId);
               } catch (caught) {
-                const message = caught instanceof Error ? caught.message : String(caught);
-                setError(message);
-                setSettingsRecovery(/settings|gemini/i.test(message));
+                setError(presentFailure(
+                  caught,
+                  "A replacement slug could not be generated. Check the Gemini settings, then try again.",
+                  "renderer rename slug generation failed",
+                  { taskId },
+                ));
+                setSettingsRecovery(true);
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }
@@ -194,7 +201,12 @@ export function RenameModal({
               try {
                 await onSetRenameSlug(taskId, customSlug);
               } catch (caught) {
-                setError(caught instanceof Error ? caught.message : String(caught));
+                setError(presentFailure(
+                  caught,
+                  "The rename slug could not be saved. Your edit is still shown; try again.",
+                  "renderer rename slug save failed",
+                  { taskId },
+                ));
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
               }

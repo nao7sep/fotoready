@@ -1000,15 +1000,18 @@ select:disabled {
 .error-strip {
   min-width: 0;
   overflow: hidden;
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 42px 8px 12px;
   border-top: 1px solid var(--danger-border);
   color: var(--danger-text);
   background: var(--danger-soft-bg);
   font-size: 12px;
+}
+
+.error-strip .operation-result-content {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .error-strip strong {
@@ -1824,23 +1827,44 @@ select:disabled {
 }
 
 .operation-result {
+  position: relative;
   flex: 0 0 auto;
   min-width: 0;
   max-width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 7px;
   overflow-wrap: anywhere;
-}
-
-.operation-result-icon {
-  margin-top: 1px;
-  flex: 0 0 auto;
 }
 
 .operation-result-content {
   min-width: 0;
+}
+
+.operation-result:has(.operation-result-dismiss) {
+  padding-right: 36px;
+}
+
+.operation-result-dismiss {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.operation-result-dismiss:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.operation-result-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
 }
 
 .sr-only {
@@ -1853,18 +1877,6 @@ select:disabled {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.modal-error.dismissable .operation-result-content {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.modal-error.dismissable .icon-button {
-  flex-shrink: 0;
-  color: inherit;
 }
 
 .modal-warning {

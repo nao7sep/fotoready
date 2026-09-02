@@ -70,14 +70,14 @@ afterEach(async () => {
 });
 
 describe("RenameModal vision recovery", () => {
-  it("announces a blocked preview politely with structural warning severity", async () => {
+  it("announces a blocked preview without redundant severity chrome", async () => {
     await renderModal();
 
     const warning = document.querySelector('[role="status"]');
-    expect(warning?.textContent).toContain("Warning:");
+    expect(warning?.textContent).not.toContain("Warning:");
     expect(warning?.textContent).toContain("1 item needs attention");
     expect(warning?.getAttribute("aria-atomic")).toBe("true");
-    expect(warning?.querySelector("svg")).not.toBeNull();
+    expect(warning?.querySelector("svg")).toBeNull();
   });
 
   it("keeps a regeneration failure inline and offers Settings recovery", async () => {
@@ -91,7 +91,8 @@ describe("RenameModal vision recovery", () => {
 
     await clickButton("Generate");
 
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Gemini API key is missing");
+    expect(document.querySelector('[role="alert"]')?.textContent)
+      .toContain("A replacement slug could not be generated. Check the Gemini settings, then try again.");
     expect(button("Open Settings")).toBeDefined();
     await clickButton("Open Settings");
     expect(onOpenSettings).toHaveBeenCalledOnce();
@@ -110,13 +111,14 @@ describe("RenameModal vision recovery", () => {
     expect(regenerate).toHaveBeenCalledTimes(2);
   });
 
-  it("announces preview failures assertively with structural error severity", async () => {
+  it("announces preview failures with authored recovery copy", async () => {
     await renderModal({ onPreview: async () => { throw new Error("Preview unavailable"); } });
 
     await vi.waitFor(() => expect(document.querySelector('[role="alert"]')).not.toBeNull());
     const error = document.querySelector('[role="alert"]');
-    expect(error?.textContent).toContain("Error: Preview unavailable");
-    expect(error?.querySelector("svg")).not.toBeNull();
+    expect(error?.textContent)
+      .toContain("The rename preview could not be prepared. Saved files are unchanged; try again.");
+    expect(error?.querySelector("svg")).toBeNull();
   });
 
   it("keeps a failed rename run assertive and inside the modal", async () => {
@@ -128,7 +130,7 @@ describe("RenameModal vision recovery", () => {
     await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
     await clickButton("Rename all");
     expect(document.querySelector('[role="alert"]')?.textContent)
-      .toContain("Error: Couldn't rename files. Destination is read-only");
+      .toContain("Files could not be renamed. Existing filenames are unchanged; resolve any blocked items and try again.");
   });
 });
 

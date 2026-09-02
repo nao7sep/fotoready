@@ -133,7 +133,7 @@ export class ProjectSession {
           severity: failedToRead ? "error" : "warning",
           reason: failedToRead
             ? "FotoReady could not read this image. Check that it still exists and is accessible."
-            : error instanceof Error ? error.message : "This file could not be opened as a supported image."
+            : "This file could not be opened as a supported image."
         });
         continue;
       }
@@ -602,7 +602,7 @@ export class ProjectSession {
   }
 
   async previewRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview> {
-    return previewRename(this.#project, templateId, taskIds);
+    return previewRename(this.#project, templateId, taskIds, this.logger);
   }
 
   async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<ProjectSessionSnapshot> {

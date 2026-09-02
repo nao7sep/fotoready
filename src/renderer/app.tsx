@@ -18,6 +18,8 @@ import { AboutModal } from "./components/modals/about-modal";
 import { ShortcutsModal } from "./components/modals/shortcuts-modal";
 import { Menu, MenuItem } from "./components/Menu";
 import { ErrorBoundary } from "./components/error-boundary";
+import { OperationResult } from "./components/operation-result";
+import { presentFailure } from "./present-failure";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
 import { OpsPanel } from "./components/panels/ops-panel";
@@ -390,8 +392,8 @@ function App(): React.JSX.Element {
   }
 
   function reportOriginalImportFailure(error: unknown): void {
-    console.error(error);
-    setOriginalImportFeedback(originalImportFailureFeedback(error));
+    presentFailure(error, "", "renderer original import failed");
+    setOriginalImportFeedback(originalImportFailureFeedback());
   }
 
   async function setOutputDir(): Promise<void> {
@@ -420,10 +422,14 @@ function App(): React.JSX.Element {
       }
       await refreshProject(await api.project.removeOriginal(originalId));
     } catch (error) {
-      console.error(error);
       await confirmer.alert({
         title: "Couldn't remove original",
-        message: error instanceof Error ? error.message : String(error)
+        message: presentFailure(
+          error,
+          "The original remains in the project. Close any app using its files, then try again.",
+          "renderer remove original failed",
+          { originalId },
+        )
       });
     }
   }
@@ -448,10 +454,14 @@ function App(): React.JSX.Element {
       }
       await refreshProject(await api.task.delete(task.id));
     } catch (error) {
-      console.error(error);
       await confirmer.alert({
         title: "Couldn't delete task",
-        message: error instanceof Error ? error.message : String(error)
+        message: presentFailure(
+          error,
+          "The task remains in the project. Try again.",
+          "renderer delete task failed",
+          { taskId: task.id },
+        )
       });
     }
   }
@@ -782,14 +792,18 @@ function App(): React.JSX.Element {
             ) : null}
           </div>
           {activeTask?.error ? (
-            <div className="error-strip" role="alert" aria-atomic="true">
+            <OperationResult
+              className="error-strip"
+              dismissLabel="Close task result"
+              severity="error"
+              onDismiss={() => void dismissError(activeTask.id)}
+            >
               <strong>{errorStageLabel(activeTask.error.stage)}</strong>
               <span>{activeTask.error.message}</span>
               {activeTask.error.retryable ? (
                 <button className="inline-action" type="button" onClick={() => void retryTask(activeTask.id)}>Retry</button>
               ) : null}
-              <button className="inline-action" type="button" onClick={() => void dismissError(activeTask.id)}>Dismiss</button>
-            </div>
+            </OperationResult>
           ) : null}
         </section>
 

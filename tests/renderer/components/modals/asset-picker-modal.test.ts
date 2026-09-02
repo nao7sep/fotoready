@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   thumbnail: vi.fn(async (assetPath: string) => ({ dataUrl: `data:${assetPath}`, width: 64, height: 64 })),
   pickFiles: vi.fn(async () => [] as string[]),
   importStamps: vi.fn<() => Promise<AssetImportResult[]>>(async () => []),
-  deleteStamps: vi.fn(async () => undefined)
+  deleteStamps: vi.fn(async () => undefined),
+  log: vi.fn(async () => undefined)
 }));
 
 vi.mock("@renderer/ipc/client", () => ({
@@ -48,6 +49,9 @@ beforeEach(() => {
   mocks.importStamps.mockResolvedValue([]);
   mocks.deleteStamps.mockReset();
   mocks.deleteStamps.mockResolvedValue(undefined);
+  mocks.log.mockReset();
+  mocks.log.mockResolvedValue(undefined);
+  vi.stubGlobal("api", { system: { log: mocks.log } });
   root = createRoot(document.querySelector("#root")!);
 });
 
@@ -113,7 +117,7 @@ describe("StampPickerModal groups", () => {
     await act(async () => resolveThumbnail?.({ dataUrl: "data:done", width: 64, height: 64 }));
   });
 
-  it("announces partial import results politely with warning severity", async () => {
+  it("announces partial import results without redundant severity chrome", async () => {
     mocks.pickFiles.mockResolvedValue(["/mine.svg"]);
     mocks.importStamps.mockResolvedValue([{
       fileName: "mine.svg",
@@ -124,21 +128,33 @@ describe("StampPickerModal groups", () => {
     await clickButton("Import...");
 
     const warning = document.querySelector('[role="status"]');
-    expect(warning?.textContent).toContain("Warning:");
+    expect(warning?.textContent).not.toContain("Warning:");
     expect(warning?.textContent).toContain("already match a library file name");
-    expect(warning?.querySelector("svg")).not.toBeNull();
+    expect(warning?.querySelector("svg")).toBeNull();
   });
 
-  it("announces import failures assertively and retains dismissal", async () => {
+  it("presents authored import failure copy, logs the diagnostic, and retains dismissal", async () => {
     mocks.pickFiles.mockResolvedValue(["/broken.svg"]);
-    mocks.importStamps.mockRejectedValue(new Error("Library is read-only"));
+    mocks.importStamps.mockRejectedValue(new Error(
+      "Error invoking remote method 'stamps.import': EACCES /private/tmp/FOTOREADY_SENTINEL"
+    ));
     await renderStampPicker();
     await clickButton("Import...");
 
     const error = document.querySelector('[role="alert"]');
-    expect(error?.textContent).toContain("Error: Library is read-only");
-    expect(error?.querySelector("svg")).not.toBeNull();
-    expect(button("Dismiss error")).toBeDefined();
+    expect(error?.textContent).toContain(
+      "Assets could not be imported. The library is unchanged; check that the selected files are still available and try again."
+    );
+    expect(error?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SENTINEL|invoking remote method/i);
+    expect(error?.querySelectorAll("svg")).toHaveLength(1); // the close X only
+    expect(button("Close import result")).toBeDefined();
+    expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
+      level: "error",
+      message: "renderer asset import failed",
+      fields: expect.objectContaining({
+        error: expect.objectContaining({ message: expect.stringContaining("FOTOREADY_SENTINEL") })
+      })
+    }));
   });
 });
 

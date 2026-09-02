@@ -105,10 +105,7 @@ export function OriginalsPanel({
             <div>
               <strong>{feedback.title}</strong>
               {feedback.details.map((detail, index) => (
-                <div className={`import-feedback-detail ${detail.severity}`} key={`${detail.text}\0${index}`}>
-                  <strong>{detail.severity === "info" ? "Info" : detail.severity === "warning" ? "Warning" : "Error"}:</strong>{" "}
-                  {detail.text}
-                </div>
+                <div className={`import-feedback-detail ${detail.severity}`} key={`${detail.text}\0${index}`}>{detail.text}</div>
               ))}
             </div>
             <button type="button" className="icon-button compact" aria-label="Dismiss import result" onClick={onDismissFeedback}>

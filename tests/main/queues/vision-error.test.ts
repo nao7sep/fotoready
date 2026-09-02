@@ -75,3 +75,17 @@ describe("visionError — the arms it must not steal", () => {
     expect(result.retryable).toBe(true);
   });
 });
+
+describe("visionError — hostile diagnostics", () => {
+  it("keeps IPC wrappers, errno text, and absolute paths out of task presentation", () => {
+    const result = visionError(new Error(
+      "Error invoking remote method 'vision:run': EACCES /private/tmp/FOTOREADY_VISION_SENTINEL",
+    ));
+
+    expect(result.message).toBe(
+      "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",
+    );
+    expect(result.message).not.toMatch(/EACCES|private\/tmp|FOTOREADY_VISION_SENTINEL|invoking remote method/i);
+    expect(result.detail).toContain("FOTOREADY_VISION_SENTINEL");
+  });
+});

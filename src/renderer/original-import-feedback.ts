@@ -92,11 +92,11 @@ export function inaccessibleOriginalImportFeedback(names: string[]): OriginalImp
   };
 }
 
-export function originalImportFailureFeedback(error: unknown): OriginalImportFeedback {
+export function originalImportFailureFeedback(): OriginalImportFeedback {
   return {
     severity: "error",
     title: "Originals could not be added.",
-    details: [{ severity: "error", text: error instanceof Error ? error.message : String(error) }],
+    details: [{ severity: "error", text: "The selected files could not be read. Check that they are still available and try again." }],
     resolution: { kind: "next-import" },
   };
 }

@@ -14,7 +14,7 @@ import type { AppLogger } from "@main/logger";
 
 type RenamePlanItem = RenamePreview["items"][number];
 
-export async function previewRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview> {
+export async function previewRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<RenamePreview> {
   const template = findRenameTemplate(templateId);
   const scopedTaskIds = taskIds?.length ? new Set(taskIds) : null;
   const tasks = project.tasks
@@ -78,7 +78,13 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
         assertSafeRenderedFilename(proposedName);
         proposedPath = path.join(destinationDir, proposedName);
       } catch (error) {
-        issue = error instanceof Error ? error.message : String(error);
+        issue = "The saved output could not be inspected. Check that it still exists and is accessible.";
+        logger?.error("rename preview item failed", {
+          mod: "rename",
+          taskId: task.id,
+          outputPath: currentPath,
+          err: error,
+        });
       }
     }
 
@@ -152,7 +158,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
 }
 
 export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<void> {
-  const preview = await previewRename(project, templateId, taskIds);
+  const preview = await previewRename(project, templateId, taskIds, logger);
   if (preview.blockedCount > 0) {
     throw new Error(blockedRenameMessage(preview));
   }

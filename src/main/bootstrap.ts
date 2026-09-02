@@ -1,4 +1,4 @@
-import { BrowserWindow, app, dialog, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
+import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
+import { showPlainMessageDialog } from "./plain-message-dialog";
 import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
@@ -83,12 +84,11 @@ export async function bootstrap(): Promise<void> {
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   if (settingsQuarantinedTo) {
-    dialog.showErrorBox(
-      "Settings could not be read",
-      "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost:\n\n" +
-        `${settingsQuarantinedTo}\n\n` +
-        "FotoReady has started with default values for the unreadable fields. Your projects and photos are untouched.",
-    );
+    await showPlainMessageDialog({
+      title: "Settings could not be read",
+      message: "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost.",
+      detail: `Saved copy: ${settingsQuarantinedTo}\n\nFotoReady has started with default values for the unreadable fields. Your projects and photos are untouched.`,
+    });
   }
   const visionQueue = new VisionQueue(paths, settings, logger);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);

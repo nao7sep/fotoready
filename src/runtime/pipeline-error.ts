@@ -14,8 +14,8 @@ export type PipelineErrorCategory =
 export class PipelineError extends Error {
   readonly category: PipelineErrorCategory;
 
-  constructor(category: PipelineErrorCategory, message: string) {
-    super(message);
+  constructor(category: PipelineErrorCategory, message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "PipelineError";
     this.category = category;
   }
@@ -74,7 +74,7 @@ export function asPipelineError(error: unknown, phase: PipelineErrorCategory): P
   const message = error instanceof Error ? error.message : String(error);
   const category: PipelineErrorCategory =
     FILE_ACCESS_PHASES.has(phase) && isRetryableIoError(error) ? "io" : phase;
-  const pipelineError = new PipelineError(category, message);
+  const pipelineError = new PipelineError(category, message, { cause: error });
   if (error instanceof Error && error.stack) pipelineError.stack = error.stack;
   return pipelineError;
 }

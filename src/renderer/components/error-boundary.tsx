@@ -31,20 +31,6 @@ const cardStyle: React.CSSProperties = {
   gap: "0.75rem"
 };
 
-const detailStyle: React.CSSProperties = {
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-  background: "#f4f4f5",
-  border: "1px solid #e4e4e7",
-  borderRadius: "6px",
-  padding: "0.75rem",
-  margin: 0,
-  maxHeight: "40vh",
-  overflow: "auto",
-  fontSize: "0.85rem",
-  lineHeight: 1.4
-};
-
 const buttonStyle: React.CSSProperties = {
   alignSelf: "flex-start",
   padding: "0.5rem 1rem",
@@ -93,10 +79,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <div style={cardStyle}>
           <h1 style={{ margin: 0, fontSize: "1.25rem" }}>FotoReady hit an unexpected error</h1>
           <p style={{ margin: 0 }}>
-            Something failed while drawing the window. The details below were written to the log. You
-            can reload to try again; your saved files on disk are not affected.
+            The window could not be drawn. Reload to try again; your saved files on disk are not
+            affected. Complete details were written to the log.
           </p>
-          <pre style={detailStyle}>{error.message}</pre>
           <button type="button" style={buttonStyle} onClick={this.handleReload}>
             Reload
           </button>

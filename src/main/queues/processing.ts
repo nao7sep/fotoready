@@ -185,11 +185,31 @@ function taskError(error: unknown): TaskError {
   const retryable = error instanceof PipelineError ? isRetryableCategory(error.category) : true;
   return {
     stage: "processing",
-    message: known.message,
+    message: processingFailureMessage(error),
     detail: known.stack ?? null,
     occurredAt: nowIso(),
     retryable
   };
+}
+
+function processingFailureMessage(error: unknown): string {
+  if (!(error instanceof PipelineError)) {
+    return "FotoReady could not save this task. The source and existing saved files are unchanged; try again.";
+  }
+  switch (error.category) {
+    case "decode":
+      return "FotoReady could not read the source image. Check that it is still available and supported.";
+    case "process":
+      return "FotoReady could not apply this task's adjustments. Review the enabled operations before saving again.";
+    case "encode":
+      return "FotoReady could not create the selected output format. Choose another format or adjust the task before saving again.";
+    case "io":
+      return "FotoReady could not write the output files. Check that the output folder is available, then retry.";
+    case "metadata":
+      return "The image was prepared, but its metadata could not be written. Check the output folder, then retry.";
+    case "unknown":
+      return "FotoReady could not save this task. The source and existing saved files are unchanged; try again.";
+  }
 }
 
 function errorMessage(error: unknown): string {

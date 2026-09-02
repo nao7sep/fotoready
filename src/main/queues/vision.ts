@@ -226,7 +226,7 @@ function classifyVisionMessage(error: unknown, fallback: string): string {
   if (/\binvalid describe response\b|\binvalid describe\b|\bstrict json\b|\bjson\b/.test(raw)) {
     return "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.";
   }
-  return fallback;
+  return "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.";
 }
 
 function isVisionRetryable(error: unknown, message: string): boolean {

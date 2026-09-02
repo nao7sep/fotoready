@@ -29,9 +29,10 @@ describe("EditorCanvas preview results", () => {
     await renderCanvas("error", onRetryPreview);
 
     const error = document.querySelector('[role="alert"]');
-    expect(error?.textContent).toContain("Error: Preview failed");
+    expect(error?.textContent).toContain("Preview failed");
+    expect(error?.textContent).not.toContain("Error:");
     expect(error?.getAttribute("aria-atomic")).toBe("true");
-    expect(error?.querySelector("svg")).not.toBeNull();
+    expect(error?.querySelector("svg")).toBeNull();
 
     const retry = [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Retry");

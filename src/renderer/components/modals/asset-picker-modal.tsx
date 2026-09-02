@@ -1,5 +1,4 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
 import { fileNameFromPath } from "@shared/file-path";
 import type {
   AssetImportResult,
@@ -11,6 +10,7 @@ import type {
 import { STAMP_GROUP_FILTERS, type StampGroupFilterId } from "@shared/stamp-groups";
 import { api } from "@renderer/ipc/client";
 import { OperationResult } from "@renderer/components/operation-result";
+import { presentFailure } from "@renderer/present-failure";
 import { filterStampsByGroup, initialStampGroupFilter } from "@renderer/stamp-filter";
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { useConfirmer } from "./confirmer";
@@ -172,7 +172,11 @@ export function AssetPickerModal<T extends PickerEntry>({
       setOperationError("use", null);
       onClose();
     } catch (entryError) {
-      setOperationError("use", errorMessage(entryError));
+      setOperationError("use", presentFailure(
+        entryError,
+        "The selected asset could not be used. The current selection is unchanged; try again.",
+        "renderer asset use failed",
+      ));
     }
   }
 
@@ -203,7 +207,11 @@ export function AssetPickerModal<T extends PickerEntry>({
         setNotice(label);
       }
     } catch (importError) {
-      setOperationError("import", errorMessage(importError));
+      setOperationError("import", presentFailure(
+        importError,
+        "Assets could not be imported. The library is unchanged; check that the selected files are still available and try again.",
+        "renderer asset import failed",
+      ));
     }
   }
 
@@ -238,7 +246,11 @@ export function AssetPickerModal<T extends PickerEntry>({
       setOperationError("delete", null);
       setPendingReselectIndex(Number.isFinite(deletedIndex) ? deletedIndex : 0);
     } catch (deleteError) {
-      setOperationError("delete", errorMessage(deleteError));
+      setOperationError("delete", presentFailure(
+        deleteError,
+        "The selected assets could not be moved to the trash. They remain in the library; try again.",
+        "renderer asset deletion failed",
+      ));
     }
   }
 
@@ -393,11 +405,14 @@ export function AssetPickerModal<T extends PickerEntry>({
         {pickerOperations.map((operation) => {
           const message = errors[operation];
           return message ? (
-            <OperationResult className="modal-error dismissable" key={operation} severity="error">
-              <span>{message}</span>
-              <button className="icon-button compact" type="button" aria-label="Dismiss error" title="Dismiss" onClick={() => setOperationError(operation, null)}>
-                <X size={14} />
-              </button>
+            <OperationResult
+              className="modal-error"
+              dismissLabel={`Close ${operation} result`}
+              key={operation}
+              severity="error"
+              onDismiss={() => setOperationError(operation, null)}
+            >
+              {message}
             </OperationResult>
           ) : null;
         })}
@@ -453,10 +468,6 @@ export function AssetPickerModal<T extends PickerEntry>({
       </div>
     </ModalShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function formatNamesList(names: string[], maxNames = 5): string {

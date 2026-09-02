@@ -31,6 +31,23 @@ const preview: RenamePreview = {
   }],
 };
 
+const readyPreview: RenamePreview = {
+  ...preview,
+  renameableCount: 1,
+  blockedCount: 0,
+  missingSlugCount: 0,
+  items: [{
+    ...preview.items[0],
+    status: "ready",
+    proposedPath: "/output/photo-ready.jpg",
+    proposedName: "photo-ready.jpg",
+    missingSlug: false,
+    generatedSlug: "ready",
+    effectiveSlug: "ready",
+    issue: null
+  }]
+};
+
 const snapshot = {
   activeTaskId: "task-1",
   privacyWarnings: {},
@@ -53,11 +70,24 @@ afterEach(async () => {
 });
 
 describe("RenameModal vision recovery", () => {
+  it("announces a blocked preview politely with structural warning severity", async () => {
+    await renderModal();
+
+    const warning = document.querySelector('[role="status"]');
+    expect(warning?.textContent).toContain("Warning:");
+    expect(warning?.textContent).toContain("1 item needs attention");
+    expect(warning?.getAttribute("aria-atomic")).toBe("true");
+    expect(warning?.querySelector("svg")).not.toBeNull();
+  });
+
   it("keeps a regeneration failure inline and offers Settings recovery", async () => {
     const onOpenSettings = vi.fn();
-    await renderModal(async () => {
-      throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
-    }, onOpenSettings);
+    await renderModal({
+      onOpenSettings,
+      onRegenerateSlug: async () => {
+        throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
+      }
+    });
 
     await clickButton("Generate");
 
@@ -71,7 +101,7 @@ describe("RenameModal vision recovery", () => {
     const regenerate = vi.fn()
       .mockRejectedValueOnce(new Error("Gemini is unavailable. Open Settings."))
       .mockResolvedValueOnce(undefined);
-    await renderModal(regenerate, vi.fn());
+    await renderModal({ onRegenerateSlug: regenerate });
 
     await clickButton("Generate");
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
@@ -79,12 +109,35 @@ describe("RenameModal vision recovery", () => {
     expect(document.querySelector('[role="alert"]')).toBeNull();
     expect(regenerate).toHaveBeenCalledTimes(2);
   });
+
+  it("announces preview failures assertively with structural error severity", async () => {
+    await renderModal({ onPreview: async () => { throw new Error("Preview unavailable"); } });
+
+    await vi.waitFor(() => expect(document.querySelector('[role="alert"]')).not.toBeNull());
+    const error = document.querySelector('[role="alert"]');
+    expect(error?.textContent).toContain("Error: Preview unavailable");
+    expect(error?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("keeps a failed rename run assertive and inside the modal", async () => {
+    await renderModal({
+      onPreview: async () => readyPreview,
+      onRun: async () => { throw new Error("Destination is read-only"); }
+    });
+
+    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+    await clickButton("Rename all");
+    expect(document.querySelector('[role="alert"]')?.textContent)
+      .toContain("Error: Couldn't rename files. Destination is read-only");
+  });
 });
 
-async function renderModal(
-  onRegenerateSlug: (taskId: string) => Promise<void>,
-  onOpenSettings: () => void,
-): Promise<void> {
+async function renderModal(overrides: {
+  onOpenSettings?: () => void;
+  onPreview?: () => Promise<RenamePreview>;
+  onRegenerateSlug?: (taskId: string) => Promise<void>;
+  onRun?: () => Promise<void>;
+} = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(RenameModal, {
       projectSnapshot: snapshot,
@@ -92,15 +145,15 @@ async function renderModal(
       outputDirPath: "/output",
       onClearOutputDir: async () => undefined,
       onClose: () => undefined,
-      onOpenSettings,
-      onPreview: async () => preview,
-      onRegenerateSlug,
-      onRun: async () => undefined,
+      onOpenSettings: overrides.onOpenSettings ?? (() => undefined),
+      onPreview: overrides.onPreview ?? (async () => preview),
+      onRegenerateSlug: overrides.onRegenerateSlug ?? (async () => undefined),
+      onRun: overrides.onRun ?? (async () => undefined),
       onSetRenameSlug: async () => undefined,
       onSetOutputDir: async () => undefined,
     }));
   });
-  await vi.waitFor(() => expect(button("Generate")).toBeDefined());
+  await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 }
 
 function button(label: string): HTMLButtonElement | undefined {

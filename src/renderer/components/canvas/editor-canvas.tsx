@@ -3,6 +3,7 @@ import { Group, Image as KonvaImage, Layer, Stage } from "react-konva";
 import { clamp } from "@shared/numeric";
 import type { Task } from "@shared/types/project";
 import type { TaskEditOptions } from "@shared/types/ipc";
+import { OperationResult } from "@renderer/components/operation-result";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
 import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
 
@@ -20,6 +21,7 @@ export function EditorCanvas({
   fallbackLabel,
   originalAspectRatio,
   selectedOpId,
+  onRetryPreview,
   onOpParamsChange
 }: {
   previewScaleMode: ImageFitMode;
@@ -29,6 +31,7 @@ export function EditorCanvas({
   fallbackLabel: string;
   originalAspectRatio: number | null;
   selectedOpId: string | null;
+  onRetryPreview(): void;
   onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void;
 }): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -127,7 +130,12 @@ export function EditorCanvas({
       ) : (
         <div className="canvas-placeholder">
           {previewState === "loading" ? "Rendering preview..." : fallbackLabel}
-          {previewState === "error" ? <span className="preview-error">Preview failed</span> : null}
+          {previewState === "error" ? (
+            <OperationResult className="modal-error preview-error" severity="error">
+              <span>Preview failed.</span>
+              <button className="toolbar-button compact-text" type="button" onClick={onRetryPreview}>Retry</button>
+            </OperationResult>
+          ) : null}
         </div>
       )}
     </div>

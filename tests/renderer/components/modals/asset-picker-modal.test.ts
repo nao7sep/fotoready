@@ -3,7 +3,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StampEntry } from "@shared/types/ipc";
+import type { AssetImportResult, StampEntry } from "@shared/types/ipc";
 import { StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
 
@@ -12,7 +12,7 @@ import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
 const mocks = vi.hoisted(() => ({
   thumbnail: vi.fn(async (assetPath: string) => ({ dataUrl: `data:${assetPath}`, width: 64, height: 64 })),
   pickFiles: vi.fn(async () => [] as string[]),
-  importStamps: vi.fn(async () => []),
+  importStamps: vi.fn<() => Promise<AssetImportResult[]>>(async () => []),
   deleteStamps: vi.fn(async () => undefined)
 }));
 
@@ -40,7 +40,14 @@ beforeEach(() => {
     callback(0);
     return 1;
   });
-  mocks.thumbnail.mockClear();
+  mocks.thumbnail.mockReset();
+  mocks.thumbnail.mockImplementation(async (assetPath: string) => ({ dataUrl: `data:${assetPath}`, width: 64, height: 64 }));
+  mocks.pickFiles.mockReset();
+  mocks.pickFiles.mockResolvedValue([]);
+  mocks.importStamps.mockReset();
+  mocks.importStamps.mockResolvedValue([]);
+  mocks.deleteStamps.mockReset();
+  mocks.deleteStamps.mockResolvedValue(undefined);
   root = createRoot(document.querySelector("#root")!);
 });
 
@@ -92,7 +99,65 @@ describe("StampPickerModal groups", () => {
     expect(document.body.textContent).toContain("No stamps in this group");
     expect(document.querySelector('[role="listbox"]')).not.toBeNull();
   });
+
+  it("keeps preview progress visible without making it a live result", async () => {
+    let resolveThumbnail: ((value: { dataUrl: string; width: number; height: number }) => void) | undefined;
+    mocks.thumbnail.mockImplementation(() => new Promise((resolve) => { resolveThumbnail = resolve; }));
+    await renderStampPicker();
+
+    const progress = [...document.querySelectorAll<HTMLElement>(".operation-result")]
+      .find((element) => element.textContent?.includes("Preparing previews"));
+    expect(progress).toBeDefined();
+    expect(progress?.getAttribute("role")).toBeNull();
+
+    await act(async () => resolveThumbnail?.({ dataUrl: "data:done", width: 64, height: 64 }));
+  });
+
+  it("announces partial import results politely with warning severity", async () => {
+    mocks.pickFiles.mockResolvedValue(["/mine.svg"]);
+    mocks.importStamps.mockResolvedValue([{
+      fileName: "mine.svg",
+      path: "/mine.svg",
+      status: "skipped-name-conflict"
+    }]);
+    await renderStampPicker();
+    await clickButton("Import...");
+
+    const warning = document.querySelector('[role="status"]');
+    expect(warning?.textContent).toContain("Warning:");
+    expect(warning?.textContent).toContain("already match a library file name");
+    expect(warning?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("announces import failures assertively and retains dismissal", async () => {
+    mocks.pickFiles.mockResolvedValue(["/broken.svg"]);
+    mocks.importStamps.mockRejectedValue(new Error("Library is read-only"));
+    await renderStampPicker();
+    await clickButton("Import...");
+
+    const error = document.querySelector('[role="alert"]');
+    expect(error?.textContent).toContain("Error: Library is read-only");
+    expect(error?.querySelector("svg")).not.toBeNull();
+    expect(button("Dismiss error")).toBeDefined();
+  });
 });
+
+async function renderStampPicker(): Promise<void> {
+  await act(async () => {
+    root.render(createElement(
+      ConfirmerProvider,
+      null,
+      createElement(StampPickerModal, {
+        onClose: () => undefined,
+        onReload: async () => undefined,
+        onUse: () => undefined,
+        previewLongEdge: 64,
+        selectedPath: "",
+        stamps
+      })
+    ));
+  });
+}
 
 function selectedTab(): HTMLElement | null {
   return document.querySelector('[role="tab"][aria-selected="true"]');
@@ -103,4 +168,15 @@ async function clickTab(label: string): Promise<void> {
     .find((entry) => entry.textContent === label);
   expect(tab).toBeDefined();
   await act(async () => tab!.click());
+}
+
+function button(label: string): HTMLButtonElement | undefined {
+  return [...document.querySelectorAll<HTMLButtonElement>("button")]
+    .find((candidate) => candidate.textContent === label || candidate.getAttribute("aria-label") === label);
+}
+
+async function clickButton(label: string): Promise<void> {
+  const target = button(label);
+  expect(target).toBeDefined();
+  await act(async () => target!.click());
 }

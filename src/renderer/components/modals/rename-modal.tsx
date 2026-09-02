@@ -4,6 +4,7 @@ import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
 import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
 import { useImeGuard } from "@renderer/utils/ime-guard";
+import { OperationResult } from "@renderer/components/operation-result";
 import { ModalShell } from "./modal-shell";
 
 export type RenameRunSummary = {
@@ -74,6 +75,7 @@ export function RenameModal({
     let cancelled = false;
     async function loadPreview(): Promise<void> {
       setPreviewBusy(true);
+      setPreview(null);
       setError(null);
       setSettingsRecovery(false);
       await onPreview(templateId)
@@ -147,18 +149,20 @@ export function RenameModal({
       </label>
 
       {preview?.blockedCount ? (
-        <div className="modal-warning">{preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need{preview.blockedCount === 1 ? "s" : ""} attention before rename.</div>
+        <OperationResult className="modal-warning" severity="warning">
+          {preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need{preview.blockedCount === 1 ? "s" : ""} attention before rename.
+        </OperationResult>
       ) : null}
 
       {error ? (
-        <div className="modal-error" role="alert">
+        <OperationResult className="modal-error" severity="error">
           <span>{error}</span>
           {settingsRecovery ? (
             <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>
               Open Settings
             </button>
           ) : null}
-        </div>
+        </OperationResult>
       ) : null}
 
       <div className="rename-preview-list">

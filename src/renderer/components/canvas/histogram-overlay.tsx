@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { clamp } from "@shared/numeric";
+import { OperationResult } from "@renderer/components/operation-result";
 import type { EditorCanvasPreview } from "./editor-canvas";
 
 type HistogramBins = {
@@ -31,6 +32,7 @@ export function HistogramOverlay({
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const [resolvedPosition, setResolvedPosition] = useState<Position | null>(null);
   const dragRef = useRef<{ originX: number; originY: number; baseX: number; baseY: number } | null>(null);
+  const histogram = useHistogram(preview);
 
   // Resolve persisted position against the canvas-frame parent's current size. If the
   // persisted point would leave the overlay outside the visible canvas (window resize,
@@ -59,7 +61,7 @@ export function HistogramOverlay({
       position.x + rect.width <= parentRect.width &&
       position.y + rect.height <= parentRect.height;
     setResolvedPosition(inBounds ? position : defaultPos);
-  }, [position]);
+  }, [histogram.state, position]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>): void {
     if (!resolvedPosition) return;
@@ -98,11 +100,9 @@ export function HistogramOverlay({
     if (resolvedPosition) onPositionChange(resolvedPosition);
   }
 
-  const bins = useHistogramBins(preview);
-
   return (
     <div
-      className="histogram-overlay"
+      className={`histogram-overlay${histogram.state === "error" && previewState !== "error" ? " has-error" : ""}`}
       ref={overlayRef}
       style={resolvedPosition ? { left: resolvedPosition.x, top: resolvedPosition.y, right: "auto" } : undefined}
       onPointerDown={onPointerDown}
@@ -113,32 +113,60 @@ export function HistogramOverlay({
       <button className="histogram-overlay-close" type="button" onClick={onClose} title="Hide histogram">
         <X size={12} />
       </button>
-      {bins ? (
-        <HistogramSvg bins={bins} />
+      {histogram.bins ? (
+        <HistogramSvg bins={histogram.bins} />
       ) : (
-        <span className="histogram-overlay-empty">
-          {previewState === "loading" ? "Rendering…" : previewState === "error" ? "Preview failed" : "No preview"}
-        </span>
+        <div className="histogram-overlay-empty">
+          {previewState === "loading" ? "Rendering..." : previewState === "error" ? "Preview failed" : histogram.state === "error" ? (
+            <OperationResult className="modal-error histogram-error" severity="error">
+              <span>Histogram failed.</span>
+              <button className="toolbar-button compact-text" type="button" onClick={histogram.retry}>Retry</button>
+            </OperationResult>
+          ) : histogram.state === "loading" ? "Preparing histogram..." : "No preview"}
+        </div>
       )}
     </div>
   );
 }
 
-function useHistogramBins(preview: EditorCanvasPreview | null): HistogramBins | null {
+type HistogramResult = {
+  bins: HistogramBins | null;
+  retry(): void;
+  state: "idle" | "loading" | "error";
+};
+
+function useHistogram(preview: EditorCanvasPreview | null): HistogramResult {
   const [bins, setBins] = useState<HistogramBins | null>(null);
+  const [state, setState] = useState<HistogramResult["state"]>("idle");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     if (!preview) {
       setBins(null);
+      setState("idle");
       return;
     }
+    setBins(null);
+    setState("loading");
     const image = new window.Image();
     image.onload = () => {
-      if (!cancelled) setBins(readHistogram(image));
+      if (cancelled) return;
+      try {
+        setBins(readHistogram(image));
+        setState("idle");
+      } catch (error) {
+        console.error("Failed to build preview histogram", error);
+        setBins(null);
+        setState("error");
+      }
     };
     image.onerror = () => {
-      if (!cancelled) setBins(null);
+      if (!cancelled) {
+        console.error("Failed to decode preview for histogram");
+        setBins(null);
+        setState("error");
+      }
     };
     image.src = preview.dataUrl;
 
@@ -147,9 +175,13 @@ function useHistogramBins(preview: EditorCanvasPreview | null): HistogramBins | 
       image.onload = null;
       image.onerror = null;
     };
-  }, [preview]);
+  }, [attempt, preview]);
 
-  return bins;
+  return {
+    bins,
+    retry: () => setAttempt((current) => current + 1),
+    state
+  };
 }
 
 function HistogramSvg({ bins }: { bins: HistogramBins }): React.JSX.Element {

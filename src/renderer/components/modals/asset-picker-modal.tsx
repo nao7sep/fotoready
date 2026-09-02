@@ -10,6 +10,7 @@ import type {
 } from "@shared/types/ipc";
 import { STAMP_GROUP_FILTERS, type StampGroupFilterId } from "@shared/stamp-groups";
 import { api } from "@renderer/ipc/client";
+import { OperationResult } from "@renderer/components/operation-result";
 import { filterStampsByGroup, initialStampGroupFilter } from "@renderer/stamp-filter";
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { useConfirmer } from "./confirmer";
@@ -21,6 +22,10 @@ type PickerEntry = {
   path: string;
   previewDataUrl?: string;
 };
+
+type PickerOperation = "delete" | "import" | "use";
+
+const pickerOperations: readonly PickerOperation[] = ["use", "import", "delete"];
 
 type AssetPickerModalProps<T extends PickerEntry> = {
   entries: T[];
@@ -69,7 +74,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   const [focusPath, setFocusPath] = useState(selectedPath);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState(selectedPath);
   const [pendingReselectIndex, setPendingReselectIndex] = useState<number | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<Partial<Record<PickerOperation, string>>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
   const entryIndexByPath = useMemo(
@@ -85,12 +90,14 @@ export function AssetPickerModal<T extends PickerEntry>({
   const focusedIndex = focusPath ? entryIndexByPath.get(focusPath) ?? -1 : -1;
   const canDeleteSelected = selectedEntries.length > 0 && selectedEntries.every((entry) => !entry.builtin);
 
-  function pushError(message: string): void {
-    setErrors((current) => [...current, message]);
-  }
-
-  function dismissError(index: number): void {
-    setErrors((current) => current.filter((_, i) => i !== index));
+  function setOperationError(operation: PickerOperation, message: string | null): void {
+    setErrors((current) => {
+      if (message) return { ...current, [operation]: message };
+      if (!current[operation]) return current;
+      const next = { ...current };
+      delete next[operation];
+      return next;
+    });
   }
 
   function focusItem(path: string): void {
@@ -162,9 +169,10 @@ export function AssetPickerModal<T extends PickerEntry>({
     try {
       setNotice(null);
       await onUse(entry);
+      setOperationError("use", null);
       onClose();
     } catch (entryError) {
-      pushError(errorMessage(entryError));
+      setOperationError("use", errorMessage(entryError));
     }
   }
 
@@ -176,6 +184,7 @@ export function AssetPickerModal<T extends PickerEntry>({
 
       const imported = await onImport(filePaths);
       await onRefresh();
+      setOperationError("import", null);
       onImportComplete?.(imported);
 
       const importedEntries = imported.filter((entry) => entry.status === "imported");
@@ -194,7 +203,7 @@ export function AssetPickerModal<T extends PickerEntry>({
         setNotice(label);
       }
     } catch (importError) {
-      pushError(errorMessage(importError));
+      setOperationError("import", errorMessage(importError));
     }
   }
 
@@ -226,9 +235,10 @@ export function AssetPickerModal<T extends PickerEntry>({
         await onUse(null);
       }
       await onRefresh();
+      setOperationError("delete", null);
       setPendingReselectIndex(Number.isFinite(deletedIndex) ? deletedIndex : 0);
     } catch (deleteError) {
-      pushError(errorMessage(deleteError));
+      setOperationError("delete", errorMessage(deleteError));
     }
   }
 
@@ -368,18 +378,29 @@ export function AssetPickerModal<T extends PickerEntry>({
         </>
       }
     >
-      <div className="asset-picker" style={{ "--asset-picker-preview-size": `${previewLongEdge}px` } as React.CSSProperties}>
+      <div aria-busy={loading} className="asset-picker" style={{ "--asset-picker-preview-size": `${previewLongEdge}px` } as React.CSSProperties}>
         {controls}
-        {loading ? <div className="modal-warning">Preparing previews...</div> : null}
-        {notice ? <div className="modal-warning">{notice}</div> : null}
-        {errors.map((message, index) => (
-          <div className="modal-error dismissable" key={index}>
-            <span>{message}</span>
-            <button className="icon-button compact" type="button" aria-label="Dismiss" title="Dismiss" onClick={() => dismissError(index)}>
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+        {loading ? (
+          <OperationResult announce={false} className="modal-info" severity="info">
+            Preparing previews...
+          </OperationResult>
+        ) : null}
+        {notice ? (
+          <OperationResult className="modal-warning" severity="warning">
+            {notice}
+          </OperationResult>
+        ) : null}
+        {pickerOperations.map((operation) => {
+          const message = errors[operation];
+          return message ? (
+            <OperationResult className="modal-error dismissable" key={operation} severity="error">
+              <span>{message}</span>
+              <button className="icon-button compact" type="button" aria-label="Dismiss error" title="Dismiss" onClick={() => setOperationError(operation, null)}>
+                <X size={14} />
+              </button>
+            </OperationResult>
+          ) : null;
+        })}
         <div
           aria-labelledby={contentLabelledBy}
           className="asset-picker-scroll"

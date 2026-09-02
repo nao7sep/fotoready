@@ -79,6 +79,7 @@ function App(): React.JSX.Element {
   const setPreview = useEditorStore((state) => state.setPreview);
   const previewState = useEditorStore((state) => state.previewState);
   const setPreviewState = useEditorStore((state) => state.setPreviewState);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
   const selectedOpId = useEditorStore((state) => state.selectedOpId);
   const selectOp = useEditorStore((state) => state.selectOp);
   const renameOpen = useEditorStore((state) => state.renameOpen);
@@ -337,8 +338,9 @@ function App(): React.JSX.Element {
             setPreviewState("idle");
           }
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (!cancelled) {
+            console.error("Failed to render preview", error);
             setPreview(null);
             setPreviewState("error");
           }
@@ -349,7 +351,7 @@ function App(): React.JSX.Element {
       cancelled = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [previewStateKey, settings?.previewDebounceMs]);
+  }, [previewAttempt, previewStateKey, settings?.previewDebounceMs]);
 
   async function addOriginals(): Promise<void> {
     try {
@@ -761,6 +763,7 @@ function App(): React.JSX.Element {
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
               onOpParamsChange={(opId, patch, options) => void updateOpParams(opId, patch, options)}
+              onRetryPreview={() => setPreviewAttempt((attempt) => attempt + 1)}
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
               previewState={previewState}

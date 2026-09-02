@@ -93,4 +93,34 @@ describe("owned action failures", () => {
     await act(async () => close?.click());
     expect(onDismiss).toHaveBeenCalledWith("first");
   });
+
+  it("lets only the latest same-key attempt settle presentation", async () => {
+    let failures: OwnedFailures = {};
+    const setFailures = (update: React.SetStateAction<OwnedFailures>): void => {
+      failures = typeof update === "function" ? update(failures) : update;
+    };
+    let rejectOlder!: (error: unknown) => void;
+    const older = runOwnedAction({
+      action: () => new Promise<void>((_resolve, reject) => { rejectOlder = reject; }),
+      key: "same",
+      operation: "same action failed",
+      setFailures,
+      userMessage: "Older failure"
+    });
+    const newer = runOwnedAction({
+      action: async () => undefined,
+      key: "same",
+      operation: "same action failed",
+      setFailures,
+      userMessage: "Newer failure"
+    });
+
+    await newer;
+    rejectOlder(new Error("stale EACCES /private/tmp/FOTOREADY_STALE"));
+    await older;
+    expect(failures).toEqual({});
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining("same action failed"),
+    }));
+  });
 });

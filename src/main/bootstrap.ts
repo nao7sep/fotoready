@@ -13,7 +13,8 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
-import { requireCorruptSettingsNotice } from "./startup-dialog";
+import { notifyStartupFailure, requireCorruptSettingsNotice } from "./startup-dialog";
+import { loadRendererWindowContent } from "./window-content";
 import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
@@ -132,7 +133,7 @@ export async function bootstrap(): Promise<void> {
   // once at startup so the bar matches the app on every platform.
   nativeTheme.themeSource = "light";
 
-  const createWindow = (): void => {
+  const createWindow = async (): Promise<void> => {
     // Open at the remembered size (clamped to this display), or the first-run size. Reading the size
     // here in main — not in the renderer — is why the pane widths and window size live in state.json.
     const { workAreaSize } = screen.getPrimaryDisplay();
@@ -177,18 +178,37 @@ export async function bootstrap(): Promise<void> {
       win.show();
     });
 
-    const loaded = process.env.ELECTRON_RENDERER_URL
-      ? win.loadURL(process.env.ELECTRON_RENDERER_URL)
-      : win.loadFile(path.join(__dirname, "../renderer/index.html"));
-    loaded.catch((error) => logger.error("failed to load the renderer window", { mod: "main", err: error }));
+    try {
+      await loadRendererWindowContent(
+        win,
+        process.env.ELECTRON_RENDERER_URL,
+        path.join(__dirname, "../renderer/index.html"),
+      );
+    } catch (error) {
+      logger.error("failed to load the renderer window", { mod: "main", err: error });
+      // Keep the failed, never-shown owner alive until the terminal recovery
+      // window settles. Destroying the last window here can start ordinary
+      // window-all-closed shutdown before that recovery surface is created.
+      throw error;
+    }
   };
 
-  createWindow();
+  await createWindow();
 
   // macOS keeps the process running after the window closes; recreate only the
   // window when the user re-activates, never re-run the init above.
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length !== 0) return;
+    void createWindow().catch(async (error) => {
+      logger.error("failed to recreate the renderer window", { mod: "main", err: error });
+      try {
+        await notifyStartupFailure();
+      } catch (dialogError) {
+        logger.error("could not show renderer recovery dialog", { mod: "main", err: dialogError });
+      } finally {
+        app.exit(1);
+      }
+    });
   });
 }
 

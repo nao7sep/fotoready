@@ -5,6 +5,23 @@ export type OwnedFailures = Record<string, string>;
 export type OwnedFailureSetter = React.Dispatch<React.SetStateAction<OwnedFailures>>;
 export type OwnedActionOutcome = "completed" | "cancelled";
 
+const actionAttempts = new WeakMap<OwnedFailureSetter, Map<string, number>>();
+
+function beginAttempt(setFailures: OwnedFailureSetter, key: string): number {
+  let attempts = actionAttempts.get(setFailures);
+  if (!attempts) {
+    attempts = new Map();
+    actionAttempts.set(setFailures, attempts);
+  }
+  const attempt = (attempts.get(key) ?? 0) + 1;
+  attempts.set(key, attempt);
+  return attempt;
+}
+
+function isLatestAttempt(setFailures: OwnedFailureSetter, key: string, attempt: number): boolean {
+  return actionAttempts.get(setFailures)?.get(key) === attempt;
+}
+
 export async function runOwnedAction({
   action,
   fields,
@@ -20,12 +37,14 @@ export async function runOwnedAction({
   setFailures: OwnedFailureSetter;
   userMessage: string;
 }): Promise<void> {
+  const attempt = beginAttempt(setFailures, key);
   try {
     const outcome = await action();
     if (outcome === "cancelled") return;
-    dismissOwnedFailure(setFailures, key);
+    if (isLatestAttempt(setFailures, key, attempt)) dismissOwnedFailure(setFailures, key);
   } catch (error) {
     const message = presentFailure(error, userMessage, operation, fields);
+    if (!isLatestAttempt(setFailures, key, attempt)) return;
     setFailures((current) => ({ ...current, [key]: message }));
   }
 }

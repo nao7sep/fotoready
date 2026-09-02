@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { api } from "@renderer/ipc/client";
 import { ModalShell } from "./modal-shell";
-import { OperationResult } from "../operation-result";
-import { presentFailure } from "../../present-failure";
+import { dismissOwnedFailure, runOwnedAction, type OwnedFailures } from "../../owned-failures";
+import { OwnedFailureList } from "../owned-failure-list";
 
 const APP_REPOSITORY_URL = "https://github.com/nao7sep/fotoready";
 const APP_ISSUES_URL = `${APP_REPOSITORY_URL}/issues`;
@@ -14,20 +14,19 @@ interface Props {
 }
 
 export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
-  const [linkFailure, setLinkFailure] = useState<string | null>(null);
+  const [linkFailures, setLinkFailures] = useState<OwnedFailures>({});
 
-  async function openProjectPage(url: string): Promise<void> {
-    try {
-      await api.system.openExternal(url);
-      setLinkFailure(null);
-    } catch (error) {
-      setLinkFailure(presentFailure(
-        error,
-        "That page could not be opened. Check the default browser and try again.",
-        "about link open failed",
-        { url }
-      ));
-    }
+  function openProjectPage(key: "repository" | "issues", url: string): void {
+    void runOwnedAction({
+      action: () => api.system.openExternal(url),
+      fields: { url },
+      key,
+      operation: "about link open failed",
+      setFailures: setLinkFailures,
+      userMessage: key === "repository"
+        ? "GitHub could not be opened. Check the default browser and try again."
+        : "Issues could not be opened. Check the default browser and try again."
+    });
   }
 
   return (
@@ -47,23 +46,18 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
           metadata controls, rename previews, and optional Gemini-assisted descriptions and slugs.
         </p>
         <div className="about-links">
-          <button className="toolbar-button" type="button" onClick={() => void openProjectPage(APP_REPOSITORY_URL)}>
+          <button className="toolbar-button" type="button" onClick={() => openProjectPage("repository", APP_REPOSITORY_URL)}>
             GitHub
           </button>
-          <button className="toolbar-button" type="button" onClick={() => void openProjectPage(APP_ISSUES_URL)}>
+          <button className="toolbar-button" type="button" onClick={() => openProjectPage("issues", APP_ISSUES_URL)}>
             Issues
           </button>
         </div>
-        {linkFailure ? (
-          <OperationResult
-            className="modal-error"
-            severity="error"
-            dismissLabel="Close link result"
-            onDismiss={() => setLinkFailure(null)}
-          >
-            {linkFailure}
-          </OperationResult>
-        ) : null}
+        <OwnedFailureList
+          className="about-link-results"
+          failures={linkFailures}
+          onDismiss={(key) => dismissOwnedFailure(setLinkFailures, key)}
+        />
         <div className="settings-summary">
           <span>Developer</span>
           <code>Yoshinao Inoguchi</code>

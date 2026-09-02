@@ -43,9 +43,33 @@ describe("AboutModal links", () => {
     await act(async () => github?.click());
 
     const result = document.querySelector('[role="alert"]');
-    expect(result?.textContent).toContain("That page could not be opened");
+    expect(result?.textContent).toContain("GitHub could not be opened");
     expect(result?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SENTINEL|invoking remote method/i);
     expect(result?.querySelectorAll("svg")).toHaveLength(1);
     expect(result?.querySelector(".operation-result-close-icon")).not.toBeNull();
+  });
+
+  it("retains each link independently and ignores a stale same-link failure", async () => {
+    let rejectOlder!: (error: unknown) => void;
+    mocks.openExternal
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectOlder = reject; }))
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error("issues failed"));
+    await act(async () => {
+      root.render(createElement(AboutModal, { systemInfo: null, onClose: () => undefined }));
+    });
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>("button")];
+    const github = buttons.find((button) => button.textContent === "GitHub")!;
+    const issues = buttons.find((button) => button.textContent === "Issues")!;
+
+    await act(async () => {
+      github.click();
+      github.click();
+    });
+    await act(async () => rejectOlder(new Error("stale failure")));
+    expect(document.body.textContent).not.toContain("GitHub could not be opened");
+
+    await act(async () => issues.click());
+    expect(document.body.textContent).toContain("Issues could not be opened");
   });
 });

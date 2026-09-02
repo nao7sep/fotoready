@@ -35,7 +35,7 @@ export function OperationResult({
           type="button"
           onClick={onDismiss}
         >
-          <X size={13} />
+          <X className="operation-result-close-icon" />
         </button>
       ) : null}
     </div>

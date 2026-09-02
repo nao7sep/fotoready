@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AlertTriangle, BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
+import { BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
 import { api } from "./ipc/client";
+import { reportRendererLog } from "./renderer-log";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
 import type { LutEntry, OpCatalogItem, OriginalImportResult, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
@@ -193,20 +194,20 @@ function App(): React.JSX.Element {
     const originalError = console.error;
     console.warn = (...args: unknown[]) => {
       originalWarn(...args);
-      void api.system.log({ level: "warn", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
+      reportRendererLog({ level: "warn", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
     };
     console.error = (...args: unknown[]) => {
       originalError(...args);
-      void api.system.log({ level: "error", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
+      reportRendererLog({ level: "error", message: stringifyLogArgs(args), fields: { mod: "renderer.console" } });
     };
     const onError = (event: ErrorEvent) =>
-      void api.system.log({
+      reportRendererLog({
         level: "error",
         message: event.message,
         fields: { mod: "renderer.onerror", stack: event.error instanceof Error ? event.error.stack ?? null : null }
       });
     const onRejection = (event: PromiseRejectionEvent) =>
-      void api.system.log({
+      reportRendererLog({
         level: "error",
         message: "Unhandled renderer rejection",
         fields: { mod: "renderer.unhandledrejection", reason: stringifyLogArgs([event.reason]) }
@@ -960,7 +961,7 @@ function StatusBar({
             className="status-chip status-chip-warning"
             title={`${privacyCount} ${privacyCount === 1 ? "task has" : "tasks have"} source metadata that will remain in the saved file. Add a Strip metadata card to remove.`}
           >
-            <AlertTriangle size={12} /> {privacyCount} with private metadata
+            {privacyCount} with private metadata
           </span>
         ) : null}
         {hasGeminiApiKey === false ? (

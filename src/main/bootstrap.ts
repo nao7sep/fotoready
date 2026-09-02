@@ -13,7 +13,7 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
-import { showPlainMessageDialog } from "./plain-message-dialog";
+import { notifyCorruptSettings } from "./startup-dialog";
 import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
@@ -84,11 +84,7 @@ export async function bootstrap(): Promise<void> {
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   if (settingsQuarantinedTo) {
-    await showPlainMessageDialog({
-      title: "Settings could not be read",
-      message: "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost.",
-      detail: `Saved copy: ${settingsQuarantinedTo}\n\nFotoReady has started with default values for the unreadable fields. Your projects and photos are untouched.`,
-    });
+    await notifyCorruptSettings();
   }
   const visionQueue = new VisionQueue(paths, settings, logger);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);

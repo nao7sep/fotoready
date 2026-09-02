@@ -1,90 +1,55 @@
+import { ApiError } from "@google/genai";
 import { describe, expect, it } from "vitest";
+
+import { VisionProviderFailure } from "@adapters/gemini";
 import { visionError } from "@main/queues/vision";
 
-/** The shape @google/genai throws: a status plus the provider's own payload. */
-function apiError(status: number, message: string): Error & { status: number; error: unknown } {
-  const error = new Error(message) as Error & { status: number; error: unknown };
-  error.status = status;
-  error.error = { code: status, message };
-  return error;
-}
+describe("visionError", () => {
+  it("maps a missing model from the SDK status, independent of diagnostic prose", () => {
+    const result = visionError(new ApiError({
+      status: 404,
+      message: "Error invoking remote method: EACCES /private/tmp/FOTOREADY_MODEL_SENTINEL",
+    }));
 
-const NOT_FOUND = `{"error":{"code":404,"message":"models/gemini-3-flash-preview is not found for API version v1beta"}}`;
-
-describe("visionError — a model that no longer exists", () => {
-  // Closing the model list made this the likeliest failure, not the rarest: every id retires, two of
-  // the four shipped are -preview, and there is no models reset — so a config stays pinned to its pick
-  // while the app's list moves on. Both assertions below failed before 2026-07-16.
-
-  it("says which knob fixes it, instead of handing back the raw payload", () => {
-    const { message } = visionError(apiError(404, NOT_FOUND));
-    expect(message).toBe("This Gemini model isn't available. Open Settings and choose one from the list.");
-    expect(message).not.toContain("{");
-  });
-
-  it("is not retryable — the same call fails identically forever", () => {
-    // The classifier's default is an optimistic `return true`, which is right for an unknown error
-    // and wrong here: it offers a retry that cannot succeed.
-    expect(visionError(apiError(404, NOT_FOUND)).retryable).toBe(false);
-  });
-
-  it("classifies on the payload even when the status is absent", () => {
-    const bare = new Error(NOT_FOUND);
-    const { message, retryable } = visionError(bare);
-    expect(message).toBe("This Gemini model isn't available. Open Settings and choose one from the list.");
-    expect(retryable).toBe(false);
-  });
-
-  it("stages as vision and keeps the payload in detail, not in the message", () => {
-    const result = visionError(apiError(404, NOT_FOUND));
-    expect(result.stage).toBe("vision");
-    expect(result.occurredAt).toBeTruthy();
-  });
-});
-
-describe("visionError — the arms it must not steal", () => {
-  // The 404 arm sits above the \bjson\b test (which a 404 payload can match), so the neighbours it
-  // jumped in front of are pinned here.
-
-  it("a rate limit stays a retryable rate limit", () => {
-    const result = visionError(apiError(429, "Resource has been exhausted"));
-    expect(result.message).toBe("Gemini rate limit reached. Wait a moment, then retry.");
-    expect(result.retryable).toBe(true);
-  });
-
-  it("an auth failure stays a retryable auth failure", () => {
-    const result = visionError(apiError(403, "permission denied"));
-    expect(result.message).toBe("Gemini authentication failed. Check the saved API key in Settings, then retry.");
-    expect(result.retryable).toBe(true);
-  });
-
-  it("a malformed response stays the retryable json message", () => {
-    const result = visionError(new Error("Vision provider returned an invalid describe response."));
-    expect(result.message).toBe("Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.");
-    expect(result.retryable).toBe(true);
-  });
-
-  it("a safety refusal stays non-retryable", () => {
-    const result = visionError(apiError(400, "blocked by safety policy"));
+    expect(result.message).toBe("This Gemini model isn't available. Open Settings and choose one from the list.");
     expect(result.retryable).toBe(false);
+    expect(result.message).not.toMatch(/EACCES|private\/tmp|SENTINEL|invoking remote method/i);
+    expect(result.detail).toContain("FOTOREADY_MODEL_SENTINEL");
   });
 
-  it("a server error stays retryable", () => {
-    const result = visionError(apiError(503, "backend unavailable"));
-    expect(result.message).toBe("Gemini is temporarily unavailable. Retry in a moment.");
-    expect(result.retryable).toBe(true);
+  it("maps authentication, throttling, and server failures from SDK statuses", () => {
+    expect(visionError(new ApiError({ status: 403, message: "hostile auth prose" }))).toMatchObject({
+      message: "Gemini authentication failed. Check the saved API key in Settings, then retry.", retryable: true,
+    });
+    expect(visionError(new ApiError({ status: 429, message: "hostile quota prose" }))).toMatchObject({
+      message: "Gemini rate limit reached. Wait a moment, then retry.", retryable: true,
+    });
+    expect(visionError(new ApiError({ status: 503, message: "hostile server prose" }))).toMatchObject({
+      message: "Gemini is temporarily unavailable. Retry in a moment.", retryable: true,
+    });
   });
-});
 
-describe("visionError — hostile diagnostics", () => {
-  it("keeps IPC wrappers, errno text, and absolute paths out of task presentation", () => {
+  it("maps app-local provider codes without parsing their messages", () => {
+    expect(visionError(new VisionProviderFailure("missing-api-key", "hostile missing key prose"))).toMatchObject({
+      message: "Gemini API key is missing. Open Settings and save a key, then retry.", retryable: true,
+    });
+    expect(visionError(new VisionProviderFailure("safety-refusal", "hostile safety prose"))).toMatchObject({
+      message: "Gemini refused this image because of a safety or content policy restriction.", retryable: false,
+    });
+    expect(visionError(new VisionProviderFailure("invalid-response", "hostile JSON prose"))).toMatchObject({
+      message: "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.", retryable: true,
+    });
+  });
+
+  it("does not classify a bare exception by suggestive prose", () => {
     const result = visionError(new Error(
-      "Error invoking remote method 'vision:run': EACCES /private/tmp/FOTOREADY_VISION_SENTINEL",
+      "model is not found; blocked by safety; Error invoking remote method: EACCES /private/tmp/FOTOREADY_VISION_SENTINEL",
     ));
 
     expect(result.message).toBe(
       "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",
     );
+    expect(result.retryable).toBe(true);
     expect(result.message).not.toMatch(/EACCES|private\/tmp|FOTOREADY_VISION_SENTINEL|invoking remote method/i);
     expect(result.detail).toContain("FOTOREADY_VISION_SENTINEL");
   });

@@ -114,8 +114,8 @@ export function ModalShell({
       >
         <header className="modal-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-button compact" type="button" aria-label="Close" title="Close" onClick={onClose}>
-            <X size={16} />
+          <button className="modal-header-close" type="button" aria-label="Close" title="Close" onClick={onClose}>
+            <X className="modal-header-close-icon" />
           </button>
         </header>
         <div className="modal-body">{children}</div>

@@ -1,3 +1,5 @@
+import { reportRendererLog } from "./renderer-log";
+
 /** Log complete diagnostics while returning stable, authored display copy. */
 export function presentFailure(
   error: unknown,
@@ -5,20 +7,8 @@ export function presentFailure(
   operation: string,
   fields: Record<string, unknown> = {},
 ): string {
-  try {
-    const log = window.api?.system?.log;
-    if (typeof log === "function") {
-      void log({
-        level: "error",
-        message: operation,
-        fields: { ...fields, error: describeError(error) },
-      }).catch(() => {
-        // A broken logging bridge must never replace the recovered failure.
-      });
-    }
-  } catch {
-    // The privileged IPC boundary already logged invoked-operation errors.
-  }
+  const diagnostic = { ...fields, error: describeError(error) };
+  reportRendererLog({ level: "error", message: operation, fields: diagnostic });
   return userMessage;
 }
 

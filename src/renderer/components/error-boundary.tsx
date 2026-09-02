@@ -1,4 +1,5 @@
 import React from "react";
+import { reportRendererLog } from "@renderer/renderer-log";
 
 // A render-phase throw anywhere in the tree unmounts the whole React root, leaving the window
 // silently blank with no on-screen clue and (for a throw before the app installs its console hook)
@@ -52,19 +53,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
     // Best-effort forward to the main log. Guarded because the boundary must never throw while
     // reporting — if the preload bridge is what failed, window.api is gone and this would mask
     // the real error behind a "cannot read properties of undefined".
-    try {
-      window.api?.system?.log({
-        level: "error",
-        message: error.message,
-        fields: {
-          mod: "renderer.error-boundary",
-          stack: error.stack ?? null,
-          componentStack: info.componentStack ?? null
-        }
-      });
-    } catch {
-      /* logging is best-effort; never let it swallow the original failure */
-    }
+    reportRendererLog({
+      level: "error",
+      message: "Renderer error boundary caught an exception",
+      fields: {
+        mod: "renderer.error-boundary",
+        error: { name: error.name, message: error.message, stack: error.stack ?? null },
+        componentStack: info.componentStack ?? null
+      }
+    });
   }
 
   private readonly handleReload = (): void => {

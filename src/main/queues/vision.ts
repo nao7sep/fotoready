@@ -9,7 +9,8 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
 import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
-import { GeminiVisionProvider } from "@adapters/gemini";
+import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
+import { ApiError } from "@google/genai";
 
 /** The state of one scheduled-but-not-yet-started vision run. Its cancel flag is owned by one job. */
 type PendingVisionJob = { cancelled: boolean };
@@ -102,7 +103,7 @@ export class VisionQueue {
       const startedAt = performance.now();
       const apiKey = await this.#apiKeys.resolve(["gemini"]);
       if (!apiKey) {
-        throw new Error("Gemini API key is missing. Open Settings and save a key, then retry.");
+        throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }
       // The saved output can be deleted (or the task retried, which nulls task.output) while the key
       // is fetched or a Gemini call is in flight. Re-validate before each post-await read/write of
@@ -182,82 +183,47 @@ async function prepareVisionInput(stagedPath: string, longEdge: number): Promise
 /** Exported for tests — the classification is the interesting part, and a live call is a poor way to reach it. */
 export function visionError(error: unknown): TaskError {
   const known = error instanceof Error ? error : new Error(String(error));
-  const message = classifyVisionMessage(error, known.message);
+  const presentation = classifyVisionFailure(error);
   return {
     stage: "vision",
-    message,
+    message: presentation.message,
     detail: known.stack ?? null,
     occurredAt: nowIso(),
-    retryable: isVisionRetryable(error, known.message)
+    retryable: presentation.retryable
   };
 }
 
-function classifyVisionMessage(error: unknown, fallback: string): string {
-  const raw = `${fallback} ${readErrorPayload(error)}`.toLowerCase();
-  const status = readErrorStatus(error);
-
-  if (raw.includes("api key is missing")) {
-    return "Gemini API key is missing. Open Settings and save a key, then retry.";
+function classifyVisionFailure(error: unknown): { message: string; retryable: boolean } {
+  if (error instanceof VisionProviderFailure) {
+    switch (error.code) {
+      case "missing-api-key":
+        return { message: "Gemini API key is missing. Open Settings and save a key, then retry.", retryable: true };
+      case "safety-refusal":
+        return { message: "Gemini refused this image because of a safety or content policy restriction.", retryable: false };
+      case "incomplete-response":
+      case "invalid-response":
+        return {
+          message: "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.",
+          retryable: true,
+        };
+    }
   }
-  if (status === 401 || status === 403 || /\bunauthori[sz]ed\b|\bforbidden\b|\binvalid api key\b|\bauth/i.test(raw)) {
-    return "Gemini authentication failed. Check the saved API key in Settings, then retry.";
+  if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403) {
+      return { message: "Gemini authentication failed. Check the saved API key in Settings, then retry.", retryable: true };
+    }
+    if (error.status === 404) {
+      return { message: "This Gemini model isn't available. Open Settings and choose one from the list.", retryable: false };
+    }
+    if (error.status === 429) {
+      return { message: "Gemini rate limit reached. Wait a moment, then retry.", retryable: true };
+    }
+    if (error.status >= 500) {
+      return { message: "Gemini is temporarily unavailable. Retry in a moment.", retryable: true };
+    }
   }
-  // The likeliest error now that the model list is closed, and the only one that is a matter of
-  // time rather than accident: every id retires eventually, two of the four shipped are -preview,
-  // and there is no models reset — so an existing config stays pinned to its pick while the app's
-  // list moves on under it. Settings labels that pick "no longer offered", but a job is where most
-  // users will meet it, and the raw payload here is a wall of JSON. Checked before the \bjson\b arm
-  // below, which the 404 payload can otherwise match.
-  if (status === 404 || /\bis not found\b|\bdoes not exist\b/.test(raw)) {
-    return "This Gemini model isn't available. Open Settings and choose one from the list.";
-  }
-  if (status === 429 || /\brate limit\b|\bquota\b|\bresource has been exhausted\b/.test(raw)) {
-    return "Gemini rate limit reached. Wait a moment, then retry.";
-  }
-  if (status !== null && status >= 500) {
-    return "Gemini is temporarily unavailable. Retry in a moment.";
-  }
-  if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn/i.test(raw)) {
-    return "Couldn't reach Gemini. Check your network connection and retry.";
-  }
-  if (/\bsafety\b|\bcontent policy\b|\bpolicy\b|\bblocked\b|\bprohibited\b|\bdisallow/i.test(raw)) {
-    return "Gemini refused this image because of a safety or content policy restriction.";
-  }
-  if (/\binvalid describe response\b|\binvalid describe\b|\bstrict json\b|\bjson\b/.test(raw)) {
-    return "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.";
-  }
-  return "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.";
-}
-
-function isVisionRetryable(error: unknown, message: string): boolean {
-  const raw = `${message} ${readErrorPayload(error)}`.toLowerCase();
-  const status = readErrorStatus(error);
-
-  if (raw.includes("api key is missing")) return true;
-  // A missing model is permanent: the id is wrong or gone, and the same call will fail identically
-  // forever. This function's default is an optimistic `return true`, which is right for an unknown
-  // error and wrong here — it offers a retry that cannot succeed. Sits above the \bjson\b arm for
-  // the same reason as in classifyVisionMessage.
-  if (status === 404 || /\bis not found\b|\bdoes not exist\b/.test(raw)) return false;
-  if (status === 401 || status === 403) return true;
-  if (status === 429 || (status !== null && status >= 500)) return true;
-  if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn/i.test(raw)) return true;
-  if (/\binvalid describe response\b|\binvalid describe\b|\bjson\b/.test(raw)) return true;
-  if (/\bsafety\b|\bcontent policy\b|\bpolicy\b|\bblocked\b|\bprohibited\b|\bdisallow/i.test(raw)) return false;
-  return true;
-}
-
-function readErrorStatus(error: unknown): number | null {
-  if (!error || typeof error !== "object") return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : null;
-}
-
-function readErrorPayload(error: unknown): string {
-  if (!error || typeof error !== "object") return "";
-  try {
-    return JSON.stringify((error as { error?: unknown }).error ?? "");
-  } catch {
-    return "";
-  }
+  return {
+    message: "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",
+    retryable: true,
+  };
 }

@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { ApiError, GoogleGenAI, Type } from "@google/genai";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
 
@@ -22,6 +22,20 @@ export type VisionSlugOptions = VisionCallOptions & {
   model: string;
   slugPrompt: string;
 };
+
+export type VisionProviderFailureCode =
+  | "missing-api-key"
+  | "safety-refusal"
+  | "incomplete-response"
+  | "invalid-response";
+
+/** Stable provider outcomes used for retry and presentation without parsing diagnostics. */
+export class VisionProviderFailure extends Error {
+  constructor(readonly code: VisionProviderFailureCode, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "VisionProviderFailure";
+  }
+}
 
 /**
  * Dynamic thinking — the model decides how much to reason. Stated rather than left to the
@@ -117,13 +131,7 @@ async function callWithRetry<T>(opts: VisionCallOptions, fn: () => Promise<T>): 
 }
 
 function isRetryable(error: unknown): boolean {
-  const status = readErrorStatus(error);
-  if (status === 429) return true;
-  if (status !== null && status >= 500) return true;
-  if (status === 401 || status === 403) return false;
-  const message = readErrorMessage(error).toLowerCase();
-  if (/\btimeout\b|\btimed out\b|\bnetwork\b|\bfetch failed\b|\bconnection\b|\bsocket\b|\beconn|\babort/.test(message)) return true;
-  if (/\bsafety\b|\bcontent policy\b|\bpolicy\b|\bblocked\b|\bprohibited\b|\bdisallow/.test(message)) return false;
+  if (error instanceof ApiError) return error.status === 429 || error.status >= 500;
   return false;
 }
 
@@ -144,18 +152,6 @@ function retryAfterMs(error: unknown): number | null {
   const date = Date.parse(value);
   if (Number.isFinite(date)) return Math.max(0, date - Date.now());
   return null;
-}
-
-function readErrorStatus(error: unknown): number | null {
-  if (!error || typeof error !== "object") return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : null;
-}
-
-function readErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "";
 }
 
 function sleep(ms: number): Promise<void> {
@@ -182,29 +178,43 @@ function slugPrompt(description: string, prompt: string): string {
 function assertUsableResponse(response: { promptFeedback?: { blockReason?: string }; candidates?: { finishReason?: string }[] }, what: string): void {
   const blockReason = response.promptFeedback?.blockReason;
   if (blockReason) {
-    throw new Error(`Gemini refused this ${what} (${blockReason}). The input was rejected, not lost.`);
+    throw new VisionProviderFailure(
+      "safety-refusal",
+      `Gemini refused this ${what} (${blockReason}). The input was rejected, not lost.`,
+    );
   }
   const finishReason = response.candidates?.[0]?.finishReason;
   if (finishReason === "MAX_TOKENS") {
-    throw new Error(`Gemini stopped at its output limit, so this ${what} is truncated rather than complete.`);
+    throw new VisionProviderFailure(
+      "incomplete-response",
+      `Gemini stopped at its output limit, so this ${what} is truncated rather than complete.`,
+    );
   }
   if (finishReason && finishReason !== "STOP") {
-    throw new Error(`Gemini stopped early (${finishReason}), so this ${what} is incomplete.`);
+    throw new VisionProviderFailure(
+      "incomplete-response",
+      `Gemini stopped early (${finishReason}), so this ${what} is incomplete.`,
+    );
   }
 }
 
 function parseDescription(raw: string): string {
   const normalized = singleLine(raw, { minify: true });
   if (!normalized) {
-    throw new Error("Vision provider returned an empty description response.");
+    throw new VisionProviderFailure("invalid-response", "Vision provider returned an empty description response.");
   }
   return normalized;
 }
 
 function parseSlugs(raw: string): string[] {
-  const parsed = JSON.parse(raw) as { slugs?: unknown };
+  let parsed: { slugs?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { slugs?: unknown };
+  } catch (error) {
+    throw new VisionProviderFailure("invalid-response", "Vision provider returned invalid JSON for slugs.", { cause: error });
+  }
   if (!Array.isArray(parsed.slugs)) {
-    throw new Error("Vision provider returned an invalid slug response.");
+    throw new VisionProviderFailure("invalid-response", "Vision provider returned an invalid slug response.");
   }
   return parsed.slugs.map((slug) => normalizeSlugCandidate(String(slug))).filter(Boolean).slice(0, 5);
 }

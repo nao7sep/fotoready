@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { ImagePlus, Trash2, X } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import type { Original } from "@shared/types/project";
 import { formatLabel } from "@shared/output-format";
 import { useListbox } from "@renderer/components/useListbox";
@@ -9,6 +9,7 @@ import {
   localDropFiles,
 } from "@renderer/external-file-drop";
 import type { OriginalImportFeedback } from "@renderer/original-import-feedback";
+import { OperationResult } from "@renderer/components/operation-result";
 
 export function OriginalsPanel({
   activeOriginalId,
@@ -101,17 +102,19 @@ export function OriginalsPanel({
           ))}
         </div>
         {feedback ? (
-          <div className={`import-feedback ${feedback.severity}`} role="status" aria-live="polite">
+          <OperationResult
+            className={`import-feedback ${feedback.severity}`}
+            severity={feedback.severity}
+            onDismiss={onDismissFeedback}
+            dismissLabel="Close import result"
+          >
             <div>
               <strong>{feedback.title}</strong>
               {feedback.details.map((detail, index) => (
                 <div className={`import-feedback-detail ${detail.severity}`} key={`${detail.text}\0${index}`}>{detail.text}</div>
               ))}
             </div>
-            <button type="button" className="icon-button compact" aria-label="Dismiss import result" onClick={onDismissFeedback}>
-              <X size={13} />
-            </button>
-          </div>
+          </OperationResult>
         ) : null}
         <div className="panel-footer">
           <button className="toolbar-button" type="button" onClick={onAdd}>

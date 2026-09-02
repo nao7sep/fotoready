@@ -1628,6 +1628,39 @@ select:disabled {
   color: var(--brand-primary-text);
 }
 
+.modal-header-close {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--brand-primary-text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.modal-header-close:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.modal-header-close:active {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  transform: scale(0.96);
+}
+
+.modal-header-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.modal-header-close-icon {
+  width: 1em;
+  height: 1em;
+}
+
 .modal-actions {
   justify-content: flex-end;
   border-top: 1px solid var(--border-soft-color);
@@ -1865,6 +1898,11 @@ select:disabled {
 .operation-result-dismiss:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 1px;
+}
+
+.operation-result-close-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .sr-only {

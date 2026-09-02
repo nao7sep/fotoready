@@ -79,6 +79,10 @@ describe("StampPickerModal groups", () => {
 
     await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledTimes(1));
     expect(document.querySelector('[role="dialog"]')?.classList.contains("asset-picker-modal")).toBe(true);
+    const headerClose = document.querySelector<HTMLButtonElement>(".modal-header-close");
+    expect(headerClose?.getAttribute("aria-label")).toBe("Close");
+    expect(headerClose?.classList.contains("icon-button")).toBe(false);
+    expect(headerClose?.querySelector(".modal-header-close-icon")).not.toBeNull();
     expect(mocks.thumbnail).toHaveBeenCalledWith("/laughing-face.png", 64);
     expect(selectedTab()?.textContent).toBe("Reactions");
     expect(document.body.textContent).toContain("Laughing face");
@@ -147,6 +151,7 @@ describe("StampPickerModal groups", () => {
     );
     expect(error?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SENTINEL|invoking remote method/i);
     expect(error?.querySelectorAll("svg")).toHaveLength(1); // the close X only
+    expect(error?.querySelector(".operation-result-close-icon")).not.toBeNull();
     expect(button("Close import result")).toBeDefined();
     expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({
       level: "error",

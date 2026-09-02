@@ -3,6 +3,8 @@
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { OriginalImportResult, QueueSnapshot } from "@shared/types/ipc";
+import { defaultGlobalSettings } from "@shared/defaults";
+import { defaultUiState } from "@shared/validation/state";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -49,32 +51,37 @@ describe("FotoReady app file receiver", () => {
       activeTaskId: null,
       activeTaskLabel: null
     };
-    const never = new Promise<never>(() => {});
     const addOriginals = vi.fn().mockResolvedValue(importResult);
-    const queueSnapshot = vi.fn()
-      .mockReturnValueOnce(never)
-      .mockResolvedValue(queue);
+    const queueSnapshot = vi.fn().mockResolvedValue(queue);
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
         system: {
-          getInfo: () => never,
+          getInfo: () => Promise.resolve({
+            appName: "FotoReady",
+            version: "0.1.0",
+            dataDir: "/fixtures/data",
+            lutsDir: "/fixtures/luts",
+            stampsDir: "/fixtures/stamps",
+            cpuCount: 8,
+            platform: "darwin"
+          }),
           filePathForFile,
           log: vi.fn().mockResolvedValue(undefined)
         },
         settings: {
-          get: () => never,
-          hasGeminiApiKey: () => never
+          get: () => Promise.resolve(defaultGlobalSettings()),
+          hasGeminiApiKey: () => Promise.resolve(false)
         },
-        state: { get: () => never },
+        state: { get: () => Promise.resolve(defaultUiState()) },
         project: {
-          current: () => never,
+          current: () => Promise.resolve(snapshot),
           addOriginals
         },
-        ops: { list: () => never },
+        ops: { list: () => Promise.resolve([]) },
         queues: { snapshot: queueSnapshot },
-        luts: { list: () => never },
-        stamps: { list: () => never },
+        luts: { list: () => Promise.resolve([]) },
+        stamps: { list: () => Promise.resolve([]) },
         events: {
           onProjectSnapshot: () => vi.fn(),
           onQueueSnapshot: () => vi.fn()

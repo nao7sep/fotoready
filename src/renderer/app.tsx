@@ -20,6 +20,7 @@ import { ShortcutsModal } from "./components/modals/shortcuts-modal";
 import { Menu, MenuItem } from "./components/Menu";
 import { ErrorBoundary } from "./components/error-boundary";
 import { OperationResult } from "./components/operation-result";
+import { StartupLoadGate } from "./components/startup-load-gate";
 import { presentFailure } from "./present-failure";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
@@ -68,6 +69,9 @@ function App(): React.JSX.Element {
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
+  const [startupStatus, setStartupStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [startupFailure, setStartupFailure] = useState<string | null>(null);
+  const [layoutPersistenceFailure, setLayoutPersistenceFailure] = useState<string | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiKeyClearRequested, setApiKeyClearRequested] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
@@ -102,7 +106,18 @@ function App(): React.JSX.Element {
   // the window from them. Until state.json loads, fall back to the shipped defaults — same async
   // pattern as showHistogram below. A drag persists the new intent; a window resize persists nothing.
   const persistWorkspaceWidths = useCallback((workspaceWidths: WorkspaceWidths): void => {
-    void api.state.update({ workspaceWidths }).then(setUiState);
+    void api.state.update({ workspaceWidths })
+      .then((next) => {
+        setUiState(next);
+        setLayoutPersistenceFailure(null);
+      })
+      .catch((error) => {
+        setLayoutPersistenceFailure(presentFailure(
+          error,
+          "The pane widths changed for this session but could not be saved. Restore access to FotoReady’s data folder, then resize a pane again.",
+          "workspace width persistence failed"
+        ));
+      });
   }, []);
   const workspaceLayout = useWorkspaceLayout({
     showOps,
@@ -154,6 +169,7 @@ function App(): React.JSX.Element {
   const previewStateKey = previewRequest?.previewStateKey ?? null;
 
   useEffect(() => {
+    let current = true;
     void Promise.all([
       api.system.getInfo(),
       api.settings.get(),
@@ -166,6 +182,7 @@ function App(): React.JSX.Element {
       api.stamps.list()
     ]).then(
       ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts, loadedStamps]) => {
+        if (!current) return;
         setSystemInfo(info);
         setSettings(loadedSettings);
         setUiState(loadedState);
@@ -175,8 +192,20 @@ function App(): React.JSX.Element {
         setQueue(snapshot);
         setLutEntries(loadedLuts);
         setStampEntries(loadedStamps);
+        setStartupStatus("ready");
       }
-    );
+    ).catch((error) => {
+      if (!current) return;
+      setStartupFailure(presentFailure(
+        error,
+        "FotoReady could not read the settings, workspace, or supporting data needed to open safely. Reload after restoring access to the application data folder.",
+        "renderer startup hydration failed"
+      ));
+      setStartupStatus("failed");
+    });
+    return () => {
+      current = false;
+    };
   }, []);
 
   // Apply the configured UI font by overriding the `--font-ui` CSS variable on :root; blank reverts
@@ -636,11 +665,29 @@ function App(): React.JSX.Element {
 
   async function toggleHistogram(): Promise<void> {
     if (!uiState) return;
-    setUiState(await api.state.update({ showHistogram: !uiState.showHistogram }));
+    try {
+      setUiState(await api.state.update({ showHistogram: !uiState.showHistogram }));
+      setLayoutPersistenceFailure(null);
+    } catch (error) {
+      setLayoutPersistenceFailure(presentFailure(
+        error,
+        "The histogram setting could not be saved. The previous setting is still in use.",
+        "histogram visibility persistence failed"
+      ));
+    }
   }
 
   async function setHistogramPosition(position: { x: number; y: number } | null): Promise<void> {
-    setUiState(await api.state.update({ histogramPosition: position }));
+    try {
+      setUiState(await api.state.update({ histogramPosition: position }));
+      setLayoutPersistenceFailure(null);
+    } catch (error) {
+      setLayoutPersistenceFailure(presentFailure(
+        error,
+        "The histogram position could not be saved. Its previous position is still in use.",
+        "histogram position persistence failed"
+      ));
+    }
   }
 
   async function reloadLuts(): Promise<void> {
@@ -664,8 +711,12 @@ function App(): React.JSX.Element {
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
   const hasJpegEstimate = settings?.enableJpegQualityEstimate && activeOriginal?.jpegQualityEstimate !== null;
 
+  if (startupStatus !== "ready") {
+    return <StartupLoadGate message={startupStatus === "failed" ? startupFailure : null} />;
+  }
+
   return (
-    <main className="app-shell">
+    <main className={`app-shell${layoutPersistenceFailure ? " has-shell-result" : ""}`}>
       <header className="top-bar">
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
@@ -699,6 +750,17 @@ function App(): React.JSX.Element {
           <MenuItem onSelect={() => setAboutOpen(true)}>About FotoReady</MenuItem>
         </Menu>
       </header>
+
+      {layoutPersistenceFailure ? (
+        <OperationResult
+          className="app-shell-result modal-error"
+          severity="error"
+          dismissLabel="Close layout result"
+          onDismiss={() => setLayoutPersistenceFailure(null)}
+        >
+          {layoutPersistenceFailure}
+        </OperationResult>
+      ) : null}
 
       <section className="workspace" style={{ gridTemplateColumns: workspaceLayout.gridTemplateColumns }}>
         {showOriginals ? (

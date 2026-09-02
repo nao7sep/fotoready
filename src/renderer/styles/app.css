@@ -148,6 +148,17 @@ button {
   overflow: hidden;
 }
 
+.app-shell.has-shell-result {
+  grid-template-rows: 48px auto minmax(0, 1fr) 32px;
+}
+
+.app-shell-result {
+  margin: 8px 12px 0;
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
+  background: var(--danger-soft-bg);
+}
+
 .top-bar,
 .status-bar {
   display: flex;

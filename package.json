@@ -91,7 +91,7 @@
       "icon": "build/icon.icns",
       "identity": "-",
       "extendInfo": {
-        "CFBundleIconName": "star-bokeh"
+        "CFBundleIconName": "pancake-stack-bokeh"
       },
       "target": [
         {

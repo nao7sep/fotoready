@@ -84,7 +84,11 @@ export async function bootstrap(): Promise<void> {
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   if (settingsQuarantinedTo) {
-    await notifyCorruptSettings();
+    try {
+      await notifyCorruptSettings();
+    } catch (error) {
+      logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", err: error });
+    }
   }
   const visionQueue = new VisionQueue(paths, settings, logger);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);

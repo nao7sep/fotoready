@@ -30,12 +30,18 @@ export async function showPlainMessageDialog(options: PlainMessageDialogOptions)
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     let settled = false;
     const close = (): void => {
       if (settled) return;
       settled = true;
       resolve();
+      if (!win.isDestroyed()) win.close();
+    };
+    const fail = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      reject(error);
       if (!win.isDestroyed()) win.close();
     };
     win.on("closed", close);
@@ -49,20 +55,28 @@ export async function showPlainMessageDialog(options: PlainMessageDialogOptions)
       event.preventDefault();
       close();
     });
-    win.webContents.once("dom-ready", () => {
-      void win.webContents.executeJavaScript(
-        "document.getElementById('dialog-header').offsetHeight + document.getElementById('dialog-body').scrollHeight + document.getElementById('dialog-footer').offsetHeight",
-        true,
-      )
-        .then((height: number) => {
-          if (win.isDestroyed()) return;
-          const displayHeight = parent?.getBounds().height ?? 900;
-          win.setContentSize(520, Math.min(Math.max(Math.ceil(height), 220), Math.floor(displayHeight * 0.85)));
-          win.show();
-          return win.webContents.executeJavaScript("document.getElementById('close')?.focus()", true);
-        });
+    win.webContents.once("dom-ready", async () => {
+      try {
+        const height = await win.webContents.executeJavaScript(
+          "document.getElementById('dialog-header').offsetHeight + document.getElementById('dialog-body').scrollHeight + document.getElementById('dialog-footer').offsetHeight",
+          true,
+        ) as number;
+        if (settled || win.isDestroyed()) return;
+        const displayHeight = parent?.getBounds().height ?? 900;
+        win.setContentSize(520, Math.min(Math.max(Math.ceil(height), 220), Math.floor(displayHeight * 0.85)));
+        win.show();
+        try {
+          await win.webContents.executeJavaScript("document.getElementById('close')?.focus()", true);
+        } catch (error) {
+          // The dialog is already visible and usable. Focus is an enhancement,
+          // so preserve the recovery surface and keep the cause in diagnostics.
+          console.error("[fotoready] Could not focus the message dialog button:", error);
+        }
+      } catch (error) {
+        fail(error);
+      }
     });
-    void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(renderPlainMessageDialogHtml(options))}`);
+    void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(renderPlainMessageDialogHtml(options))}`).catch(fail);
   });
 }
 

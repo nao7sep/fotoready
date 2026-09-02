@@ -3,6 +3,7 @@ export const BUILTIN_STAMP_GROUPS = [
   { id: "marks", label: "Marks" },
   { id: "bubbles", label: "Bubbles" },
   { id: "reactions", label: "Reactions" },
+  { id: "funny", label: "Funny" },
   { id: "cute", label: "Cute" },
   { id: "stories", label: "Stories" },
   { id: "seasonal", label: "Seasonal" }

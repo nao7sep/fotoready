@@ -28,6 +28,7 @@ const stamps: StampEntry[] = [
   { slug: "cover-blob", name: "Cover blob", path: "/cover-blob.png", format: "png", builtin: true, groupId: "cover" },
   { slug: "heart", name: "Heart", path: "/heart.png", format: "png", builtin: true, groupId: "marks" },
   { slug: "laughing-face", name: "Laughing face", path: "/laughing-face.png", format: "png", builtin: true, groupId: "reactions" },
+  { slug: "googly-eyes", name: "Googly eyes", path: "/googly-eyes.png", format: "png", builtin: true, groupId: "funny" },
   { slug: "mine", name: "mine.svg", path: "/mine.svg", format: "svg", builtin: false, groupId: "imported" }
 ];
 
@@ -72,6 +73,13 @@ describe("StampPickerModal groups", () => {
     expect(document.body.textContent).toContain("Laughing face");
     expect(document.body.textContent).not.toContain("Cover blob");
     expect(document.body.textContent).not.toContain("Heart");
+    expect(document.body.textContent).not.toContain("Googly eyes");
+
+    await clickTab("Funny");
+    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/googly-eyes.png", 64));
+    expect(selectedTab()?.textContent).toBe("Funny");
+    expect(document.body.textContent).toContain("Googly eyes");
+    expect(document.body.textContent).not.toContain("Laughing face");
 
     await clickTab("Cover");
     await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/cover-blob.png", 64));

@@ -4,7 +4,11 @@ const showPlainMessageDialog = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@main/plain-message-dialog", () => ({ showPlainMessageDialog }));
 
-import { notifyCorruptSettings, notifyStartupFailure } from "@main/startup-dialog";
+import {
+  notifyCorruptSettings,
+  notifyStartupFailure,
+  requireCorruptSettingsNotice,
+} from "@main/startup-dialog";
 
 beforeEach(() => showPlainMessageDialog.mockClear());
 
@@ -17,6 +21,26 @@ describe("startup recovery dialog", () => {
       detail: expect.stringContaining("recorded in the session log"),
     }));
     expect(JSON.stringify(showPlainMessageDialog.mock.calls[0])).not.toMatch(/\/private\/tmp|\.invalid/);
+  });
+
+  it("fails closed with the dialog rejection preserved when recovery cannot be presented", async () => {
+    const cause = new Error("EACCES /private/tmp/FOTOREADY_RECOVERY_SENTINEL");
+    showPlainMessageDialog.mockRejectedValueOnce(cause);
+    const logger = { error: vi.fn() };
+
+    const result = requireCorruptSettingsNotice(logger);
+
+    await expect(result).rejects.toMatchObject({
+      message: "FotoReady could not present the corrupt-settings recovery notice.",
+      cause,
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      "could not show the corrupt-settings recovery dialog",
+      expect.objectContaining({
+        mod: "main",
+        err: expect.objectContaining({ cause }),
+      }),
+    );
   });
 
   it("owns fatal startup copy without accepting exception diagnostics", async () => {

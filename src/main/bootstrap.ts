@@ -13,7 +13,7 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
-import { notifyCorruptSettings } from "./startup-dialog";
+import { requireCorruptSettingsNotice } from "./startup-dialog";
 import {
   clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
@@ -84,11 +84,7 @@ export async function bootstrap(): Promise<void> {
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   if (settingsQuarantinedTo) {
-    try {
-      await notifyCorruptSettings();
-    } catch (error) {
-      logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", err: error });
-    }
+    await requireCorruptSettingsNotice(logger);
   }
   const visionQueue = new VisionQueue(paths, settings, logger);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);

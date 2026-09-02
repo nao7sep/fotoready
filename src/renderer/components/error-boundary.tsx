@@ -1,5 +1,6 @@
 import React from "react";
 import { reportRendererLog } from "@renderer/renderer-log";
+import { describeError } from "@renderer/present-failure";
 
 // A render-phase throw anywhere in the tree unmounts the whole React root, leaving the window
 // silently blank with no on-screen clue and (for a throw before the app installs its console hook)
@@ -59,7 +60,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       message: "Renderer error boundary caught an exception",
       fields: {
         mod: "renderer.error-boundary",
-        error: { name: error.name, message: error.message, stack: error.stack ?? null },
+        error: describeError(error),
         componentStack: info.componentStack ?? null
       }
     });

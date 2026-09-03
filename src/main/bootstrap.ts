@@ -14,7 +14,6 @@ import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { notifyStartupFailure, requireCorruptSettingsNotice } from "./startup-dialog";
-import { loadRendererWindowContent } from "./window-content";
 import { configureWindowActivity } from "./window-activity";
 import {
   clampWindowSizeToWorkArea,
@@ -181,11 +180,12 @@ export async function bootstrap(): Promise<void> {
     });
 
     try {
-      await loadRendererWindowContent(
-        win,
-        process.env.ELECTRON_RENDERER_URL,
-        path.join(__dirname, "../renderer/index.html"),
-      );
+      const rendererUrl = process.env.ELECTRON_RENDERER_URL;
+      if (rendererUrl) {
+        await win.loadURL(rendererUrl);
+      } else {
+        await win.loadFile(path.join(__dirname, "../renderer/index.html"));
+      }
     } catch (error) {
       logger.error("failed to load the renderer window", { mod: "main", err: error });
       // Keep the failed, never-shown owner alive until the terminal recovery

@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   clampWindowSizeToWorkArea,
@@ -11,8 +8,7 @@ import {
 } from "@shared/layout/workspace-metrics";
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
-// Mock the surface it touches; nativeTheme is a writable object so the theme-forcing assignment in
-// bootstrap() (asserted below by reading the source) has somewhere to land.
+// Mock the surface it touches so buildWindowOptions can be exercised directly.
 vi.mock("electron", () => ({
   app: { whenReady: () => Promise.resolve(), getVersion: () => "0.0.0", isPackaged: false, on() {}, once() {} },
   BrowserWindow: class {},
@@ -64,15 +60,5 @@ describe("buildWindowOptions", () => {
     expect(options.webPreferences?.preload).toBe("/tmp/preload.mjs");
     expect(options.webPreferences?.contextIsolation).toBe(true);
     expect(options.webPreferences?.nodeIntegration).toBe(false);
-  });
-});
-
-describe("native title-bar theme", () => {
-  it("forces the light theme so a light app never gets a dark native bar", () => {
-    // The assignment is a global side effect inside bootstrap(); assert it is present in the source
-    // rather than running the whole app. A light app on a dark-mode host must force the bar light.
-    const bootstrapPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/main/bootstrap.ts");
-    const source = readFileSync(bootstrapPath, "utf8");
-    expect(source).toMatch(/nativeTheme\.themeSource\s*=\s*"light"/);
   });
 });

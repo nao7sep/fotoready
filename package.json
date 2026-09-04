@@ -17,6 +17,7 @@
     "preview": "electron-vite preview",
     "test": "vitest run",
     "check": "npm run typecheck && npm test",
+    "check:release-tag": "node scripts/check-release-tag.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "package": "npm run build && electron-builder --dir",

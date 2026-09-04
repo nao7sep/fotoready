@@ -20,8 +20,9 @@
     "check:release-tag": "node scripts/check-release-tag.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "package": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --publish never"
+    "check:package-inputs": "node scripts/check-package-inputs.mjs",
+    "package": "npm run check:package-inputs && npm run build && electron-builder --dir",
+    "dist": "npm run check:package-inputs && npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

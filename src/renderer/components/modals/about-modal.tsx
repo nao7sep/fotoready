@@ -68,7 +68,7 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
         </div>
         <div className="settings-summary">
           <span>License</span>
-          <code>MIT</code>
+          <code>GPL-3.0-or-later</code>
         </div>
       </div>
     </ModalShell>

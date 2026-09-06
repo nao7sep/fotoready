@@ -1,5 +1,12 @@
-import { open, readdir } from "node:fs/promises";
+import { open, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+
+const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+for (const exclusion of ["!**/*.map", "!**/*.d.ts", "!**/*.d.mts", "!**/*.d.cts"]) {
+  if (!packageJson.build?.files?.includes(exclusion)) {
+    throw new Error(`Packaged development metadata exclusion is missing: ${exclusion}`);
+  }
+}
 
 const stampDir = path.resolve("resources/stamps");
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

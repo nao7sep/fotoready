@@ -5,9 +5,10 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 ## Features
 
 - **Stackable, non-destructive edits** — reorderable op cards with live preview, even on large originals
-- **Format-aware output** — JPEG, WebP, AVIF, PNG, or same-as-original, with per-task encode settings
+- **Format-aware input and output** — open single-image JPEG, PNG, WebP, AVIF, or TIFF files and save as JPEG, PNG, WebP, AVIF, TIFF, or the supported source format, with per-task encode settings. Animated GIF and HEIC/HEIF input are not supported; convert them first.
 - **Metadata you control** — preserve, strip, or inject editorial/time/GPS fields, with a privacy pill flagging what would survive
 - **Batch rename** — collision-safe templates with per-row slug overrides
+- **LUTs and stamps** — apply built-in LUTs and a shipped catalogue of 363 stamps grouped as Cover, Marks, Bubbles, Reactions, Funny, Cute, Stories, and Seasonal; import your own `.cube`, PNG, or SVG assets when needed
 - **AI assist (opt-in)** — generate descriptions and slugs with Gemini, using a key stored locally
 - **Sidecar persistence** — each saved output writes a `.json` sidecar; drag it back in to re-create the task with its pipeline intact
 

@@ -19,9 +19,10 @@ describe("Windows installer configuration", () => {
 });
 
 describe("packaged license texts", () => {
-  it("ships the app, Electron, and Chromium licenses", () => {
+  it("ships the app, native-component, Electron, and Chromium licenses", () => {
     expect(packageJson.build.extraResources).toEqual(expect.arrayContaining([
       { from: "LICENSE", to: "LICENSE.txt" },
+      { from: "THIRD_PARTY_NOTICES", to: "THIRD_PARTY_NOTICES.txt" },
       { from: "node_modules/electron/dist/LICENSE", to: "electron/LICENSE" },
       {
         from: "node_modules/electron/dist/LICENSES.chromium.html",

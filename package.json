@@ -97,6 +97,10 @@
         "to": "LICENSE.txt"
       },
       {
+        "from": "THIRD_PARTY_NOTICES",
+        "to": "THIRD_PARTY_NOTICES.txt"
+      },
+      {
         "from": "node_modules/electron/dist/LICENSE",
         "to": "electron/LICENSE"
       },

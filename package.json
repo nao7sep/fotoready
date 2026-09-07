@@ -21,8 +21,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:package-inputs": "node scripts/check-package-inputs.mjs",
-    "package": "npm run check:package-inputs && npm run build && electron-builder --dir",
-    "dist": "npm run check:package-inputs && npm run build && electron-builder --publish never"
+    "package": "npm run check:package-inputs && npm run build && npm run prepare:electron && electron-builder --dir",
+    "dist": "npm run check:package-inputs && npm run build && npm run prepare:electron && electron-builder --publish never",
+    "prepare:electron": "node node_modules/electron/install.js"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
@@ -90,6 +91,18 @@
       {
         "from": "build/Assets.car",
         "to": "Assets.car"
+      },
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "electron/LICENSE"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "electron/LICENSES.chromium.html"
       }
     ],
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",

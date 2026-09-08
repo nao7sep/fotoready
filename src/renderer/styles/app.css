@@ -15,11 +15,10 @@
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
   --border-soft-color: #e7e5e4;
-  /* Scroll-bar thumb: sits between --border-color and --border-strong-color, brightening to
-     --text-soft-color on hover. Light app, but the bar is still thin and rounded per the
-     window-chrome conventions. */
-  --scrollbar-thumb: #c2bdb8;
-  --scrollbar-thumb-hover: #78716c;
+  /* Scroll-bar thumb: uses readable ink rather than the much fainter border palette,
+     strengthening again on hover/focus. The visible pill stays inside a comfortable gutter. */
+  --scrollbar-thumb: var(--text-soft-color);
+  --scrollbar-thumb-hover: var(--text-muted-color);
   --text-color: #292524;
   --text-strong-color: #1c1917;
   --text-muted-color: #57534e;
@@ -70,21 +69,21 @@
   box-sizing: border-box;
 }
 
-/* Global scroll-bar styling per the window-chrome conventions: a thin, rounded, palette-matched
-   bar in every overflow container, replacing the thick square OS default. The color-scheme on
+/* Global scroll-bar styling per the window-chrome conventions: a reachable, rounded,
+   palette-matched bar in every overflow container. The color-scheme on
    :root keeps native controls light; this styles the bar itself. The thumb is inset from the gutter
-   by a transparent border with the background clipped to the padding box, turning it into a slim
-   pill with breathing room rather than a bar filling the gutter edge to edge. Firefox uses the
+   by a transparent border with the background clipped to the padding box, turning it into a 10px
+   pill with breathing room inside a 16px gutter. Firefox uses the
    scrollbar-width / scrollbar-color shorthand; WebKit/Chromium (Electron's renderer) uses the
    pseudo-elements. */
 * {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
+  width: 16px;
+  height: 16px;
 }
 
 ::-webkit-scrollbar-track {
@@ -98,8 +97,21 @@
   background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover,
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb-hover);
+}
+
+*:hover,
+*:focus-within {
+  scrollbar-color: var(--scrollbar-thumb-hover) transparent;
+}
+
+[role="region"][tabindex="0"],
+[role="listbox"],
+[role="grid"] {
+  scrollbar-gutter: stable;
 }
 
 ::-webkit-scrollbar-corner {

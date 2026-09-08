@@ -299,6 +299,16 @@ export function AssetPickerModal<T extends PickerEntry>({
     return columns.split(" ").filter((part) => part.trim().length > 0).length;
   }
 
+  function visiblePageSize(): number {
+    const grid = gridRef.current;
+    const firstItem = itemRefs.current.values().next().value as HTMLButtonElement | undefined;
+    const rowHeight = firstItem?.offsetHeight ?? 0;
+    const visibleRows = grid?.parentElement && rowHeight > 0
+      ? Math.max(1, Math.floor(grid.parentElement.clientHeight / rowHeight))
+      : 3;
+    return visibleColumnCount() * visibleRows;
+  }
+
   function selectAll(): void {
     if (entries.length === 0) return;
     setSelectedPaths(entries.map((entry) => entry.path));
@@ -326,6 +336,18 @@ export function AssetPickerModal<T extends PickerEntry>({
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
       moveFocus(visibleColumnCount(), { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
+    } else if (event.key === "PageUp") {
+      event.preventDefault();
+      moveFocus(-visiblePageSize(), { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
+    } else if (event.key === "PageDown") {
+      event.preventDefault();
+      moveFocus(visiblePageSize(), { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      moveFocus(-entries.length, { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
+    } else if (event.key === "End") {
+      event.preventDefault();
+      moveFocus(entries.length, { extendSelection: event.shiftKey, preserveSelection: event.metaKey || event.ctrlKey });
     } else if (event.key === "Enter" || event.key === " ") {
       // Enter that ends an IME composition accepts the candidate; it must not use the selection.
       if (ime.isComposing(event)) return;
@@ -440,7 +462,7 @@ export function AssetPickerModal<T extends PickerEntry>({
             className="asset-picker-grid"
             ref={gridRef}
             role="listbox"
-            tabIndex={0}
+            tabIndex={entries.length === 0 ? 0 : -1}
             {...ime.compositionProps}
             onKeyDown={handleGridKeyDown}
           >

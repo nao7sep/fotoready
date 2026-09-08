@@ -105,7 +105,7 @@ describe("StampPickerModal groups", () => {
     await clickTab("Bubbles");
     expect(selectedTab()?.textContent).toBe("Bubbles");
     expect(document.body.textContent).toContain("No stamps in this group");
-    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(document.querySelector('[role="listbox"]')?.getAttribute("tabindex")).toBe("0");
   });
 
   it("keeps preview progress visible without making it a live result", async () => {

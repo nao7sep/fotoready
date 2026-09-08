@@ -9,9 +9,10 @@ import { currentCompositeIndex, nextIndex } from "@renderer/components/composite
  *
  * One tab stop (roving tabindex on the options); Up/Down move the selection and
  * focus (selection follows focus — the panels' clicks already select on the same
- * cost), Home/End jump to the ends (stopping there), and Delete/Backspace removes
- * the focused row when an `onRemove` is given. Mirrors the asset-picker grid's
- * roving-tabindex model in a vertical, single-select form.
+ * cost), PageUp/PageDown move roughly one viewport, Home/End jump to the ends
+ * (stopping there), and Delete/Backspace removes the focused row when an
+ * `onRemove` is given. Mirrors the asset-picker grid's roving-tabindex model in
+ * a vertical, single-select form.
  *
  * `activeId` is the roving tab stop. It leads `selectedId` during fast keyboard
  * navigation (selection round-trips through IPC) and is reconciled back to the
@@ -46,11 +47,11 @@ export function useListbox(params: {
   };
 
   const focusOption = (id: string) => {
-    (
-      ref.current?.querySelector(
-        `[data-listbox-option="${CSS.escape(id)}"]`,
-      ) as HTMLElement | null
-    )?.focus();
+    const option = ref.current?.querySelector(
+      `[data-listbox-option="${CSS.escape(id)}"]`,
+    ) as HTMLElement | null;
+    option?.focus();
+    option?.scrollIntoView?.({ block: "nearest" });
   };
 
   // Keep the roving active row valid and following the selection; after a keyboard
@@ -83,6 +84,13 @@ export function useListbox(params: {
     onSelect(id);
   };
 
+  const pageStep = (): number => {
+    const list = ref.current;
+    const firstOption = list?.querySelector<HTMLElement>("[data-listbox-option]");
+    if (!list || !firstOption?.offsetHeight) return 8;
+    return Math.max(1, Math.floor(list.clientHeight / firstOption.offsetHeight));
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (ids.length === 0) return;
     const current = currentCompositeIndex({
@@ -97,6 +105,12 @@ export function useListbox(params: {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       selectAt(nextIndex("prev", current, ids.length));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      selectAt(nextIndex("page-next", current, ids.length, pageStep()));
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      selectAt(nextIndex("page-prev", current, ids.length, pageStep()));
     } else if (e.key === "Home") {
       e.preventDefault();
       selectAt(nextIndex("first", current, ids.length));
@@ -113,7 +127,7 @@ export function useListbox(params: {
   };
 
   return {
-    listboxProps: { ref, role: "listbox" as const, onKeyDown },
+    listboxProps: { ref, role: "listbox" as const, tabIndex: ids.length === 0 ? 0 : -1, onKeyDown },
     getOptionProps: (id: string) => ({
       role: "option" as const,
       "aria-selected": id === selectedId,

@@ -13,8 +13,7 @@ export function defaultUiState(): UiState {
   return {
     showHistogram: false,
     histogramPosition: null,
-    workspaceWidths: { ...PANE_DEFAULTS },
-    windowSize: null
+    workspaceWidths: { ...PANE_DEFAULTS }
   };
 }
 
@@ -27,8 +26,7 @@ export function normalizeUiState(input: unknown, fallback: UiState): UiStateNorm
   const state: UiState = {
     showHistogram: readBoolean(input, "showHistogram", fallback.showHistogram, issues),
     histogramPosition: readPoint(input.histogramPosition, fallback.histogramPosition, issues),
-    workspaceWidths: readWorkspaceWidths(input.workspaceWidths, fallback.workspaceWidths, issues),
-    windowSize: readWindowSize(input.windowSize, fallback.windowSize, issues)
+    workspaceWidths: readWorkspaceWidths(input.workspaceWidths, fallback.workspaceWidths, issues)
   };
   return { state, issues };
 }
@@ -58,24 +56,6 @@ function readWorkspaceWidths(
     }
   }
   return result;
-}
-
-function readWindowSize(
-  value: unknown,
-  fallback: { width: number; height: number } | null,
-  issues: string[]
-): { width: number; height: number } | null {
-  if (value === undefined || value === null) return fallback === null ? null : { ...fallback };
-  try {
-    const record = assertRecord(value, "state.windowSize");
-    return {
-      width: assertFiniteNumber(record.width, "state.windowSize.width"),
-      height: assertFiniteNumber(record.height, "state.windowSize.height")
-    };
-  } catch (error) {
-    issues.push(error instanceof Error ? error.message : String(error));
-    return fallback === null ? null : { ...fallback };
-  }
 }
 
 function readBoolean(source: Record<string, unknown>, key: string, fallback: boolean, issues: string[]): boolean {

@@ -17,10 +17,4 @@ export type UiState = {
    * and reappears when the window grows.
    */
   workspaceWidths: Record<WorkspacePaneKey, number>;
-  /**
-   * The window's last width/height in px, restored (clamped to the current screen) on the next
-   * launch. null until the user has resized once — the first run opens at a derived default. Only
-   * size is remembered, not position, so a monitor change can't strand the window off-screen.
-   */
-  windowSize: { width: number; height: number } | null;
 };

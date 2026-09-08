@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
   computeMinWindowHeight,
@@ -14,15 +13,13 @@ vi.mock("electron", () => ({
   BrowserWindow: class {},
   ipcMain: { handle() {}, removeHandler() {} },
   nativeTheme: { themeSource: "system" },
-  powerMonitor: { once() {}, off() {} },
-  screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 2560, height: 1440 } }) }
+  powerMonitor: { once() {}, off() {} }
 }));
 
 const { buildWindowOptions } = await import("@main/bootstrap");
 
 describe("buildWindowOptions", () => {
-  const workArea = { width: 2560, height: 1440 };
-  const options = buildWindowOptions("/tmp/preload.mjs", workArea, null);
+  const options = buildWindowOptions("/tmp/preload.mjs");
 
   it("uses the derived minimum size, not hand-typed literals", () => {
     expect(options.minWidth).toBe(computeMinWindowWidth());
@@ -32,24 +29,11 @@ describe("buildWindowOptions", () => {
     expect(options.minHeight).not.toBe(640);
   });
 
-  it("first run (no saved size) opens at the derived first-run size, not a fixed literal", () => {
-    expect(options.width).toBe(clampWindowSizeToWorkArea(
-      { width: computeFirstRunWindowWidth(), height: computeFirstRunWindowHeight() },
-      workArea
-    ).width);
+  it("opens at the derived designed size, not a fixed literal", () => {
     // The old fixed 1280x800 default is gone; the first-run width is the compact derived one.
     expect(options.width).not.toBe(1280);
     expect(options.width).toBe(computeFirstRunWindowWidth());
-  });
-
-  it("restores a remembered size, clamped to the current screen", () => {
-    // A size saved on a big monitor, reopened on a small laptop: clamps down to fit.
-    const saved = { width: 3000, height: 2000 };
-    const small = { width: 1440, height: 900 };
-    const opts = buildWindowOptions("/tmp/preload.mjs", small, saved);
-    expect(opts.width).toBe(clampWindowSizeToWorkArea(saved, small).width);
-    expect(opts.width).toBeLessThanOrEqual(small.width);
-    expect(opts.width).toBeGreaterThanOrEqual(computeMinWindowWidth());
+    expect(options.height).toBe(computeFirstRunWindowHeight());
   });
 
   it("paints the light app background so the native chrome never flashes a dark default", () => {

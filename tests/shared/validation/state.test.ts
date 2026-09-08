@@ -7,8 +7,7 @@ describe("normalizeUiState", () => {
     const input = {
       showHistogram: true,
       histogramPosition: { x: 10, y: 20 },
-      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 },
-      windowSize: { width: 1400, height: 900 }
+      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 }
     };
     const { state, issues } = normalizeUiState(input, defaultUiState());
     expect(issues).toEqual([]);
@@ -63,24 +62,6 @@ describe("normalizeUiState", () => {
       );
       expect(state.workspaceWidths.originals).toBe(PANE_DEFAULTS.originals);
       expect(state.workspaceWidths.tasks).toBe(220);
-      expect(issues.length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe("windowSize (remembered so the window reopens at its last size)", () => {
-    it("defaults to null so the first run opens at a derived size", () => {
-      expect(defaultUiState().windowSize).toBeNull();
-    });
-
-    it("keeps a valid { width, height }", () => {
-      const { state, issues } = normalizeUiState({ windowSize: { width: 1500, height: 950 } }, defaultUiState());
-      expect(state.windowSize).toEqual({ width: 1500, height: 950 });
-      expect(issues).toEqual([]);
-    });
-
-    it("rejects a malformed windowSize and falls back", () => {
-      const { state, issues } = normalizeUiState({ windowSize: { width: "big", height: 950 } }, defaultUiState());
-      expect(state.windowSize).toBeNull();
       expect(issues.length).toBeGreaterThanOrEqual(1);
     });
   });

@@ -7,7 +7,6 @@ import {
   PANE_MINS,
   SPLITTER_WIDTH,
   clampPaneWidth,
-  clampWindowSizeToWorkArea,
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
   computeMinWindowHeight,
@@ -80,31 +79,6 @@ describe("workspace-metrics", () => {
 
     it("is taller than the bare minimum so the preview is usable out of the box", () => {
       expect(computeFirstRunWindowHeight()).toBeGreaterThan(computeMinWindowHeight());
-    });
-  });
-
-  describe("clampWindowSizeToWorkArea", () => {
-    it("keeps a size that already fits the screen", () => {
-      const size = { width: 1400, height: 900 };
-      expect(clampWindowSizeToWorkArea(size, { width: 2560, height: 1440 })).toEqual(size);
-    });
-
-    it("shrinks a size saved on a big monitor to fit a smaller screen", () => {
-      // Unplug the external monitor: a 3000x2000 layout clamps to the 1440x900 laptop.
-      const clamped = clampWindowSizeToWorkArea({ width: 3000, height: 2000 }, { width: 1440, height: 900 });
-      expect(clamped).toEqual({ width: 1440, height: 900 });
-    });
-
-    it("never returns below the content minimum, even on a screen smaller than the minimum", () => {
-      // A screen narrower than the content minimum: the minimum wins (content must not truncate).
-      const clamped = clampWindowSizeToWorkArea({ width: 800, height: 400 }, { width: 900, height: 500 });
-      expect(clamped.width).toBe(computeMinWindowWidth());
-      expect(clamped.height).toBe(computeMinWindowHeight());
-    });
-
-    it("ignores a non-finite work area (leaves the size floored at the minimum)", () => {
-      const clamped = clampWindowSizeToWorkArea({ width: 1400, height: 900 }, { width: Number.NaN, height: 0 });
-      expect(clamped).toEqual({ width: 1400, height: 900 });
     });
   });
 

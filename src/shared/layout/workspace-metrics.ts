@@ -91,16 +91,13 @@ export function computeMinWindowHeight(): number {
 
 /**
  * Content height (px) a fresh install opens with — taller than the bare CONTENT_MIN_HEIGHT so the
- * preview is usable out of the box, but deliberately modest: there is no point starting large when the
- * window size is remembered after the first resize.
+ * preview is usable out of the box while remaining modest on an ordinary display.
  */
 export const FIRST_RUN_CONTENT_HEIGHT = 680;
 
 /**
  * The window's FIRST-RUN width: the smallest window that shows the default layout without cramping —
- * the side panes at their defaults, the editor at its own minimum, plus the splitters. There is no
- * larger "designed" default: after the first run the window remembers whatever size the user set
- * (UiState.windowSize), so the opening size only needs to be sensible, not spacious.
+ * the side panes at their defaults, the editor at its own minimum, plus the splitters.
  */
 export function computeFirstRunWindowWidth(): number {
   const sidePanes = PANE_DEFAULTS.originals + PANE_DEFAULTS.tasks + PANE_DEFAULTS.ops + PANE_DEFAULTS.addOps;
@@ -110,29 +107,6 @@ export function computeFirstRunWindowWidth(): number {
 /** The window's FIRST-RUN height: the fixed chrome plus a modest content height. */
 export function computeFirstRunWindowHeight(): number {
   return CHROME.topBar + CHROME.previewToolbar + CHROME.statusBar + FIRST_RUN_CONTENT_HEIGHT;
-}
-
-/**
- * Clamp a remembered window size to the current display: never below the content minimum (a smaller
- * screen shrinks the window toward the minimum, and when the minimum itself exceeds a tiny screen the
- * minimum wins — a window wider than the screen beats truncated content), never larger than the work
- * area. Applied on every restore so unplugging a large external monitor yields a window that fits.
- * Pure — unit-tested without a real display.
- */
-export function clampWindowSizeToWorkArea(
-  size: { width: number; height: number },
-  workArea: { width: number; height: number }
-): { width: number; height: number } {
-  return {
-    width: clampWindowDimension(size.width, computeMinWindowWidth(), workArea.width),
-    height: clampWindowDimension(size.height, computeMinWindowHeight(), workArea.height)
-  };
-}
-
-function clampWindowDimension(value: number, min: number, workArea: number): number {
-  const rounded = Number.isFinite(value) ? Math.round(value) : min;
-  const capped = Number.isFinite(workArea) && workArea > 0 ? Math.min(rounded, Math.round(workArea)) : rounded;
-  return Math.max(min, capped);
 }
 
 /**

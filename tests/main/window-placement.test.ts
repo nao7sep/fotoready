@@ -17,10 +17,6 @@ class FakeWindow extends EventEmitter implements PlacementWindow {
     return { ...this.bounds };
   }
 
-  getNormalBounds(): WindowBounds {
-    return { ...this.bounds };
-  }
-
   setBounds(bounds: WindowBounds): void {
     this.bounds = { ...bounds };
   }
@@ -102,10 +98,8 @@ describe("createWindowPlacementController", () => {
     vi.useFakeTimers();
     const { win, saved, controller } = setup();
     controller.start();
-    const normalBounds = win.getBounds();
     win.maximized = true;
     win.bounds = { x: 0, y: 0, width: 1920, height: 1080 };
-    vi.spyOn(win, "getNormalBounds").mockReturnValue(normalBounds);
     win.emit("maximize");
     await Promise.resolve();
     expect(saved.at(-1)).toEqual({

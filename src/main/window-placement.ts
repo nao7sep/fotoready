@@ -6,7 +6,6 @@ export type PlacementWindow = {
   on(event: string, listener: () => void): unknown;
   off(event: string, listener: () => void): unknown;
   getBounds(): WindowBounds;
-  getNormalBounds(): WindowBounds;
   setBounds(bounds: WindowBounds): void;
   isMaximized(): boolean;
   isMinimized(): boolean;
@@ -114,12 +113,6 @@ export function createWindowPlacementController(
   const onMaximize = (): void => {
     if (!captureEnabled || transient || win.isMinimized() || win.isFullScreen()) return;
     cancelCapture();
-    try {
-      // Electron documents this as the landing rectangle even while maximized.
-      normalBounds = { ...win.getNormalBounds() };
-    } catch (error) {
-      options.onError(error);
-    }
     mode = "maximized";
     persistInBackground();
   };

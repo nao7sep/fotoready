@@ -7,11 +7,45 @@ describe("normalizeUiState", () => {
     const input = {
       showHistogram: true,
       histogramPosition: { x: 10, y: 20 },
-      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 }
+      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 },
+      windowPlacements: {
+        main: { normalBounds: { x: 20, y: 30, width: 1200, height: 800 }, mode: "normal" }
+      }
     };
     const { state, issues } = normalizeUiState(input, defaultUiState());
     expect(issues).toEqual([]);
     expect(state).toEqual(input);
+  });
+
+  describe("windowPlacements", () => {
+    it("defaults the stable main role when absent", () => {
+      const { state, issues } = normalizeUiState({ showHistogram: true }, defaultUiState());
+      expect(state.windowPlacements).toEqual({ main: null });
+      expect(issues).toEqual([]);
+    });
+
+    it("retains a valid mode when malformed bounds are discarded", () => {
+      const { state, issues } = normalizeUiState(
+        {
+          windowPlacements: {
+            main: { normalBounds: { x: 10, y: 20, width: "wide", height: 800 }, mode: "maximized" }
+          }
+        },
+        defaultUiState()
+      );
+      expect(state.windowPlacements.main).toEqual({ normalBounds: null, mode: "maximized" });
+      expect(issues).toHaveLength(1);
+    });
+
+    it("retains valid bounds and defaults an invalid mode independently", () => {
+      const bounds = { x: 10, y: 20, width: 1200, height: 800 };
+      const { state, issues } = normalizeUiState(
+        { windowPlacements: { main: { normalBounds: bounds, mode: "fullscreen" } } },
+        defaultUiState()
+      );
+      expect(state.windowPlacements.main).toEqual({ normalBounds: bounds, mode: "maximized" });
+      expect(issues).toHaveLength(1);
+    });
   });
 
   it("returns the fallback for a non-object input", () => {

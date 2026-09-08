@@ -12,12 +12,11 @@ import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
-import { saveState } from "@main/state-io";
+import type { StateCoordinator } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
-import { normalizeUiState } from "@shared/validation/state";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
 
@@ -25,6 +24,7 @@ export type RouterContext = {
   paths: AppPaths;
   settings: GlobalSettings;
   uiState: UiState;
+  stateCoordinator: StateCoordinator;
   projectSession: ProjectSession;
   logger: AppLogger;
   version: string;
@@ -80,13 +80,6 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   const serializeSettings = <T>(fn: () => Promise<T>): Promise<T> => {
     const next = settingsChain.then(fn, fn);
     settingsChain = next.catch(() => {});
-    return next;
-  };
-
-  let stateChain: Promise<unknown> = Promise.resolve();
-  const serializeState = <T>(fn: () => Promise<T>): Promise<T> => {
-    const next = stateChain.then(fn, fn);
-    stateChain = next.catch(() => {});
     return next;
   };
 
@@ -182,16 +175,11 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   handle("state.get", "debug", async () => ctx.uiState);
   handle("state.update", "info", async (_event, patch: Partial<UiState>) => {
-    return serializeState(async () => {
-      const candidate = isRecord(patch) ? { ...ctx.uiState, ...patch } : ctx.uiState;
-      const { state, issues } = normalizeUiState(candidate, ctx.uiState);
-      for (const issue of issues) {
-        ctx.logger.warn("state patch contained invalid data", { mod: "main.ipc", issue });
-      }
-      await saveState(ctx.paths.statePath, state);
-      Object.assign(ctx.uiState, state);
-      return ctx.uiState;
-    });
+    const { issues } = await ctx.stateCoordinator.update(isRecord(patch) ? patch : {});
+    for (const issue of issues) {
+      ctx.logger.warn("state patch contained invalid data", { mod: "main.ipc", issue });
+    }
+    return ctx.uiState;
   });
 
   handle("project.current", "debug", async () => ctx.projectSession.snapshot());

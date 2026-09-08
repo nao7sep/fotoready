@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import type { UiState } from "@shared/types/state";
-import { defaultUiState, normalizeUiState } from "@shared/validation/state";
+import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } from "@shared/validation/state";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
 
@@ -45,7 +45,41 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  // recorded: state.json is user-meaningful managed text — window size, pane widths, and histogram
+  // recorded: state.json is user-meaningful managed text — window placement, pane widths, and histogram
   // placement. It is recorded on every save deliberately; dedup absorbs the interaction churn.
   await writeManagedFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
+}
+
+export type StateCoordinator = {
+  update(patch: Partial<UiState>): Promise<UiStateNormalizationResult>;
+  flush(): Promise<void>;
+};
+
+/** One ordering boundary for renderer updates, window-event captures, and the final close flush. */
+export function createStateCoordinator(
+  statePath: string,
+  currentState: UiState,
+  writer: (path: string, state: UiState) => Promise<void> = saveState
+): StateCoordinator {
+  let tail: Promise<void> = Promise.resolve();
+
+  const update = (patch: Partial<UiState>): Promise<UiStateNormalizationResult> => {
+    const operation = tail.then(async () => {
+      const candidate = { ...currentState, ...patch };
+      const result = normalizeUiState(candidate, currentState);
+      await writer(statePath, result.state);
+      Object.assign(currentState, result.state);
+      return result;
+    });
+    tail = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    return operation;
+  };
+
+  return {
+    update,
+    flush: async () => tail
+  };
 }

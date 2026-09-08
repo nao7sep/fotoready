@@ -1,5 +1,19 @@
 import type { WorkspacePaneKey } from "../layout/workspace-metrics";
 
+export type WindowPlacementMode = "normal" | "maximized";
+
+export type WindowBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type WindowPlacementRecord = {
+  normalBounds: WindowBounds | null;
+  mode: WindowPlacementMode;
+};
+
 /**
  * Ephemeral UI state — saved by the app on the user's behalf, not by intentional
  * configuration. Edited via `state.update` IPC; persisted to `~/.fotoready/state.json`.
@@ -17,4 +31,8 @@ export type UiState = {
    * and reappears when the window grows.
    */
   workspaceWidths: Record<WorkspacePaneKey, number>;
+  /** Disposable placement state keyed by the durable top-level window's stable role. */
+  windowPlacements: {
+    main: WindowPlacementRecord | null;
+  };
 };

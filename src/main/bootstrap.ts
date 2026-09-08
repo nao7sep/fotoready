@@ -1,11 +1,11 @@
-import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor } from "electron";
+import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers } from "./logger";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
-import { loadState } from "./state-io";
+import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
 import { setBackupLogger } from "./backup-store";
 import { ProjectSession } from "./session";
@@ -21,6 +21,8 @@ import {
   computeMinWindowHeight,
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
+import { DEFAULT_MAIN_WINDOW_MODE, resolveWindowRestoration } from "@shared/window-placement";
+import { applyRestoredWindowBounds, createWindowPlacementController } from "./window-placement";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
 // dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
@@ -77,6 +79,7 @@ export async function bootstrap(): Promise<void> {
   setBackupLogger(logger);
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
+  const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
   if (settingsQuarantinedTo) {
     await requireCorruptSettingsNotice(logger);
   }
@@ -92,6 +95,7 @@ export async function bootstrap(): Promise<void> {
     paths,
     settings,
     uiState,
+    stateCoordinator,
     projectSession,
     logger,
     version: app.getVersion()
@@ -130,8 +134,44 @@ export async function bootstrap(): Promise<void> {
     const win = new BrowserWindow(
       buildWindowOptions(path.join(__dirname, "../preload/index.mjs"))
     );
+    let workAreas: Electron.Rectangle[] = [];
+    try {
+      workAreas = screen.getAllDisplays().map((display) => display.workArea);
+    } catch (error) {
+      logger.warn("display work areas could not be read; using opening bounds", {
+        mod: "main.window-placement",
+        err: error
+      });
+    }
+    const restoration = resolveWindowRestoration(
+      uiState.windowPlacements.main,
+      { width: computeMinWindowWidth(), height: computeMinWindowHeight() },
+      workAreas,
+      DEFAULT_MAIN_WINDOW_MODE
+    );
+    if (restoration.normalBounds) {
+      applyRestoredWindowBounds(win, restoration.normalBounds, (error) => {
+        logger.warn("saved window bounds could not be restored; using opening bounds", {
+          mod: "main.window-placement",
+          err: error
+        });
+      });
+    }
+    const placementController = createWindowPlacementController(win, {
+      initialNormalBounds: win.getBounds(),
+      initialMode: restoration.mode,
+      persist: async (record) => {
+        const { issues } = await stateCoordinator.update({ windowPlacements: { main: record } });
+        for (const issue of issues) {
+          logger.warn("window placement contained invalid data", { mod: "main.window-placement", issue });
+        }
+      },
+      onError: (error) => {
+        logger.warn("window placement operation failed", { mod: "main.window-placement", err: error });
+      }
+    });
     configureWindowActivity(app, win);
-    installCloseGuard(win, exitState);
+    installCloseGuard(win, exitState, () => placementController.flush());
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -144,8 +184,31 @@ export async function bootstrap(): Promise<void> {
     });
 
     win.once("ready-to-show", () => {
+      if (restoration.mode === "maximized") {
+        try {
+          win.maximize();
+        } catch (error) {
+          placementController.setInitialMode("normal");
+          logger.warn("window could not be maximized during restoration", {
+            mod: "main.window-placement",
+            err: error
+          });
+        }
+      }
       win.show();
+      setTimeout(() => {
+        if (win.isDestroyed()) return;
+        if (restoration.mode === "maximized" && !win.isMaximized()) {
+          placementController.setInitialMode("normal");
+          logger.warn("window manager did not accept maximized restoration", {
+            mod: "main.window-placement"
+          });
+        }
+        placementController.start();
+      }, 500);
     });
+
+    win.once("closed", () => placementController.dispose());
 
     try {
       const rendererUrl = process.env.ELECTRON_RENDERER_URL;
@@ -193,7 +256,7 @@ function sameOrigin(a: string, b: string): boolean {
   }
 }
 
-function installCloseGuard(win: BrowserWindow, exitState: ExitState): void {
+function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClose: () => Promise<void>): void {
   let closeAllowed = false;
   let closeRequestPending = false;
   let closeRequestMode: "window" | "quit" = "window";
@@ -203,6 +266,7 @@ function installCloseGuard(win: BrowserWindow, exitState: ExitState): void {
     systemShutdown = true;
     closeAllowed = true;
     exitState.reason = "system-shutdown";
+    void prepareClose();
   };
 
   powerMonitor.once("shutdown", markSystemShutdown);
@@ -233,10 +297,11 @@ function installCloseGuard(win: BrowserWindow, exitState: ExitState): void {
   };
   app.on("before-quit", beforeQuitHandler);
 
-  ipcMain.handle("lifecycle.approveClose", (event, allow: boolean) => {
+  ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean) => {
     if (BrowserWindow.fromWebContents(event.sender) !== win) return;
     closeRequestPending = false;
     if (!allow) return;
+    await prepareClose();
     closeAllowed = true;
     exitState.reason = closeRequestMode === "quit" ? "user-quit" : "window-close";
     if (closeRequestMode === "quit") {

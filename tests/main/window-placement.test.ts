@@ -61,7 +61,7 @@ describe("createWindowPlacementController", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(saved).toEqual([]);
     await controller.flush();
-    expect(saved.at(-1)?.normalBounds).toEqual({ x: 10, y: 20, width: 1200, height: 800 });
+    expect(saved).toEqual([]);
   });
 
   it("debounces normal moves and resizes into one latest-bounds write", async () => {
@@ -92,6 +92,11 @@ describe("createWindowPlacementController", () => {
 
     await vi.advanceTimersByTimeAsync(500);
     expect(saved).toEqual([]);
+    await controller.flush();
+    expect(saved).toEqual([{
+      normalBounds: { x: 10, y: 20, width: 1200, height: 800 },
+      mode: "normal"
+    }]);
   });
 
   it("preserves normal bounds while maximized and captures new bounds after unmaximize", async () => {

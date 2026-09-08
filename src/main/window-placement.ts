@@ -147,8 +147,8 @@ export function createWindowPlacementController(
     async flush(): Promise<void> {
       try {
         cancelCapture();
-        if (captureEnabled && isOrdinaryNormal()) captureNormalBounds();
-        else if (captureEnabled && win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) mode = "maximized";
+        if (!captureEnabled) return;
+        if (win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) mode = "maximized";
         await persist();
       } catch (error) {
         options.onError(error);

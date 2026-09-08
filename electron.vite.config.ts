@@ -51,6 +51,11 @@ export default defineConfig({
   },
   renderer: {
     root: resolve("src/renderer"),
+    server: {
+      host: "127.0.0.1",
+      port: 23339,
+      strictPort: true
+    },
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),

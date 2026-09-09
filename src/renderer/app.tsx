@@ -32,7 +32,7 @@ import { OpsPanel } from "./components/panels/ops-panel";
 import { OriginalsPanel } from "./components/panels/originals-panel";
 import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout, type WorkspaceWidths } from "./layout/workspace-layout";
-import { PANE_DEFAULTS } from "@shared/layout/workspace-metrics";
+import { PANE_DEFAULTS, computeMinWindowWidth, computeMinWindowHeight } from "@shared/layout/workspace-metrics";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
 import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
@@ -772,7 +772,9 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <main className={`app-shell${hasShellResults ? " has-shell-result" : ""}`}>
+    <div className="app-viewport">
+    <main className={`app-shell${hasShellResults ? " has-shell-result" : ""}`}
+      style={{ minWidth: computeMinWindowWidth(), minHeight: computeMinWindowHeight() }}>
       <header className="top-bar">
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
@@ -1065,6 +1067,7 @@ function App(): React.JSX.Element {
         />
       </footer>
     </main>
+    </div>
   );
 }
 

@@ -1,193 +1,130 @@
+import { createWindowsPlacement, type WindowsPlacement } from "./windows-placement";
+import type { WindowsNormalBounds } from "@shared/windows-placement";
 import type { WindowBounds, WindowPlacementMode, WindowPlacementRecord } from "@shared/types/state";
-
-const CAPTURE_DEBOUNCE_MS = 400;
 
 export type PlacementWindow = {
   on(event: string, listener: () => void): unknown;
   off(event: string, listener: () => void): unknown;
   getBounds(): WindowBounds;
+  getNormalBounds(): WindowBounds;
   setBounds(bounds: WindowBounds): void;
   isMaximized(): boolean;
   isMinimized(): boolean;
   isFullScreen(): boolean;
 };
 
-export type WindowPlacementController = {
-  start(): void;
-  setInitialMode(mode: WindowPlacementMode): void;
-  flush(): Promise<void>;
-  dispose(): void;
-};
-
-type ControllerOptions = {
-  initialNormalBounds: WindowBounds;
-  initialMode: WindowPlacementMode;
-  persist(record: WindowPlacementRecord): Promise<unknown>;
-  onError(error: unknown): void;
-};
-
-/**
- * Captures only durable normal geometry and normal/maximized mode. Minimized/fullscreen and the
- * event noise around their transitions are deliberately ignored.
- */
-export function createWindowPlacementController(
-  win: PlacementWindow,
-  options: ControllerOptions
-): WindowPlacementController {
-  let normalBounds = { ...options.initialNormalBounds };
-  let mode = options.initialMode;
-  let captureEnabled = false;
-  let transient = false;
-  let manualMove = false;
-  let manualResize = false;
-  let captureTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const cancelCapture = (): void => {
-    if (captureTimer !== undefined) clearTimeout(captureTimer);
-    captureTimer = undefined;
-    manualMove = false;
-    manualResize = false;
-  };
-
-  const isOrdinaryNormal = (): boolean =>
-    !transient && !win.isMinimized() && !win.isFullScreen() && !win.isMaximized();
-
-  const snapshot = (): WindowPlacementRecord => ({ normalBounds: { ...normalBounds }, mode });
-
-  const persist = (): Promise<unknown> => options.persist(snapshot());
-
-  const persistInBackground = (): void => {
-    void persist().catch(options.onError);
-  };
-
-  const captureNormalBounds = (): void => {
-    if (!captureEnabled || !isOrdinaryNormal()) return;
-    normalBounds = { ...win.getBounds() };
-    mode = "normal";
-  };
-
-  const scheduleNormalCapture = (): void => {
-    if (!captureEnabled || !isOrdinaryNormal()) return;
-    // Keep the latest candidate in memory immediately. Only the disk write is debounced, so a
-    // maximize/minimize/fullscreen transition or close can still preserve the end of the drag.
-    captureNormalBounds();
-    if (captureTimer !== undefined) clearTimeout(captureTimer);
-    captureTimer = setTimeout(() => {
-      captureTimer = undefined;
-      manualMove = false;
-      manualResize = false;
-      persistInBackground();
-    }, CAPTURE_DEBOUNCE_MS);
-  };
-
-  const enterTransient = (): void => {
-    transient = true;
-    cancelCapture();
-  };
-
-  const leaveTransient = (): void => {
-    transient = true;
-    cancelCapture();
-    captureTimer = setTimeout(() => {
-      captureTimer = undefined;
-      transient = false;
-      if (isOrdinaryNormal()) {
-        captureNormalBounds();
-        persistInBackground();
-      }
-    }, CAPTURE_DEBOUNCE_MS);
-  };
-
-  const onWillMove = (): void => {
-    if (captureEnabled && isOrdinaryNormal()) manualMove = true;
-  };
-  const onMove = (): void => {
-    if (manualMove) scheduleNormalCapture();
-  };
-  const onWillResize = (): void => {
-    if (captureEnabled && isOrdinaryNormal()) manualResize = true;
-  };
-  const onResize = (): void => {
-    if (manualResize) scheduleNormalCapture();
-  };
-  const onMaximize = (): void => {
-    if (!captureEnabled || transient || win.isMinimized() || win.isFullScreen()) return;
-    cancelCapture();
-    mode = "maximized";
-    persistInBackground();
-  };
-  const onUnmaximize = (): void => leaveTransient();
-  const onMinimize = (): void => enterTransient();
-  const onRestore = (): void => leaveTransient();
-  const onEnterFullScreen = (): void => enterTransient();
-  const onLeaveFullScreen = (): void => leaveTransient();
-
-  const listeners: Array<[string, () => void]> = [
-    ["will-move", onWillMove],
-    ["move", onMove],
-    ["will-resize", onWillResize],
-    ["resize", onResize],
-    ["maximize", onMaximize],
-    ["unmaximize", onUnmaximize],
-    ["minimize", onMinimize],
-    ["restore", onRestore],
-    ["enter-full-screen", onEnterFullScreen],
-    ["leave-full-screen", onLeaveFullScreen]
-  ];
-  for (const [event, listener] of listeners) win.on(event, listener);
-
-  return {
-    start(): void {
-      captureEnabled = true;
-      transient = win.isMinimized() || win.isFullScreen();
-    },
-    setInitialMode(nextMode): void {
-      mode = nextMode;
-    },
-    async flush(): Promise<void> {
-      try {
-        cancelCapture();
-        if (!captureEnabled) return;
-        if (win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) mode = "maximized";
-        await persist();
-      } catch (error) {
-        options.onError(error);
-      }
-    },
-    dispose(): void {
-      captureEnabled = false;
-      cancelCapture();
-      for (const [event, listener] of listeners) win.off(event, listener);
-    }
-  };
-}
-
-/**
- * BrowserWindow setters may reject or adjust a rectangle. Restore is all-or-nothing: if Electron
- * does not accept the requested rectangle exactly, put the designed/OS-selected bounds back.
- */
 export function applyRestoredWindowBounds(
   win: Pick<PlacementWindow, "getBounds" | "setBounds">,
   bounds: WindowBounds,
-  onFailure: (error: unknown) => void
+  onError: (error: unknown) => void,
 ): boolean {
-  const fallback = { ...win.getBounds() };
+  let opening: WindowBounds | undefined;
   try {
+    opening = win.getBounds();
     win.setBounds(bounds);
-    const applied = win.getBounds();
-    if (sameBounds(applied, bounds)) return true;
-    throw new Error("Electron adjusted the restored window bounds");
+    return true;
   } catch (error) {
-    onFailure(error);
-    try {
-      win.setBounds(fallback);
-    } catch (fallbackError) {
-      onFailure(fallbackError);
+    onError(error);
+    if (opening) {
+      try { win.setBounds(opening); } catch (fallbackError) { onError(fallbackError); }
     }
     return false;
   }
 }
 
-function sameBounds(a: WindowBounds, b: WindowBounds): boolean {
-  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+export function initializeWindowPlacement(
+  win: PlacementWindow & { getNativeWindowHandle(): Buffer },
+  saved: WindowPlacementRecord | null,
+  restoration: { normalBounds: WindowBounds | null; mode: WindowPlacementMode },
+  onError: (error: unknown) => void,
+): { initial: WindowPlacementRecord; windows: WindowsPlacement | undefined } {
+  let windows: WindowsPlacement | undefined;
+  try { windows = createWindowsPlacement(win); } catch (error) { onError(error); }
+  if (windows && saved?.windowsNormalBounds) {
+    try { windows.restoreHidden(saved.windowsNormalBounds); } catch (error) { onError(error); }
+  } else if (restoration.normalBounds) {
+    applyRestoredWindowBounds(win, restoration.normalBounds, onError);
+  }
+  // A geometry read failure leaves the useful opening window and valid mode
+  // intact. It does not require inventing a rectangle to persist.
+  const initial: WindowPlacementRecord = { normalBounds: null, mode: restoration.mode };
+  try { initial.normalBounds = win.getNormalBounds(); } catch (error) { onError(error); }
+  if (windows) {
+    try { initial.windowsNormalBounds = windows.read(); } catch (error) { onError(error); }
+  }
+  return { initial, windows };
+}
+
+// electron-window-state overwrites maximized intent during transient states and
+// owns a separate store. Use SDK geometry with our ordered store; on Windows,
+// the native placement pair avoids Electron's lossy DIP rectangle conversion.
+export function createWindowPlacementController(
+  win: PlacementWindow,
+  options: {
+    initialNormalBounds: WindowBounds | null;
+    initialMode: WindowPlacementMode;
+    initialWindowsNormalBounds?: WindowsNormalBounds | null | undefined;
+    windowsPlacement?: WindowsPlacement | undefined;
+    persist(record: WindowPlacementRecord): Promise<unknown>;
+    onError(error: unknown): void;
+  },
+): { start(): void; flush(): Promise<void>; dispose(): void } {
+  const { persist, onError } = options;
+  const initial = { normalBounds: options.initialNormalBounds, mode: options.initialMode };
+  let normalBounds = initial.normalBounds ? { ...initial.normalBounds } : null;
+  let windowsNormalBounds = options.initialWindowsNormalBounds;
+  const windowsPlacement = options.windowsPlacement;
+  let mode = initial.mode;
+  let enabled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const cancel = (): void => { clearTimeout(timer); timer = undefined; };
+  const capture = (): void => {
+    if (win.isMinimized() || win.isFullScreen()) return;
+    mode = win.isMaximized() ? "maximized" : "normal";
+    // Commit both geometry representations together, leaving the prior pair on failure.
+    const logical = { ...win.getNormalBounds() };
+    const native = windowsPlacement?.read();
+    normalBounds = logical;
+    windowsNormalBounds = native;
+  };
+  const save = async (): Promise<void> => {
+    try { await persist({ normalBounds: normalBounds ? { ...normalBounds } : null, mode,
+      ...(windowsPlacement ? { windowsNormalBounds: windowsNormalBounds ? { ...windowsNormalBounds } : null } : {}),
+    }); }
+    catch (error) { onError(error); }
+  };
+  const schedule = (): void => {
+    if (!enabled || win.isMinimized() || win.isFullScreen()) return;
+    try { capture(); } catch (error) { onError(error); }
+    cancel();
+    timer = setTimeout(() => { timer = undefined; void save(); }, 400);
+  };
+  const onMaximize = (): void => {
+    if (!enabled || win.isMinimized() || win.isFullScreen()) return;
+    try { capture(); } catch (error) { onError(error); }
+    cancel();
+    void save();
+  };
+  const listeners: Array<[string, () => void]> = [
+    ["move", schedule], ["resize", schedule], ["maximize", onMaximize],
+    ["unmaximize", schedule], ["restore", schedule], ["leave-full-screen", schedule],
+    ["minimize", cancel], ["enter-full-screen", cancel],
+  ];
+  for (const [event, listener] of listeners) win.on(event, listener);
+
+  return {
+    start: () => { enabled = true; },
+    flush: async () => {
+      cancel();
+      if (!enabled) return;
+      try { capture(); } catch (error) { onError(error); }
+      await save();
+    },
+    dispose: () => {
+      enabled = false;
+      cancel();
+      for (const [event, listener] of listeners) win.off(event, listener);
+    },
+  };
 }

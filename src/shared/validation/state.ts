@@ -1,3 +1,4 @@
+import { normalizeWindowsNormalBounds } from "../windows-placement";
 import type { UiState, WindowBounds, WindowPlacementRecord } from "../types/state";
 import { PANE_DEFAULTS, PANE_MAXES, PANE_MINS, type WorkspacePaneKey } from "../layout/workspace-metrics";
 import { DEFAULT_MAIN_WINDOW_MODE } from "../window-placement";
@@ -77,7 +78,9 @@ function readWindowPlacement(
   } else {
     issues.push("state.windowPlacements.main.mode must be normal or maximized");
   }
-  return { normalBounds, mode };
+  return { normalBounds, mode,
+    ...(value.windowsNormalBounds === undefined ? {} : { windowsNormalBounds: normalizeWindowsNormalBounds(value.windowsNormalBounds) }),
+  };
 }
 
 function readWindowBounds(value: Record<string, unknown>): WindowBounds {
@@ -92,7 +95,9 @@ function readWindowBounds(value: Record<string, unknown>): WindowBounds {
 function cloneWindowPlacement(value: WindowPlacementRecord | null): WindowPlacementRecord | null {
   return value === null
     ? null
-    : { normalBounds: value.normalBounds ? { ...value.normalBounds } : null, mode: value.mode };
+    : { normalBounds: value.normalBounds ? { ...value.normalBounds } : null, mode: value.mode,
+      ...(value.windowsNormalBounds === undefined ? {} : { windowsNormalBounds: normalizeWindowsNormalBounds(value.windowsNormalBounds) }),
+    };
 }
 
 // Each pane width is clamped to its own [min, max] on read: a hand-edited or older value can't strand

@@ -1,3 +1,4 @@
+import type { WindowsNormalBounds } from "../windows-placement";
 import type { WorkspacePaneKey } from "../layout/workspace-metrics";
 
 export type WindowPlacementMode = "normal" | "maximized";
@@ -10,6 +11,7 @@ export type WindowBounds = {
 };
 
 export type WindowPlacementRecord = {
+  windowsNormalBounds?: WindowsNormalBounds | null;
   normalBounds: WindowBounds | null;
   mode: WindowPlacementMode;
 };

@@ -134,6 +134,32 @@ describe("createLogger", () => {
     expect(line.set).toEqual([1, 2]);
   });
 
+  it("preserves aggregate failures, nested causes, and redaction in the log", () => {
+    const logger = createLogger(logsDir, { debug: false });
+    const original = new TypeError("query failed", { cause: new Error("query cause") });
+    const fallback = Object.assign(new Error("fallback failed"), {
+      operation: "SetWindowPlacement", nativeCode: 1400, token: "sentinel-secret",
+    });
+    logger.error("placement failed", { err: new AggregateError([original, fallback], "both failed", { cause: original }) });
+    logger.close();
+    const [line] = readLines(logsDir);
+    expect(line.err).toMatchObject({ name: "AggregateError", cause: { message: "query failed" }, errors: [
+      { name: "TypeError", message: "query failed", stack: expect.any(String), cause: { message: "query cause" } },
+      { message: "fallback failed", stack: expect.any(String), operation: "SetWindowPlacement", nativeCode: 1400, token: "[redacted]" }
+    ] });
+    expect(JSON.stringify(line)).not.toContain("sentinel-secret");
+  });
+
+  it("contains cycles through aggregate members without losing other failures", () => {
+    const logger = createLogger(logsDir, { debug: false });
+    const aggregate = new AggregateError([], "cyclic");
+    aggregate.errors.push(aggregate, new Error("retained"));
+    logger.error("placement failed", { err: aggregate });
+    logger.close();
+    const [line] = readLines(logsDir);
+    expect(line.err).toMatchObject({ errors: ["[circular]", { message: "retained" }] });
+  });
+
   it("summarizes binary blobs instead of dumping bytes", () => {
     const logger = createLogger(logsDir, { debug: false });
     logger.info("binary", { buf: Buffer.from("hello"), arr: new Uint8Array([1, 2, 3]) });

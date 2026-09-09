@@ -69,6 +69,7 @@ function serializeError(error: Error, seen: WeakSet<object>): Record<string, unk
   }
   const cause = (error as { cause?: unknown }).cause;
   if (cause !== undefined) raw.cause = cause;
+  if (error instanceof AggregateError) raw.errors = error.errors;
   return transformObject(raw, seen);
 }
 

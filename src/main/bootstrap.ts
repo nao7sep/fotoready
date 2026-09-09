@@ -22,7 +22,8 @@ import {
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
 import { DEFAULT_MAIN_WINDOW_MODE, resolveWindowRestoration } from "@shared/window-placement";
-import { applyRestoredWindowBounds, createWindowPlacementController } from "./window-placement";
+import { createWindowPlacementController, initializeWindowPlacement } from "./window-placement";
+import { configureWindowMinimum } from "./window-minimum";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
 // dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
@@ -143,32 +144,31 @@ export async function bootstrap(): Promise<void> {
         err: error
       });
     }
+    const savedPlacement = uiState.windowPlacements.main;
+    const placementError = (error: unknown): void => {
+      logger.warn("window placement operation failed", { mod: "main.window-placement", err: error });
+    };
     const restoration = resolveWindowRestoration(
-      uiState.windowPlacements.main,
+      savedPlacement,
       { width: computeMinWindowWidth(), height: computeMinWindowHeight() },
       workAreas,
       DEFAULT_MAIN_WINDOW_MODE
     );
-    if (restoration.normalBounds) {
-      applyRestoredWindowBounds(win, restoration.normalBounds, (error) => {
-        logger.warn("saved window bounds could not be restored; using opening bounds", {
-          mod: "main.window-placement",
-          err: error
-        });
-      });
-    }
+    configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
+      (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
+    const { initial, windows: windowsPlacement } = initializeWindowPlacement(win, savedPlacement, restoration, placementError);
     const placementController = createWindowPlacementController(win, {
-      initialNormalBounds: win.getBounds(),
-      initialMode: restoration.mode,
+      initialNormalBounds: initial.normalBounds,
+      initialWindowsNormalBounds: initial.windowsNormalBounds,
+      initialMode: initial.mode,
+      windowsPlacement,
       persist: async (record) => {
         const { issues } = await stateCoordinator.update({ windowPlacements: { main: record } });
         for (const issue of issues) {
           logger.warn("window placement contained invalid data", { mod: "main.window-placement", issue });
         }
       },
-      onError: (error) => {
-        logger.warn("window placement operation failed", { mod: "main.window-placement", err: error });
-      }
+      onError: placementError
     });
     configureWindowActivity(app, win);
     installCloseGuard(win, exitState, () => placementController.flush());
@@ -184,28 +184,16 @@ export async function bootstrap(): Promise<void> {
     });
 
     win.once("ready-to-show", () => {
-      if (restoration.mode === "maximized") {
-        try {
-          win.maximize();
-        } catch (error) {
-          placementController.setInitialMode("normal");
-          logger.warn("window could not be maximized during restoration", {
-            mod: "main.window-placement",
-            err: error
-          });
-        }
-      }
       win.show();
+      // Windows requires a native event-loop turn between show and maximize.
       setTimeout(() => {
         if (win.isDestroyed()) return;
-        if (restoration.mode === "maximized" && !win.isMaximized()) {
-          placementController.setInitialMode("normal");
-          logger.warn("window manager did not accept maximized restoration", {
-            mod: "main.window-placement"
-          });
-        }
         placementController.start();
-      }, 500);
+        if (restoration.mode === "maximized") {
+          try { win.maximize(); }
+          catch (error) { logger.warn("window could not be maximized during restoration", { mod: "main.window-placement", err: error }); }
+        }
+      }, 0);
     });
 
     win.once("closed", () => placementController.dispose());

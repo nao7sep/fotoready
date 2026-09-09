@@ -151,13 +151,16 @@ button {
   cursor: pointer;
 }
 
+.app-viewport {
+  height: 100vh;
+  overflow: auto;
+}
+
 .app-shell {
   position: relative;
   display: grid;
   grid-template-rows: 48px minmax(0, 1fr) 32px;
-  height: 100vh;
-  min-height: 0;
-  overflow: hidden;
+  height: 100%;
 }
 
 .app-shell.has-shell-result {

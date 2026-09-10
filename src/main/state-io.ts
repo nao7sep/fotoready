@@ -28,7 +28,8 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
   if (classified.kind === "absent") {
     // Missing state is the normal first-run case: return defaults WITHOUT writing. state.json is
     // volatile UI state and is deliberately not materialized on first run (storage-path
-    // conventions) — it is written only once there is real state to record (a resize, a selection).
+    // conventions) — it is written only once there is real state to record (a pane adjustment, a
+    // histogram move).
     return defaultUiState();
   }
 
@@ -45,8 +46,8 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  // recorded: state.json is user-meaningful managed text — window placement, pane widths, and histogram
-  // placement. It is recorded on every save deliberately; dedup absorbs the interaction churn.
+  // recorded: state.json is user-meaningful managed text — pane widths and histogram placement. It
+  // is recorded on every save deliberately; dedup absorbs the interaction churn.
   await writeManagedFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
@@ -55,14 +56,13 @@ export type StateCoordinator = {
   flush(): Promise<void>;
 };
 
-/** One ordering boundary for renderer updates, window-event captures, and the final close flush. */
+/** One ordering boundary for renderer state updates and final shutdown. */
 export function createStateCoordinator(
   statePath: string,
   currentState: UiState,
   writer: (path: string, state: UiState) => Promise<void> = saveState
 ): StateCoordinator {
   let tail: Promise<void> = Promise.resolve();
-
   const update = (patch: Partial<UiState>): Promise<UiStateNormalizationResult> => {
     const operation = tail.then(async () => {
       const candidate = { ...currentState, ...patch };
@@ -77,9 +77,5 @@ export function createStateCoordinator(
     );
     return operation;
   };
-
-  return {
-    update,
-    flush: async () => tail
-  };
+  return { update, flush: async () => tail };
 }

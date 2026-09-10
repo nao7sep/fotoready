@@ -29,7 +29,6 @@
     "@google/genai": "^2.21.0",
     "@vitejs/plugin-react": "^5.2.0",
     "exiftool-vendored": "^37.2.0",
-    "koffi": "3.2.1",
     "konva": "^10.3.2",
     "lucide-react": "^1.40.0",
     "nanoid": "^6.0.1",
@@ -78,22 +77,9 @@
       "!**/*.d.cts"
     ],
     "asarUnpack": [
-      "**/node_modules/exiftool-vendored.*/**/*",
-      "node_modules/@koromix/koffi-*/**/*"
+      "**/node_modules/exiftool-vendored.*/**/*"
     ],
     "extraResources": [
-      {
-        "from": "node_modules/koffi/LICENSE.txt",
-        "to": "koffi/LICENSE.txt"
-      },
-      {
-        "from": "node_modules/koffi/vendor/node-addon-api/LICENSE.md",
-        "to": "koffi/node-addon-api-LICENSE.md"
-      },
-      {
-        "from": "node_modules/koffi/vendor/node-api-headers/LICENSE",
-        "to": "koffi/node-api-headers-LICENSE"
-      },
       {
         "from": "resources/luts",
         "to": "luts"

@@ -1,7 +1,5 @@
-import { normalizeWindowsNormalBounds } from "../windows-placement";
-import type { UiState, WindowBounds, WindowPlacementRecord } from "../types/state";
+import type { UiState } from "../types/state";
 import { PANE_DEFAULTS, PANE_MAXES, PANE_MINS, type WorkspacePaneKey } from "../layout/workspace-metrics";
-import { DEFAULT_MAIN_WINDOW_MODE } from "../window-placement";
 import { assertBoolean, assertFiniteNumber, assertRecord, isRecord } from "./common";
 
 export type UiStateNormalizationResult = {
@@ -15,8 +13,7 @@ export function defaultUiState(): UiState {
   return {
     showHistogram: false,
     histogramPosition: null,
-    workspaceWidths: { ...PANE_DEFAULTS },
-    windowPlacements: { main: null }
+    workspaceWidths: { ...PANE_DEFAULTS }
   };
 }
 
@@ -29,75 +26,9 @@ export function normalizeUiState(input: unknown, fallback: UiState): UiStateNorm
   const state: UiState = {
     showHistogram: readBoolean(input, "showHistogram", fallback.showHistogram, issues),
     histogramPosition: readPoint(input.histogramPosition, fallback.histogramPosition, issues),
-    workspaceWidths: readWorkspaceWidths(input.workspaceWidths, fallback.workspaceWidths, issues),
-    windowPlacements: readWindowPlacements(input.windowPlacements, fallback.windowPlacements, issues)
+    workspaceWidths: readWorkspaceWidths(input.workspaceWidths, fallback.workspaceWidths, issues)
   };
   return { state, issues };
-}
-
-function readWindowPlacements(
-  value: unknown,
-  fallback: UiState["windowPlacements"],
-  issues: string[]
-): UiState["windowPlacements"] {
-  if (value === undefined) return { main: cloneWindowPlacement(fallback.main) };
-  if (!isRecord(value)) {
-    issues.push("state.windowPlacements must be an object.");
-    return { main: cloneWindowPlacement(fallback.main) };
-  }
-
-  return { main: readWindowPlacement(value.main, fallback.main, issues) };
-}
-
-function readWindowPlacement(
-  value: unknown,
-  fallback: WindowPlacementRecord | null,
-  issues: string[]
-): WindowPlacementRecord | null {
-  if (value === undefined) return cloneWindowPlacement(fallback);
-  if (value === null) return null;
-  if (!isRecord(value)) {
-    issues.push("state.windowPlacements.main must be an object.");
-    return cloneWindowPlacement(fallback);
-  }
-
-  let normalBounds = fallback?.normalBounds ? { ...fallback.normalBounds } : null;
-  if (value.normalBounds === null) {
-    normalBounds = null;
-  } else {
-    try {
-      normalBounds = readWindowBounds(assertRecord(value.normalBounds, "state.windowPlacements.main.normalBounds"));
-    } catch (error) {
-      issues.push(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  let mode = fallback?.mode ?? DEFAULT_MAIN_WINDOW_MODE;
-  if (value.mode === "normal" || value.mode === "maximized") {
-    mode = value.mode;
-  } else {
-    issues.push("state.windowPlacements.main.mode must be normal or maximized");
-  }
-  return { normalBounds, mode,
-    ...(value.windowsNormalBounds === undefined ? {} : { windowsNormalBounds: normalizeWindowsNormalBounds(value.windowsNormalBounds) }),
-  };
-}
-
-function readWindowBounds(value: Record<string, unknown>): WindowBounds {
-  return {
-    x: assertFiniteNumber(value.x, "state.windowPlacements.main.normalBounds.x"),
-    y: assertFiniteNumber(value.y, "state.windowPlacements.main.normalBounds.y"),
-    width: assertFiniteNumber(value.width, "state.windowPlacements.main.normalBounds.width"),
-    height: assertFiniteNumber(value.height, "state.windowPlacements.main.normalBounds.height")
-  };
-}
-
-function cloneWindowPlacement(value: WindowPlacementRecord | null): WindowPlacementRecord | null {
-  return value === null
-    ? null
-    : { normalBounds: value.normalBounds ? { ...value.normalBounds } : null, mode: value.mode,
-      ...(value.windowsNormalBounds === undefined ? {} : { windowsNormalBounds: normalizeWindowsNormalBounds(value.windowsNormalBounds) }),
-    };
 }
 
 // Each pane width is clamped to its own [min, max] on read: a hand-edited or older value can't strand

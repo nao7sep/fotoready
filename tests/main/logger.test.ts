@@ -138,14 +138,14 @@ describe("createLogger", () => {
     const logger = createLogger(logsDir, { debug: false });
     const original = new TypeError("query failed", { cause: new Error("query cause") });
     const fallback = Object.assign(new Error("fallback failed"), {
-      operation: "SetWindowPlacement", nativeCode: 1400, token: "sentinel-secret",
+      operation: "NativeQuery", nativeCode: 1400, token: "sentinel-secret",
     });
-    logger.error("placement failed", { err: new AggregateError([original, fallback], "both failed", { cause: original }) });
+    logger.error("native operation failed", { err: new AggregateError([original, fallback], "both failed", { cause: original }) });
     logger.close();
     const [line] = readLines(logsDir);
     expect(line.err).toMatchObject({ name: "AggregateError", cause: { message: "query failed" }, errors: [
       { name: "TypeError", message: "query failed", stack: expect.any(String), cause: { message: "query cause" } },
-      { message: "fallback failed", stack: expect.any(String), operation: "SetWindowPlacement", nativeCode: 1400, token: "[redacted]" }
+      { message: "fallback failed", stack: expect.any(String), operation: "NativeQuery", nativeCode: 1400, token: "[redacted]" }
     ] });
     expect(JSON.stringify(line)).not.toContain("sentinel-secret");
   });
@@ -154,7 +154,7 @@ describe("createLogger", () => {
     const logger = createLogger(logsDir, { debug: false });
     const aggregate = new AggregateError([], "cyclic");
     aggregate.errors.push(aggregate, new Error("retained"));
-    logger.error("placement failed", { err: aggregate });
+    logger.error("native operation failed", { err: aggregate });
     logger.close();
     const [line] = readLines(logsDir);
     expect(line.err).toMatchObject({ errors: ["[circular]", { message: "retained" }] });

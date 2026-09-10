@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor, screen } from "electron";
+import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,8 +21,6 @@ import {
   computeMinWindowHeight,
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
-import { DEFAULT_MAIN_WINDOW_MODE, resolveWindowRestoration } from "@shared/window-placement";
-import { createWindowPlacementController, initializeWindowPlacement } from "./window-placement";
 import { configureWindowMinimum } from "./window-minimum";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
@@ -135,43 +133,10 @@ export async function bootstrap(): Promise<void> {
     const win = new BrowserWindow(
       buildWindowOptions(path.join(__dirname, "../preload/index.mjs"))
     );
-    let workAreas: Electron.Rectangle[] = [];
-    try {
-      workAreas = screen.getAllDisplays().map((display) => display.workArea);
-    } catch (error) {
-      logger.warn("display work areas could not be read; using opening bounds", {
-        mod: "main.window-placement",
-        err: error
-      });
-    }
-    const savedPlacement = uiState.windowPlacements.main;
-    const placementError = (error: unknown): void => {
-      logger.warn("window placement operation failed", { mod: "main.window-placement", err: error });
-    };
-    const restoration = resolveWindowRestoration(
-      savedPlacement,
-      { width: computeMinWindowWidth(), height: computeMinWindowHeight() },
-      workAreas,
-      DEFAULT_MAIN_WINDOW_MODE
-    );
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
-    const { initial, windows: windowsPlacement } = initializeWindowPlacement(win, savedPlacement, restoration, placementError);
-    const placementController = createWindowPlacementController(win, {
-      initialNormalBounds: initial.normalBounds,
-      initialWindowsNormalBounds: initial.windowsNormalBounds,
-      initialMode: initial.mode,
-      windowsPlacement,
-      persist: async (record) => {
-        const { issues } = await stateCoordinator.update({ windowPlacements: { main: record } });
-        for (const issue of issues) {
-          logger.warn("window placement contained invalid data", { mod: "main.window-placement", issue });
-        }
-      },
-      onError: placementError
-    });
     configureWindowActivity(app, win);
-    installCloseGuard(win, exitState, () => placementController.flush());
+    installCloseGuard(win, exitState, () => stateCoordinator.flush());
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -185,18 +150,7 @@ export async function bootstrap(): Promise<void> {
 
     win.once("ready-to-show", () => {
       win.show();
-      // Windows requires a native event-loop turn between show and maximize.
-      setTimeout(() => {
-        if (win.isDestroyed()) return;
-        placementController.start();
-        if (restoration.mode === "maximized") {
-          try { win.maximize(); }
-          catch (error) { logger.warn("window could not be maximized during restoration", { mod: "main.window-placement", err: error }); }
-        }
-      }, 0);
     });
-
-    win.once("closed", () => placementController.dispose());
 
     try {
       const rendererUrl = process.env.ELECTRON_RENDERER_URL;

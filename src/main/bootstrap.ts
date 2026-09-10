@@ -37,6 +37,8 @@ export function buildWindowOptions(
   preloadPath: string
 ): BrowserWindowConstructorOptions {
   return {
+    name: "main",
+    windowStatePersistence: { bounds: true, displayMode: false },
     title: APP_NAME,
     minWidth: computeMinWindowWidth(),
     minHeight: computeMinWindowHeight(),

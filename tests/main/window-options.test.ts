@@ -36,6 +36,11 @@ describe("buildWindowOptions", () => {
     expect(options.height).toBe(computeFirstRunWindowHeight());
   });
 
+  it("uses Electron-owned bounds persistence for the stable main window", () => {
+    expect(options.name).toBe("main");
+    expect(options.windowStatePersistence).toEqual({ bounds: true, displayMode: false });
+  });
+
   it("paints the light app background so the native chrome never flashes a dark default", () => {
     expect(options.backgroundColor).toBe("#f5f5f4");
   });

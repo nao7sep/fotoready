@@ -22,6 +22,7 @@ import {
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
 import { configureWindowMinimum } from "./window-minimum";
+import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 
 // FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
 // dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
@@ -132,9 +133,8 @@ export async function bootstrap(): Promise<void> {
   nativeTheme.themeSource = "light";
 
   const createWindow = async (): Promise<void> => {
-    const win = new BrowserWindow(
-      buildWindowOptions(path.join(__dirname, "../preload/index.mjs"))
-    );
+    const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));
+    const win = createWindowWithUsablePersistedBounds("main", () => new BrowserWindow(options));
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);

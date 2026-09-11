@@ -66,7 +66,8 @@ export default defineConfig({
     // unnecessary — dropping it keeps the built HTML free of inline scripts, so the CSP can hold
     // script-src to 'self' without 'unsafe-inline'.
     build: {
-      modulePreload: { polyfill: false }
+      modulePreload: { polyfill: false },
+      minify: true
     },
     plugins: [react(), contentSecurityPolicy]
   }

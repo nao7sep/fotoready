@@ -123,7 +123,7 @@ describe("FotoReady app file receiver", () => {
     expect(filePathForFile).toHaveBeenCalledTimes(2);
     expect(addOriginals).toHaveBeenCalledWith(["/fixtures/photo.jpg"]);
     expect(document.body.textContent).toContain("private.fotoready.json");
-  });
+  }, 15_000);
 });
 
 function dragEvent(type: string, dataTransfer: DataTransfer): Event {

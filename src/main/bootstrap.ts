@@ -39,7 +39,10 @@ export function buildWindowOptions(
 ): BrowserWindowConstructorOptions {
   return {
     name: "main",
-    windowStatePersistence: { bounds: true, displayMode: false },
+    windowStatePersistence: {
+      bounds: true,
+      displayMode: process.platform === "win32",
+    },
     title: APP_NAME,
     minWidth: computeMinWindowWidth(),
     minHeight: computeMinWindowHeight(),

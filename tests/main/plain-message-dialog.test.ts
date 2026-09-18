@@ -84,12 +84,12 @@ describe("plain message dialog", () => {
 
   it("follows the resolved theme in its page and its window background", async () => {
     const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message" });
-    expect(html).toContain("@media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#171412");
+    expect(html).toContain("@media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#161616");
 
     electron.dark = true;
     const result = showPlainMessageDialog({ title: "Title", message: "Message" });
     await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
-    expect(electron.windows[0]?.options.backgroundColor).toBe("#171412");
+    expect(electron.windows[0]?.options.backgroundColor).toBe("#161616");
     electron.windows[0]?.close();
     await result;
   });

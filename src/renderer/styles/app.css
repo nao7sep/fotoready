@@ -8,7 +8,10 @@
   --app-bg: #f5f5f4;
   --surface-bg: #ffffff;
   --surface-raised-bg: #f1f5f9;
-  --surface-muted-bg: #e7e5e4;
+  --surface-muted-bg: #e5e5e5;
+  /* Panel and modal headers, and the status bar: neutral, so orange stays a brand accent. */
+  --header-bg: #f5f5f4;
+  --status-bar-bg: #fafaf9;
   --button-bg: #fafaf9;
   --button-active-bg: #e7e5e4;
   --menu-hover-bg: #e7e5e4;
@@ -29,15 +32,15 @@
   --text-muted-color: #57534e;
   --text-soft-color: #736b66;
   --text-disabled-color: #a8a29e;
-  --checker-bg: #e7e5e4;
+  --checker-bg: #e5e5e5;
   --brand-primary: #f97316;
-  --brand-primary-hover: #ea580c;
+  /* Brand-colored text: the app name in About. */
   --brand-primary-text: #7c2d12;
   /* Text on a brand-primary fill: chips, pills, and badges. */
   --brand-primary-fill-text: #431407;
+  /* The originals list lit up as a drop target. */
   --brand-primary-soft-bg: #fff7ed;
   --brand-primary-soft-border: #fdba74;
-  --brand-primary-soft-text: #9a3412;
   --brand-secondary: #2563eb;
   --brand-secondary-soft-bg: #dbeafe;
   --brand-secondary-soft-border: #93c5fd;
@@ -46,10 +49,6 @@
   --brand-chrome-bg: #f97316;
   --brand-chrome-text: #431407;
   --brand-header-border: #c2410c;
-  --brand-chrome-border: #fed7aa;
-  --brand-status-bg: #fff7ed;
-  --brand-status-text: #7c2d12;
-  --brand-chip-idle-bg: #ffedd5;
   --accent-bg: #2f7d6f;
   --accent-text: #ffffff;
   --accent-border: #2f7d6f;
@@ -79,48 +78,45 @@
   color: var(--text-color);
 }
 
-/* The dark theme: the same tokens over deep stone neutrals, with the orange header deepened to rust
-   and the teal accent kept. Electron's nativeTheme.themeSource (set from Settings) decides
-   prefers-color-scheme, so this block is the only theme switch the renderer needs. */
+/* The dark theme: neutral charcoal chrome, so the photo sits in grays that do not tint how its
+   colors read, with orange kept to brand accents (the title, the line under the top bar, busy chips,
+   and badges) and the teal accent kept. Electron's nativeTheme.themeSource (set from Settings)
+   decides prefers-color-scheme, so this block is the only theme switch the renderer needs. */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --app-bg: #171412;
-    --surface-bg: #1f1b19;
-    --surface-raised-bg: #282321;
-    --surface-muted-bg: #141110;
-    --button-bg: #2d2826;
-    --button-active-bg: #3a3431;
-    --menu-hover-bg: #3a3431;
-    --border-color: #3d3734;
-    --border-strong-color: #5c5551;
-    --border-soft-color: #302b28;
-    --field-border-color: #7c746f;
+    --app-bg: #161616;
+    --surface-bg: #1f1f1f;
+    --surface-raised-bg: #262626;
+    --surface-muted-bg: #121212;
+    --header-bg: #262626;
+    --status-bar-bg: #1f1f1f;
+    --button-bg: #2e2e2e;
+    --button-active-bg: #3a3a3a;
+    --menu-hover-bg: #333333;
+    --border-color: #383838;
+    --border-strong-color: #555555;
+    --border-soft-color: #2c2c2c;
+    --field-border-color: #767676;
     --selection-border-color: #fbbf24;
-    --text-color: #e7e5e4;
-    --text-strong-color: #fafaf9;
-    --text-muted-color: #b5afaa;
-    --text-soft-color: #9c958f;
-    --text-disabled-color: #6b6460;
-    --checker-bg: #141110;
+    --text-color: #e5e5e5;
+    --text-strong-color: #fafafa;
+    --text-muted-color: #b0b0b0;
+    --text-soft-color: #999999;
+    --text-disabled-color: #666666;
+    --checker-bg: #121212;
     --brand-primary: #f97316;
-    --brand-primary-hover: #fb923c;
-    --brand-primary-text: #fdba74;
+    --brand-primary-text: #fb923c;
     --brand-primary-fill-text: #431407;
-    --brand-primary-soft-bg: #2e1f17;
-    --brand-primary-soft-border: #8a4a26;
-    --brand-primary-soft-text: #fb9a55;
+    --brand-primary-soft-bg: #33241a;
+    --brand-primary-soft-border: #9a4a1f;
     --brand-secondary: #3b82f6;
     --brand-secondary-soft-bg: #1c2b4a;
     --brand-secondary-soft-border: #2c4c85;
     --brand-secondary-soft-text: #dbeafe;
-    --brand-chrome-bg: #9a3412;
-    --brand-chrome-text: #fff7ed;
-    --brand-header-border: #7c2d12;
-    --brand-chrome-border: #4a2e1c;
-    --brand-status-bg: #241a14;
-    --brand-status-text: #fed7aa;
-    --brand-chip-idle-bg: #3a2619;
+    --brand-chrome-bg: #1f1f1f;
+    --brand-chrome-text: #fb923c;
+    --brand-header-border: #f97316;
     --accent-bg: #2f7d6f;
     --accent-text: #ffffff;
     --accent-border: #45a291;
@@ -298,10 +294,10 @@ button {
 
 .status-bar {
   justify-content: flex-start;
-  border-top: 2px solid var(--brand-primary);
+  border-top: 1px solid var(--border-color);
   border-bottom: 0;
-  color: var(--brand-status-text);
-  background: var(--brand-status-bg);
+  color: var(--text-muted-color);
+  background: var(--status-bar-bg);
   font-size: 12px;
 }
 
@@ -335,15 +331,15 @@ button {
 }
 
 .status-chip-muted {
-  color: var(--brand-primary-soft-text);
-  background: var(--brand-status-bg);
-  border-color: var(--brand-primary-soft-border);
+  color: var(--text-muted-color);
+  background: var(--surface-bg);
+  border-color: var(--border-color);
 }
 
 .status-chip-idle {
-  color: var(--brand-primary-soft-text);
-  background: var(--brand-chip-idle-bg);
-  border-color: var(--brand-primary-soft-border);
+  color: var(--text-color);
+  background: var(--surface-muted-bg);
+  border-color: var(--border-color);
 }
 
 .status-chip-active {
@@ -381,7 +377,7 @@ button {
 
 .status-active-label {
   font-style: italic;
-  color: var(--brand-primary-soft-text);
+  color: var(--text-muted-color);
   min-width: 0;
   max-width: 280px;
   overflow: hidden;
@@ -421,7 +417,7 @@ button {
   display: grid;
   min-width: 190px;
   padding: 6px;
-  border: 1px solid var(--brand-chrome-border);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-raised-bg);
   box-shadow: 0 14px 44px rgb(0 0 0 / 45%);
@@ -439,13 +435,13 @@ button {
 }
 
 .app-menu button:hover {
-  color: var(--brand-primary-text);
-  background: var(--brand-primary-soft-bg);
+  color: var(--text-strong-color);
+  background: var(--menu-hover-bg);
 }
 
 .app-menu-section {
   padding: 8px 10px 4px;
-  color: var(--brand-primary-soft-text);
+  color: var(--text-muted-color);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -693,8 +689,8 @@ select:disabled {
   display: flex;
   align-items: center;
   padding: 0 10px;
-  border-bottom: 1px solid var(--brand-chrome-border);
-  background: var(--brand-primary-soft-bg);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--header-bg);
 }
 
 .panel-header h2,
@@ -706,12 +702,12 @@ select:disabled {
 }
 
 .panel-header h2 {
-  color: var(--brand-primary-text);
+  color: var(--text-strong-color);
 }
 
 .empty-state,
 .canvas-placeholder {
-  color: var(--brand-primary-soft-text);
+  color: var(--text-muted-color);
   font-size: 13px;
 }
 
@@ -720,8 +716,6 @@ select:disabled {
   display: grid;
   place-items: center;
   padding: 10px;
-  color: var(--brand-primary-soft-text);
-  background: var(--brand-primary-soft-bg);
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -732,9 +726,8 @@ select:disabled {
   display: grid;
   place-items: center;
   padding: 16px;
-  border: 1px dashed var(--brand-primary-soft-border);
+  border: 1px dashed var(--border-strong-color);
   border-radius: 8px;
-  background: var(--brand-primary-soft-bg);
   text-align: center;
 }
 
@@ -1326,7 +1319,7 @@ select:disabled {
 }
 
 .op-section h3 {
-  color: var(--brand-primary-text);
+  color: var(--text-strong-color);
 }
 
 .current-ops {
@@ -1340,10 +1333,9 @@ select:disabled {
 
 .ops-empty {
   padding: 10px;
-  border: 1px dashed var(--brand-primary-soft-border);
+  border: 1px dashed var(--border-strong-color);
   border-radius: 6px;
-  color: var(--brand-primary-soft-text);
-  background: var(--brand-primary-soft-bg);
+  color: var(--text-muted-color);
   font-size: 12px;
 }
 
@@ -1613,7 +1605,7 @@ select:disabled {
   max-height: 80vh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  border: 1px solid var(--brand-chrome-border);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-bg);
   box-shadow: 0 20px 80px rgb(0 0 0 / 55%);
@@ -1764,9 +1756,9 @@ select:disabled {
 }
 
 .settings-tabs button.active {
-  color: var(--brand-primary-text);
-  border-color: var(--brand-primary-soft-border);
-  background: var(--brand-primary-soft-bg);
+  color: var(--brand-secondary-soft-text);
+  border-color: var(--brand-secondary-soft-border);
+  background: var(--brand-secondary-soft-bg);
 }
 
 .settings-page {
@@ -1798,7 +1790,7 @@ select:disabled {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--brand-primary-text);
+  color: var(--text-strong-color);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1813,8 +1805,8 @@ select:disabled {
 }
 
 .modal-header {
-  border-bottom: 1px solid var(--brand-chrome-border);
-  background: var(--brand-primary-soft-bg);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--header-bg);
 }
 
 .modal-header h2 {
@@ -1822,7 +1814,7 @@ select:disabled {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: var(--brand-primary-text);
+  color: var(--text-strong-color);
 }
 
 .modal-header-close {
@@ -1833,7 +1825,7 @@ select:disabled {
   padding: 0;
   border: 0;
   border-radius: 5px;
-  color: var(--brand-primary-text);
+  color: var(--text-strong-color);
   background: transparent;
   cursor: pointer;
 }
@@ -2172,9 +2164,9 @@ select:disabled {
 }
 
 .asset-picker-groups button.active {
-  color: var(--brand-primary-text);
-  border-color: var(--brand-primary-soft-border);
-  background: var(--brand-primary-soft-bg);
+  color: var(--brand-secondary-soft-text);
+  border-color: var(--brand-secondary-soft-border);
+  background: var(--brand-secondary-soft-bg);
 }
 
 .asset-picker-scroll {
@@ -2621,7 +2613,7 @@ select:disabled {
 
 .shortcut-group h3 {
   margin: 0;
-  color: var(--brand-primary-soft-text);
+  color: var(--text-muted-color);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;

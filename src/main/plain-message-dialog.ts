@@ -91,7 +91,7 @@ export function renderPlainMessageDialogHtml(options: PlainMessageDialogOptions)
     .header{padding:24px 24px 12px}.body{min-height:0;overflow:auto;padding:0 24px;display:flex;flex-direction:column;gap:12px}
     h1{font-size:18px;line-height:1.3;margin:0}p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.detail{color:#57534e}
     .actions{display:flex;justify-content:flex-end;padding:12px 24px 24px}.button{color:white;border:1px solid #1d4ed8;border-radius:6px;padding:7px 16px;background:#2563eb;font:inherit}.button:hover,.button:focus{background:#1d4ed8;outline:2px solid #1d4ed8;outline-offset:2px}
-    @media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#171412;color:#fafaf9}*{scrollbar-color:#9c958f transparent}*::-webkit-scrollbar-thumb{background:#9c958f;background-clip:padding-box}.detail{color:#b5afaa}.button:hover,.button:focus{outline-color:#60a5fa}}
+    @media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#161616;color:#fafafa}*{scrollbar-color:#999999 transparent}*::-webkit-scrollbar-thumb{background:#999999;background-clip:padding-box}.detail{color:#b0b0b0}.button:hover,.button:focus{outline-color:#60a5fa}}
   </style></head><body><main class="dialog"><header class="header" id="dialog-header"><h1>${escapeHtml(options.title)}</h1></header><section class="body" id="dialog-body" role="region" aria-label="Message details" tabindex="0"><p>${escapeHtml(options.message)}</p>${options.detail ? `<p class="detail">${escapeHtml(options.detail)}</p>` : ""}</section><footer class="actions" id="dialog-footer"><button id="close" class="button" type="button" onclick="location.href='${CLOSE_URL}'">OK</button></footer></main></body></html>`;
 }
 

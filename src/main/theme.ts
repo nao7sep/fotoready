@@ -9,7 +9,7 @@ import type { ThemePreference } from "@shared/types/settings";
 // app.css's --app-bg in each theme, so the frames before a page paints and the backing exposed
 // while resizing already match it.
 const LIGHT_BACKGROUND = "#f5f5f4";
-const DARK_BACKGROUND = "#171412";
+const DARK_BACKGROUND = "#161616";
 
 export function windowBackground(dark: boolean = nativeTheme.shouldUseDarkColors): string {
   return dark ? DARK_BACKGROUND : LIGHT_BACKGROUND;

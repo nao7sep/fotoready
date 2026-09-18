@@ -41,7 +41,7 @@ function contrast(first: Rgb, second: Rgb): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-const SURFACES = ["--app-bg", "--surface-bg", "--surface-raised-bg", "--surface-muted-bg"];
+const SURFACES = ["--app-bg", "--surface-bg", "--surface-raised-bg", "--surface-muted-bg", "--header-bg", "--status-bar-bg"];
 const STATUS: ReadonlyArray<[string, string]> = [
   ["--idle-text", "--idle-soft-bg"],
   ["--saved-text", "--saved-soft-bg"],
@@ -49,7 +49,6 @@ const STATUS: ReadonlyArray<[string, string]> = [
   ["--danger-text", "--danger-soft-bg"],
   ["--warning-text", "--warning-soft-bg"]
 ];
-const BRAND_SURFACES = ["--surface-bg", "--surface-raised-bg", "--brand-primary-soft-bg", "--brand-status-bg", "--brand-chip-idle-bg"];
 
 const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ...["--text-color", "--text-strong-color", "--text-muted-color"].flatMap((ink): Array<[string, string]> => SURFACES.map((surface) => [ink, surface])),
@@ -59,12 +58,15 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ["--text-color", "--button-bg"],
   ["--text-strong-color", "--button-bg"],
   ["--text-strong-color", "--button-active-bg"],
+  ["--text-strong-color", "--menu-hover-bg"],
   ["--brand-primary-fill-text", "--brand-primary"],
   ["--brand-chrome-text", "--brand-chrome-bg"],
-  ...["--brand-primary-text", "--brand-primary-soft-text"].flatMap((ink): Array<[string, string]> => BRAND_SURFACES.map((surface) => [ink, surface])),
-  ["--brand-status-text", "--brand-status-bg"],
+  ["--brand-primary-text", "--surface-bg"],
+  ["--brand-primary-text", "--surface-raised-bg"],
+  ["--text-color", "--brand-primary-soft-bg"],
   ["--brand-secondary-soft-text", "--brand-secondary-soft-bg"],
   ["--brand-secondary-soft-text", "--brand-secondary-soft-border"],
+  ["--brand-secondary-soft-text", "--surface-raised-bg"],
   ["--accent-text", "--accent-bg"],
   ["--accent-soft-text", "--accent-soft-bg"],
   ["--accent-soft-text", "--surface-bg"],

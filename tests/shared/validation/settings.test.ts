@@ -66,6 +66,26 @@ describe("normalizeGlobalSettings", () => {
     expect(issues).toEqual([]);
   });
 
+  it("defaults the theme to System and keeps each saved choice", () => {
+    expect(fallback.theme).toBe("system");
+    for (const theme of ["system", "light", "dark"] as const) {
+      const { settings, issues } = normalizeGlobalSettings({ ...fallback, theme }, fallback);
+      expect(settings.theme).toBe(theme);
+      expect(issues).toEqual([]);
+    }
+  });
+
+  it("resolves a missing theme to System and reports an unknown one", () => {
+    const { theme: _theme, ...withoutTheme } = { ...fallback, theme: "dark" };
+    const missing = normalizeGlobalSettings(withoutTheme, fallback);
+    expect(missing.settings.theme).toBe("system");
+    expect(missing.issues).toEqual([]);
+
+    const unknown = normalizeGlobalSettings({ ...fallback, theme: "sepia" }, fallback);
+    expect(unknown.settings.theme).toBe("system");
+    expect(unknown.issues).toEqual(["settings.theme must be one of: system, light, dark."]);
+  });
+
   it("defaults the UI font to blank (meaning the built-in default stack)", () => {
     expect(fallback.uiFontFamily).toBe("");
   });

@@ -12,6 +12,7 @@ import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
+import { applyThemePreference } from "@main/theme";
 import type { StateCoordinator } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
@@ -166,6 +167,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       }
       await saveSettings(ctx.paths.settingsPath, settings);
       Object.assign(ctx.settings, settings);
+      // Settings apply on Save, the theme included (app-chrome conventions, Theme).
+      applyThemePreference(settings.theme);
       return ctx.settings;
     });
   });

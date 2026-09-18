@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain, nativeTheme, powerMonitor } from "electron";
+import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,17 +23,13 @@ import {
 } from "@shared/layout/workspace-metrics";
 import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
-
-// FotoReady is a light app. Two settings keep the native window chrome from fighting the UI on a
-// dark-mode host (per window-chrome-conventions): force the title bar to the light theme, and paint
-// the window background the app background so the first frame and any letterboxing match the UI
-// instead of flashing the OS default. The minimum size is derived from the pane minimums plus the
-// fixed chrome — never a hand-typed literal (see @shared/layout/workspace-metrics).
-const APP_BACKGROUND_COLOR = "#f5f5f4";
+import { applyThemePreference, followOsThemeChanges, windowBackground } from "./theme";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
-// minimum both come from the shared layout metrics; the theme is set separately because nativeTheme
-// is a global side effect.
+// minimum both come from the shared layout metrics — never hand-typed literals (see
+// @shared/layout/workspace-metrics). The window background is the resolved theme's app background,
+// so the first frame and any letterboxing match the UI instead of flashing the OS default; the
+// theme itself is set separately because nativeTheme is a global side effect.
 export function buildWindowOptions(
   preloadPath: string
 ): BrowserWindowConstructorOptions {
@@ -48,7 +44,7 @@ export function buildWindowOptions(
     minHeight: computeMinWindowHeight(),
     width: computeFirstRunWindowWidth(),
     height: computeFirstRunWindowHeight(),
-    backgroundColor: APP_BACKGROUND_COLOR,
+    backgroundColor: windowBackground(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -83,6 +79,10 @@ export async function bootstrap(): Promise<void> {
   // there is no startup backup pass to kick off (data-backup conventions: write-through, not a scan).
   setBackupLogger(logger);
   const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
+  // The saved theme reaches the title bar, the renderer's prefers-color-scheme, and any recovery
+  // dialog before the first window exists, so launch never shows the OS appearance and then switches.
+  applyThemePreference(settings.theme);
+  followOsThemeChanges();
   const uiState = await loadState(paths.statePath, logger);
   const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
   if (settingsQuarantinedTo) {
@@ -130,10 +130,6 @@ export async function bootstrap(): Promise<void> {
     logger.info("app stopping", { mod: "main", reason: exitState.reason });
     void pipelineWorkerPool.destroy();
   });
-
-  // A light app must not inherit a dark native title bar on a dark-mode host. Force the light theme
-  // once at startup so the bar matches the app on every platform.
-  nativeTheme.themeSource = "light";
 
   const createWindow = async (): Promise<void> => {
     const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));

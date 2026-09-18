@@ -26,6 +26,24 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+describe("AppSettingsModal theme", () => {
+  it("offers System, Light, and Dark as one radio group that changes only the draft", async () => {
+    const setSettingsDraft = vi.fn();
+    const onSaveSettings = vi.fn(async () => undefined);
+    await renderSettings({ initialTab: "app", onSaveSettings, setSettingsDraft });
+
+    const group = [...document.querySelectorAll("fieldset")].find((fieldset) => fieldset.querySelector("legend")?.textContent === "Theme");
+    const radios = [...(group?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? [])];
+    expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual(["System", "Light", "Dark"]);
+    expect(new Set(radios.map((radio) => radio.name)).size).toBe(1);
+    expect(radios.find((radio) => radio.checked)?.value).toBe("system");
+
+    await act(async () => radios[2]!.click());
+    expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ theme: "dark" }));
+    expect(onSaveSettings).not.toHaveBeenCalled();
+  });
+});
+
 describe("AppSettingsModal failure ownership", () => {
   it("keeps a failed save inside the open modal with authored copy", async () => {
     await renderSettings({ onSaveSettings: vi.fn(async () => { throw hostile; }) });
@@ -82,10 +100,12 @@ describe("AppSettingsModal failure ownership", () => {
 });
 
 async function renderSettings({
+  initialTab = "save",
   onSaveSettings = vi.fn(async () => undefined),
   settings = defaultGlobalSettings(),
   setSettingsDraft = vi.fn()
 }: {
+  initialTab?: "save" | "app";
   onSaveSettings?: () => Promise<void>;
   settings?: ReturnType<typeof defaultGlobalSettings>;
   setSettingsDraft?: (settings: ReturnType<typeof defaultGlobalSettings>) => void;
@@ -96,7 +116,7 @@ async function renderSettings({
       apiKeyDraft: "",
       hasChanges: true,
       hasGeminiApiKey: false,
-      initialTab: "save",
+      initialTab,
       onApiKeyDraftChange: () => undefined,
       onClearApiKey: () => undefined,
       onKeepApiKey: () => undefined,

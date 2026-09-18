@@ -30,7 +30,14 @@ export const EDITABLE_METADATA_FIELDS = [
 
 export type JpegQualityMode = "auto" | "fixed";
 
+// System follows the OS appearance; Light and Dark force a theme (app-chrome conventions, Theme).
+export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
+export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+
 export type GlobalSettings = {
+  // The app theme. The main process hands it to nativeTheme.themeSource at startup and on each
+  // Save; nothing in the renderer resolves it.
+  theme: ThemePreference;
   // The app's UI (chrome) font family. Family only; blank means the built-in default stack (the
   // app.css `--font-ui` variable). Distinct from `defaultWatermarkTextFontFamily`, which is a
   // content-output font rendered into the saved image — never the UI font.

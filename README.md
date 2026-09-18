@@ -11,6 +11,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 - **LUTs and stamps** — apply built-in LUTs and a shipped catalogue of 363 stamps grouped as Cover, Marks, Bubbles, Reactions, Funny, Cute, Stories, and Seasonal; import your own `.cube`, PNG, or SVG assets when needed
 - **AI assist (opt-in)** — generate descriptions and slugs with Gemini, using a key stored locally
 - **Sidecar persistence** — each saved output writes a `.json` sidecar; drag it back in to re-create the task with its pipeline intact
+- **Light and dark themes** — follow the OS appearance or pick Light or Dark in Settings › App › Appearance
 
 ## Requirements
 

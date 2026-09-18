@@ -61,6 +61,7 @@ export function defaultPipeline(): Pipeline {
 
 export function defaultGlobalSettings(workerPoolSize: number | null = null): GlobalSettings {
   return {
+    theme: "system",
     uiFontFamily: "",
     confirmDeleteOriginals: false,
     confirmDeleteTasks: false,

@@ -187,21 +187,22 @@ function useHistogram(preview: EditorCanvasPreview | null): HistogramResult {
 function HistogramSvg({ bins }: { bins: HistogramBins }): React.JSX.Element {
   return (
     <svg aria-label="Preview histogram" preserveAspectRatio="none" viewBox="0 0 256 64">
-      <HistogramPath bins={bins.luminance} color="#1c1917" max={bins.max} opacity={0.55} />
-      <HistogramPath bins={bins.red} color="#dc2626" max={bins.max} opacity={0.5} />
-      <HistogramPath bins={bins.green} color="#16a34a" max={bins.max} opacity={0.5} />
-      <HistogramPath bins={bins.blue} color="#2563eb" max={bins.max} opacity={0.5} />
+      <HistogramPath bins={bins.luminance} channel="luminance" max={bins.max} opacity={0.55} />
+      <HistogramPath bins={bins.red} channel="red" max={bins.max} opacity={0.5} />
+      <HistogramPath bins={bins.green} channel="green" max={bins.max} opacity={0.5} />
+      <HistogramPath bins={bins.blue} channel="blue" max={bins.max} opacity={0.5} />
     </svg>
   );
 }
 
-function HistogramPath({ bins, color, max, opacity }: { bins: number[]; color: string; max: number; opacity: number }): React.JSX.Element {
+// Line colors come from app.css theme tokens through the channel's class.
+function HistogramPath({ bins, channel, max, opacity }: { bins: number[]; channel: "luminance" | "red" | "green" | "blue"; max: number; opacity: number }): React.JSX.Element {
   const points = bins.map((value, index) => {
     const x = (index / (bins.length - 1)) * 256;
     const y = 64 - (value / max) * 60;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
-  return <polyline fill="none" opacity={opacity} points={points.join(" ")} stroke={color} strokeWidth="1.4" />;
+  return <polyline className={`histogram-line histogram-line-${channel}`} opacity={opacity} points={points.join(" ")} />;
 }
 
 function readHistogram(image: HTMLImageElement): HistogramBins {

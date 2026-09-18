@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
-import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
+import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields, type ThemePreference } from "@shared/types/settings";
 import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats, formatLabel } from "@shared/output-format";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
@@ -19,6 +19,12 @@ const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "vision", label: "Vision" },
   { id: "assets", label: "Assets" },
   { id: "app", label: "App" }
+];
+
+const themeOptions: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" }
 ];
 
 const metadataFieldHelp: Record<keyof MetadataFields, string> = {
@@ -560,12 +566,35 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
 function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
   const cpuCount = systemInfo?.cpuCount ?? 8;
   const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount), [cpuCount]);
+  const themeName = useId();
 
   return (
     <div className="settings-section-stack">
       <section>
         <h3>Appearance</h3>
         <div className="settings-grid">
+          {/* A native radio group: one tab stop, arrow keys move and select. Applied on Save with
+              the rest of Settings, never on its own. */}
+          <fieldset className="radio-field span-two">
+            <legend>Theme</legend>
+            <div className="radio-field-options">
+              {themeOptions.map((option) => (
+                <label key={option.value} className="toggle-row">
+                  <input
+                    type="radio"
+                    name={themeName}
+                    value={option.value}
+                    checked={settings.theme === option.value}
+                    onChange={() => setSettings({ ...settings, theme: option.value })}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="row-detail">
+            System follows the OS appearance.
+          </div>
           <label className="stacked-field span-two">
             UI font
             <input

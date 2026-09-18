@@ -15,6 +15,11 @@
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
   --border-soft-color: #e7e5e4;
+  /* A text field or select sits on a fill of nearly its surrounding surface's color, so its outline
+     alone identifies it and stays at 3:1 against both. */
+  --field-border-color: #817a75;
+  /* The selected or focused tile in the asset picker, the tile's only focus indicator. */
+  --selection-border-color: #b45309;
   /* Scroll-bar thumb: uses readable ink rather than the much fainter border palette,
      strengthening again on hover/focus. The visible pill stays inside a comfortable gutter. */
   --scrollbar-thumb: var(--text-soft-color);
@@ -22,12 +27,14 @@
   --text-color: #292524;
   --text-strong-color: #1c1917;
   --text-muted-color: #57534e;
-  --text-soft-color: #78716c;
+  --text-soft-color: #736b66;
   --text-disabled-color: #a8a29e;
   --checker-bg: #e7e5e4;
   --brand-primary: #f97316;
   --brand-primary-hover: #ea580c;
   --brand-primary-text: #7c2d12;
+  /* Text on a brand-primary fill: chips, pills, and badges. */
+  --brand-primary-fill-text: #431407;
   --brand-primary-soft-bg: #fff7ed;
   --brand-primary-soft-border: #fdba74;
   --brand-primary-soft-text: #9a3412;
@@ -35,11 +42,14 @@
   --brand-secondary-soft-bg: #dbeafe;
   --brand-secondary-soft-border: #93c5fd;
   --brand-secondary-soft-text: #1e40af;
-  --brand-chrome-bg: var(--brand-primary);
+  /* The top bar and its title. */
+  --brand-chrome-bg: #f97316;
+  --brand-chrome-text: #431407;
   --brand-header-border: #c2410c;
   --brand-chrome-border: #fed7aa;
   --brand-status-bg: #fff7ed;
   --brand-status-text: #7c2d12;
+  --brand-chip-idle-bg: #ffedd5;
   --accent-bg: #2f7d6f;
   --accent-text: #ffffff;
   --accent-border: #2f7d6f;
@@ -61,8 +71,81 @@
   --warning-text: #92400e;
   --warning-soft-bg: #fef3c7;
   --warning-border: #fcd34d;
+  /* Histogram channel lines, drawn on the overlay's translucent surface. */
+  --histogram-red: #dc2626;
+  --histogram-green: #16a34a;
+  --histogram-blue: #2563eb;
   background: var(--app-bg);
   color: var(--text-color);
+}
+
+/* The dark theme: the same tokens over deep stone neutrals, with the orange header deepened to rust
+   and the teal accent kept. Electron's nativeTheme.themeSource (set from Settings) decides
+   prefers-color-scheme, so this block is the only theme switch the renderer needs. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --app-bg: #171412;
+    --surface-bg: #1f1b19;
+    --surface-raised-bg: #282321;
+    --surface-muted-bg: #141110;
+    --button-bg: #2d2826;
+    --button-active-bg: #3a3431;
+    --menu-hover-bg: #3a3431;
+    --border-color: #3d3734;
+    --border-strong-color: #5c5551;
+    --border-soft-color: #302b28;
+    --field-border-color: #7c746f;
+    --selection-border-color: #fbbf24;
+    --text-color: #e7e5e4;
+    --text-strong-color: #fafaf9;
+    --text-muted-color: #b5afaa;
+    --text-soft-color: #9c958f;
+    --text-disabled-color: #6b6460;
+    --checker-bg: #141110;
+    --brand-primary: #f97316;
+    --brand-primary-hover: #fb923c;
+    --brand-primary-text: #fdba74;
+    --brand-primary-fill-text: #431407;
+    --brand-primary-soft-bg: #2e1f17;
+    --brand-primary-soft-border: #8a4a26;
+    --brand-primary-soft-text: #fb9a55;
+    --brand-secondary: #3b82f6;
+    --brand-secondary-soft-bg: #1c2b4a;
+    --brand-secondary-soft-border: #2c4c85;
+    --brand-secondary-soft-text: #dbeafe;
+    --brand-chrome-bg: #9a3412;
+    --brand-chrome-text: #fff7ed;
+    --brand-header-border: #7c2d12;
+    --brand-chrome-border: #4a2e1c;
+    --brand-status-bg: #241a14;
+    --brand-status-text: #fed7aa;
+    --brand-chip-idle-bg: #3a2619;
+    --accent-bg: #2f7d6f;
+    --accent-text: #ffffff;
+    --accent-border: #45a291;
+    --accent-soft-bg: #15302b;
+    --accent-soft-border: #2f6f63;
+    --accent-soft-text: #9ee6d8;
+    --idle-text: #cbd5e1;
+    --idle-soft-bg: #1e2530;
+    --idle-border: #475569;
+    --saved-text: #c4b5fd;
+    --saved-soft-bg: #2a2045;
+    --saved-border: #5b3fa8;
+    --info-text: #93c5fd;
+    --info-soft-bg: #172a4a;
+    --info-border: #2f5aa8;
+    --danger-text: #fca5a5;
+    --danger-soft-bg: #3a1616;
+    --danger-border: #8a2c2c;
+    --warning-text: #fcd34d;
+    --warning-soft-bg: #33270f;
+    --warning-border: #8a6a1c;
+    --histogram-red: #f87171;
+    --histogram-green: #4ade80;
+    --histogram-blue: #60a5fa;
+  }
 }
 
 * {
@@ -71,7 +154,7 @@
 
 /* Global scroll-bar styling per the window-chrome conventions: a reachable, rounded,
    palette-matched bar in every overflow container. The color-scheme on
-   :root keeps native controls light; this styles the bar itself. The thumb is inset from the gutter
+   :root matches native controls to the theme; this styles the bar itself. The thumb is inset from the gutter
    by a transparent border with the background clipped to the padding box, turning it into a 10px
    pill with breathing room inside a 16px gutter. Firefox uses the
    scrollbar-width / scrollbar-color shorthand; WebKit/Chromium (Electron's renderer) uses the
@@ -259,12 +342,12 @@ button {
 
 .status-chip-idle {
   color: var(--brand-primary-soft-text);
-  background: #ffedd5;
+  background: var(--brand-chip-idle-bg);
   border-color: var(--brand-primary-soft-border);
 }
 
 .status-chip-active {
-  color: var(--accent-text);
+  color: var(--brand-primary-fill-text);
   background: var(--brand-primary);
   border-color: var(--brand-primary);
 }
@@ -282,7 +365,7 @@ button {
 }
 
 .status-chip-warning {
-  color: var(--accent-text);
+  color: var(--brand-primary-fill-text);
   background: var(--brand-primary);
   border-color: var(--brand-primary);
 }
@@ -418,7 +501,7 @@ select:disabled {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--accent-text);
+  color: var(--brand-chrome-text);
   padding: 0 4px;
 }
 
@@ -794,7 +877,7 @@ select:disabled {
   padding: 1px 7px;
   border-radius: 8px;
   background: var(--brand-primary);
-  color: var(--accent-text);
+  color: var(--brand-primary-fill-text);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -927,7 +1010,7 @@ select:disabled {
   display: grid;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-subtle-color);
+  border-top: 1px solid var(--border-soft-color);
 }
 
 .metadata-summary-list {
@@ -975,7 +1058,7 @@ select:disabled {
 
 .color-swatch.active,
 .color-picker-button:has(input:focus-visible) {
-  outline: 2px solid var(--accent-soft-border);
+  outline: 2px solid var(--accent-border);
   outline-offset: 1px;
 }
 
@@ -1103,7 +1186,7 @@ select:disabled {
   padding: 22px 10px 8px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: rgb(255 255 255 / 55%);
+  background: color-mix(in srgb, var(--surface-bg) 55%, transparent);
   backdrop-filter: blur(6px);
   box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
   pointer-events: auto;
@@ -1142,8 +1225,29 @@ select:disabled {
 }
 
 .histogram-overlay-close:hover {
-  background: rgb(0 0 0 / 8%);
+  background: color-mix(in srgb, currentColor 12%, transparent);
   color: var(--text-strong-color);
+}
+
+.histogram-line {
+  fill: none;
+  stroke-width: 1.4;
+}
+
+.histogram-line-luminance {
+  stroke: var(--text-strong-color);
+}
+
+.histogram-line-red {
+  stroke: var(--histogram-red);
+}
+
+.histogram-line-green {
+  stroke: var(--histogram-green);
+}
+
+.histogram-line-blue {
+  stroke: var(--histogram-blue);
 }
 
 .histogram-overlay-empty {
@@ -1346,7 +1450,7 @@ select:disabled {
   min-width: 0;
   width: 100%;
   height: 28px;
-  border: 1px solid var(--border-strong-color);
+  border: 1px solid var(--field-border-color);
   border-radius: 6px;
   color: var(--text-strong-color);
   background: var(--surface-muted-bg);
@@ -1357,7 +1461,7 @@ select:disabled {
   min-width: 0;
   width: 100%;
   height: 28px;
-  border: 1px solid var(--border-strong-color);
+  border: 1px solid var(--field-border-color);
   border-radius: 6px;
   color: var(--text-strong-color);
   background: var(--surface-muted-bg);
@@ -1412,7 +1516,7 @@ select:disabled {
   min-width: 0;
   width: 100%;
   min-height: 28px;
-  border: 1px solid var(--border-strong-color);
+  border: 1px solid var(--field-border-color);
   border-radius: 6px;
   color: var(--text-strong-color);
   background: var(--surface-muted-bg);
@@ -1486,7 +1590,8 @@ select:disabled {
   min-width: 0;
 }
 
-.toggle-row input[type="checkbox"] {
+.toggle-row input[type="checkbox"],
+.toggle-row input[type="radio"] {
   width: 14px;
   height: 14px;
   margin: 0;
@@ -1936,7 +2041,7 @@ select:disabled {
   min-width: 0;
   width: 100%;
   height: 28px;
-  border: 1px solid var(--border-strong-color);
+  border: 1px solid var(--field-border-color);
   border-radius: 6px;
   color: var(--text-strong-color);
   background: var(--surface-muted-bg);
@@ -2104,8 +2209,8 @@ select:disabled {
 
 .asset-picker-item.selected,
 .asset-picker-item.focused:not(.selected) {
-  border-color: var(--warning-border);
-  box-shadow: inset 0 0 0 1px var(--warning-border);
+  border-color: var(--selection-border-color);
+  box-shadow: inset 0 0 0 1px var(--selection-border-color);
 }
 
 .asset-picker-item:focus-visible {
@@ -2114,8 +2219,8 @@ select:disabled {
 
 .asset-picker-item.selected:focus-visible,
 .asset-picker-item.selected.focused {
-  border-color: var(--warning-border);
-  box-shadow: inset 0 0 0 1px var(--warning-border);
+  border-color: var(--selection-border-color);
+  box-shadow: inset 0 0 0 1px var(--selection-border-color);
 }
 
 .asset-picker-preview {
@@ -2158,7 +2263,7 @@ select:disabled {
   justify-self: start;
   padding: 1px 6px;
   border-radius: 7px;
-  color: var(--accent-text);
+  color: var(--brand-primary-fill-text);
   background: var(--brand-primary);
   font-size: 11px;
   font-weight: 600;
@@ -2355,6 +2460,27 @@ select:disabled {
 .settings-page .settings-summary code {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* A fieldset-based radio group laid out like the neighboring stacked fields. */
+.radio-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.radio-field legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--text-muted-color);
+  font-size: 12px;
+}
+
+.radio-field-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
 }
 
 .settings-grid > .row-detail {

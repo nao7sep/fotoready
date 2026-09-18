@@ -7,7 +7,8 @@ import { describeError } from "@renderer/present-failure";
 // nothing in the log either. This boundary is the backstop: it keeps a visible, readable panel on
 // screen instead of a white void, and forwards the crash to the main log so the cause is always
 // recoverable. Styles are inline on purpose — the fallback must render even when app.css or the
-// preload bridge is the very thing that failed.
+// preload bridge is the very thing that failed; each color reads its theme token when app.css loaded
+// and falls back to the light value when it did not.
 
 type Props = { children: React.ReactNode };
 type State = { error: Error | null };
@@ -19,8 +20,8 @@ const overlayStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "2rem",
-  background: "#ffffff",
-  color: "#1a1a1a",
+  background: "var(--surface-bg, #ffffff)",
+  color: "var(--text-strong-color, #1a1a1a)",
   fontFamily: "system-ui, -apple-system, sans-serif",
   zIndex: 2147483647
 };
@@ -36,10 +37,10 @@ const cardStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   alignSelf: "flex-start",
   padding: "0.5rem 1rem",
-  border: "1px solid #2f7d6f",
+  border: "1px solid var(--accent-border, #2f7d6f)",
   borderRadius: "6px",
-  color: "#ffffff",
-  background: "#2f7d6f",
+  color: "var(--accent-text, #ffffff)",
+  background: "var(--accent-bg, #2f7d6f)",
   cursor: "pointer",
   fontSize: "0.9rem"
 };

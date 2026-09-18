@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electron = vi.hoisted(() => ({
+  dark: false,
   loadError: undefined as unknown,
   executeResults: [] as Array<number | Error>,
-  windows: [] as Array<{ close: () => void; show: ReturnType<typeof vi.fn> }>,
+  windows: [] as Array<{ close: () => void; show: ReturnType<typeof vi.fn>; options: { backgroundColor?: string } }>,
 }));
 
 vi.mock("electron", () => {
@@ -29,7 +30,7 @@ vi.mock("electron", () => {
       }),
     };
 
-    constructor() {
+    constructor(readonly options: { backgroundColor?: string }) {
       electron.windows.push(this);
     }
 
@@ -55,12 +56,16 @@ vi.mock("electron", () => {
     }
   }
 
-  return { BrowserWindow: FakeBrowserWindow };
+  return {
+    BrowserWindow: FakeBrowserWindow,
+    nativeTheme: { get shouldUseDarkColors() { return electron.dark; } },
+  };
 });
 
 import { renderPlainMessageDialogHtml, showPlainMessageDialog } from "@main/plain-message-dialog";
 
 beforeEach(() => {
+  electron.dark = false;
   electron.loadError = undefined;
   electron.executeResults = [];
   electron.windows = [];
@@ -75,6 +80,18 @@ describe("plain message dialog", () => {
     expect(html).toContain('id="dialog-footer"');
     expect(html).toContain('role="region" aria-label="Message details" tabindex="0"');
     expect(html).toContain("*::-webkit-scrollbar{width:16px;height:16px}");
+  });
+
+  it("follows the resolved theme in its page and its window background", async () => {
+    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message" });
+    expect(html).toContain("@media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#171412");
+
+    electron.dark = true;
+    const result = showPlainMessageDialog({ title: "Title", message: "Message" });
+    await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+    expect(electron.windows[0]?.options.backgroundColor).toBe("#171412");
+    electron.windows[0]?.close();
+    await result;
   });
 
   it("rejects and closes instead of hanging when the page cannot load", async () => {

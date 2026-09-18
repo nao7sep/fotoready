@@ -12,11 +12,12 @@ vi.mock("electron", () => ({
   app: { whenReady: () => Promise.resolve(), getVersion: () => "0.0.0", isPackaged: false, on() {}, once() {} },
   BrowserWindow: class {},
   ipcMain: { handle() {}, removeHandler() {} },
-  nativeTheme: { themeSource: "system" },
+  nativeTheme: { themeSource: "system", shouldUseDarkColors: false },
   powerMonitor: { once() {}, off() {} }
 }));
 
 const { buildWindowOptions } = await import("@main/bootstrap");
+const { windowBackground } = await import("@main/theme");
 
 describe("buildWindowOptions", () => {
   const options = buildWindowOptions("/tmp/preload.mjs");
@@ -44,8 +45,8 @@ describe("buildWindowOptions", () => {
     });
   });
 
-  it("paints the light app background so the native chrome never flashes a dark default", () => {
-    expect(options.backgroundColor).toBe("#f5f5f4");
+  it("paints the resolved theme's app background so the first frame never flashes the OS default", () => {
+    expect(options.backgroundColor).toBe(windowBackground(false));
   });
 
   it("wires the given preload path and keeps the renderer sandbox hardening", () => {

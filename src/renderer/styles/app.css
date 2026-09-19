@@ -5,6 +5,19 @@
      font-size knob. The text-watermark font is a separate content-output setting, not this. */
   --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-family: var(--font-ui);
+  /* Control anatomy, shared by both themes: 30px standard controls, 26px
+     compact ones (chips, inline actions), 24px quiet icon actions on a card or
+     row; one 8px gap between controls that sit together; corners that grow
+     with the surface. */
+  --control-h: 30px;
+  --control-h-sm: 26px;
+  --control-h-xs: 24px;
+  --control-gap: 8px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --motion: 120ms;
   --app-bg: #f5f5f4;
   --surface-bg: #ffffff;
   --surface-raised-bg: #f1f5f9;
@@ -13,8 +26,18 @@
   --header-bg: #f5f5f4;
   --status-bar-bg: #fafaf9;
   --button-bg: #fafaf9;
+  --button-hover-bg: #f0efee;
   --button-active-bg: #e7e5e4;
+  --button-border: #d6d3d1;
+  --button-shadow: 0 1px 2px rgb(28 25 23 / 8%);
   --menu-hover-bg: #e7e5e4;
+  /* The recessed track behind tabs and segmented choices. */
+  --track-bg: #ecebe9;
+  /* A text field's fill; its outline is --field-border-color. */
+  --field-bg: #ffffff;
+  /* A select's drawn chevron; its stroke is --text-muted-color, spelled out
+     because an image URL cannot read a custom property. */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2357534e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
   --border-soft-color: #e7e5e4;
@@ -50,8 +73,11 @@
   --brand-chrome-text: #431407;
   --brand-header-border: #c2410c;
   --accent-bg: #2f7d6f;
+  --accent-hover-bg: #286b5f;
+  --accent-pressed-bg: #215950;
   --accent-text: #ffffff;
   --accent-border: #2f7d6f;
+  --accent-ring: rgb(47 125 111 / 22%);
   --accent-soft-bg: #d4eee9;
   --accent-soft-border: #8ce0d3;
   --accent-soft-text: #1c4842;
@@ -92,8 +118,14 @@
     --header-bg: #262626;
     --status-bar-bg: #1f1f1f;
     --button-bg: #2e2e2e;
-    --button-active-bg: #3a3a3a;
+    --button-hover-bg: #353535;
+    --button-active-bg: #3f3f3f;
+    --button-border: #4a4a4a;
+    --button-shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --menu-hover-bg: #333333;
+    --track-bg: #141414;
+    --field-bg: #121212;
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     --border-color: #383838;
     --border-strong-color: #555555;
     --border-soft-color: #2c2c2c;
@@ -118,8 +150,11 @@
     --brand-chrome-text: #fb923c;
     --brand-header-border: #f97316;
     --accent-bg: #2f7d6f;
+    --accent-hover-bg: #296f63;
+    --accent-pressed-bg: #225e54;
     --accent-text: #ffffff;
     --accent-border: #45a291;
+    --accent-ring: rgb(69 162 145 / 30%);
     --accent-soft-bg: #15302b;
     --accent-soft-border: #2f6f63;
     --accent-soft-text: #9ee6d8;
@@ -144,8 +179,21 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0ms;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Native checkboxes, radios and sliders take the teal accent, not the OS blue. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--accent-bg);
 }
 
 /* Global scroll-bar styling per the window-chrome conventions: a reachable, rounded,
@@ -385,20 +433,51 @@ button {
   white-space: nowrap;
 }
 
+/* ── Buttons ───────────────────────────────────────────────
+   One anatomy: .toolbar-button is the secondary, .primary-action the teal
+   primary, .icon-button a square icon action, .inline-action the compact
+   editor action. Each shows hover, pressed, keyboard focus and disabled. */
 .toolbar-button,
 .primary-action,
-.icon-button {
-  border: 1px solid var(--border-strong-color);
-  border-radius: 6px;
+.icon-button,
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--control-h);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-md);
   color: var(--text-strong-color);
   background: var(--button-bg);
-  height: 30px;
+  box-shadow: var(--button-shadow);
   font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  /* An icon plus its words is one label: never break between them. */
+  white-space: nowrap;
+  transition:
+    background-color var(--motion) ease,
+    border-color var(--motion) ease,
+    color var(--motion) ease;
 }
 
 .toolbar-button,
 .primary-action {
-  padding: 0 10px;
+  padding: 0 12px;
+}
+
+:is(.toolbar-button, .icon-button, .inline-action):hover:not(:disabled):not(.active) {
+  background: var(--button-hover-bg);
+}
+
+:is(.toolbar-button, .icon-button, .inline-action):active:not(:disabled) {
+  background: var(--button-active-bg);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
 }
 
 .fit-content {
@@ -415,19 +494,19 @@ button {
   right: 12px;
   z-index: 10;
   display: grid;
-  min-width: 190px;
-  padding: 6px;
+  min-width: 200px;
+  padding: 4px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised-bg);
   box-shadow: 0 14px 44px rgb(0 0 0 / 45%);
 }
 
 .app-menu button {
-  height: 32px;
+  height: 30px;
   padding: 0 10px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text-color);
   background: transparent;
   text-align: left;
@@ -448,29 +527,42 @@ button {
 }
 
 .primary-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   color: var(--accent-text);
   background: var(--accent-bg);
-  border-color: var(--accent-border);
+  border-color: transparent;
+}
+
+.primary-action:hover:not(:disabled) {
+  background: var(--accent-hover-bg);
+}
+
+.primary-action:active:not(:disabled) {
+  background: var(--accent-pressed-bg);
 }
 
 .icon-button {
-  width: 32px;
-  display: inline-grid;
-  place-items: center;
+  width: var(--control-h);
   padding: 0;
 }
 
+/* A compact icon action on a card or row is quiet: its hit area shows on
+   hover and focus. */
 .icon-button.compact {
-  width: 24px;
-  height: 24px;
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted-color);
+}
+
+.icon-button.compact:hover:not(:disabled) {
+  color: var(--text-strong-color);
 }
 
 .compact-text {
-  height: 26px;
+  height: var(--control-h-sm);
   font-size: 12px;
 }
 
@@ -488,6 +580,7 @@ button:disabled,
 input:disabled,
 select:disabled {
   opacity: 0.55;
+  box-shadow: none;
   /* A disabled button shows the plain arrow, never the hand — overrides the
      button pointer above so a dead button does not invite a click. */
   cursor: default;
@@ -502,13 +595,14 @@ select:disabled {
 }
 
 .output-badge {
-  height: 28px;
+  height: var(--control-h);
   display: inline-flex;
   align-items: stretch;
   max-width: 460px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-md);
   background: var(--surface-bg);
+  box-shadow: var(--button-shadow);
   overflow: hidden;
   font-size: 12px;
 }
@@ -574,11 +668,11 @@ select:disabled {
   height: 100%;
   padding: 0;
   border: 0;
-  border-right: 1px solid var(--border-soft-color);
-  border-left: 1px solid var(--border-soft-color);
   border-radius: 0;
-  background: var(--surface-muted-bg);
+  background: transparent;
+  box-shadow: none;
   cursor: col-resize;
+  transition: background-color var(--motion) ease;
 }
 
 .workspace-splitter:hover,
@@ -639,9 +733,9 @@ select:disabled {
   justify-content: space-between;
   gap: 8px;
   margin: 8px 10px 0;
-  padding: 8px;
+  padding: 8px 10px;
   border: 1px solid;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -685,7 +779,7 @@ select:disabled {
 
 .panel-header {
   flex: 0 0 auto;
-  height: 32px;
+  height: 36px;
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -727,29 +821,17 @@ select:disabled {
   place-items: center;
   padding: 16px;
   border: 1px dashed var(--border-strong-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   text-align: center;
 }
 
 .panel-footer {
   flex: 0 0 auto;
   display: grid;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: var(--control-gap);
+  padding: 10px;
   border-top: 1px solid var(--border-color);
   background: var(--surface-bg);
-}
-
-.panel-footer .primary-action,
-.panel-footer .toolbar-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 28px;
-  font-size: 12px;
-  /* An icon plus its words is one label: never break between them. */
-  white-space: nowrap;
 }
 
 .list {
@@ -758,7 +840,8 @@ select:disabled {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
+  padding: 4px;
 }
 
 .list-row {
@@ -766,12 +849,17 @@ select:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px;
   border: 0;
-  border-bottom: 1px solid var(--border-soft-color);
+  border-radius: var(--radius-md);
   color: var(--text-color);
   background: transparent;
   text-align: left;
+  transition: background-color var(--motion) ease;
+}
+
+.list-row:hover:not(.active) {
+  background: var(--button-hover-bg);
 }
 
 .list-row.with-actions {
@@ -789,7 +877,7 @@ select:disabled {
   align-items: center;
   gap: 8px;
   align-self: stretch;
-  padding: 8px 10px;
+  padding: 8px;
   border: 0;
   color: inherit;
   background: transparent;
@@ -983,6 +1071,12 @@ select:disabled {
   flex-wrap: wrap;
 }
 
+/* Preset choices read as chips: pills without lift, the chosen one filled. */
+.geometry-chip-group > .toolbar-button {
+  border-radius: 999px;
+  box-shadow: none;
+}
+
 .geometry-status {
   color: var(--text-muted-color);
   font-size: 12px;
@@ -1121,16 +1215,8 @@ select:disabled {
 }
 
 .inline-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 6px;
-  color: var(--text-strong-color);
-  background: var(--button-bg);
-  font-size: 12px;
+  height: var(--control-h-sm);
+  padding: 0 10px;
 }
 
 .inline-action.danger {
@@ -1139,12 +1225,17 @@ select:disabled {
   background: var(--danger-soft-bg);
 }
 
+.inline-action.danger:hover:not(:disabled) {
+  border-color: var(--danger-text);
+  background: var(--danger-soft-bg);
+}
+
 .error-strip {
   min-width: 0;
   overflow: hidden;
   padding: 8px 42px 8px 12px;
   border: 1px solid var(--danger-border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--danger-text);
   background: var(--danger-soft-bg);
   font-size: 12px;
@@ -1332,19 +1423,19 @@ select:disabled {
 }
 
 .ops-empty {
-  padding: 10px;
+  padding: 12px;
   border: 1px dashed var(--border-strong-color);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   color: var(--text-muted-color);
   font-size: 12px;
 }
 
 .pipeline-op-card {
   display: grid;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised-bg);
   cursor: pointer;
   min-width: 0;
@@ -1388,13 +1479,26 @@ select:disabled {
 .op-card-actions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--control-gap);
 }
 
 .op-buttons,
 .output-controls {
   display: grid;
   gap: 8px;
+}
+
+/* The add-op palette reads as a list of commands: quiet filled rows with
+   left-aligned names, not a stack of boxed buttons. */
+.op-buttons > .toolbar-button {
+  justify-content: flex-start;
+  border-color: transparent;
+  background: var(--button-hover-bg);
+  box-shadow: none;
+}
+
+.op-buttons > .toolbar-button:hover:not(:disabled) {
+  background: var(--button-active-bg);
 }
 
 .output-controls .row-detail,
@@ -1435,30 +1539,52 @@ select:disabled {
   grid-column: span 2;
 }
 
+/* ── Fields ────────────────────────────────────────────────
+   One anatomy for text fields and selects: 30px, 8px corners, the 3:1
+   outline, a hover step, and the teal border and ring on focus. Selects draw
+   their own chevron; the list they open stays native. */
 .field-grid input,
 .field-grid select,
 .stacked-field input,
-.stacked-field select {
+.stacked-field select,
+.compact-control,
+.stacked-field textarea,
+.rename-preview-slug-input {
   min-width: 0;
   width: 100%;
-  height: 28px;
+  height: var(--control-h);
   border: 1px solid var(--field-border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-strong-color);
-  background: var(--surface-muted-bg);
-  padding: 0 7px;
+  background-color: var(--field-bg);
+  padding: 0 10px;
+  outline: none;
+  transition:
+    border-color var(--motion) ease,
+    box-shadow var(--motion) ease;
 }
 
 .compact-control {
-  min-width: 0;
-  width: 100%;
-  height: 28px;
-  border: 1px solid var(--field-border-color);
-  border-radius: 6px;
-  color: var(--text-strong-color);
-  background: var(--surface-muted-bg);
-  padding: 0 7px;
   font-size: 12px;
+}
+
+:is(.field-grid input, .field-grid select, .stacked-field input, .stacked-field select, .compact-control, .stacked-field textarea, .rename-preview-slug-input):hover:not(:disabled):not(:focus) {
+  border-color: var(--text-soft-color);
+}
+
+:is(.field-grid input, .field-grid select, .stacked-field input, .stacked-field select, .compact-control, .stacked-field textarea, .rename-preview-slug-input):focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+:is(.field-grid select, .stacked-field select, select.compact-control) {
+  appearance: none;
+  padding-right: 30px;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 12px 12px;
+  cursor: pointer;
 }
 
 .asset-source-row {
@@ -1467,9 +1593,9 @@ select:disabled {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border: 1px solid var(--border-soft-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-bg);
 }
 
@@ -1505,20 +1631,18 @@ select:disabled {
 }
 
 .stacked-field textarea {
-  min-width: 0;
-  width: 100%;
-  min-height: 28px;
-  border: 1px solid var(--field-border-color);
-  border-radius: 6px;
-  color: var(--text-strong-color);
-  background: var(--surface-muted-bg);
-  padding: 6px 7px;
+  height: auto;
+  min-height: var(--control-h);
+  padding: 6px 10px;
   resize: none;
   line-height: 1.45;
 }
 
 .stacked-field input[type="range"] {
   padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
 /* Slider row: label on left, value on right, range filling the middle */
@@ -1606,7 +1730,7 @@ select:disabled {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-xl);
   background: var(--surface-bg);
   box-shadow: 0 20px 80px rgb(0 0 0 / 55%);
   overflow: hidden;
@@ -1649,7 +1773,7 @@ select:disabled {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 18px 20px;
   overflow: auto;
   min-height: 0;
 }
@@ -1737,28 +1861,46 @@ select:disabled {
   border: 0;
 }
 
-.settings-tabs {
+/* ── Tracks ────────────────────────────────────────────────
+   Settings tabs, asset-picker groups and two-way choices share one shape: a
+   recessed track whose chosen segment takes the blue selection fill. */
+.settings-tabs,
+.asset-picker-groups,
+.segmented-control {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding-bottom: 2px;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--track-bg);
 }
 
-.settings-tabs button {
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 6px;
-  color: var(--text-color);
-  background: var(--button-bg);
+:is(.settings-tabs, .asset-picker-groups, .segmented-control) button {
+  height: var(--control-h-sm);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted-color);
+  background: transparent;
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
+  transition:
+    background-color var(--motion) ease,
+    color var(--motion) ease;
 }
 
-.settings-tabs button.active {
+:is(.settings-tabs, .asset-picker-groups, .segmented-control) button:hover:not(.active):not(:disabled) {
+  color: var(--text-strong-color);
+  background: var(--button-hover-bg);
+}
+
+:is(.settings-tabs, .asset-picker-groups, .segmented-control) button.active {
   color: var(--brand-secondary-soft-text);
-  border-color: var(--brand-secondary-soft-border);
   background: var(--brand-secondary-soft-bg);
+  box-shadow: var(--button-shadow);
 }
 
 .settings-page {
@@ -1799,8 +1941,8 @@ select:disabled {
 .modal-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
+  gap: var(--control-gap);
+  padding: 12px 20px;
   background: var(--surface-raised-bg);
 }
 
@@ -1820,11 +1962,11 @@ select:disabled {
 .modal-header-close {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text-strong-color);
   background: transparent;
   cursor: pointer;
@@ -1841,7 +1983,7 @@ select:disabled {
 
 .modal-header-close:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: 1px;
+  outline-offset: 0;
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
@@ -1865,14 +2007,20 @@ select:disabled {
   flex: 1 1 0;
   min-height: 180px;
   overflow: auto;
+  display: grid;
+  gap: 8px;
+  align-content: start;
 }
 
+/* Each file is its own light card; spacing, not rules, separates them. */
 .rename-preview-row {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
   gap: 14px;
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border: 1px solid var(--border-soft-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised-bg);
   font-size: 12px;
   align-items: stretch;
 }
@@ -1993,9 +2141,9 @@ select:disabled {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .rename-output-dir-copy {
@@ -2029,22 +2177,13 @@ select:disabled {
   width: fit-content;
 }
 
-.rename-preview-slug-input {
-  min-width: 0;
-  width: 100%;
-  height: 28px;
-  border: 1px solid var(--field-border-color);
-  border-radius: 6px;
-  color: var(--text-strong-color);
-  background: var(--surface-muted-bg);
-  padding: 0 7px;
-}
+
 
 .modal-warning,
 .modal-info,
 .modal-error {
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 12px;
 }
 
@@ -2074,7 +2213,7 @@ select:disabled {
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: inherit;
   background: transparent;
   cursor: pointer;
@@ -2144,29 +2283,13 @@ select:disabled {
 }
 
 .asset-picker-groups {
-  display: flex;
   flex: 0 0 auto;
-  gap: 6px;
-  padding-bottom: 2px;
+  flex-wrap: nowrap;
   overflow-x: auto;
 }
 
 .asset-picker-groups button {
   flex: 0 0 auto;
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 6px;
-  color: var(--text-color);
-  background: var(--button-bg);
-  font: inherit;
-  font-size: 13px;
-}
-
-.asset-picker-groups button.active {
-  color: var(--brand-secondary-soft-text);
-  border-color: var(--brand-secondary-soft-border);
-  background: var(--brand-secondary-soft-bg);
 }
 
 .asset-picker-scroll {
@@ -2191,7 +2314,7 @@ select:disabled {
   align-content: start;
   padding: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   color: var(--text-color);
   background: var(--surface-raised-bg);
   text-align: left;
@@ -2221,7 +2344,7 @@ select:disabled {
   place-items: center;
   overflow: hidden;
   border: 1px solid var(--border-soft-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-soft-color);
   background:
     linear-gradient(45deg, var(--checker-bg) 25%, transparent 25%),
@@ -2261,32 +2384,8 @@ select:disabled {
   font-weight: 600;
 }
 
-.segmented-control {
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
-  width: fit-content;
-  overflow: hidden;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 6px;
-}
-
 .segmented-control button {
-  padding: 7px 10px;
-  border: 0;
-  border-right: 1px solid var(--border-strong-color);
-  color: var(--text-color);
-  background: var(--button-bg);
-  font: inherit;
   font-size: 12px;
-}
-
-.segmented-control button:last-child {
-  border-right: 0;
-}
-
-.segmented-control button.active {
-  color: var(--brand-secondary-soft-text);
-  background: var(--brand-secondary-soft-bg);
 }
 
 .segmented-control button:disabled {
@@ -2296,9 +2395,9 @@ select:disabled {
 .vision-description {
   display: grid;
   gap: 8px;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised-bg);
 }
 
@@ -2310,12 +2409,12 @@ select:disabled {
 .vision-description-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--control-gap);
 }
 
 .vision-description-secondary-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--control-gap);
 }
 
 .vision-description span {
@@ -2496,9 +2595,9 @@ select:disabled {
 
 .settings-toggle-card {
   min-height: 36px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised-bg);
 }
 
@@ -2506,7 +2605,7 @@ select:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--control-gap);
 }
 
 .settings-path-row .toolbar-button {
@@ -2527,9 +2626,9 @@ select:disabled {
 .hsl-band {
   display: grid;
   gap: 8px;
-  padding: 8px;
+  padding: 10px;
   border: 1px solid var(--border-soft-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface-muted-bg);
 }
 
@@ -2650,9 +2749,10 @@ select:disabled {
 
 kbd {
   display: inline-block;
-  padding: 3px 6px;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--button-border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
   color: var(--text-strong-color);
   background: var(--button-bg);
   font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

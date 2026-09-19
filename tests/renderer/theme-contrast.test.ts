@@ -68,6 +68,12 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ["--brand-secondary-soft-text", "--brand-secondary-soft-border"],
   ["--brand-secondary-soft-text", "--surface-raised-bg"],
   ["--accent-text", "--accent-bg"],
+  ["--accent-text", "--accent-hover-bg"],
+  ["--accent-text", "--accent-pressed-bg"],
+  // Buttons and palette rows on their hover step, tab labels on the track, and field text.
+  ["--text-strong-color", "--button-hover-bg"],
+  ["--text-muted-color", "--track-bg"],
+  ["--text-strong-color", "--field-bg"],
   ["--accent-soft-text", "--accent-soft-bg"],
   ["--accent-soft-text", "--surface-bg"],
   ["--accent-soft-text", "--button-bg"],
@@ -76,6 +82,7 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
 
 const MARK_PAIRS: ReadonlyArray<[string, string]> = [
   ...SURFACES.map((surface): [string, string] => ["--field-border-color", surface]),
+  ["--field-border-color", "--field-bg"],
   ["--selection-border-color", "--surface-raised-bg"],
   ["--accent-border", "--surface-bg"],
   ["--accent-border", "--surface-raised-bg"],

@@ -1,7 +1,7 @@
 // The save and vision paths end to end, driven through the real IPC handlers the
 // renderer calls, with nothing substituted but Electron's window glue: the
 // pipeline worker as the build ships it, the real ExifTool, and the real Gemini
-// API. Run only by npm run check:full, through vitest.live.config.ts.
+// API. Run only by npm run test:full, through vitest.live.config.ts.
 //
 // Vitest runs the main process from src/, but the worker pool loads its worker
 // from the built bundle beside it, so the lane builds the app into its cache
@@ -259,7 +259,7 @@ describe("the live save and vision paths", () => {
 
   it("describes and names a saved photo through the real Gemini API", async () => {
     if (!process.env.GEMINI_API_KEY?.trim()) {
-      throw new Error("GEMINI_API_KEY is not set. The full check calls the real Gemini API; export GEMINI_API_KEY and run it again.");
+      throw new Error("GEMINI_API_KEY is not set. The full run calls the real Gemini API; export GEMINI_API_KEY and run it again.");
     }
     const { normalizeSlugCandidate } = await import("@core/slug/rules");
     const home = await freshHome("vision");

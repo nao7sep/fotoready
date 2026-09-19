@@ -41,7 +41,7 @@ jobs:
         run: npm run check:release-tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-      - run: npm run check
+      - run: npm test
 
   build:
     needs: test

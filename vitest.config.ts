@@ -19,7 +19,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    // The live lane spends money and builds the app; only npm run check:full runs it,
+    // The live lane spends money and builds the app; only npm run test:full runs it,
     // through vitest.live.config.ts.
     exclude: [...configDefaults.exclude, "tests/live/**"],
     coverage: {

@@ -7,7 +7,7 @@ const shellStyle: React.CSSProperties = {
   padding: "2rem",
   color: "var(--text-strong-color, #1a1a1a)",
   background: "var(--surface-bg, #fff)",
-  fontFamily: "var(--font-ui, system-ui, sans-serif)"
+  fontFamily: 'var(--font-ui, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif)'
 };
 
 const panelStyle: React.CSSProperties = {

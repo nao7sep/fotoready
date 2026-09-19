@@ -22,7 +22,7 @@ const overlayStyle: React.CSSProperties = {
   padding: "2rem",
   background: "var(--surface-bg, #ffffff)",
   color: "var(--text-strong-color, #1a1a1a)",
-  fontFamily: "system-ui, -apple-system, sans-serif",
+  fontFamily: 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   zIndex: 2147483647
 };
 

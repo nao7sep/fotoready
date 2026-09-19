@@ -3,7 +3,8 @@
   /* UI (chrome) font. The Settings → App "UI font" field overrides this variable at runtime with a
      verbatim, engine-resolved family string; blank reverts to this default. Family only — no UI
      font-size knob. The text-watermark font is a separate content-output setting, not this. */
-  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Menlo", "Consolas", monospace;
   font-family: var(--font-ui);
   /* Control anatomy, shared by both themes: 30px standard controls, 26px
      compact ones (chips, inline actions), 24px quiet icon actions on a card or
@@ -2755,7 +2756,7 @@ kbd {
   border-radius: var(--radius-sm);
   color: var(--text-strong-color);
   background: var(--button-bg);
-  font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font: 11px var(--font-mono);
 }
 
 /* Native application inactivity is distinct from DOM focus on macOS. Keep the

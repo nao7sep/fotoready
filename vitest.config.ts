@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
 // Tests live under tests/, mirroring the src/ layout, so src/ stays pure shipped code and the
@@ -19,6 +19,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // The live lane spends money and builds the app; only npm run check:full runs it,
+    // through vitest.live.config.ts.
+    exclude: [...configDefaults.exclude, "tests/live/**"],
     coverage: {
       // V8's native coverage; `include` spans all source so the report flags
       // logic no test reaches, not just a score for what is reached.

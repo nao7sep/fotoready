@@ -345,6 +345,7 @@ function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Elemen
             <label className="stacked-field metadata-field span-two" key={field}>
               {metadataFieldLabel(field)}
               <AutoTextarea
+                minRows={field === "description" ? 3 : 1}
                 value={settings.injectFields[field] ?? ""}
                 onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
                 onCommit={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: cleanMetadataField(field, value) } })}
@@ -815,7 +816,10 @@ function PathField({
   );
 }
 
-function AutoTextarea({ value, onChange, onCommit }: { value: string; onChange(value: string): void; onCommit(value: string): void }): React.JSX.Element {
+/** `minRows` is what the field usually holds: one line for a name or a URL,
+ * a few for a value people write in sentences, so the box looks like what it
+ * takes before anything is typed. It grows past that with the content. */
+function AutoTextarea({ value, onChange, onCommit, minRows = 1 }: { value: string; onChange(value: string): void; onCommit(value: string): void; minRows?: number }): React.JSX.Element {
   const ref = React.useRef<HTMLTextAreaElement | null>(null);
 
   React.useLayoutEffect(() => {
@@ -823,12 +827,12 @@ function AutoTextarea({ value, onChange, onCommit }: { value: string; onChange(v
     if (!node) return;
     node.style.height = "0px";
     node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
-  }, [value]);
+  }, [value, minRows]);
 
   return (
     <textarea
       ref={ref}
-      rows={1}
+      rows={minRows}
       value={value}
       onChange={(event) => onChange(event.currentTarget.value)}
       // Whitespace cleanup runs at commit (blur), never on each keystroke, so

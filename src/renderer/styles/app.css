@@ -96,8 +96,10 @@
   --danger-soft-pressed-bg: #fecaca;
   --danger-border: #fca5a5;
   /* The fill and ink of a destructive CONFIRM button (the one in the dialog that
-     asks). In dark, --danger-text turns pale so it can be read as letters on the
-     dark surface, so the ink that sits on the fill turns dark instead of white. */
+     asks). A dark theme's --danger-text is pale because it is read as LETTERS on
+     the dark surface; it is not a fill. Filling with it and flipping the ink dark
+     gave a pastel slab, so the fill stays a real red in both themes under white,
+     and deepens the same way under hover and the finger. */
   --danger-fill: #b42318;
   --danger-fill-hover: #991b1b;
   --danger-fill-pressed: #7f1d1d;
@@ -180,10 +182,10 @@
     --danger-soft-bg: #3a1616;
     --danger-soft-pressed-bg: #4a1c1c;
     --danger-border: #8a2c2c;
-    --danger-fill: #fca5a5;
-    --danger-fill-hover: #fdbcbc;
-    --danger-fill-pressed: #fed2d2;
-    --on-danger: #2c1010;
+    --danger-fill: #c0392b;
+    --danger-fill-hover: #a82f22;
+    --danger-fill-pressed: #91261b;
+    --on-danger: #fff5f4;
     --warning-text: #fcd34d;
     --warning-soft-bg: #33270f;
     --warning-border: #8a6a1c;

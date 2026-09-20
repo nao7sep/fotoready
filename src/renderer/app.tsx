@@ -508,8 +508,9 @@ function App(): React.JSX.Element {
     if (settings?.confirmDeleteTasks) {
       const confirmed = await confirmer.confirm({
         title: "Delete task?",
-        message: "This removes the task from the app. Saved files on disk are kept.",
-        confirmLabel: "Delete"
+        message: "This removes the task from the app, with the operations set up on it. Saved files on disk are kept.",
+        confirmLabel: "Delete",
+        danger: true
       });
       if (!confirmed) return "cancelled";
     }

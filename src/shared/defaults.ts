@@ -64,7 +64,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     theme: "system",
     uiFontFamily: "",
     confirmDeleteOriginals: false,
-    confirmDeleteTasks: false,
+    confirmDeleteTasks: true,
     confirmDeleteOutputFiles: true,
     defaultOutputFormat: "original",
     defaultWebpQuality: 82,

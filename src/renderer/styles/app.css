@@ -99,6 +99,7 @@
      dark surface, so the ink that sits on the fill turns dark instead of white. */
   --danger-fill: #b42318;
   --danger-fill-hover: #991b1b;
+  --danger-fill-pressed: #7f1d1d;
   --on-danger: #fff5f4;
   --warning-text: #92400e;
   --warning-soft-bg: #fef3c7;
@@ -179,6 +180,7 @@
     --danger-border: #8a2c2c;
     --danger-fill: #fca5a5;
     --danger-fill-hover: #fdbcbc;
+    --danger-fill-pressed: #fed2d2;
     --on-danger: #2c1010;
     --warning-text: #fcd34d;
     --warning-soft-bg: #33270f;
@@ -481,7 +483,12 @@ button {
   background: var(--button-hover-bg);
 }
 
-:is(.toolbar-button, .icon-button, .inline-action):active:not(:disabled) {
+/* Spelled like the hover rule above, one pseudo-class apart, so it carries the
+   same specificity and wins by coming after it. A pointer that is down is also
+   over the control, so a pressed rule a rung short of its own hover rule never
+   paints; and :not(.active) keeps the press off a button that is switched on,
+   whose own fill is what says so. */
+:is(.toolbar-button, .icon-button, .inline-action):active:not(:disabled):not(.active) {
   background: var(--button-active-bg);
 }
 
@@ -577,10 +584,6 @@ button:focus-visible {
 .compact-text {
   height: var(--control-h-sm);
   font-size: 12px;
-}
-
-.toolbar-button:disabled {
-  color: var(--text-disabled-color);
 }
 
 .toolbar-button.active {
@@ -1238,7 +1241,8 @@ select:disabled {
   background: var(--danger-soft-bg);
 }
 
-.inline-action.danger:hover:not(:disabled) {
+.inline-action.danger:hover:not(:disabled),
+.inline-action.danger:active:not(:disabled) {
   border-color: var(--danger-text);
   background: var(--danger-soft-bg);
 }
@@ -2034,6 +2038,11 @@ select:disabled {
   background: var(--danger-fill-hover);
   border-color: var(--danger-fill-hover);
   color: var(--on-danger);
+}
+
+.primary-action.danger:active:not(:disabled) {
+  background: var(--danger-fill-pressed);
+  border-color: var(--danger-fill-pressed);
 }
 
 .rename-preview-list {

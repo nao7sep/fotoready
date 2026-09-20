@@ -81,7 +81,8 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   // A destructive CONFIRM button is filled, so its ink is read on that fill and
   // nowhere else — unlike a status colour, which is also read on the surface.
   ["--on-danger", "--danger-fill"],
-  ["--on-danger", "--danger-fill-hover"]
+  ["--on-danger", "--danger-fill-hover"],
+  ["--on-danger", "--danger-fill-pressed"]
 ];
 
 const MARK_PAIRS: ReadonlyArray<[string, string]> = [

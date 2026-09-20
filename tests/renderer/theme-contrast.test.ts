@@ -82,7 +82,10 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   // nowhere else — unlike a status colour, which is also read on the surface.
   ["--on-danger", "--danger-fill"],
   ["--on-danger", "--danger-fill-hover"],
-  ["--on-danger", "--danger-fill-pressed"]
+  ["--on-danger", "--danger-fill-pressed"],
+  // The outlined trigger's letters, on the tint it rests, hovers and presses on.
+  ["--danger-text", "--danger-soft-bg"],
+  ["--danger-text", "--danger-soft-pressed-bg"]
 ];
 
 const MARK_PAIRS: ReadonlyArray<[string, string]> = [

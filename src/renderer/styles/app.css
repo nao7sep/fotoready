@@ -93,6 +93,7 @@
   --info-border: #93c5fd;
   --danger-text: #991b1b;
   --danger-soft-bg: #fee2e2;
+  --danger-soft-pressed-bg: #fecaca;
   --danger-border: #fca5a5;
   /* The fill and ink of a destructive CONFIRM button (the one in the dialog that
      asks). In dark, --danger-text turns pale so it can be read as letters on the
@@ -177,6 +178,7 @@
     --info-border: #2f5aa8;
     --danger-text: #fca5a5;
     --danger-soft-bg: #3a1616;
+    --danger-soft-pressed-bg: #4a1c1c;
     --danger-border: #8a2c2c;
     --danger-fill: #fca5a5;
     --danger-fill-hover: #fdbcbc;
@@ -1241,10 +1243,14 @@ select:disabled {
   background: var(--danger-soft-bg);
 }
 
-.inline-action.danger:hover:not(:disabled),
-.inline-action.danger:active:not(:disabled) {
+.inline-action.danger:hover:not(:disabled) {
   border-color: var(--danger-text);
   background: var(--danger-soft-bg);
+}
+
+.inline-action.danger:active:not(:disabled) {
+  border-color: var(--danger-text);
+  background: var(--danger-soft-pressed-bg);
 }
 
 .error-strip {

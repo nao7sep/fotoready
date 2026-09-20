@@ -35,6 +35,7 @@ const PRESSABLE_ROLES = [
   ":is(.toolbar-button,.icon-button,.inline-action):hover:not(:disabled):not(.active)",
   ".primary-action:hover:not(:disabled)",
   ".primary-action.danger:hover:not(:disabled)",
+  ".inline-action.danger:hover:not(:disabled)",
 ];
 
 describe("button pressed states", () => {

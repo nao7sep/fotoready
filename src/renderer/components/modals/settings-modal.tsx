@@ -825,7 +825,10 @@ function AutoTextarea({ value, onChange, onCommit, minRows = 1 }: { value: strin
   React.useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return;
-    node.style.height = "0px";
+    // Measure at the field's natural height, not zero: at zero the content is
+    // all that is measured, and a field asking for several rows would collapse
+    // to the one line its value happens to occupy.
+    node.style.height = "auto";
     node.style.height = `${Math.max(node.scrollHeight, 28)}px`;
   }, [value, minRows]);
 

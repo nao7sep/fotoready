@@ -39,7 +39,7 @@ npm run dist         # build a packaged app into release/
 
 ## Tests
 
-`npm test` typechecks and runs the whole suite, which takes a few seconds. `npm run test:full` then runs the live lane: it builds the app into `node_modules/.cache`, saves corpus photos through the built pipeline worker and the real ExifTool, and describes one through the real Gemini API. The photos come from the shared test-fixture corpus in the company repository, which must be checked out beside this one. Export `GEMINI_API_KEY` first; the lane makes a few paid Gemini calls, and the full run fails without the key.
+`npm test` typechecks and runs the whole suite — a fixed set that runs the same every time, in a few seconds; [`tests/README.md`](tests/README.md) names the areas of the app it stands for. `npm run test:full` then runs the live lane: it builds the app into `node_modules/.cache`, saves corpus photos through the built pipeline worker and the real ExifTool, and describes one through the real Gemini API. The photos come from the shared test-fixture corpus in the company repository, which must be checked out beside this one. Export `GEMINI_API_KEY` first; the lane makes a few paid Gemini calls, and the full run fails without the key.
 
 ## License
 

@@ -52,8 +52,11 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
       </div>
     );
   },
-  Overlay({ params, selected, ctx }) {
-    if (!selected || !params.samplePoint) return null;
+  // The marker is not a handle — it cannot be dragged — so it shows where the
+  // sample is taken whether or not the task still accepts edits. Sampling itself
+  // is the click, which the canvas withholds from a locked task.
+  Overlay({ params, ctx }) {
+    if (!params.samplePoint) return null;
     return (
       <Circle
         fill="#60a5fa"

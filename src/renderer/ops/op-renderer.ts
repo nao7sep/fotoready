@@ -43,7 +43,13 @@ export type OpCardProps<P extends Record<string, unknown>> = {
 export type OpOverlayProps<P extends Record<string, unknown>> = {
   params: P;
   opId: string;
-  selected: boolean;
+  /**
+   * Whether this overlay may be dragged. False for a task the session refuses to
+   * edit (see `isTaskEditable`): the overlay then shows where the op acts and
+   * offers no handle, because a handle that moves under the pointer and fails
+   * behind it is a lie about what the task accepts.
+   */
+  editable: boolean;
   ctx: OverlayContext;
   onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void;
 };

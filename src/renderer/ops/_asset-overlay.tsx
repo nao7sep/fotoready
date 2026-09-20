@@ -41,7 +41,7 @@ export function createAssetOverlayRenderer(definition: {
         />
       );
     },
-    Overlay({ params, selected, ctx, onParamsChange }) {
+    Overlay({ params, editable, ctx, onParamsChange }) {
       const aspectRatio = useLocalAssetAspectRatio(params.assetPath);
       return (
         <AssetOverlayRect
@@ -50,7 +50,7 @@ export function createAssetOverlayRenderer(definition: {
           ctx={ctx}
           onParamsChange={onParamsChange}
           params={params}
-          selected={selected}
+          editable={editable}
         />
       );
     }
@@ -271,16 +271,16 @@ function AssetOverlayRect({
   ctx,
   onParamsChange,
   params,
-  selected
+  editable
 }: {
   aspectRatio: number;
   color: string;
   ctx: OverlayContext;
   onParamsChange(patch: Partial<AssetOverlayParams>): void;
   params: AssetOverlayParams;
-  selected: boolean;
+  editable: boolean;
 }): React.JSX.Element | null {
-  if (!selected || !params.assetPath) return null;
+  if (!editable || !params.assetPath) return null;
   const o = clampAssetOverlay(params, ctx.imageBounds);
   const stageBox = rectToStage({ x: o.x, y: o.y, w: o.width, h: o.height }, ctx.longEdge, ctx.placement);
   return (

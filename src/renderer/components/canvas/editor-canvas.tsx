@@ -6,6 +6,7 @@ import type { TaskEditOptions } from "@shared/types/ipc";
 import { OperationResult } from "@renderer/components/operation-result";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
 import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
+import { isTaskEditable } from "@shared/task-editing";
 
 export type EditorCanvasPreview = {
   dataUrl: string;
@@ -60,7 +61,11 @@ export function EditorCanvas({
   const selectedOp = task && selectedOpId ? task.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;
   const selectedRenderer = selectedOp?.enabled ? getOpRenderer(selectedOp.type) : null;
   const SelectedOverlay = selectedRenderer?.Overlay ?? null;
-  const needsInteractiveCanvas = Boolean(preview && selectedRenderer && (SelectedOverlay || selectedRenderer.onImageClick));
+  // The same rule the ops panel disables its cards by and the session enforces: a
+  // task that refuses edits gets no handle to drag and no click that would set one.
+  const editable = task ? isTaskEditable(task.status) : false;
+  const onImageClick = editable ? selectedRenderer?.onImageClick : undefined;
+  const needsInteractiveCanvas = Boolean(preview && selectedRenderer && (SelectedOverlay || onImageClick));
   const image = useImage(needsInteractiveCanvas ? preview?.dataUrl ?? null : null);
   const imageSize = image
     ? { width: image.naturalWidth || preview?.width || 1, height: image.naturalHeight || preview?.height || 1 }
@@ -92,7 +97,7 @@ export function EditorCanvas({
     const op = task.pipeline.ops.find((item) => item.id === selectedOpId);
     if (!op) return;
     if (!op?.enabled) return;
-    if (!selectedRenderer?.onImageClick) return;
+    if (!onImageClick) return;
 
     const pointer = event.target.getStage()?.getPointerPosition();
     if (!pointer) return;
@@ -100,7 +105,7 @@ export function EditorCanvas({
     const localY = (pointer.y - placement.y) / placement.scale;
     if (localX < 0 || localY < 0 || localX > imageSize.width || localY > imageSize.height) return;
 
-    selectedRenderer.onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(op.id, patch as Record<string, unknown>));
+    onImageClick(localX, localY, op.params, overlayCtx, (patch) => onOpParamsChange(op.id, patch as Record<string, unknown>));
   }
 
   return (
@@ -112,14 +117,14 @@ export function EditorCanvas({
       ) : image ? (
         <Stage height={frameSize.height} width={frameSize.width}>
           <Layer>
-            <Group onClick={selectedRenderer?.onImageClick ? handleStageClick : undefined}>
+            <Group onClick={onImageClick ? handleStageClick : undefined}>
               <KonvaImage image={image} x={placement.x} y={placement.y} width={placement.width} height={placement.height} />
               {selectedOp && SelectedOverlay ? (
                 <SelectedOverlay
                   key={`overlay-${selectedOp.id}`}
                   params={selectedOp.params}
                   opId={selectedOp.id}
-                  selected
+                  editable={editable}
                   ctx={overlayCtx}
                   onParamsChange={(patch) => onOpParamsChange(selectedOp.id, patch as Record<string, unknown>)}
                 />

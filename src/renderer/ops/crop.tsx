@@ -106,12 +106,12 @@ export const cropRenderer: OpRenderer<CropParams> = {
       </div>
     );
   },
-  Overlay({ params, selected, ctx, onParamsChange }) {
+  Overlay({ params, editable, ctx, onParamsChange }) {
     const rect = clampFractionRect({ x: params.x, y: params.y, w: params.w, h: params.h }, ctx.imageBounds);
     const [draft, setDraft] = useState<FractionRect | null>(null);
     useEffect(() => { setDraft(null); }, [params.x, params.y, params.w, params.h]);
 
-    if (!selected) {
+    if (!editable) {
       return <OverlayRect color="#facc15" rect={rect} placement={ctx.placement} longEdge={ctx.longEdge} />;
     }
 

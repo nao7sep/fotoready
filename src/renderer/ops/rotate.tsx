@@ -49,8 +49,8 @@ export const rotateRenderer: OpRenderer<RotateParams> = {
       </div>
     );
   },
-  Overlay({ selected, ctx }) {
-    if (!selected) return null;
+  Overlay({ editable, ctx }) {
+    if (!editable) return null;
     const { placement } = ctx;
     return (
       <>

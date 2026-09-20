@@ -14,7 +14,7 @@ import {
 /** Shared draggable conceal overlay used by cover, blur, and mosaic. */
 export function ConcealOverlay<P extends { rects: ConcealRegion[] } & Record<string, unknown>>({
   params,
-  selected,
+  editable,
   ctx,
   onParamsChange
 }: OpOverlayProps<P>): React.JSX.Element | null {
@@ -25,7 +25,7 @@ export function ConcealOverlay<P extends { rects: ConcealRegion[] } & Record<str
   const [draft, setDraft] = useState<ConcealRegion | null>(null);
   useEffect(() => { setDraft(null); }, [firstRect?.h, firstRect?.rotation, firstRect?.shape, firstRect?.w, firstRect?.x, firstRect?.y]);
 
-  if (!selected) {
+  if (!editable) {
     return (
       <>
         {rects.map((rect, index) => (

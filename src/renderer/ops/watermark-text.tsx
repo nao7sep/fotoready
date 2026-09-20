@@ -291,9 +291,9 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
       </div>
     );
   },
-  Overlay({ params, selected, ctx, onParamsChange }) {
+  Overlay({ params, editable, ctx, onParamsChange }) {
     const normalizedBox = normalizeTextWatermarkBox(params, ctx.imageBounds);
-    if (!selected || !normalizedBox.text.trim()) return null;
+    if (!editable || !normalizedBox.text.trim()) return null;
     const stageBox = rectToStage(normalizedBox, ctx.longEdge, ctx.placement);
     return (
       <InteractiveOverlayRect

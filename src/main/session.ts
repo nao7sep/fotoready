@@ -20,6 +20,7 @@ import { deleteSelectedFiles } from "@main/safe-delete";
 import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { resolveVisionRunMode } from "@shared/vision-run-mode";
+import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
 import { nextMetadataFlags } from "@main/metadata-flags";
 import { readSourceMetadataSummary } from "@adapters/exiftool";
@@ -681,7 +682,7 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    if (task.status !== "not-saved") {
+    if (!isTaskEditable(task.status)) {
       throw new Error("Only not-saved tasks can be edited. Fork this task before editing.");
     }
     return task;

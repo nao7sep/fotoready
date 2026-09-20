@@ -6,6 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
+import { isTaskEditable } from "@shared/task-editing";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
 import { useDraftField } from "@renderer/components/useDraftField";
@@ -92,7 +93,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   }}
                   assetPickerPreviewLongEdge={props.settings?.assetPickerPreviewLongEdge ?? DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE}
                   catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
-                  disabled={activeTask.status !== "not-saved"}
+                  disabled={!isTaskEditable(activeTask.status)}
                   failures={failuresForConsequencePrefix(props.opFailures, `op:${op.id}:`)}
                   index={index}
                   key={op.id}
@@ -128,7 +129,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
               onClearVision={props.onClearVision}
               onGenerateVision={props.onGenerateVision}
               onOpenSettings={props.onOpenSettings}
-              outputDisabled={!activeTask || activeTask.status !== "not-saved"}
+              outputDisabled={!activeTask || !isTaskEditable(activeTask.status)}
               original={props.activeOriginal}
               settings={props.settings}
               task={activeTask}
@@ -148,7 +149,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
             <h3>{section}</h3>
             <div className="op-buttons">
               {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
-                <button className="toolbar-button full-width" disabled={!activeTask || activeTask.status !== "not-saved"} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
+                <button className="toolbar-button full-width" disabled={!activeTask || !isTaskEditable(activeTask.status)} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
                   {op.pickerLabel ?? op.label}
                 </button>
               ))}

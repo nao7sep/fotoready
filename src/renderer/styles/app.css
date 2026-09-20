@@ -1952,6 +1952,16 @@ select:disabled {
   background: var(--header-bg);
 }
 
+/* A hidden title leaves the close control alone in the band: it keeps its
+   corner, and with no title there is nothing to divide from the content. */
+.modal-header:has(> .sr-only) {
+  border-bottom: 0;
+}
+
+.modal-header > .sr-only + .modal-header-close {
+  margin-left: auto;
+}
+
 .modal-header h2 {
   flex: 1;
   margin: 0;
@@ -1995,7 +2005,8 @@ select:disabled {
 
 .modal-actions {
   justify-content: flex-end;
-  border-top: 1px solid var(--border-soft-color);
+  /* The same hairline as the header's, so the two bands read as a pair. */
+  border-top: 1px solid var(--border-color);
 }
 
 .primary-action.danger {
@@ -2507,8 +2518,8 @@ select:disabled {
 .about-dialog h3 {
   margin: 0 0 3px;
   color: var(--brand-primary-text);
-  font-size: 20px;
-  line-height: 1.2;
+  font-size: 26px;
+  line-height: 1.15;
 }
 
 .about-dialog p {

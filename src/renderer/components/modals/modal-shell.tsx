@@ -23,6 +23,7 @@ export type ModalSize = "default" | "small" | "wide";
  */
 export function ModalShell({
   title,
+  titleHidden = false,
   size = "default",
   tall = false,
   surfaceClassName,
@@ -32,6 +33,9 @@ export function ModalShell({
   children
 }: {
   title: string;
+  /** Keeps the title as the dialog's spoken name but takes it off the screen,
+   * for a surface whose own content already says what it is (About). */
+  titleHidden?: boolean;
   size?: ModalSize;
   tall?: boolean;
   /** A feature-owned hook for a justified outer-surface layout, such as a visual browser. */
@@ -117,7 +121,7 @@ export function ModalShell({
         tabIndex={-1}
       >
         <header className="modal-header">
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId} className={titleHidden ? "sr-only" : undefined}>{title}</h2>
           <button className="modal-header-close" type="button" aria-label="Close" title="Close" disabled={closeDisabled} onClick={onClose}>
             <X className="modal-header-close-icon" />
           </button>

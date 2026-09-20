@@ -32,6 +32,7 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
   return (
     <ModalShell
       title="About FotoReady"
+      titleHidden
       size="small"
       onClose={onClose}
       footer={<button className="toolbar-button" type="button" onClick={onClose}>Close</button>}

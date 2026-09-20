@@ -485,9 +485,12 @@ button {
   background: var(--button-active-bg);
 }
 
+/* The ring hugs the control: at a 2px offset the focused button carried a halo
+   some 8px wider than its neighbour, which made an unfocused button beside it —
+   a confirmation's own commit button — look smaller than it is. */
 button:focus-visible {
   outline: 2px solid var(--accent-border);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
 .fit-content {

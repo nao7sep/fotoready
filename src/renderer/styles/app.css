@@ -2733,8 +2733,20 @@ select:disabled {
   line-height: 1.4;
 }
 
+/* Two balanced columns of sections, falling back to one when the surface is too
+   narrow for both — which is what UI zoom does to the Wide modal's width. Each
+   column is its own stack, so the sections keep their order down one column and
+   then the next, and none is split across the gap. */
 .shortcut-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 14px 20px;
+}
+
+.shortcut-column {
+  display: grid;
+  align-content: start;
   gap: 14px;
 }
 

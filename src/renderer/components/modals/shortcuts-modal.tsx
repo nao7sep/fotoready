@@ -60,6 +60,35 @@ function buildSections(mod: string): ReadonlyArray<{ title: string; items: Reado
   ];
 }
 
+/**
+ * How much vertical room a section will want, measured in characters of prose. Every row here
+ * carries an explanatory sentence, and those sentences differ in length by a factor of ten, so
+ * counting rows — the way a uniform shortcut table would — picks the wrong place to divide.
+ */
+function sectionWeight(section: { title: string; items: ReadonlyArray<ShortcutItem> }): number {
+  return section.items.reduce((total, { action, detail }) => total + action.length + (detail?.length ?? 0), 0);
+}
+
+/**
+ * Where the section list divides into two columns, keeping the sections in order: the split that
+ * leaves the heavier column lightest, earlier on a tie so the left column is the longer.
+ */
+export function balancedSplit(weights: ReadonlyArray<number>): number {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let best = 0;
+  let bestHeavier = Infinity;
+  let left = 0;
+  for (let split = 0; split <= weights.length; split++) {
+    const heavier = Math.max(left, total - left);
+    if (heavier < bestHeavier) {
+      best = split;
+      bestHeavier = heavier;
+    }
+    if (split < weights.length) left += weights[split];
+  }
+  return best;
+}
+
 interface Props {
   systemInfo: SystemInfo | null;
   onClose(): void;
@@ -70,27 +99,33 @@ export function ShortcutsModal({ systemInfo, onClose }: Props): React.JSX.Elemen
   // known, switching to "Ctrl" only once we positively detect a non-macOS host.
   const mod = systemInfo && systemInfo.platform !== "darwin" ? "Ctrl" : "Cmd";
   const sections = buildSections(mod);
+  const split = balancedSplit(sections.map(sectionWeight));
+  const columns = [sections.slice(0, split), sections.slice(split)];
   return (
     <ModalShell
       title="Keyboard shortcuts"
-      size="small"
+      size="wide"
       onClose={onClose}
       footer={<button className="toolbar-button" type="button" onClick={onClose}>Close</button>}
     >
       <div className="shortcut-list">
-        {sections.map(({ title, items }) => (
-          <section className="shortcut-group" key={title}>
-            <h3>{title}</h3>
-            {items.map(({ action, detail, keys }) => (
-              <div className="shortcut-row" key={action}>
-                <div className="shortcut-row-copy">
-                  <span>{action}</span>
-                  {detail ? <small>{detail}</small> : null}
-                </div>
-                <kbd>{keys}</kbd>
-              </div>
+        {columns.map((column, index) => (
+          <div className="shortcut-column" key={index}>
+            {column.map(({ title, items }) => (
+              <section className="shortcut-group" key={title}>
+                <h3>{title}</h3>
+                {items.map(({ action, detail, keys }) => (
+                  <div className="shortcut-row" key={action}>
+                    <div className="shortcut-row-copy">
+                      <span>{action}</span>
+                      {detail ? <small>{detail}</small> : null}
+                    </div>
+                    <kbd>{keys}</kbd>
+                  </div>
+                ))}
+              </section>
             ))}
-          </section>
+          </div>
         ))}
       </div>
     </ModalShell>

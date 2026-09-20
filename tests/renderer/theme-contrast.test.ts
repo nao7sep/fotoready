@@ -77,7 +77,11 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ["--accent-soft-text", "--accent-soft-bg"],
   ["--accent-soft-text", "--surface-bg"],
   ["--accent-soft-text", "--button-bg"],
-  ...STATUS.flatMap(([ink, tint]): Array<[string, string]> => [[ink, tint], [ink, "--surface-bg"], [ink, "--surface-raised-bg"]])
+  ...STATUS.flatMap(([ink, tint]): Array<[string, string]> => [[ink, tint], [ink, "--surface-bg"], [ink, "--surface-raised-bg"]]),
+  // A destructive CONFIRM button is filled, so its ink is read on that fill and
+  // nowhere else — unlike a status colour, which is also read on the surface.
+  ["--on-danger", "--danger-fill"],
+  ["--on-danger", "--danger-fill-hover"]
 ];
 
 const MARK_PAIRS: ReadonlyArray<[string, string]> = [

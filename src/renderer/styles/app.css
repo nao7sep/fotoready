@@ -94,6 +94,12 @@
   --danger-text: #991b1b;
   --danger-soft-bg: #fee2e2;
   --danger-border: #fca5a5;
+  /* The fill and ink of a destructive CONFIRM button (the one in the dialog that
+     asks). In dark, --danger-text turns pale so it can be read as letters on the
+     dark surface, so the ink that sits on the fill turns dark instead of white. */
+  --danger-fill: #b42318;
+  --danger-fill-hover: #991b1b;
+  --on-danger: #fff5f4;
   --warning-text: #92400e;
   --warning-soft-bg: #fef3c7;
   --warning-border: #fcd34d;
@@ -171,6 +177,9 @@
     --danger-text: #fca5a5;
     --danger-soft-bg: #3a1616;
     --danger-border: #8a2c2c;
+    --danger-fill: #fca5a5;
+    --danger-fill-hover: #fdbcbc;
+    --on-danger: #2c1010;
     --warning-text: #fcd34d;
     --warning-soft-bg: #33270f;
     --warning-border: #8a6a1c;
@@ -2009,10 +2018,19 @@ select:disabled {
   border-top: 1px solid var(--border-color);
 }
 
+/* The confirming button of the dialog that asks is filled, so a solid red marks
+   the last step; the editor's own destructive actions (.inline-action.danger)
+   stay outlined. */
 .primary-action.danger {
-  background: var(--danger-soft-bg);
-  border-color: var(--danger-border);
-  color: var(--danger-text);
+  background: var(--danger-fill);
+  border-color: var(--danger-fill);
+  color: var(--on-danger);
+}
+
+.primary-action.danger:hover:not(:disabled) {
+  background: var(--danger-fill-hover);
+  border-color: var(--danger-fill-hover);
+  color: var(--on-danger);
 }
 
 .rename-preview-list {

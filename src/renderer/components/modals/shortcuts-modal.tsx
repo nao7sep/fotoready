@@ -28,13 +28,13 @@ function buildSections(mod: string): ReadonlyArray<{ title: string; items: Reado
     {
       title: "View",
       items: [
-        { action: "Toggle histogram", detail: "Show or hide the preview histogram. Its position is remembered across sessions.", keys: `${mod}+H` }
+        { action: "Toggle histogram", keys: `${mod}+H` }
       ]
     },
     {
       title: "Lists and controls",
       items: [
-        { action: "Move within a list or control", detail: "Each list (Originals, Tasks), segmented control, swatch group, settings tab strip, and the resize-preset toolbar is one tab stop: Tab in, then the arrow keys move within it; the selection follows in lists, tabs, and groups, while in the preset toolbar they move focus and Enter applies.", keys: "Arrow keys" },
+        { action: "Move within a list or control", detail: "Each list and control is one tab stop: Tab in, then the arrow keys move within it.", keys: "Arrow keys" },
         { action: "Jump to the first / last item", detail: "Within the focused list or control.", keys: "Home / End" },
         { action: "Remove the selected original", detail: "Deletes the highlighted original from the Originals list.", keys: "Delete / Backspace" },
         { action: "Open a menu, then move between items", detail: "Enter or Space opens the menu; the arrows move between commands and Escape closes it.", keys: "Enter / Arrows / Escape" }

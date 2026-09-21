@@ -219,7 +219,7 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
             onChange={(value) => setSettings({ ...settings, defaultOutputDirectory: value })}
           />
           <div className="row-detail">
-            New tasks start with this folder. Leave it blank to save beside each source image until you choose a different output folder for the current session.
+            New tasks start with this folder. Leave it blank to save beside each source image.
           </div>
         </div>
       </section>
@@ -606,7 +606,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
             />
           </label>
           <div className="row-detail">
-            The app interface font. Comma-separated families; the first one your system has is used. Blank uses the built-in default. (The text-watermark font is set separately, in Assets.)
+            The app interface font. Comma-separated families; the first one your system has is used. Blank uses the built-in default.
           </div>
         </div>
       </section>

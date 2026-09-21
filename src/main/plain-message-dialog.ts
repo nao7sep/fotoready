@@ -88,7 +88,7 @@ export function renderPlainMessageDialogHtml(options: PlainMessageDialogOptions)
     :root{color-scheme:light;font:14px/1.5 system-ui,-apple-system,sans-serif;background:#f5f5f4;color:#1c1917}
     *{box-sizing:border-box;scrollbar-width:auto;scrollbar-color:#78716c transparent}*::-webkit-scrollbar{width:16px;height:16px}*::-webkit-scrollbar-thumb{background:#78716c;background-clip:padding-box;border:3px solid transparent;border-radius:999px}
     body{margin:0;height:100vh;overflow:hidden}.dialog{height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
-    .header{padding:24px 24px 12px}.body{min-height:0;overflow:auto;padding:0 24px;display:flex;flex-direction:column;gap:12px}
+    .header{padding:24px 24px 12px}.body{min-height:0;overflow:auto;padding:0 24px;display:flex;flex-direction:column;gap:12px}[role="region"]:focus-visible{outline:none}
     h1{font-size:18px;line-height:1.3;margin:0}p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.detail{color:#57534e}
     .actions{display:flex;justify-content:flex-end;padding:12px 24px 24px}.button{color:white;border:1px solid #1d4ed8;border-radius:6px;padding:7px 16px;background:#2563eb;font:inherit}.button:hover,.button:focus{background:#1d4ed8;outline:2px solid #1d4ed8;outline-offset:2px}
     @media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#161616;color:#fafafa}*{scrollbar-color:#999999 transparent}*::-webkit-scrollbar-thumb{background:#999999;background-clip:padding-box}.detail{color:#b0b0b0}.button:hover,.button:focus{outline-color:#60a5fa}}

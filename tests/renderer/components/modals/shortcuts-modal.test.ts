@@ -46,13 +46,22 @@ describe("ShortcutsModal", () => {
     const titles = columns.map((column) =>
       Array.from(column.querySelectorAll("section.shortcut-group > h3")).map((h) => h.textContent)
     );
-    // Every section lands once, and the reading order is down the first column, then the second.
+    // Every section lands once, and the reading order is down the first column, then the
+    // second. App sits before the navigation groups on purpose: the columns then divide by
+    // kind, commands on the left and moving around on the right, and they come out close in
+    // height rather than one being half the other.
     expect(titles.flat()).toEqual([
       "Import and save",
       "Editing",
       "View",
+      "App",
       "Lists and controls",
-      "Asset picker (LUTs & stamps)",
+      "Asset picker (LUTs & stamps)"
+    ]);
+    expect(titles[0], "the commands, App included, share the first column").toEqual([
+      "Import and save",
+      "Editing",
+      "View",
       "App"
     ]);
     expect(titles[0].length).toBeGreaterThan(0);

@@ -31,6 +31,18 @@ function buildSections(mod: string): ReadonlyArray<{ title: string; items: Reado
         { action: "Toggle histogram", keys: `${mod}+H` }
       ]
     },
+    // App sits ahead of the two navigation groups so the columns divide by kind:
+    // what you command the app to do on the left, how you move inside its lists and
+    // grids on the right. It also balances them — the alternative left one column
+    // half the height of the other.
+    {
+      title: "App",
+      items: [
+        { action: "Open settings", keys: `${mod}+Comma` },
+        { action: "Show keyboard shortcuts", keys: `${mod}+Slash` },
+        { action: "Close the active dialog", keys: "Escape" }
+      ]
+    },
     {
       title: "Lists and controls",
       items: [
@@ -47,14 +59,6 @@ function buildSections(mod: string): ReadonlyArray<{ title: string; items: Reado
         { action: "Extend the selection", detail: `Shift+Arrow grows a range from the anchor; Shift+Click ranges and ${mod}+Click toggles one item.`, keys: "Shift+Arrows" },
         { action: "Use the selected item", detail: "Applies the one selected LUT or stamp and closes the picker.", keys: "Enter / Space" },
         { action: "Remove from library", detail: "Moves the selected imported files to the system trash. Built-in items are protected.", keys: "Delete / Backspace" }
-      ]
-    },
-    {
-      title: "App",
-      items: [
-        { action: "Open settings", keys: `${mod}+Comma` },
-        { action: "Show keyboard shortcuts", keys: `${mod}+Slash` },
-        { action: "Close the active dialog", keys: "Escape" }
       ]
     }
   ];

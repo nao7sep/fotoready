@@ -1655,6 +1655,14 @@ select:disabled {
   padding: 2px;
 }
 
+/* A colour is one value, so its control is a swatch, not a bar. Left to the
+   shared field rule this one filled the settings grid — 718px of colour saying
+   nothing a chip does not. */
+.stacked-field input[type="color"] {
+  width: 48px;
+  padding: 2px;
+}
+
 .stacked-field textarea {
   height: auto;
   min-height: var(--control-h);

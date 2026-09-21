@@ -238,10 +238,14 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
             <input type="checkbox" checked={settings.defaultFlattenTransparency} onChange={(event) => setSettings({ ...settings, defaultFlattenTransparency: event.currentTarget.checked })} />
             Flatten transparency by default
           </label>
-          <label className="stacked-field span-two">
-            Background color for flattened exports
-            <input type="color" value={settings.defaultBackgroundForTransparency} onChange={(event) => setSettings({ ...settings, defaultBackgroundForTransparency: event.currentTarget.value })} />
-          </label>
+          {/* The caption is its own label rather than a wrapper around the row: a
+              label covers everything inside it, so wrapping the row made the empty
+              space beside the chip a click on the control — which shut the colour
+              picker and reopened it in one gesture. */}
+          <div className="stacked-field span-two">
+            <label htmlFor="default-background-color">Background color for flattened exports</label>
+            <input id="default-background-color" type="color" value={settings.defaultBackgroundForTransparency} onChange={(event) => setSettings({ ...settings, defaultBackgroundForTransparency: event.currentTarget.value })} />
+          </div>
           <div className="row-detail">
             JPEG always needs a background fill. PNG, WebP, and AVIF keep transparency unless flattening is enabled here or on the task.
           </div>

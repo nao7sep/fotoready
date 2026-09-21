@@ -1661,6 +1661,21 @@ select:disabled {
    edge is an inset ring, so a saturated value reads as pure colour and only a
    pale one picks up a rim. Some edge is required: the default value is white, and
    without one the control disappears against the panel. */
+/* The label wraps the chip, so whatever the label covers is a click on the
+   control. Left spanning the settings grid it still covered the whole width the
+   old colour bar had: clicking that empty space while the picker was open shut it
+   and reopened it in the same gesture, which reads as a flash that will not
+   dismiss. The label now ends where its own content does. */
+.stacked-field:has(input[type="color"]) {
+  width: max-content;
+}
+
+/* The caption sits in the wrapper's own type, not the label element's defaults. */
+.stacked-field > label {
+  color: inherit;
+  font: inherit;
+}
+
 .stacked-field input[type="color"] {
   width: 48px;
   border: none;

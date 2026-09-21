@@ -1655,12 +1655,27 @@ select:disabled {
   padding: 2px;
 }
 
-/* A colour is one value, so its control is a swatch, not a bar. Left to the
-   shared field rule this one filled the settings grid — 718px of colour saying
-   nothing a chip does not. */
+/* A colour is one value, so its control is a swatch, not a bar: left to the
+   shared field rule this one filled the settings grid — 718px of colour behind a
+   border that framed nothing. The chip carries no border of its own either; its
+   edge is an inset ring, so a saturated value reads as pure colour and only a
+   pale one picks up a rim. Some edge is required: the default value is white, and
+   without one the control disappears against the panel. */
 .stacked-field input[type="color"] {
   width: 48px;
-  padding: 2px;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.stacked-field input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.stacked-field input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%);
 }
 
 .stacked-field textarea {

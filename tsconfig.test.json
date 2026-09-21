@@ -30,5 +30,6 @@
       "@renderer/*": ["./src/renderer/*"]
     }
   },
-  "include": ["src/vite-env.d.ts", "tests/**/*.ts", "tests/**/*.tsx"]
+  "include": [
+    "src/main/app-version.d.ts","src/vite-env.d.ts", "tests/**/*.ts", "tests/**/*.tsx"]
 }

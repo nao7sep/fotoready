@@ -1,6 +1,12 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
+import { readFileSync } from "node:fs";
+
+// __APP_VERSION__ is injected from package.json by electron.vite.config.ts for the
+// build; mirrored here so the tests run against the same value.
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+
 // Tests live under tests/, mirroring the src/ layout, so src/ stays pure shipped code and the
 // production typecheck (tsc over src/**) doesn't see test files. The alias map mirrors
 // electron.vite.config.ts / tsconfig.json so tests import modules by the same @-aliases the
@@ -15,6 +21,7 @@ const alias = {
 };
 
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   resolve: { alias },
   // The automatic JSX runtime, matching tsconfig.web.json / tsconfig.test.json ("jsx": "react-jsx")
   // and the app build. Without it a .tsx test compiles to the classic React.createElement and fails

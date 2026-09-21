@@ -103,12 +103,12 @@ export async function bootstrap(): Promise<void> {
     stateCoordinator,
     projectSession,
     logger,
-    version: app.getVersion()
+    version: __APP_VERSION__
   });
 
   logger.info("app started", {
     mod: "main.bootstrap",
-    version: app.getVersion(),
+    version: __APP_VERSION__,
     debug,
     dataDir: paths.dataDir,
     config: {

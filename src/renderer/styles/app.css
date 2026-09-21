@@ -1197,21 +1197,11 @@ select:disabled {
   outline-offset: 1px;
 }
 
+/* The label around a watermark or rotate colour; the swatch itself is the shared
+   one below. It clips nothing, so the focus ring can follow the disc. */
 .color-picker-button {
-  width: 28px;
-  height: 28px;
-  overflow: hidden;
-  border: 1px solid var(--border-strong-color);
-  border-radius: 999px;
-  background: var(--button-bg);
-}
-
-.color-picker-button input[type="color"] {
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  flex: none;
 }
 
 .canvas-frame {
@@ -1683,12 +1673,6 @@ select:disabled {
   padding: 2px;
 }
 
-/* A colour is one value, so its control is a swatch, not a bar: left to the
-   shared field rule this one filled the settings grid — 718px of colour behind a
-   border that framed nothing. The chip carries no border of its own either; its
-   edge is an inset ring, so a saturated value reads as pure colour and only a
-   pale one picks up a rim. Some edge is required: the default value is white, and
-   without one the control disappears against the panel. */
 /* The label wraps the chip, so whatever the label covers is a click on the
    control. Left spanning the settings grid it still covered the whole width the
    old colour bar had: clicking that empty space while the picker was open shut it
@@ -1704,21 +1688,41 @@ select:disabled {
   font: inherit;
 }
 
-.stacked-field input[type="color"] {
-  width: 48px;
-  border: none;
+/* A colour is one value, and every colour control in the app is the same round
+   swatch: a disc of the colour itself. A rectangle read as a button, and the app
+   drew three kinds — rounded bars, a small box inside a bordered frame, and a
+   square swatch inside a round outline. The disc carries no border; its rim is
+   inside it, a faint share of the surrounding text colour, so a white value still
+   shows on a light panel and a black one on a dark panel, and a saturated value
+   reads as pure colour. */
+.stacked-field input[type="color"],
+.control-row input[type="color"],
+.conceal-color-row input[type="color"],
+.color-picker-button input[type="color"] {
+  flex: none;
+  width: 28px;
+  height: 28px;
   padding: 0;
+  border: none;
+  border-radius: 50%;
   background: transparent;
+  color: inherit;
 }
 
-.stacked-field input[type="color"]::-webkit-color-swatch-wrapper {
+.stacked-field input[type="color"]::-webkit-color-swatch-wrapper,
+.control-row input[type="color"]::-webkit-color-swatch-wrapper,
+.conceal-color-row input[type="color"]::-webkit-color-swatch-wrapper,
+.color-picker-button input[type="color"]::-webkit-color-swatch-wrapper {
   padding: 0;
 }
 
-.stacked-field input[type="color"]::-webkit-color-swatch {
+.stacked-field input[type="color"]::-webkit-color-swatch,
+.control-row input[type="color"]::-webkit-color-swatch,
+.conceal-color-row input[type="color"]::-webkit-color-swatch,
+.color-picker-button input[type="color"]::-webkit-color-swatch {
   border: none;
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
 }
 
 .stacked-field textarea {
@@ -1766,13 +1770,6 @@ select:disabled {
   gap: 8px;
   color: var(--text-muted-color);
   font-size: 12px;
-}
-
-.conceal-color-row input[type="color"],
-.control-row input[type="color"] {
-  width: 34px;
-  height: 24px;
-  padding: 0;
 }
 
 .watermark-style-row {

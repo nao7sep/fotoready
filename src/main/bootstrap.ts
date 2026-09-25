@@ -24,6 +24,7 @@ import {
 import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 import { applyThemePreference, followOsThemeChanges, windowBackground } from "./theme";
+import { revealWindow } from "./reveal-window";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
 // minimum both come from the shared layout metrics — never hand-typed literals (see
@@ -184,10 +185,7 @@ export async function bootstrap(): Promise<void> {
 
   await createWindow();
 
-  // macOS keeps the process running after the window closes; recreate only the
-  // window when the user re-activates, never re-run the init above.
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length !== 0) return;
+  const recreateWindow = (): void => {
     void createWindow().catch(async (error) => {
       logger.error("failed to recreate the renderer window", { mod: "main", err: error });
       try {
@@ -198,6 +196,20 @@ export async function bootstrap(): Promise<void> {
         app.exit(1);
       }
     });
+  };
+
+  // macOS keeps the process running after the window closes; recreate only the
+  // window when the user re-activates, never re-run the init above.
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length !== 0) return;
+    recreateWindow();
+  });
+
+  // A second launch exits at once (see index.ts); this instance answers by coming forward.
+  app.on("second-instance", () => {
+    const [win] = BrowserWindow.getAllWindows();
+    if (win) revealWindow(win);
+    else recreateWindow();
   });
 }
 
@@ -245,9 +257,7 @@ function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClos
 
   function requestClose(mode: "window" | "quit"): void {
     if (win.webContents.isDestroyed()) return;
-    if (win.isMinimized()) win.restore();
-    if (!win.isVisible()) win.show();
-    win.focus();
+    revealWindow(win);
     if (closeRequestPending) return;
     closeRequestPending = true;
     closeRequestMode = mode;

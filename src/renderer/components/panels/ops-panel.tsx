@@ -9,7 +9,7 @@ import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@share
 import { isTaskEditable } from "@shared/task-editing";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
-import { useDraftField } from "@renderer/components/useDraftField";
+import { useCommitDraftField } from "@renderer/components/useDraftField";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { OwnedFailureList } from "@renderer/components/owned-failure-list";
 import type { OwnedFailures } from "@renderer/owned-failures";
@@ -385,9 +385,10 @@ function OutputControls({
   onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
 }): React.JSX.Element {
   const continuousHistory = useContinuousControlHistoryScope("output");
-  const slugField = useDraftField<HTMLInputElement>(
+  // Each slug change rewrites the saved output's sidecar, so it commits on Enter or blur, not per keystroke.
+  const slugField = useCommitDraftField<HTMLInputElement>(
     task?.customSlug ?? "",
-    (value) => onCustomSlugChange(value || null),
+    (value) => onCustomSlugChange(value.trim() || null),
     `${task?.id ?? "no-task"}:customSlug`,
   );
   const resolvedFormat = task && original ? resolveOutputFormat(task.pipeline.output.format, original.format) : null;
@@ -558,7 +559,7 @@ function OutputControls({
       ) : null}
       <label className="stacked-field">
         Rename slug
-        <input ref={slugField.ref} disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" value={slugField.value} onChange={slugField.onChange} />
+        <input {...slugField} disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" />
       </label>
     </div>
   );

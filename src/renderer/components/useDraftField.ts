@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type RefObject, type SetStateAction } from "react";
+import { useImeGuard, type ImeCompositionProps } from "@renderer/utils/ime-guard";
 
 /**
  * Backs a free-text input or textarea with a synchronous local draft, for fields
@@ -23,6 +24,57 @@ export function useDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
   value: string;
   onChange: (event: ChangeEvent<T>) => void;
 } {
+  const { ref, draft, setDraft } = useDraft<T>(external, identity);
+  return {
+    ref,
+    value: draft,
+    onChange: (event) => {
+      const next = event.currentTarget.value;
+      setDraft(next);
+      push(next);
+    },
+  };
+}
+
+/**
+ * A draft field that commits once, on Enter or when focus leaves, instead of on every keystroke —
+ * for a value whose every change writes a file. Enter that ends an IME composition accepts the
+ * candidate and does not commit. An unchanged draft commits nothing.
+ */
+export function useCommitDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
+  external: string,
+  commit: (value: string) => void,
+  identity: string,
+): {
+  ref: RefObject<T | null>;
+  value: string;
+  onChange: (event: ChangeEvent<T>) => void;
+  onBlur: () => void;
+  onKeyDown: (event: KeyboardEvent<T>) => void;
+} & ImeCompositionProps {
+  const { ref, draft, setDraft } = useDraft<T>(external, identity);
+  const ime = useImeGuard();
+  const commitDraft = () => {
+    if (draft !== external) commit(draft);
+  };
+  return {
+    ref,
+    value: draft,
+    ...ime.compositionProps,
+    onChange: (event) => setDraft(event.currentTarget.value),
+    onBlur: commitDraft,
+    onKeyDown: (event) => {
+      if (event.key !== "Enter" || ime.isComposing(event)) return;
+      event.preventDefault();
+      commitDraft();
+    },
+  };
+}
+
+function useDraft<T extends HTMLInputElement | HTMLTextAreaElement>(
+  external: string,
+  identity: string,
+): { ref: RefObject<T | null>; draft: string; setDraft: Dispatch<SetStateAction<string>> } {
   const ref = useRef<T>(null);
   const identityRef = useRef(identity);
   const [draft, setDraft] = useState(external);
@@ -36,13 +88,5 @@ export function useDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
     if (document.activeElement !== ref.current) setDraft(external);
   }, [external, identity]);
 
-  return {
-    ref,
-    value: draft,
-    onChange: (event) => {
-      const next = event.currentTarget.value;
-      setDraft(next);
-      push(next);
-    },
-  };
+  return { ref, draft, setDraft };
 }

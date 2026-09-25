@@ -46,6 +46,10 @@ export class ProjectSession {
   #previewService: PreviewService;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
   #originalImportTail: Promise<unknown> = Promise.resolve();
+  // Every change to saved output files after the save itself — sidecar rewrites, rename, deletion —
+  // runs through this one lane, in order, so no two of them interleave on the same files.
+  #outputFilesTail: Promise<unknown> = Promise.resolve();
+  #closing = false;
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -296,24 +300,24 @@ export class ProjectSession {
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
-    if (!task.output) {
-      return this.snapshot();
-    }
-    if (task.visionRunning) {
-      throw new Error("This saved file is being analyzed. Wait for the description to finish before deleting it.");
-    }
+    await this.#serializeOutputFiles(async () => {
+      if (!task.output) return;
+      if (task.visionRunning) {
+        throw new Error("This saved file is being analyzed. Wait for the description to finish before deleting it.");
+      }
 
-    await deleteSelectedFiles([
-      task.output.finalPath,
-      task.output.finalParamsPath,
-      task.output.stagedPath,
-      task.output.stagedParamsPath
-    ].filter((filePath): filePath is string => typeof filePath === "string"));
+      await deleteSelectedFiles([
+        task.output.finalPath,
+        task.output.finalParamsPath,
+        task.output.stagedPath,
+        task.output.stagedParamsPath
+      ].filter((filePath): filePath is string => typeof filePath === "string"));
 
-    task.status = "not-saved";
-    task.output = null;
-    task.error = null;
-    task.updatedAt = nowIso();
+      task.status = "not-saved";
+      task.output = null;
+      task.error = null;
+      task.updatedAt = nowIso();
+    });
     return this.snapshot();
   }
 
@@ -410,8 +414,9 @@ export class ProjectSession {
    * and remove their unfinished files. The caller bounds how long it waits.
    */
   async shutdown(): Promise<void> {
+    this.#closing = true;
     this.visionQueue.cancelAll();
-    await this.processingQueue.shutdown();
+    await Promise.all([this.processingQueue.shutdown(), this.#outputFilesTail]);
   }
 
   queueSnapshot(): QueueSnapshot {
@@ -617,7 +622,7 @@ export class ProjectSession {
 
   async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenameRunResult> {
     try {
-      const completedTaskIds = await runRename(this.#project, templateId, taskIds, this.logger);
+      const completedTaskIds = await this.#serializeOutputFiles(() => runRename(this.#project, templateId, taskIds, this.logger));
       return { snapshot: this.snapshot(), status: "complete", completedTaskIds };
     } catch (error) {
       this.logger?.error("rename batch stopped", { mod: "rename", err: error });
@@ -699,17 +704,18 @@ export class ProjectSession {
     return task;
   }
 
+  /** Rewrites the sidecar from the task's current state beside its current output. Runs inside the output-files lane. */
   private async writeOutputSidecarIfSaved(task: Task): Promise<void> {
     const original = this.#project.originals.find((item) => item.id === task.originalId);
     if (!task.output || !original) return;
-    const outputPath = task.output.finalPath ?? task.output.stagedPath;
-    const paramsPath = await writeTaskSidecarFile(outputPath, original, task, task.pipeline);
-    task.output.stagedPath = outputPath;
-    task.output.stagedParamsPath = paramsPath;
-    if (task.output.finalPath) {
-      task.output.finalPath = outputPath;
-      task.output.finalParamsPath = paramsPath;
-    }
+    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline);
+  }
+
+  #serializeOutputFiles<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#closing) return Promise.reject(new Error("FotoReady is closing; saved files are no longer changed."));
+    const run = this.#outputFilesTail.then(work, work);
+    this.#outputFilesTail = run.catch(() => undefined);
+    return run;
   }
 
   private async updateTaskMetadata(task: Task, update: () => void): Promise<void> {
@@ -725,15 +731,20 @@ export class ProjectSession {
    * state owned by other work (status, running flags, output paths) is never rolled back with it.
    */
   private async commitTaskMetadata(task: Task, apply: () => boolean): Promise<boolean> {
-    const before = captureTaskMetadata(task);
-    if (!apply()) return false;
-    try {
-      await this.writeOutputSidecarIfSaved(task);
-    } catch (error) {
-      restoreTaskMetadata(task, before);
-      throw error;
-    }
-    return true;
+    if (!task.output) return apply();
+    // In the lane, each change applies and persists in turn: the sidecar always holds the latest
+    // state, and a failed write rolls back only its own change, never a later one.
+    return this.#serializeOutputFiles(async () => {
+      const before = captureTaskMetadata(task);
+      if (!apply()) return false;
+      try {
+        await this.writeOutputSidecarIfSaved(task);
+      } catch (error) {
+        restoreTaskMetadata(task, before);
+        throw error;
+      }
+      return true;
+    });
   }
 
   private recordTaskEdit(task: Task, options?: TaskEditOptions): void {

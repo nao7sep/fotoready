@@ -132,3 +132,63 @@ function original(): Original {
     addedAt: "2026-09-01T00:00:00.000Z"
   };
 }
+
+describe("ProjectSession sidecar write ordering", () => {
+  it("writes one sidecar at a time, each from the state current when it runs", async () => {
+    const { session, task } = savedSession();
+    const gates: Array<() => void> = [];
+    const written: Array<string | null> = [];
+    mocks.writeTaskSidecarFile.mockImplementation(async (...args: unknown[]) => {
+      written.push((args[2] as Task).customSlug);
+      await new Promise<void>((resolve) => gates.push(resolve));
+      return "/output/photo-fotoready.json";
+    });
+
+    const first = session.setCustomSlug(task.id, "harbor");
+    const second = session.setCustomSlug(task.id, "harbor-sunset");
+    await flush();
+    expect(written).toEqual(["harbor"]);
+
+    gates.shift()!();
+    await first;
+    await flush();
+    expect(written).toEqual(["harbor", "harbor-sunset"]);
+    gates.shift()!();
+    await second;
+    expect(task.customSlug).toBe("harbor-sunset");
+  });
+
+  it("rolls back only its own change when an earlier write fails", async () => {
+    const { session, task } = savedSession();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+
+    const first = session.setCustomSlug(task.id, "harbor");
+    const second = session.setCustomSlug(task.id, "harbor-sunset");
+
+    await expect(first).rejects.toBe(persistenceFailure);
+    await second;
+    expect(task.customSlug).toBe("harbor-sunset");
+  });
+
+  it("never writes back an output path that a rename changed while the sidecar was written", async () => {
+    const { session, task } = savedSession();
+    let release!: () => void;
+    mocks.writeTaskSidecarFile.mockImplementation(async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return "/output/photo-fotoready.json";
+    });
+
+    const pending = session.setCustomSlug(task.id, "harbor");
+    await flush();
+    task.output!.finalPath = "/output/harbor.jpg";
+    task.output!.stagedPath = "/output/harbor.jpg";
+    release();
+    await pending;
+
+    expect(task.output).toMatchObject({ finalPath: "/output/harbor.jpg", stagedPath: "/output/harbor.jpg" });
+  });
+});
+
+async function flush(): Promise<void> {
+  for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+}

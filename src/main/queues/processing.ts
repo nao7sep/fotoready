@@ -21,7 +21,8 @@ export async function processTask(
   settings: GlobalSettings,
   onUpdate: (() => void | Promise<void>) | undefined,
   workerPool: PipelineWorkerPool,
-  logger?: AppLogger
+  logger?: AppLogger,
+  signal?: AbortSignal
 ): Promise<void> {
   const task = project.tasks.find((item) => item.id === taskId);
   if (!task) {
@@ -41,25 +42,35 @@ export async function processTask(
   task.updatedAt = nowIso();
   await onUpdate?.();
 
+  // The image is rendered and given its metadata under a temporary name in the output folder, and
+  // takes its final name only when complete. Until then nothing in the folder looks like an output,
+  // so a quit or crash mid-save never leaves a truncated image or one still carrying stripped tags.
+  let tempPath: string | null = null;
   let writtenOutputPath: string | null = null;
   try {
     const sourcePath = original.sourcePath;
     const outputPath = await stagedOutputPath(project, task, original, sourcePath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    tempPath = temporaryOutputPath(outputPath);
 
-    const result = await processOutputPipeline(task.pipeline, sourcePath, original, outputPath, settings, workerPool);
+    const result = await processOutputPipeline(task.pipeline, sourcePath, original, tempPath, settings, workerPool, signal);
 
     if (result.kind !== "file") {
       throw new Error("Processing did not produce an output file.");
     }
-    writtenOutputPath = result.outputPath;
+    signal?.throwIfAborted();
 
     const savedAt = new Date();
-    const finalFacts = await applyMetadataPolicy(result.outputPath, sourcePath, task, settings, savedAt);
+    const finalFacts = await applyMetadataPolicy(tempPath, sourcePath, task, settings, savedAt);
+    signal?.throwIfAborted();
+
+    await publishOutput(tempPath, outputPath);
+    tempPath = null;
+    writtenOutputPath = outputPath;
 
     task.pipeline = result.appliedPipeline;
     task.output = {
-      stagedPath: result.outputPath,
+      stagedPath: outputPath,
       stagedParamsPath: "",
       stagedAt: savedAt.toISOString(),
       outputHash: finalFacts.outputHash,
@@ -68,7 +79,7 @@ export async function processTask(
       finalParamsPath: null,
       renamedAt: null
     };
-    task.output.stagedParamsPath = await writeTaskSidecarFile(result.outputPath, original, task, result.appliedPipeline);
+    task.output.stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline);
     // Publish `saved` only after every output artifact is complete. Until the sidecar write lands, the
     // task remains `processing`, which also keeps task/original removal from dropping ownership of work
     // that can still mutate the filesystem.
@@ -77,15 +88,16 @@ export async function processTask(
     logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
     await onUpdate?.();
   } catch (error) {
-    if (writtenOutputPath) {
+    for (const strandedPath of [tempPath, writtenOutputPath]) {
+      if (!strandedPath) continue;
       try {
-        await fs.rm(writtenOutputPath, { force: true });
-        await fs.rm(`${writtenOutputPath}_original`, { force: true });
+        await fs.rm(strandedPath, { force: true });
+        await fs.rm(`${strandedPath}_original`, { force: true });
       } catch (cleanupError) {
         logger?.warn("failed to remove stranded output file after a processing failure", {
           mod: "processing",
           taskId: task.id,
-          outputPath: writtenOutputPath,
+          outputPath: strandedPath,
           err: cleanupError
         });
       }
@@ -110,11 +122,25 @@ async function processOutputPipeline(
   original: { size: number; format: string; jpegQualityEstimate: number | null },
   outputPath: string,
   settings: GlobalSettings,
-  workerPool: PipelineWorkerPool
+  workerPool: PipelineWorkerPool,
+  signal: AbortSignal | undefined
 ): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
   const resolved = resolvePipelineForSave(pipeline, original, settings);
-  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved });
+  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal });
   return { ...result, kind: "file" };
+}
+
+/** `<stem>-<nanoid>.tmp` beside the final output (derived-filename grammar). */
+function temporaryOutputPath(outputPath: string): string {
+  return path.join(path.dirname(outputPath), `${path.parse(outputPath).name}-${nanoid(8)}.tmp`);
+}
+
+async function publishOutput(tempPath: string, outputPath: string): Promise<void> {
+  try {
+    await fs.rename(tempPath, outputPath);
+  } catch (error) {
+    throw new PipelineError("io", `Failed to move the finished output into place. ${errorMessage(error)}`);
+  }
 }
 
 async function applyMetadataPolicy(outputPath: string, sourcePath: string, task: Task, settings: GlobalSettings, savedAt: Date): Promise<{ outputHash: string }> {

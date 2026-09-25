@@ -22,6 +22,8 @@ export class PipelineWorkerPool {
     sourcePath: string;
     pipeline: Pipeline;
     outputPath: string;
+    /** Aborting ends the render at once; the worker thread is replaced. */
+    signal?: AbortSignal;
   }): Promise<Extract<WorkerResult, { kind: "process" }>> {
     const result = await this.run({
       jobId: nanoid(),
@@ -30,7 +32,7 @@ export class PipelineWorkerPool {
       pipeline: input.pipeline,
       outputPath: input.outputPath,
       previewLongEdge: null
-    });
+    }, input.signal);
     if (result.kind !== "process") throw new Error("Worker returned a non-process result.");
     return result;
   }
@@ -74,8 +76,8 @@ export class PipelineWorkerPool {
     await this.#pool.destroy();
   }
 
-  private async run(job: WorkerJob): Promise<WorkerResult> {
-    const result = await (this.#pool.run(job) as Promise<WorkerResult>);
+  private async run(job: WorkerJob, signal?: AbortSignal): Promise<WorkerResult> {
+    const result = await (this.#pool.run(job, { signal }) as Promise<WorkerResult>);
     if (result.kind === "error") {
       // Rebuild a typed error in the main process from the category the worker carried
       // across the boundary, preserving the original failure stack for diagnostics.

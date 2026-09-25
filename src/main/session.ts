@@ -405,6 +405,15 @@ export class ProjectSession {
     return this.snapshot();
   }
 
+  /**
+   * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are aborted
+   * and remove their unfinished files. The caller bounds how long it waits.
+   */
+  async shutdown(): Promise<void> {
+    this.visionQueue.cancelAll();
+    await this.processingQueue.shutdown();
+  }
+
   queueSnapshot(): QueueSnapshot {
     return this.processingQueue.snapshot(this.#project);
   }

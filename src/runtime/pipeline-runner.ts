@@ -56,9 +56,9 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     const outputPath = ctx.outputPath;
     const encoded = await runPhase("encode", () => applyOutputEncoding(work, pipeline.output).toBuffer());
     // not recorded: this is the rendered OUTPUT image — a binary the app writes for the user to keep, not
-    // managed text the app reloads as its own state. It is a plain (non-atomic) write that never touches the
-    // managed-text choke point, so it never reaches the backup hook (data-backup conventions: binaries and
-    // harvest-then-keep output are excluded by write-path).
+    // managed text the app reloads as its own state. It never touches the managed-text choke point, so it
+    // never reaches the backup hook (data-backup conventions: binaries and harvest-then-keep output are
+    // excluded by write-path). A save passes a temporary name here and publishes the file itself.
     await runPhase("io", () => fs.writeFile(outputPath, encoded));
     return {
       kind: "file",

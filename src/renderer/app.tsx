@@ -371,7 +371,9 @@ function App(): React.JSX.Element {
         if (hasWorkspaceWork(project, queue)) {
           const close = await confirmer.confirm({
             title: "Close FotoReady?",
-            message: "Close and discard the current workspace?",
+            message: queue.queued + queue.processing > 0
+              ? "Close and discard the current workspace? Saves still in progress are cancelled, and their unfinished files are removed."
+              : "Close and discard the current workspace?",
             confirmLabel: "Close",
             danger: true
           });

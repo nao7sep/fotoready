@@ -126,9 +126,22 @@ export async function bootstrap(): Promise<void> {
 
   // One launch = one log file. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
-  app.once("will-quit", () => {
+  // Quitting holds the exit until in-flight saves are cancelled and have removed their
+  // unfinished files, for at most SHUTDOWN_WAIT_MS, then quits for real.
+  let shutdown: "running" | "stopping" | "done" = "running";
+  app.on("will-quit", (event) => {
+    if (shutdown === "done") return;
+    event.preventDefault();
+    if (shutdown === "stopping") return;
+    shutdown = "stopping";
     logger.info("app stopping", { mod: "main", reason: exitState.reason });
-    void pipelineWorkerPool.destroy();
+    void (async () => {
+      const finished = await settleWithin(projectSession.shutdown(), SHUTDOWN_WAIT_MS);
+      if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
+      await settleWithin(pipelineWorkerPool.destroy(), SHUTDOWN_WAIT_MS);
+      shutdown = "done";
+      app.quit();
+    })();
   });
 
   const createWindow = async (): Promise<void> => {
@@ -186,6 +199,20 @@ export async function bootstrap(): Promise<void> {
       }
     });
   });
+}
+
+/** How long quitting waits for in-flight saves to stop and clean up before exiting anyway. */
+const SHUTDOWN_WAIT_MS = 10_000;
+
+/** Resolves true when `work` settles within `ms`, false when the wait runs out first. Never rejects. */
+async function settleWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), ms); });
+  try {
+    return await Promise.race([work.then(() => true, () => true), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Two URLs share an origin (file: URLs both report origin "null", so same-origin local navigation

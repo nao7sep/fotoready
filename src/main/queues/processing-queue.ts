@@ -17,7 +17,8 @@ export type TaskProcessor = (
   settings: GlobalSettings,
   onUpdate: (() => void | Promise<void>) | undefined,
   workerPool: PipelineWorkerPool,
-  logger?: AppLogger
+  logger?: AppLogger,
+  signal?: AbortSignal
 ) => Promise<void>;
 
 /** The state of one scheduled-but-not-yet-started save. Its cancel flag is owned by exactly one job. */
@@ -37,7 +38,9 @@ export class ProcessingQueue {
   #onUpdate: (() => void | Promise<void>) | null;
   #afterTaskProcessed: ((taskId: string) => void | Promise<void>) | null = null;
   #pending = new Map<string, PendingJob>();
-  #active = new Set<string>();
+  // Each running save's abort handle, so shutting down can stop it mid-render.
+  #active = new Map<string, AbortController>();
+  #closed = false;
 
   constructor(
     workerPoolSize: number,
@@ -60,6 +63,7 @@ export class ProcessingQueue {
   }
 
   async enqueueTask(project: Project, taskId: string): Promise<void> {
+    if (this.#closed) throw new Error("FotoReady is closing; no new saves start.");
     if (this.#active.has(taskId)) return;
 
     const existing = this.#pending.get(taskId);
@@ -77,11 +81,12 @@ export class ProcessingQueue {
         await this.#onUpdate?.();
         return;
       }
-      this.#active.add(taskId);
+      const controller = new AbortController();
+      this.#active.set(taskId, controller);
       await this.#onUpdate?.();
       try {
-        await this.processor(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool, this.logger);
-        await this.#afterTaskProcessed?.(taskId);
+        await this.processor(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool, this.logger, controller.signal);
+        if (!controller.signal.aborted) await this.#afterTaskProcessed?.(taskId);
       } catch (error) {
         this.logger?.error("queued task failed outside task processor", { mod: "processing.queue", taskId, err: error });
         throw error;
@@ -105,8 +110,19 @@ export class ProcessingQueue {
     return cancelled;
   }
 
+  /**
+   * Stops for quit: cancels every waiting save, aborts the running ones, and resolves once each has
+   * removed its unfinished files. The caller bounds how long it waits.
+   */
+  async shutdown(): Promise<void> {
+    this.#closed = true;
+    this.cancelAll();
+    for (const controller of this.#active.values()) controller.abort();
+    await this.#queue.onIdle();
+  }
+
   snapshot(project: Project): QueueSnapshot {
-    const active = Array.from(this.#active);
+    const active = Array.from(this.#active.keys());
     const base = queueSnapshotFromProject(project, active[0] ?? null);
     return {
       ...base,

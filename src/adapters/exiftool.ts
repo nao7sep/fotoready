@@ -58,20 +58,20 @@ const EDITORIAL_TAGS = [
 
 // Fields that no longer describe the output after this app re-encodes the image.
 // Always cleared regardless of strip policy.
-const ALWAYS_STALE_TAGS = {
-  ThumbnailImage: null,
-  PreviewImage: null,
-  JpgFromRaw: null,
-  Orientation: null,
-  ImageWidth: null,
-  ImageHeight: null,
-  ExifImageWidth: null,
-  ExifImageHeight: null,
-  PixelXDimension: null,
-  PixelYDimension: null,
-  ICC_Profile: null,
-  "MakerNotes:all": null
-} as unknown as WriteTags;
+const ALWAYS_STALE_TAGS = [
+  "ThumbnailImage",
+  "PreviewImage",
+  "JpgFromRaw",
+  "Orientation",
+  "ImageWidth",
+  "ImageHeight",
+  "ExifImageWidth",
+  "ExifImageHeight",
+  "PixelXDimension",
+  "PixelYDimension",
+  "ICC_Profile",
+  "MakerNotes:all"
+] as const;
 
 export type ApplyMetadataInput = {
   outputPath: string;
@@ -92,51 +92,43 @@ export type ApplyMetadataInput = {
  * `injectFields` are written last and win over any same-named source values.
  */
 export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<void> {
-  const { outputPath, sourcePath, stripActive, keep, injectFields, savedAt, writeSoftwareTag, writeModifyDate } = input;
-  const modifyDate = exifDate(savedAt);
-
   // not recorded: ExifTool mutates the generated output image and may create its
   // disposable `_original` binary; output is harvested by the user, not reloaded as app data.
 
-  // Pass 1: copy every tag from the source. Use a no-op write target (just the args)
-  // when both stamps are off — exiftool-vendored requires the tags object, but it can
-  // be empty as long as the args carry the -TagsFromFile copy.
-  const pass1Tags: Record<string, string> = {};
-  if (writeSoftwareTag) pass1Tags.Software = APP_SOFTWARE_TAG;
-  if (writeModifyDate) pass1Tags.ModifyDate = modifyDate;
-  await exiftool.write(
-    outputPath,
-    pass1Tags as WriteTags,
-    ["-TagsFromFile", sourcePath, "-all:all", "-overwrite_original"]
-  );
-  await removeExiftoolOriginal(outputPath);
+  // One invocation copies the source tags and clears what must not survive, so no file on disk
+  // ever holds a group the task strips (GPS above all), even if the app stops between steps.
+  // exiftool-vendored needs a tags object; an empty one leaves every edit to the ordered args.
+  await exiftool.write(input.outputPath, {} as WriteTags, metadataCopyArgs(input));
+  await removeExiftoolOriginal(input.outputPath);
 
-  // Pass 2: clear always-stale tags + any user-requested strip groups.
-  const cleanup: Record<string, string | null> = { ...(ALWAYS_STALE_TAGS as Record<string, null>) };
+  // Inject user-configured fields. Their values are user text, so they go through
+  // exiftool-vendored's encoding rather than raw arguments.
+  if (Object.keys(input.injectFields).length > 0) {
+    await injectMetadata(input.outputPath, input.injectFields);
+  }
+}
+
+/**
+ * The ordered arguments of the copy-and-clean invocation. ExifTool applies an assignment that
+ * follows `-TagsFromFile` after the copy, so every clear and stamp here overrides a copied value.
+ * Values are constants and dates only: exiftool-vendored passes these arguments unencoded.
+ */
+export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | "injectFields">): string[] {
+  const { sourcePath, stripActive, keep, savedAt, writeSoftwareTag, writeModifyDate } = input;
+  const clear = (tag: string) => `-${tag}=`;
+  const args = ["-TagsFromFile", sourcePath, "-all:all"];
+  args.push(...ALWAYS_STALE_TAGS.map(clear));
   if (stripActive) {
-    if (!keep.includes("editorial")) {
-      for (const tag of EDITORIAL_TAGS) cleanup[tag] = null;
-    }
-    if (!keep.includes("dates")) {
-      cleanup.DateTimeOriginal = null;
-      cleanup.CreateDate = null;
-    }
-    if (!keep.includes("gps")) {
-      cleanup["GPS:all"] = null;
-    }
+    if (!keep.includes("editorial")) args.push(...EDITORIAL_TAGS.map(clear));
+    if (!keep.includes("dates")) args.push(clear("DateTimeOriginal"), clear("CreateDate"));
+    // Coordinates live in the GPS IFD and may be mirrored in XMP; both go.
+    if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"));
   }
-  // Re-stamp or clear Software/ModifyDate. When off, explicitly null so any source
-  // value doesn't leak through. When on, re-stamp in case Pass 1's copy clobbered them.
-  cleanup.Software = writeSoftwareTag ? APP_SOFTWARE_TAG : null;
-  cleanup.ModifyDate = writeModifyDate ? modifyDate : null;
-
-  await exiftool.write(outputPath, cleanup as unknown as WriteTags, ["-overwrite_original"]);
-  await removeExiftoolOriginal(outputPath);
-
-  // Pass 3: inject user-configured fields.
-  if (Object.keys(injectFields).length > 0) {
-    await injectMetadata(outputPath, injectFields);
-  }
+  // Re-stamp or clear Software/ModifyDate. When off, clear explicitly so a source value doesn't leak through.
+  args.push(writeSoftwareTag ? `-Software=${APP_SOFTWARE_TAG}` : clear("Software"));
+  args.push(writeModifyDate ? `-ModifyDate=${exifDate(savedAt)}` : clear("ModifyDate"));
+  args.push("-overwrite_original");
+  return args;
 }
 
 export async function readSourceMetadataSummary(sourcePath: string, logger?: Logger): Promise<SourceMetadataSummary> {

@@ -12,25 +12,65 @@ import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
 import { ApiError } from "@google/genai";
 
-/** The state of one scheduled-but-not-yet-started vision run. Its cancel flag is owned by one job. */
-type PendingVisionJob = { cancelled: boolean };
+/** What a vision request was computed from: the saved output it describes and the slug the user had. */
+type VisionBasis = { outputKey: string; customSlug: string | null };
 
+/**
+ * One scheduled vision run. Until it starts, a newer request for the same task updates it in place
+ * (mode, basis, cancel flag) instead of scheduling a second run.
+ */
+type VisionJob = { mode: VisionRunMode; basis: VisionBasis; cancelled: boolean; done: Promise<void> };
+
+/** The provider calls a vision run makes. Injectable so scheduling and commit rules are testable without Gemini. */
+export type VisionProvider = Pick<GeminiVisionProvider, "describeImage" | "suggestSlugs">;
+
+export type VisionQueueDeps = {
+  createProvider(apiKey: string): VisionProvider;
+  prepareInput(stagedPath: string, longEdge: number): Promise<Buffer>;
+};
+
+/**
+ * Applies a vision result to its task and persists it. `apply` re-checks that the result is still
+ * current and returns false to decline; the commit then changes nothing and resolves false.
+ */
+export type VisionCommit = (task: Task, apply: () => boolean) => Promise<boolean>;
+
+const defaultDeps: VisionQueueDeps = {
+  createProvider: (apiKey) => new GeminiVisionProvider(apiKey),
+  prepareInput: prepareVisionInput
+};
+
+/**
+ * Runs paid vision calls through a bounded queue, at most one run per task at a time.
+ *
+ * The queue owns `task.visionRunning` and `task.visionRunMode`: they turn on when a run is scheduled
+ * and off only when the task's last run settles. A run commits a result only while the saved output it
+ * was requested for is still the task's output, and replaces the custom slug only if the user left it
+ * as it was when the run was requested.
+ */
 export class VisionQueue {
   #apiKeys: ApiKeyStore;
   #queue: PQueue;
   #currentConcurrency: number;
-  // Cancellation is bound to the specific scheduled job, not a shared task-keyed set, so a fresh
-  // run for a task whose job is still pending revives it rather than being swallowed then skipped.
-  #pending = new Map<string, PendingVisionJob>();
+  #deps: VisionQueueDeps;
+  // Scheduled runs that have not started. Cancellation is bound to the specific job, so a fresh request
+  // for a task whose job is still pending revives it rather than being swallowed and then skipped.
+  #pending = new Map<string, VisionJob>();
+  // The settle promise of each task's latest run; a new run for the task starts only after it.
+  #tails = new Map<string, Promise<void>>();
+  // Runs per task that have not settled (at most one running plus one pending).
+  #outstanding = new Map<string, number>();
 
   constructor(
     paths: AppPaths,
     private readonly settings: GlobalSettings,
-    private readonly logger?: AppLogger
+    private readonly logger?: AppLogger,
+    deps: VisionQueueDeps = defaultDeps
   ) {
     this.#apiKeys = new ApiKeyStore(paths.apiKeysPath, logger);
     this.#currentConcurrency = Math.max(1, settings.visionConcurrency);
     this.#queue = new PQueue({ concurrency: this.#currentConcurrency });
+    this.#deps = deps;
   }
 
   async setGeminiApiKey(value: string): Promise<void> {
@@ -45,31 +85,47 @@ export class VisionQueue {
     await this.#apiKeys.clear(["gemini"]);
   }
 
-  async runForTask(
-    project: Project,
-    taskId: string,
-    options?: VisionRunOptions,
-    onProgress?: () => void | Promise<void>
-  ): Promise<void> {
+  /**
+   * Schedules a vision run and resolves when it settles. The task's running flags are set before the
+   * first await, so a caller may publish them right after calling.
+   */
+  runForTask(project: Project, taskId: string, options: VisionRunOptions | undefined, commit: VisionCommit): Promise<void> {
     const task = project.tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Task not found: ${taskId}`);
-    if (!task.output) throw new Error("Task must be saved before vision can run.");
+    if (!task) return Promise.reject(new Error(`Task not found: ${taskId}`));
+    if (!task.output) return Promise.reject(new Error("Task must be saved before vision can run."));
     const mode = resolveVisionRunMode(task, options);
-    if (!mode) return;
+    if (!mode) return Promise.resolve();
+
+    const basis: VisionBasis = { outputKey: outputKey(task.output), customSlug: task.customSlug };
+    if (task.error?.stage === "vision") task.error = null;
+    task.visionRunning = true;
+    task.visionRunMode = mode;
+    task.updatedAt = nowIso();
 
     const existing = this.#pending.get(taskId);
     if (existing) {
+      // The newest request supersedes the one still waiting, including a prior cancel of it.
+      existing.mode = mode;
+      existing.basis = basis;
       existing.cancelled = false;
-      return;
+      return existing.done;
     }
-    const job: PendingVisionJob = { cancelled: false };
+
+    const job: VisionJob = { mode, basis, cancelled: false, done: Promise.resolve() };
     this.#pending.set(taskId, job);
+    this.#outstanding.set(taskId, (this.#outstanding.get(taskId) ?? 0) + 1);
     this.#syncConcurrency();
-    await this.#queue.add(async () => {
-      this.#pending.delete(taskId);
-      if (job.cancelled) return;
-      await this.#runForTaskInner(task, mode, onProgress);
-    });
+    const previous = this.#tails.get(taskId) ?? Promise.resolve();
+    job.done = previous
+      .then(() => this.#queue.add(async () => {
+        this.#pending.delete(taskId);
+        if (job.cancelled) return;
+        task.visionRunMode = job.mode;
+        await this.#run(task, job, commit);
+      }))
+      .finally(() => this.#settle(task));
+    this.#tails.set(taskId, job.done);
+    return job.done;
   }
 
   cancelTask(taskId: string): boolean {
@@ -85,6 +141,20 @@ export class VisionQueue {
     return ids;
   }
 
+  #settle(task: Task): void {
+    const remaining = (this.#outstanding.get(task.id) ?? 1) - 1;
+    if (remaining > 0) {
+      this.#outstanding.set(task.id, remaining);
+      task.visionRunMode = this.#pending.get(task.id)?.mode ?? task.visionRunMode;
+    } else {
+      this.#outstanding.delete(task.id);
+      this.#tails.delete(task.id);
+      task.visionRunning = false;
+      task.visionRunMode = null;
+    }
+    task.updatedAt = nowIso();
+  }
+
   #syncConcurrency(): void {
     const desired = Math.max(1, this.settings.visionConcurrency);
     if (desired !== this.#currentConcurrency) {
@@ -93,22 +163,21 @@ export class VisionQueue {
     }
   }
 
-  async #runForTaskInner(
-    task: Task,
-    mode: VisionRunMode,
-    onProgress?: () => void | Promise<void>
-  ): Promise<void> {
-    if (!task.output) return;
+  async #run(task: Task, job: VisionJob, commit: VisionCommit): Promise<void> {
+    const { mode, basis } = job;
+    // The saved output can be deleted, re-saved or renamed while the key is fetched or a Gemini call is
+    // in flight. A result belongs only to the output it was requested for.
+    const isCurrent = (): boolean => task.output !== null && outputKey(task.output) === basis.outputKey;
+    // The step a retry resumes from: once the description is committed, only the slug remains.
+    let remaining: VisionRunMode = mode;
     try {
+      if (!isCurrent()) return;
       const startedAt = performance.now();
       const apiKey = await this.#apiKeys.resolve(["gemini"]);
       if (!apiKey) {
         throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }
-      // The saved output can be deleted (or the task retried, which nulls task.output) while the key
-      // is fetched or a Gemini call is in flight. Re-validate before each post-await read/write of
-      // task.output and bail quietly — the output this result would describe no longer exists.
-      if (!task.output) return;
+      if (!task.output || !isCurrent()) return;
       this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, model: this.settings.model });
 
       const callOptions = {
@@ -116,12 +185,10 @@ export class VisionQueue {
         maxRetries: this.settings.visionMaxRetries,
         initialBackoffMs: this.settings.visionInitialBackoffMs
       };
-      const previousVision = task.output.vision;
-      const previousSlugCandidates = previousVision?.slugCandidates ?? [];
-      const provider = new GeminiVisionProvider(apiKey);
-      let description = previousVision?.description ?? "";
+      const provider = this.#deps.createProvider(apiKey);
+      let description = task.output.vision?.description ?? "";
       if (includesDescriptionGeneration(mode)) {
-        const imageBytes = await prepareVisionInput(task.output.stagedPath, this.settings.preResizeLongEdge);
+        const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, this.settings.preResizeLongEdge);
         description = await provider.describeImage(
           { imageBytes, mimeType: "image/jpeg" },
           {
@@ -131,16 +198,15 @@ export class VisionQueue {
           }
         );
         if (includesSlugGeneration(mode)) {
-          if (!task.output) return;
-          task.output.vision = {
-            description,
-            slugCandidates: [],
-            model: this.settings.model,
-            ranAt: nowIso()
-          };
-          task.error = null;
-          task.updatedAt = nowIso();
-          await onProgress?.();
+          const committed = await commit(task, () => {
+            if (!task.output || !isCurrent()) return false;
+            task.output.vision = { description, slugCandidates: [], model: this.settings.model, ranAt: nowIso() };
+            task.error = null;
+            task.updatedAt = nowIso();
+            return true;
+          });
+          if (!committed) return;
+          remaining = "slug";
         }
       } else if (!description.trim()) {
         throw new Error("Generate description first, then regenerate the slug.");
@@ -151,26 +217,40 @@ export class VisionQueue {
           slugPrompt: this.settings.visionSlugPrompt,
           ...callOptions
         })
-        : previousSlugCandidates;
-      if (!task.output) return;
-      task.output.vision = {
-        description,
-        slugCandidates,
-        model: this.settings.model,
-        ranAt: nowIso()
-      };
-      if (includesSlugGeneration(mode) && slugCandidates[0]) {
-        task.customSlug = slugCandidates[0];
-      }
-      task.error = null;
-      task.updatedAt = nowIso();
+        : null;
+      const committed = await commit(task, () => {
+        if (!task.output || !isCurrent()) return false;
+        task.output.vision = {
+          description,
+          slugCandidates: slugCandidates ?? task.output.vision?.slugCandidates ?? [],
+          model: this.settings.model,
+          ranAt: nowIso()
+        };
+        // A slug the user typed while the run was in flight is theirs; only an untouched one is replaced.
+        if (slugCandidates?.[0] && task.customSlug === basis.customSlug) {
+          task.customSlug = slugCandidates[0];
+        }
+        task.error = null;
+        task.updatedAt = nowIso();
+        return true;
+      });
+      if (!committed) return;
       this.logger?.info("vision completed", { mod: "vision", taskId: task.id, mode, ms: Math.round(performance.now() - startedAt) });
     } catch (error) {
-      task.error = visionError(error);
+      if (!isCurrent()) {
+        this.logger?.warn("vision failed for an output that is no longer current", { mod: "vision", taskId: task.id, mode, err: error });
+        return;
+      }
+      task.error = visionError(error, remaining);
       task.updatedAt = nowIso();
       this.logger?.error("vision task failed", { mod: "vision", taskId: task.id, mode, err: error });
     }
   }
+}
+
+/** Identifies one saved output; a re-save produces a new key even when it lands at the same path. */
+function outputKey(output: NonNullable<Task["output"]>): string {
+  return `${output.stagedAt}:${output.outputHash}`;
 }
 
 async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<Buffer> {
@@ -180,8 +260,11 @@ async function prepareVisionInput(stagedPath: string, longEdge: number): Promise
     .toBuffer();
 }
 
-/** Exported for tests — the classification is the interesting part, and a live call is a poor way to reach it. */
-export function visionError(error: unknown): TaskError {
+/**
+ * Exported for tests — the classification is the interesting part, and a live call is a poor way to reach it.
+ * `retryMode` is the step a Retry resumes from, so a failed slug step never pays for the description again.
+ */
+export function visionError(error: unknown, retryMode: VisionRunMode): TaskError {
   const known = error instanceof Error ? error : new Error(String(error));
   const presentation = classifyVisionFailure(error);
   return {
@@ -189,7 +272,8 @@ export function visionError(error: unknown): TaskError {
     message: presentation.message,
     detail: known.stack ?? null,
     occurredAt: nowIso(),
-    retryable: presentation.retryable
+    retryable: presentation.retryable,
+    retryMode
   };
 }
 

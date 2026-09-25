@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
-import type { Original, Project, Task } from "@shared/types/project";
+import type { Original, Project, Task, VisionResult } from "@shared/types/project";
 import { sha256Bytes } from "@runtime/hash";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
@@ -13,13 +13,12 @@ import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
 import { previewRename, RenameBatchStoppedError, runRename } from "@main/rename-service";
-import type { VisionQueue } from "@main/queues/vision";
+import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
 import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
-import { resolveVisionRunMode } from "@shared/vision-run-mode";
 import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
 import { nextMetadataFlags } from "@main/metadata-flags";
@@ -300,6 +299,9 @@ export class ProjectSession {
     if (!task.output) {
       return this.snapshot();
     }
+    if (task.visionRunning) {
+      throw new Error("This saved file is being analyzed. Wait for the description to finish before deleting it.");
+    }
 
     await deleteSelectedFiles([
       task.output.finalPath,
@@ -336,8 +338,9 @@ export class ProjectSession {
     }
 
     if (task.error?.stage === "vision" && task.status === "saved") {
-      task.error = null;
-      return this.runVision(taskId);
+      // Resume from the step that failed: a slug failure after a committed description retries the
+      // slug alone instead of paying for (and replacing) the description again.
+      return this.runVision(taskId, { mode: task.error.retryMode });
     }
 
     task.status = "not-saved";
@@ -624,36 +627,30 @@ export class ProjectSession {
   }
 
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
-    const task = this.#project.tasks.find((item) => item.id === taskId);
-    if (!task) {
-      throw new Error(`Task not found: ${taskId}`);
-    }
-    const mode = resolveVisionRunMode(task, options);
-    if (!mode) return this.snapshot();
-    task.visionRunning = true;
-    task.visionRunMode = mode;
-    if (task.error?.stage === "vision") task.error = null;
-    task.updatedAt = nowIso();
+    // The queue owns the task's running flags; they are already set when runForTask returns.
+    const run = this.visionQueue.runForTask(this.#project, taskId, options, this.#commitVision);
     await this.emitSnapshot();
     try {
-      await this.visionQueue.runForTask(this.#project, taskId, options, async () => {
-        await this.writeOutputSidecarIfSaved(task);
-        await this.emitSnapshot();
-      });
-      await this.writeOutputSidecarIfSaved(task);
+      await run;
     } finally {
-      task.visionRunning = false;
-      task.visionRunMode = null;
-      task.updatedAt = nowIso();
       await this.emitSnapshot();
     }
     return this.snapshot();
   }
 
+  #commitVision: VisionCommit = async (task, apply) => {
+    const committed = await this.commitTaskMetadata(task, apply);
+    if (committed) await this.emitSnapshot();
+    return committed;
+  };
+
   async clearVision(taskId: string): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
     const vision = task.output?.vision ?? null;
     if (!vision) return this.snapshot();
+    if (task.visionRunning) {
+      throw new Error("The description is still being generated. Wait for it to finish before clearing it.");
+    }
     await this.updateTaskMetadata(task, () => {
       if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
         task.customSlug = null;
@@ -713,14 +710,27 @@ export class ProjectSession {
   }
 
   private async updateTaskMetadata(task: Task, update: () => void): Promise<void> {
-    const before = task.output ? structuredClone(task) : null;
-    update();
+    await this.commitTaskMetadata(task, () => {
+      update();
+      return true;
+    });
+  }
+
+  /**
+   * Applies a metadata change and persists it to the saved output's sidecar. `apply` may decline by
+   * returning false. A failed write restores exactly the metadata fields this change could touch, so
+   * state owned by other work (status, running flags, output paths) is never rolled back with it.
+   */
+  private async commitTaskMetadata(task: Task, apply: () => boolean): Promise<boolean> {
+    const before = captureTaskMetadata(task);
+    if (!apply()) return false;
     try {
       await this.writeOutputSidecarIfSaved(task);
     } catch (error) {
-      if (before) Object.assign(task, before);
+      restoreTaskMetadata(task, before);
       throw error;
     }
+    return true;
   }
 
   private recordTaskEdit(task: Task, options?: TaskEditOptions): void {
@@ -824,6 +834,35 @@ function touchTaskMetadata(task: Task): void {
   task.everEdited = true;
   task.updatedAt = nowIso();
   task.error = null;
+}
+
+type TaskMetadataState = Pick<Task, "generateDescription" | "generateSlug" | "customSlug" | "error" | "everEdited" | "updatedAt"> & {
+  output: Task["output"];
+  vision: VisionResult | null;
+};
+
+function captureTaskMetadata(task: Task): TaskMetadataState {
+  return {
+    generateDescription: task.generateDescription,
+    generateSlug: task.generateSlug,
+    customSlug: task.customSlug,
+    error: task.error,
+    everEdited: task.everEdited,
+    updatedAt: task.updatedAt,
+    output: task.output,
+    vision: task.output?.vision ?? null
+  };
+}
+
+function restoreTaskMetadata(task: Task, before: TaskMetadataState): void {
+  task.generateDescription = before.generateDescription;
+  task.generateSlug = before.generateSlug;
+  task.customSlug = before.customSlug;
+  task.error = before.error;
+  task.everEdited = before.everEdited;
+  task.updatedAt = before.updatedAt;
+  // The vision result belongs to the output it was captured from; a different output keeps its own.
+  if (task.output && task.output === before.output) task.output.vision = before.vision;
 }
 
 function metadataFieldsWithValues(fields: MetadataFields): MetadataFields {

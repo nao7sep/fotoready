@@ -42,13 +42,17 @@ export type TaskOutput = {
   renamedAt: string | null;
 };
 
-export type TaskError = {
-  stage: "processing" | "vision" | "rename";
+type TaskErrorBase = {
   message: string;
   detail: string | null;
   occurredAt: string;
   retryable: boolean;
 };
+
+export type TaskError =
+  | (TaskErrorBase & { stage: "processing" | "rename" })
+  /** `retryMode` is the step a vision Retry resumes from (a failed slug step does not redo the description). */
+  | (TaskErrorBase & { stage: "vision"; retryMode: VisionRunMode });
 
 export type Task = {
   id: string;

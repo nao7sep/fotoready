@@ -911,7 +911,7 @@ function App(): React.JSX.Element {
               </button>
             ) : null}
             {activeTask?.output ? (
-              <button className="inline-action danger" type="button" onClick={() => void runOwnedAction({ action: () => deleteSavedOutput(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete-output"), operation: "saved output deletion failed", setFailures: setEditorFailures, userMessage: "Some saved files may already be in Trash. Any files that could not be moved remain in the output folder; review both locations, then try again." })}>
+              <button className="inline-action danger" disabled={activeTask.visionRunning} type="button" onClick={() => void runOwnedAction({ action: () => deleteSavedOutput(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete-output"), operation: "saved output deletion failed", setFailures: setEditorFailures, userMessage: "Some saved files may already be in Trash. Any files that could not be moved remain in the output folder; review both locations, then try again." })}>
                 <Trash2 size={14} /> Delete saved file
               </button>
             ) : null}

@@ -109,7 +109,8 @@ function savedTask(): Task {
       message: "Previous vision result",
       detail: null,
       occurredAt: "2026-09-01T00:00:00.000Z",
-      retryable: true
+      retryable: true,
+      retryMode: "description"
     },
     everEdited: true,
     createdAt: "2026-09-01T00:00:00.000Z",

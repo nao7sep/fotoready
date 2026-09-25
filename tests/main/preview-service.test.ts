@@ -131,3 +131,24 @@ async function until(condition: () => boolean): Promise<void> {
   for (let i = 0; i < 100 && !condition(); i += 1) await new Promise((resolve) => setImmediate(resolve));
   if (!condition()) throw new Error("condition was not reached");
 }
+
+describe("PreviewService LUT previews", () => {
+  it("renders every LUT preview on the worker pool, never parsing a cube on the main process", async () => {
+    const { pool, stageCalls } = fakePool();
+    const service = new PreviewService(pool);
+    const project: Project = { outputDir: null, originals: [], tasks: [] };
+    const { task } = arrange(project);
+    task.pipeline.ops = [];
+    // Paths that do not exist: parsing either one here would fail the call.
+    const luts = [
+      { path: "/missing/one.cube", name: "one.cube", label: "One", source: "user" },
+      { path: "/missing/two.cube", name: "two.cube", label: "Two", source: "user" }
+    ] as unknown as Parameters<PreviewService["renderLutPreviews"]>[2];
+
+    const previews = await service.renderLutPreviews(project, task.id, luts, WIDTH, undefined, 0.5);
+
+    expect(previews.map((preview) => preview.path)).toEqual(["/missing/one.cube", "/missing/two.cube"]);
+    expect(stageCalls.map((call) => call.strength)).toEqual([0.5, 0.5]);
+    expect(await firstPixel(previews[0])).toBe(50);
+  });
+});

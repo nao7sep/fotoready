@@ -122,43 +122,30 @@ export class PreviewService {
       await this.renderStage(original, task, previewLongEdge, previewTargetStageIndex(task, options)),
       previewLongEdge
     );
-    const opPipeline: Pipeline = {
-      ...task.pipeline,
-      ops: []
-    };
-    const previews: LutPreviewEntry[] = [];
-    for (const lut of luts) {
-      const result = await runPipelineFromRaw(
-        {
-          ...opPipeline,
-          ops: [{
-            id: `lut-preview:${lut.path}`,
-            type: "lut",
-            enabled: true,
-            params: {
-              cubePath: lut.path,
-              strength
-            }
-          }]
-        },
-        { bytes: Buffer.from(base.data), width: base.width, height: base.height },
-        { resolveLut: loadCubeLut }
-      );
-      const png = await sharp(result.bytes, {
+    // Each LUT renders on the worker pool like any op stage, so parsing a large .cube and the per-pixel
+    // lookup never run on the main process, and several LUTs render at once.
+    return Promise.all(luts.map(async (lut): Promise<LutPreviewEntry> => {
+      const op: OpInstance = {
+        id: `lut-preview:${lut.path}`,
+        type: "lut",
+        enabled: true,
+        params: { cubePath: lut.path, strength }
+      };
+      const result = await this.renderOpStage(base, op, task.pipeline);
+      const png = await sharp(result.data, {
         raw: {
           width: result.width,
           height: result.height,
           channels: 4
         }
       }).png().toBuffer();
-      previews.push({
+      return {
         ...lut,
         dataUrl: `data:image/png;base64,${png.toString("base64")}`,
         width: result.width,
         height: result.height
-      });
-    }
-    return previews;
+      };
+    }));
   }
 
   private async renderStage(original: Original, task: Task, previewLongEdge: number, targetStageIndex: number): Promise<PreviewBitmap> {

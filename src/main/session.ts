@@ -465,7 +465,6 @@ export class ProjectSession {
       params,
       enabled: true
     });
-    this.#previewService.invalidateTaskFrom(task.id, task.pipeline.ops.length - 1);
     touchTask(task);
     return this.snapshot();
   }
@@ -474,7 +473,6 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
-    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops.splice(opIndex, 1);
     touchTask(task);
     return this.snapshot();
@@ -488,7 +486,6 @@ export class ProjectSession {
       return this.snapshot();
     }
     this.recordTaskEdit(task);
-    this.#previewService.invalidateTaskFrom(task.id, Math.min(fromIndex, toIndex));
     const [op] = task.pipeline.ops.splice(fromIndex, 1);
     if (!op) {
       throw new Error(`Op not found: ${opId}`);
@@ -502,7 +499,6 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
-    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex].enabled = enabled;
     touchTask(task);
     return this.snapshot();
@@ -516,7 +512,6 @@ export class ProjectSession {
       return this.snapshot();
     }
     this.recordTaskEdit(task, options);
-    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     return this.snapshot();
@@ -530,7 +525,6 @@ export class ProjectSession {
       return this.snapshot();
     }
     this.recordTaskEdit(task, options);
-    this.#previewService.invalidateTaskFrom(task.id, opIndex);
     task.pipeline.ops[opIndex] = nextOp;
     touchTask(task);
     return this.snapshot();

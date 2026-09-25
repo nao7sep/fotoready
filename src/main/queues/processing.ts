@@ -68,10 +68,15 @@ export async function processTask(
     tempPath = null;
     writtenOutputPath = outputPath;
 
+    const stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline);
+    // Publish the output and `saved` only after every output artifact is complete, so a failed sidecar
+    // write never leaves the task pointing at the image the failure path removes. Until then the task
+    // remains `processing`, which also keeps task/original removal from dropping ownership of work
+    // that can still mutate the filesystem.
     task.pipeline = result.appliedPipeline;
     task.output = {
       stagedPath: outputPath,
-      stagedParamsPath: "",
+      stagedParamsPath,
       stagedAt: savedAt.toISOString(),
       outputHash: finalFacts.outputHash,
       vision: null,
@@ -79,10 +84,6 @@ export async function processTask(
       finalParamsPath: null,
       renamedAt: null
     };
-    task.output.stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline);
-    // Publish `saved` only after every output artifact is complete. Until the sidecar write lands, the
-    // task remains `processing`, which also keeps task/original removal from dropping ownership of work
-    // that can still mutate the filesystem.
     task.status = "saved";
     task.updatedAt = nowIso();
     logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });

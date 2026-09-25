@@ -6,6 +6,7 @@ import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import type { Original, Project, Task } from "@shared/types/project";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { ProcessingQueue } from "@main/queues/processing-queue";
+import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 
 const mocks = vi.hoisted(() => ({
   applyMetadataToOutput: vi.fn<(input: { outputPath: string }) => Promise<void>>()
@@ -144,3 +145,26 @@ function arrange(): { project: Project; task: Task } {
   };
   return { project: { outputDir: dir, originals: [original], tasks: [task] }, task };
 }
+
+describe("processTask sidecar failure", () => {
+  it("leaves the task without an output when the sidecar cannot be written", async () => {
+    const { project, task } = arrange();
+    // A directory where the sidecar file belongs makes its write fail after the image landed.
+    const pool = {
+      async process(input: { outputPath: string }) {
+        await fs.writeFile(input.outputPath, "rendered");
+        return { kind: "process", outputPath: input.outputPath, outputHash: "hash", bytes: 8, appliedPipeline: defaultPipeline() };
+      }
+    } as unknown as PipelineWorkerPool;
+    mocks.applyMetadataToOutput.mockImplementation(async (input) => {
+      const finalStem = path.parse(input.outputPath).name.slice(0, -"-12345678".length);
+      await fs.mkdir(path.join(dir, `${finalStem}${TASK_SIDECAR_SUFFIX}`));
+    });
+
+    await processTask(project, task.id, defaultGlobalSettings(), undefined, pool);
+
+    expect(task.status).toBe("error");
+    expect(task.output).toBeNull();
+    expect((await fs.readdir(dir)).filter((name) => name.endsWith(".jpg") || name.endsWith(".tmp"))).toEqual([]);
+  });
+});

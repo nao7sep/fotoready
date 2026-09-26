@@ -1027,6 +1027,16 @@ select:disabled {
   overflow-wrap: anywhere;
 }
 
+/* At the Originals pane's minimum width (140px) the size/format line is as
+   important as the file name — losing "· JPEG" to an ellipsis hides the very
+   thing the row is reporting, in English too. The file name still truncates
+   (it is often the longest and least essential part once the thumbnail and
+   size are visible); the size line wraps instead of clipping. */
+.original-list-entry .row-detail {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .status-dot {
   flex: 0 0 16px;
   display: flex;

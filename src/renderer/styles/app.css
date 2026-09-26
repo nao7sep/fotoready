@@ -2431,9 +2431,17 @@ select:disabled {
   min-height: 360px;
 }
 
+/* A flex item's automatic min-width is its content's min-content size, not 0: without min-width: 0
+   the group strip refuses to shrink below the width all of its tabs need together, so in a language
+   whose group names outgrow the picker (German's full set, "Alle Abdecken Markierungen Sprechblasen
+   Reaktionen Lustig Niedlich Geschichten Jahreszeiten Importiert") the strip's own box overflows its
+   container and the last tab renders past the track's rounded background instead of scrolling inside
+   it. Mirrors the sibling min-height: 0 fix just above (.asset-picker-modal .asset-picker) on the
+   perpendicular axis. */
 .asset-picker-groups {
   flex: 0 0 auto;
   flex-wrap: nowrap;
+  min-width: 0;
   overflow-x: auto;
 }
 

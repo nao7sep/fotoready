@@ -24,7 +24,7 @@ export function useDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
   value: string;
   onChange: (event: ChangeEvent<T>) => void;
 } {
-  const { ref, draft, setDraft } = useDraft<T>(external, identity);
+  const { ref, draft, setDraft } = useDraft<T>(external, identity, (field) => document.activeElement === field);
   return {
     ref,
     value: draft,
@@ -39,7 +39,12 @@ export function useDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
 /**
  * A draft field that commits once, on Enter or when focus leaves, instead of on every keystroke —
  * for a value whose every change writes a file. Enter that ends an IME composition accepts the
- * candidate and does not commit. An unchanged draft commits nothing.
+ * candidate and does not commit.
+ *
+ * Only a draft the user has typed into since it last adopted the external value is pending: it is
+ * the one thing that commits, and the only thing that holds off the external value. An untouched
+ * draft follows the external value even while focused, so a value that changes elsewhere (an AI
+ * result) is shown, and focusing and leaving the field never writes a stale value back over it.
  */
 export function useCommitDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
   external: string,
@@ -52,16 +57,24 @@ export function useCommitDraftField<T extends HTMLInputElement | HTMLTextAreaEle
   onBlur: () => void;
   onKeyDown: (event: KeyboardEvent<T>) => void;
 } & ImeCompositionProps {
-  const { ref, draft, setDraft } = useDraft<T>(external, identity);
+  const edited = useRef(false);
+  const { ref, draft, setDraft } = useDraft<T>(external, identity, () => edited.current, () => {
+    edited.current = false;
+  });
   const ime = useImeGuard();
   const commitDraft = () => {
+    if (!edited.current) return;
+    edited.current = false;
     if (draft !== external) commit(draft);
   };
   return {
     ref,
     value: draft,
     ...ime.compositionProps,
-    onChange: (event) => setDraft(event.currentTarget.value),
+    onChange: (event) => {
+      edited.current = true;
+      setDraft(event.currentTarget.value);
+    },
     onBlur: commitDraft,
     onKeyDown: (event) => {
       if (event.key !== "Enter" || ime.isComposing(event)) return;
@@ -71,9 +84,15 @@ export function useCommitDraftField<T extends HTMLInputElement | HTMLTextAreaEle
   };
 }
 
+/**
+ * The draft adopts the external value when the field identity changes (the pending edit, if any,
+ * belongs to the field being left) or when `isEditing` says the draft holds no edit in progress.
+ */
 function useDraft<T extends HTMLInputElement | HTMLTextAreaElement>(
   external: string,
   identity: string,
+  isEditing: (field: T | null) => boolean,
+  onAdopt: () => void = () => {},
 ): { ref: RefObject<T | null>; draft: string; setDraft: Dispatch<SetStateAction<string>> } {
   const ref = useRef<T>(null);
   const identityRef = useRef(identity);
@@ -82,10 +101,11 @@ function useDraft<T extends HTMLInputElement | HTMLTextAreaElement>(
   useEffect(() => {
     if (identityRef.current !== identity) {
       identityRef.current = identity;
-      setDraft(external);
+    } else if (isEditing(ref.current)) {
       return;
     }
-    if (document.activeElement !== ref.current) setDraft(external);
+    onAdopt();
+    setDraft(external);
   }, [external, identity]);
 
   return { ref, draft, setDraft };

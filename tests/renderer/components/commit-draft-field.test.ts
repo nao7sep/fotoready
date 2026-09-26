@@ -27,6 +27,10 @@ async function renderHarness(commit: (value: string) => void): Promise<HTMLInput
   return container.querySelector("input")!;
 }
 
+async function rerenderHarness(external: string, commit: (value: string) => void): Promise<void> {
+  await act(async () => root?.render(createElement(Harness, { external, commit })));
+}
+
 async function type(input: HTMLInputElement, text: string): Promise<void> {
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
   for (let length = 1; length <= text.length; length += 1) {
@@ -66,5 +70,49 @@ describe("useCommitDraftField", () => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
     expect(commits).toEqual(["pier"]);
+  });
+
+  it("shows a value that lands while focused and untouched, and writes nothing back on blur", async () => {
+    const commits: string[] = [];
+    const commit = (value: string) => commits.push(value);
+    const input = await renderHarness(commit);
+    input.focus();
+
+    await rerenderHarness("harbor-sunset", commit);
+    expect(input.value).toBe("harbor-sunset");
+
+    await act(async () => input.blur());
+    expect(commits).toEqual([]);
+  });
+
+  it("keeps a typed edit over a value that lands meanwhile, and commits the edit", async () => {
+    const commits: string[] = [];
+    const commit = (value: string) => commits.push(value);
+    const input = await renderHarness(commit);
+    input.focus();
+
+    await type(input, "pier");
+    await rerenderHarness("harbor-sunset", commit);
+    expect(input.value).toBe("pier");
+
+    await act(async () => input.blur());
+    expect(commits).toEqual(["pier"]);
+  });
+
+  it("follows the external value again once its edit is committed", async () => {
+    const commits: string[] = [];
+    const commit = (value: string) => commits.push(value);
+    const input = await renderHarness(commit);
+    input.focus();
+
+    await type(input, "pier ");
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await rerenderHarness("pier", commit);
+    expect(input.value).toBe("pier");
+
+    await act(async () => input.blur());
+    expect(commits).toEqual(["pier "]);
   });
 });

@@ -287,6 +287,7 @@ function App(): React.JSX.Element {
         void addOriginals();
       } else if (mod && event.key.toLowerCase() === "s" && event.shiftKey) {
         event.preventDefault();
+        commitFocusedField();
         void runOwnedAction({
           action: saveAll,
           key: "save-all",
@@ -296,6 +297,7 @@ function App(): React.JSX.Element {
         });
       } else if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
+        commitFocusedField();
         if (activeTask?.status === "not-saved") void runOwnedAction({
           action: () => saveTask(activeTask.id),
           fields: { taskId: activeTask.id },
@@ -1186,6 +1188,15 @@ function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): Reac
       ) : null}
     </div>
   );
+}
+
+/**
+ * A save shortcut does not move focus the way clicking Save does, so the field being typed in is
+ * blurred first: a commit-on-blur field (the output slug) sends its pending edit before the save is
+ * queued, and the main process applies it first because it handles requests in the order sent.
+ */
+function commitFocusedField(): void {
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
 
 function basename(sourcePath: string): string {

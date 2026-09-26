@@ -184,7 +184,8 @@ export type LutPreviewEntry = LutEntry & {
 };
 
 export type CloseRequest = {
-  mode: "window" | "quit";
+  /** The close ends the app, discarding the workspace and cancelling running saves. */
+  endsApp: boolean;
 };
 
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";

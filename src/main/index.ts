@@ -1,6 +1,7 @@
 import { app } from "electron";
 import { bootstrap } from "./bootstrap";
 import { notifyStartupFailure } from "./startup-dialog";
+import { windowCloseQuits } from "./window-close";
 
 // One instance only: the project lives in memory per process, so a second instance has nothing to
 // offer and would overwrite the first one's settings with its own stale copy. A second launch hands
@@ -23,7 +24,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (windowCloseQuits(process.platform)) {
     app.quit();
   }
 });

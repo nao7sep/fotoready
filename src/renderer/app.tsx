@@ -38,6 +38,7 @@ import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingTarget } from "./utils/editing-target";
+import { closeConfirmation } from "./close-confirmation";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import {
   denyUnhandledExternalDrop,
@@ -351,7 +352,7 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    return api.lifecycle.onCloseRequest(() => {
+    return api.lifecycle.onCloseRequest((request) => {
       void (async () => {
         const approve = async (approved: boolean): Promise<void> => {
           await api.lifecycle.approveClose(approved);
@@ -370,16 +371,12 @@ function App(): React.JSX.Element {
           }
         }
 
-        if (hasWorkspaceWork(project, queue)) {
-          const close = await confirmer.confirm({
-            title: "Close FotoReady?",
-            message: queue.queued + queue.processing > 0
-              ? "Close and discard the current workspace? Saves still in progress are cancelled, and their unfinished files are removed."
-              : "Close and discard the current workspace?",
-            confirmLabel: "Close",
-            danger: true
-          });
-          await approve(close);
+        const confirmation = closeConfirmation(request, {
+          hasWork: hasWorkspaceWork(project, queue),
+          savesInFlight: queue.queued + queue.processing > 0
+        });
+        if (confirmation) {
+          await approve(await confirmer.confirm({ ...confirmation, confirmLabel: "Close", danger: true }));
           return;
         }
 

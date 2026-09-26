@@ -25,6 +25,8 @@ import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 import { applyThemePreference, followOsThemeChanges, windowBackground } from "./theme";
 import { revealWindow } from "./reveal-window";
+import { windowCloseQuits } from "./window-close";
+import type { CloseRequest } from "@shared/types/ipc";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
 // minimum both come from the shared layout metrics — never hand-typed literals (see
@@ -261,7 +263,8 @@ function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClos
     if (closeRequestPending) return;
     closeRequestPending = true;
     closeRequestMode = mode;
-    win.webContents.send("lifecycle.close-requested", { mode });
+    const request: CloseRequest = { endsApp: mode === "quit" || windowCloseQuits(process.platform) };
+    win.webContents.send("lifecycle.close-requested", request);
   }
 
   win.on("close", (event) => {

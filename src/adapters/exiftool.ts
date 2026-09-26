@@ -47,22 +47,38 @@ const CAPTURE_TIME_TAGS = [
 ] as const;
 
 // The GPS fix's date and time are capture times, listed with the time tags above.
+// A named place is location too, so this list also carries IPTC and XMP's place-name fields
+// (as Lightroom and news workflows write it): both the IPTC scheme and its XMP-photoshop/iptcCore
+// mirrors, plus the structured Iptc4xmpExt LocationShown/LocationCreated. Two tags per place-name
+// concept (the IPTC name and the XMP name) are listed separately because, unlike DateTimeOriginal,
+// they are not the same unqualified tag name in ExifTool.
 const GPS_TAGS = [
-  "GPSLatitude",
-  "GPSLatitudeRef",
-  "GPSLongitude",
-  "GPSLongitudeRef",
-  "GPSAltitude",
-  "GPSAltitudeRef",
-  "GPSMapDatum",
-  "GPSImgDirection",
-  "GPSImgDirectionRef",
-  "GPSDestLatitude",
-  "GPSDestLatitudeRef",
-  "GPSDestLongitude",
-  "GPSDestLongitudeRef",
-  "GPSDestBearing",
-  "GPSDestBearingRef"
+  { tag: "GPSLatitude", label: "Latitude" },
+  { tag: "GPSLatitudeRef", label: "Latitude Ref" },
+  { tag: "GPSLongitude", label: "Longitude" },
+  { tag: "GPSLongitudeRef", label: "Longitude Ref" },
+  { tag: "GPSAltitude", label: "Altitude" },
+  { tag: "GPSAltitudeRef", label: "Altitude Ref" },
+  { tag: "GPSMapDatum", label: "Map Datum" },
+  { tag: "GPSImgDirection", label: "Img Direction" },
+  { tag: "GPSImgDirectionRef", label: "Img Direction Ref" },
+  { tag: "GPSDestLatitude", label: "Dest Latitude" },
+  { tag: "GPSDestLatitudeRef", label: "Dest Latitude Ref" },
+  { tag: "GPSDestLongitude", label: "Dest Longitude" },
+  { tag: "GPSDestLongitudeRef", label: "Dest Longitude Ref" },
+  { tag: "GPSDestBearing", label: "Dest Bearing" },
+  { tag: "GPSDestBearingRef", label: "Dest Bearing Ref" },
+  { tag: "City", label: "City" },
+  { tag: "Province-State", label: "Province/state" },
+  { tag: "State", label: "Province/state" },
+  { tag: "Country-PrimaryLocationName", label: "Country" },
+  { tag: "Country", label: "Country" },
+  { tag: "Country-PrimaryLocationCode", label: "Country code" },
+  { tag: "CountryCode", label: "Country code" },
+  { tag: "Sub-location", label: "Sub-location" },
+  { tag: "Location", label: "Location" },
+  { tag: "LocationShown", label: "Location shown" },
+  { tag: "LocationCreated", label: "Location created" }
 ] as const;
 
 const EDITORIAL_TAGS = [
@@ -140,8 +156,9 @@ export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | 
   if (stripActive) {
     if (!keep.includes("editorial")) args.push(...EDITORIAL_TAGS.map(clear));
     if (!keep.includes("dates")) args.push(...CAPTURE_TIME_TAGS.map(({ tag }) => clear(tag)));
-    // Coordinates live in the GPS IFD and may be mirrored in XMP; both go.
-    if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"));
+    // Coordinates live in the GPS IFD and may be mirrored in XMP; both go, along with every
+    // IPTC/XMP place name that also says where the photo was taken.
+    if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"), ...GPS_TAGS.map(({ tag }) => clear(tag)));
   }
   // Re-stamp or clear Software/ModifyDate. When off, clear explicitly so a source value doesn't leak through.
   // The source's ModifyDate subseconds and time zone never describe the re-stamped value, so they always go.
@@ -220,9 +237,9 @@ function metadataSummaryFromTags(tags: Record<string, unknown>): SourceMetadataS
       const value = tagText(tags[tag]);
       return value ? [[label, value]] : [];
     })),
-    gps: Object.fromEntries(GPS_TAGS.flatMap((key) => {
-      const value = tagText(tags[key]);
-      return value ? [[gpsLabel(key), value]] : [];
+    gps: Object.fromEntries(GPS_TAGS.flatMap(({ tag, label }) => {
+      const value = tagText(tags[tag]);
+      return value ? [[label, value]] : [];
     }))
   };
 }
@@ -264,10 +281,6 @@ function tagText(value: unknown): string | undefined {
     return text || undefined;
   }
   return undefined;
-}
-
-function gpsLabel(key: (typeof GPS_TAGS)[number]): string {
-  return key.replace(/^GPS/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
 // EXIF datetime tags (DateTimeOriginal, CreateDate, ModifyDate) are local

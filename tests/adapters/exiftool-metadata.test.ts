@@ -98,7 +98,59 @@ describe("applyMetadataToOutput with ExifTool", () => {
 
     expect(summary.dates).toMatchObject({ "Date created": expect.stringContaining("2024:05:01"), "Time created": expect.stringContaining("10:00:00") });
   });
+
+  it("strips every place name, in IPTC and XMP, when the task strips GPS", async () => {
+    const sourcePath = await placedSource(dir);
+    const outputPath = path.join(dir, "output.tmp");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
+
+    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, keep: ["dates", "editorial"], injectFields: {} });
+
+    const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
+    const placeKeys = ["City", "Province-State", "State", "Country-PrimaryLocationName", "Country", "Country-PrimaryLocationCode", "CountryCode", "Sub-location", "Location", "LocationShown", "LocationCreated"];
+    expect(Object.keys(tags).filter((key) => placeKeys.some((placeKey) => key.endsWith(placeKey)))).toEqual([]);
+    expect(Object.keys(tags).filter((key) => /GPS/.test(key) && !/^Composite/.test(key))).toEqual([]);
+    expect(tags["IFD0:Make"] ?? tags.Make).toBe("Canon");
+  });
+
+  it("flags a place name carried only in IPTC and XMP", async () => {
+    const sourcePath = path.join(dir, "source.jpg");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, {
+      "IPTC:City": "Kyoto",
+      "IPTC:Province-State": "Kyoto Prefecture",
+      "IPTC:Country-PrimaryLocationName": "Japan",
+      "XMP-photoshop:Country": "Japan",
+      "XMP-iptcCore:CountryCode": "JP"
+    } as never, ["-overwrite_original"]);
+
+    const summary = await readSourceMetadataSummary(sourcePath);
+
+    expect(summary.gps).toMatchObject({ City: "Kyoto", "Province/state": "Kyoto Prefecture", Country: "Japan", "Country code": "JP" });
+  });
 });
+
+/** A JPEG that records a place name in every group photo tools write it, plus a GPS position and a camera make. */
+async function placedSource(dir: string): Promise<string> {
+  const sourcePath = path.join(dir, "source.jpg");
+  await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+  await exiftool.write(sourcePath, {
+    "IPTC:City": "Kyoto",
+    "IPTC:Sub-location": "Gion",
+    "IPTC:Province-State": "Kyoto Prefecture",
+    "IPTC:Country-PrimaryLocationName": "Japan",
+    "IPTC:Country-PrimaryLocationCode": "JPN",
+    "XMP-photoshop:City": "Kyoto",
+    "XMP-photoshop:State": "Kyoto Prefecture",
+    "XMP-photoshop:Country": "Japan",
+    "XMP-iptcCore:Location": "Gion",
+    "XMP-iptcCore:CountryCode": "JP",
+    GPSLatitude: 35.1,
+    GPSLongitude: 139.2,
+    Make: "Canon"
+  } as never, ["-overwrite_original"]);
+  return sourcePath;
+}
 
 /** A JPEG that records its capture time everywhere photo tools write it, plus a GPS position and a camera make. */
 async function capturedTimeSource(dir: string): Promise<string> {

@@ -1019,6 +1019,14 @@ select:disabled {
   color: var(--text-muted-color);
 }
 
+/* A task's state is what its row is for, and in some languages the op count
+   and the state together outgrow the pane ("20 Operationen · Nicht
+   gespeichert"): the line wraps instead of cutting the state off. */
+.task-row .row-detail {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .status-dot {
   flex: 0 0 16px;
   display: flex;
@@ -1538,6 +1546,24 @@ select:disabled {
   border-color: transparent;
   background: var(--button-hover-bg);
   box-shadow: none;
+}
+
+/* The palette column has a fixed width, and an op name is as long as its
+   language makes it ("Bilanciamento del bianco"): a name that does not fit
+   wraps onto a second line inside its row instead of widening the column. */
+.op-buttons {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.op-buttons > .toolbar-button {
+  min-width: 0;
+  height: auto;
+  min-height: var(--control-h);
+  padding-block: 6px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .op-buttons > .toolbar-button:hover:not(:disabled) {

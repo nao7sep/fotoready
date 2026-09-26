@@ -109,7 +109,6 @@
         "to": "electron/LICENSES.chromium.html"
       }
     ],
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "mac": {
       "icon": "build/icon.icns",
       "identity": "-",
@@ -129,16 +128,22 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "artifactName": "${productName}-${version}-mac.${ext}"
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "win": {
       "icon": "build/icon.ico",
       "target": [
         "nsis",
         "zip"
-      ]
+      ],
+      "artifactName": "${productName}-${version}-win.${ext}"
     },
     "nsis": {
+      "artifactName": "${productName}-${version}-setup.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": true,

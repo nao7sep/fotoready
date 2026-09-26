@@ -18,6 +18,18 @@ describe("Windows installer configuration", () => {
   });
 });
 
+describe("release artifact names", () => {
+  // electron-builder's default names carry the arch; release names are fixed per the app-release-conventions.
+  it("names each artifact <app>-<version> with only its fixed suffix", () => {
+    const build = packageJson.build;
+    expect(build.artifactName).toBeUndefined();
+    expect(build.dmg.artifactName).toBe("${productName}-${version}.${ext}");
+    expect(build.mac.artifactName).toBe("${productName}-${version}-mac.${ext}");
+    expect(build.nsis.artifactName).toBe("${productName}-${version}-setup.${ext}");
+    expect(build.win.artifactName).toBe("${productName}-${version}-win.${ext}");
+  });
+});
+
 describe("packaged license texts", () => {
   it("ships the app, native-component, Electron, and Chromium licenses", () => {
     expect(packageJson.build.extraResources).toEqual(expect.arrayContaining([

@@ -34,15 +34,15 @@ async function workspace(): Promise<string> {
 }
 
 /** A JPEG photo: red top-left, green top-right, blue bottom-left, grey bottom-right. */
-async function quadrantPhoto(root: string): Promise<string> {
-  const half = { width: WIDTH / 2, height: HEIGHT / 2, channels: 3 as const };
+async function quadrantPhoto(root: string, width = WIDTH, height = HEIGHT): Promise<string> {
+  const half = { width: width / 2, height: height / 2, channels: 3 as const };
   const tile = (background: typeof RED) => sharp({ create: { ...half, background } }).png().toBuffer();
   const photo = path.join(root, "photo.jpg");
-  await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: GREY } })
+  await sharp({ create: { width, height, channels: 3, background: GREY } })
     .composite([
       { input: await tile(RED), left: 0, top: 0 },
-      { input: await tile(GREEN), left: WIDTH / 2, top: 0 },
-      { input: await tile(BLUE), left: 0, top: HEIGHT / 2 }
+      { input: await tile(GREEN), left: width / 2, top: 0 },
+      { input: await tile(BLUE), left: 0, top: height / 2 }
     ])
     .jpeg({ quality: 95 })
     .toFile(photo);
@@ -133,13 +133,21 @@ describe("the pipeline worker", () => {
   });
 
   it("applies levels and a text watermark to the pixels they own", async () => {
-    const photo = await quadrantPhoto(await workspace());
+    // A watermark's font-fit search renders candidate font sizes up to the box size, and render
+    // cost grows with the square of that size: at the file's default 600x400 photo the default
+    // watermark box (22% of the 600px long edge) drove that search into large, slow rasterizations
+    // and made this test flaky under load. A smaller photo shrinks the box (and so the search) by
+    // the same factor without changing what the test proves, so this test uses its own quadrant
+    // photo instead of the shared WIDTH/HEIGHT one the other tests use.
+    const smallWidth = 180;
+    const smallHeight = 120;
+    const photo = await quadrantPhoto(await workspace(), smallWidth, smallHeight);
     const plain = await preview(photo, []);
     const toned = await preview(photo, [op("levels", { blackPoint: 64, whitePoint: 255, gamma: 1 })]);
     const marked = await preview(photo, [op("watermark-text", { text: "FotoReady", x: 0.7, y: 0.52, opacity: 1 })]);
 
     // Levels pulls the grey quadrant darker.
-    expect(pixel(toned, 450, 300).r).toBeLessThan(pixel(plain, 450, 300).r - 20);
+    expect(pixel(toned, 135, 90).r).toBeLessThan(pixel(plain, 135, 90).r - 20);
     // The watermark changes the grey quadrant under its box and leaves the red one alone.
     const differs = (x0: number, y0: number, x1: number, y1: number) => {
       for (let y = y0; y < y1; y++) {
@@ -149,8 +157,8 @@ describe("the pipeline worker", () => {
       }
       return false;
     };
-    expect(differs(420, 310, 560, 350), "the watermark is drawn").toBe(true);
-    expect(differs(0, 0, 300, 200), "the rest of the photo is untouched").toBe(false);
+    expect(differs(126, 92, 166, 106), "the watermark is drawn").toBe(true);
+    expect(differs(0, 0, smallWidth / 2, smallHeight / 2), "the rest of the photo is untouched").toBe(false);
   });
 
   it("reports an undecodable source as a decode failure instead of throwing", async () => {

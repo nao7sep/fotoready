@@ -299,7 +299,7 @@
   "settings.pngPalette": "Usa PNG a tavolozza indicizzata quando possibile (stile a 256 colori, file più piccoli)",
   "settings.quality": "Qualità",
   "settings.webpMethod": "Metodo",
-  "settings.avifEffort": "Impegno",
+  "settings.avifEffort": "Sforzo",
   "settings.outputStamps": "Tag scritti al salvataggio",
   "settings.writeSoftwareTag": "Scrivi il tag Software (FotoReady)",
   "settings.writeModifyDate": "Scrivi ModifyDate (ora del salvataggio, orologio locale)",

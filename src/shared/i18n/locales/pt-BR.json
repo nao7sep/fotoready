@@ -496,7 +496,7 @@
   "stamps.group.funny": "Engraçadas",
   "stamps.group.cute": "Fofas",
   "stamps.group.stories": "Histórias",
-  "stamps.group.seasonal": "Datas especiais",
+  "stamps.group.seasonal": "Sazonais",
   "stamps.group.imported": "Importadas",
 
   "about.version": "Versão {version}",
@@ -520,7 +520,7 @@
   "shortcuts.saveAll": "Salvar todas as imagens não salvas",
   "shortcuts.saveAllDetail": "Coloca na fila cada tarefa não salva.",
   "shortcuts.renameAll": "Renomear tudo",
-  "shortcuts.renameAllDetail": "Revise as tarefas salvas e não salvas antes de renomear as saídas salvas.",
+  "shortcuts.renameAllDetail": "Mostra as tarefas salvas e não salvas para revisão antes de renomear as saídas salvas.",
   "shortcuts.undo": "Desfazer a última edição não salva",
   "shortcuts.undoDetail": "Desfaz a edição mais recente da tarefa quando o foco está fora de um campo de texto. Dentro de um campo de texto, o atalho desfaz o texto digitado.",
   "shortcuts.toggleHistogram": "Mostrar ou ocultar o histograma",

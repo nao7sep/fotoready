@@ -520,7 +520,7 @@
   "shortcuts.saveAll": "Enregistrer toutes les images non enregistrées",
   "shortcuts.saveAllDetail": "Met en file chaque tâche non enregistrée.",
   "shortcuts.renameAll": "Tout renommer",
-  "shortcuts.renameAllDetail": "Passer en revue les tâches enregistrées et non enregistrées avant de renommer les sorties enregistrées.",
+  "shortcuts.renameAllDetail": "Affiche les tâches enregistrées et non enregistrées pour vérification avant de renommer les sorties enregistrées.",
   "shortcuts.undo": "Annuler la dernière modification non enregistrée",
   "shortcuts.undoDetail": "Annule la dernière modification de la tâche quand le focus est hors d’un champ de texte. Dans un champ de texte, le raccourci annule la saisie.",
   "shortcuts.toggleHistogram": "Afficher ou masquer l’histogramme",

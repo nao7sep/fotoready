@@ -532,7 +532,7 @@
   "shortcuts.jumpEnds": "Jump to the first / last item",
   "shortcuts.jumpEndsDetail": "Within the focused list or control.",
   "shortcuts.removeOriginal": "Remove the selected original",
-  "shortcuts.removeOriginalDetail": "Deletes the highlighted original from the Originals list.",
+  "shortcuts.removeOriginalDetail": "Removes the highlighted original from the Originals list.",
   "shortcuts.openMenu": "Open a menu, then move between items",
   "shortcuts.openMenuDetail": "Enter or Space opens the menu; the arrows move between commands and Escape closes it.",
   "shortcuts.gridMove": "Move and select in the grid",

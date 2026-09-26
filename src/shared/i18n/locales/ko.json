@@ -85,7 +85,7 @@
   "status.failed": { "other": "{count}개 실패" },
   "status.idle": "유휴",
   "status.privateMetadata": { "other": "비공개 메타데이터 있음 {count}개" },
-  "status.privateMetadataHint": { "other": "작업 {count}개에 저장된 파일에 남을 원본 메타데이터가 있습니다. 제거하려면 ‘메타데이터 제거’ 카드를 추가하십시오." },
+  "status.privateMetadataHint": { "other": "작업 {count}개에 원본 메타데이터가 있으며, 저장된 파일에 그대로 남습니다. 제거하려면 ‘메타데이터 제거’ 카드를 추가하십시오." },
   "status.noApiKey": "Gemini: API 키 없음",
   "status.noApiKeyHint": "Gemini API 키가 설정되지 않았습니다. 클릭하면 설정이 열립니다.",
 

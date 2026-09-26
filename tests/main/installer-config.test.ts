@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { LANGUAGES } from "@shared/i18n/languages";
 
 const packageJson = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
@@ -15,6 +16,23 @@ describe("Windows installer configuration", () => {
       createStartMenuShortcut: true,
       runAfterFinish: true,
     });
+  });
+});
+
+// The installer and the macOS bundle speak the app's interface languages
+// (localization-conventions): English first, as the installer's fallback.
+describe("interface languages outside the app", () => {
+  it("builds the Windows installer in the ten interface languages", () => {
+    expect(packageJson.build.nsis.installerLanguages).toEqual([
+      "en_US", "de_DE", "es_ES", "fr_FR", "it_IT", "pt_BR", "ru_RU", "ja_JP", "ko_KR", "zh_CN",
+    ]);
+  });
+
+  it("keeps exactly the interface languages' localizations in the macOS bundle", () => {
+    // Electron names its localizations with underscores and a region; each maps to one tag.
+    const tagFor: Record<string, string> = { pt_BR: "pt-BR", zh_CN: "zh-Hans" };
+    const tags = (packageJson.build.mac.electronLanguages as string[]).map((name) => tagFor[name] ?? name);
+    expect(tags).toEqual([...LANGUAGES]);
   });
 });
 

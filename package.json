@@ -113,6 +113,18 @@
     "mac": {
       "icon": "build/icon.icns",
       "identity": "-",
+      "electronLanguages": [
+        "en",
+        "de",
+        "es",
+        "fr",
+        "it",
+        "pt_BR",
+        "ru",
+        "ja",
+        "ko",
+        "zh_CN"
+      ],
       "extendInfo": {
         "CFBundleIconName": "pancake-stack-bokeh"
       },
@@ -150,7 +162,19 @@
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "installerLanguages": [
+        "en_US",
+        "de_DE",
+        "es_ES",
+        "fr_FR",
+        "it_IT",
+        "pt_BR",
+        "ru_RU",
+        "ja_JP",
+        "ko_KR",
+        "zh_CN"
+      ]
     }
   }
 }

@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { clamp } from "@shared/numeric";
@@ -29,6 +30,7 @@ export function HistogramOverlay({
   position: Position | null;
   onPositionChange(next: Position): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const [resolvedPosition, setResolvedPosition] = useState<Position | null>(null);
   const dragRef = useRef<{ originX: number; originY: number; baseX: number; baseY: number } | null>(null);
@@ -110,19 +112,19 @@ export function HistogramOverlay({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <button className="histogram-overlay-close" type="button" onClick={onClose} title="Hide histogram">
+      <button className="histogram-overlay-close" type="button" onClick={onClose} title={t("histogram.hide")}>
         <X size={12} />
       </button>
       {histogram.bins ? (
         <HistogramSvg bins={histogram.bins} />
       ) : (
         <div className="histogram-overlay-empty">
-          {previewState === "loading" ? "Rendering..." : previewState === "error" ? "Preview failed" : histogram.state === "error" ? (
+          {previewState === "loading" ? t("histogram.rendering") : previewState === "error" ? t("histogram.previewFailed") : histogram.state === "error" ? (
             <OperationResult className="modal-error histogram-error" severity="error">
-              <span>Histogram failed.</span>
-              <button className="toolbar-button compact-text" type="button" onClick={histogram.retry}>Retry</button>
+              <span>{t("histogram.failed")}</span>
+              <button className="toolbar-button compact-text" type="button" onClick={histogram.retry}>{t("common.retry")}</button>
             </OperationResult>
-          ) : histogram.state === "loading" ? "Preparing histogram..." : "No preview"}
+          ) : histogram.state === "loading" ? t("histogram.preparing") : t("histogram.noPreview")}
         </div>
       )}
     </div>
@@ -185,8 +187,9 @@ function useHistogram(preview: EditorCanvasPreview | null): HistogramResult {
 }
 
 function HistogramSvg({ bins }: { bins: HistogramBins }): React.JSX.Element {
+  const { t } = useI18n();
   return (
-    <svg aria-label="Preview histogram" preserveAspectRatio="none" viewBox="0 0 256 64">
+    <svg aria-label={t("histogram.label")} preserveAspectRatio="none" viewBox="0 0 256 64">
       <HistogramPath bins={bins.luminance} channel="luminance" max={bins.max} opacity={0.55} />
       <HistogramPath bins={bins.red} channel="red" max={bins.max} opacity={0.5} />
       <HistogramPath bins={bins.green} channel="green" max={bins.max} opacity={0.5} />

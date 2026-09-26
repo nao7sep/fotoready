@@ -1,7 +1,9 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import { useEffect, useMemo, useState } from "react";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
+import type { Translator } from "@shared/i18n/translate";
 import { clampFractionRect, CropDarkenMask, type FractionRect, imageBoundsFromOriginalSize, OverlayRect, rectFromStage, rectToStage } from "./_overlay-primitives";
 
 type CropAspectLock = number | string | null;
@@ -9,21 +11,19 @@ type CropParams = { x: number; y: number; w: number; h: number; aspectLock: Crop
 
 type CropAspectOptionId = "free" | "original" | "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "9:16" | "16:9";
 
-const cropAspectOptions: ReadonlyArray<{ id: CropAspectOptionId; label: string }> = [
-  { id: "free", label: "Free" },
-  { id: "original", label: "Original" },
-  { id: "1:1", label: "1:1" },
-  { id: "2:3", label: "2:3" },
-  { id: "3:2", label: "3:2" },
-  { id: "3:4", label: "3:4" },
-  { id: "4:3", label: "4:3" },
-  { id: "9:16", label: "9:16" },
-  { id: "16:9", label: "16:9" }
-];
+// "free" and "original" are named in the interface language; the ratios name themselves.
+const cropAspectOptionIds: readonly CropAspectOptionId[] = ["free", "original", "1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"];
+
+function cropAspectOptionLabel(id: CropAspectOptionId, t: Translator["t"]): string {
+  if (id === "free") return t("crop.free");
+  if (id === "original") return t("crop.original");
+  return id;
+}
 
 export const cropRenderer: OpRenderer<CropParams> = {
   type: "crop",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
+    const { t, rich } = useI18n();
     const originalAspectRatio = ctx.originalSize ? ctx.originalSize.width / Math.max(1, ctx.originalSize.height) : null;
     const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
     const currentRect = clampFractionRect({ x: params.x, y: params.y, w: params.w, h: params.h }, imageBounds);
@@ -59,23 +59,23 @@ export const cropRenderer: OpRenderer<CropParams> = {
     return (
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Aspect: <strong>{aspectLabel(activeAspectId, currentRect)}</strong></span>
+          <span className="geometry-status">{rich("crop.aspectStatus", { aspect: <strong>{aspectLabel(activeAspectId, currentRect, t)}</strong> })}</span>
           <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamsChange({ x: 0, y: 0, w: imageBounds.maxX, h: imageBounds.maxY, aspectLock: null })}>
-            Reset
+            {t("common.reset")}
           </button>
         </div>
         <SegmentedRadioGroup
           className="geometry-chip-group"
           optionClassName="toolbar-button compact-text"
-          ariaLabel="Crop aspect ratio"
-          options={cropAspectOptions}
+          ariaLabel={t("crop.aspectRatio")}
+          options={cropAspectOptionIds.map((id) => ({ id, label: cropAspectOptionLabel(id, t) }))}
           value={activeAspectId === "custom" ? null : activeAspectId}
           onChange={handleAspectChange}
           disabled={disabled}
         />
         <div className="field-grid">
           <label className="stacked-field geometry-number-field">
-            Ratio width
+            {t("crop.ratioWidth")}
             <input
               disabled={disabled}
               inputMode="numeric"
@@ -89,7 +89,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
             />
           </label>
           <label className="stacked-field geometry-number-field">
-            Ratio height
+            {t("crop.ratioHeight")}
             <input
               disabled={disabled}
               inputMode="numeric"
@@ -189,9 +189,9 @@ function fitAspect(rect: FractionRect, aspectRatio: number, imageBounds: { maxX:
   return clampFractionRect({ x: centerX - width / 2, y: centerY - height / 2, w: width, h: height }, imageBounds);
 }
 
-function aspectLabel(activeId: CropAspectOptionId | "custom", rect: { w: number; h: number }): string {
+function aspectLabel(activeId: CropAspectOptionId | "custom", rect: { w: number; h: number }, t: Translator["t"]): string {
   if (activeId === "custom") return `${(rect.w / Math.max(rect.h, 0.001)).toFixed(2)}:1`;
-  return cropAspectOptions.find((option) => option.id === activeId)?.label ?? "Free";
+  return cropAspectOptionLabel(activeId, t);
 }
 
 function readCustomAspectDraft(aspectLock: CropAspectLock): { width: string; height: string } {

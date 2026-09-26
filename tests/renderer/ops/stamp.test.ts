@@ -38,7 +38,7 @@ describe("StampSourceAction chooser reload", () => {
       }));
     });
 
-    await act(async () => chooseButton("Choose stamp...").click());
+    await act(async () => chooseButton("Choose stamp…").click());
 
     const result = document.querySelector('[role="alert"]');
     expect(reloadStamps).toHaveBeenCalledOnce();

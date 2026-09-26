@@ -29,9 +29,9 @@ export function localDropFiles(
     try {
       const filePath = pathForFile(file);
       if (filePath) paths.add(filePath);
-      else inaccessibleNames.push(file.name || "Dropped file");
+      else inaccessibleNames.push(file.name);
     } catch {
-      inaccessibleNames.push(file.name || "Dropped file");
+      inaccessibleNames.push(file.name);
     }
   }
   return { paths: [...paths], inaccessibleNames };

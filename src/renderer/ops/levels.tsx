@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import type { OpRenderer } from "./op-renderer";
 
 type LevelsParams = { blackPoint: number; whitePoint: number; gamma: number };
@@ -8,17 +9,18 @@ const DEFAULT_LEVELS: LevelsParams = { blackPoint: 0, whitePoint: 255, gamma: 1 
 export const levelsRenderer: OpRenderer<LevelsParams> = {
   type: "levels",
   Card({ params, disabled, onParamChange, onParamsChange }) {
+    const { t, rich } = useI18n();
     const gammaSliderValue = gammaToSliderValue(params.gamma);
     return (
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Input: <strong>{params.blackPoint}-{params.whitePoint}</strong></span>
+          <span className="geometry-status">{rich("levels.inputStatus", { range: <strong>{params.blackPoint}-{params.whitePoint}</strong> })}</span>
           <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onParamsChange(DEFAULT_LEVELS)}>
-            Reset
+            {t("common.reset")}
           </button>
         </div>
         <label className="slider-row">
-          <span>Black point</span>
+          <span>{t("levels.blackPoint")}</span>
           <input
             disabled={disabled}
             max={Math.max(0, params.whitePoint - MIN_LEVEL_SPAN)}
@@ -31,7 +33,7 @@ export const levelsRenderer: OpRenderer<LevelsParams> = {
           <span className="slider-value">{params.blackPoint}</span>
         </label>
         <label className="slider-row">
-          <span>White point</span>
+          <span>{t("levels.whitePoint")}</span>
           <input
             disabled={disabled}
             max={255}
@@ -44,7 +46,7 @@ export const levelsRenderer: OpRenderer<LevelsParams> = {
           <span className="slider-value">{params.whitePoint}</span>
         </label>
         <label className="slider-row">
-          <span>Gamma</span>
+          <span>{t("levels.gamma")}</span>
           <input
             disabled={disabled}
             max={100}

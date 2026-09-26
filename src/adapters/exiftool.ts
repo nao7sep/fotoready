@@ -16,7 +16,7 @@
 // without which the metadata feature breaks in packaged builds.
 import fs from "node:fs/promises";
 import { exiftool, type WriteTags } from "exiftool-vendored";
-import type { SourceMetadataSummary } from "@shared/types/project";
+import type { CaptureTimeField, LocationField, SourceMetadataSummary } from "@shared/types/project";
 import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { Logger } from "@shared/types/log";
 
@@ -28,22 +28,24 @@ const APP_SOFTWARE_TAG = "FotoReady";
 // nothing the strip leaves behind goes unflagged. An unqualified name read or cleared by ExifTool
 // covers the tag in every group that has it (IPTC and XMP-photoshop DateCreated, EXIF and XMP-exif
 // DateTimeOriginal, and so on). ModifyDate is not here: every save re-stamps or clears it.
-const CAPTURE_TIME_TAGS = [
-  { tag: "DateTimeOriginal", label: "Captured" },
-  { tag: "SubSecTimeOriginal", label: "Captured subseconds" },
-  { tag: "OffsetTimeOriginal", label: "Captured time zone" },
-  { tag: "CreateDate", label: "Created" },
-  { tag: "DateTimeDigitized", label: "Digitized" },
-  { tag: "SubSecTimeDigitized", label: "Created subseconds" },
-  { tag: "OffsetTimeDigitized", label: "Created time zone" },
-  { tag: "DateCreated", label: "Date created" },
-  { tag: "TimeCreated", label: "Time created" },
-  { tag: "DigitalCreationDate", label: "Digital creation date" },
-  { tag: "DigitalCreationTime", label: "Digital creation time" },
-  { tag: "GPSDateStamp", label: "GPS date" },
-  { tag: "GPSTimeStamp", label: "GPS time" },
-  { tag: "GPSDateTime", label: "GPS date and time" },
-  { tag: "CreationTime", label: "Creation time" }
+// Each tag's `field` names the value in the source summary; the renderer names the field in the
+// interface language.
+const CAPTURE_TIME_TAGS: ReadonlyArray<{ tag: string; field: CaptureTimeField }> = [
+  { tag: "DateTimeOriginal", field: "captured" },
+  { tag: "SubSecTimeOriginal", field: "capturedSubseconds" },
+  { tag: "OffsetTimeOriginal", field: "capturedTimeZone" },
+  { tag: "CreateDate", field: "created" },
+  { tag: "DateTimeDigitized", field: "digitized" },
+  { tag: "SubSecTimeDigitized", field: "createdSubseconds" },
+  { tag: "OffsetTimeDigitized", field: "createdTimeZone" },
+  { tag: "DateCreated", field: "dateCreated" },
+  { tag: "TimeCreated", field: "timeCreated" },
+  { tag: "DigitalCreationDate", field: "digitalCreationDate" },
+  { tag: "DigitalCreationTime", field: "digitalCreationTime" },
+  { tag: "GPSDateStamp", field: "gpsDate" },
+  { tag: "GPSTimeStamp", field: "gpsTime" },
+  { tag: "GPSDateTime", field: "gpsDateTime" },
+  { tag: "CreationTime", field: "creationTime" }
 ] as const;
 
 // The GPS fix's date and time are capture times, listed with the time tags above.
@@ -52,33 +54,33 @@ const CAPTURE_TIME_TAGS = [
 // mirrors, plus the structured Iptc4xmpExt LocationShown/LocationCreated. Two tags per place-name
 // concept (the IPTC name and the XMP name) are listed separately because, unlike DateTimeOriginal,
 // they are not the same unqualified tag name in ExifTool.
-const GPS_TAGS = [
-  { tag: "GPSLatitude", label: "Latitude" },
-  { tag: "GPSLatitudeRef", label: "Latitude Ref" },
-  { tag: "GPSLongitude", label: "Longitude" },
-  { tag: "GPSLongitudeRef", label: "Longitude Ref" },
-  { tag: "GPSAltitude", label: "Altitude" },
-  { tag: "GPSAltitudeRef", label: "Altitude Ref" },
-  { tag: "GPSMapDatum", label: "Map Datum" },
-  { tag: "GPSImgDirection", label: "Img Direction" },
-  { tag: "GPSImgDirectionRef", label: "Img Direction Ref" },
-  { tag: "GPSDestLatitude", label: "Dest Latitude" },
-  { tag: "GPSDestLatitudeRef", label: "Dest Latitude Ref" },
-  { tag: "GPSDestLongitude", label: "Dest Longitude" },
-  { tag: "GPSDestLongitudeRef", label: "Dest Longitude Ref" },
-  { tag: "GPSDestBearing", label: "Dest Bearing" },
-  { tag: "GPSDestBearingRef", label: "Dest Bearing Ref" },
-  { tag: "City", label: "City" },
-  { tag: "Province-State", label: "Province/state" },
-  { tag: "State", label: "Province/state" },
-  { tag: "Country-PrimaryLocationName", label: "Country" },
-  { tag: "Country", label: "Country" },
-  { tag: "Country-PrimaryLocationCode", label: "Country code" },
-  { tag: "CountryCode", label: "Country code" },
-  { tag: "Sub-location", label: "Sub-location" },
-  { tag: "Location", label: "Location" },
-  { tag: "LocationShown", label: "Location shown" },
-  { tag: "LocationCreated", label: "Location created" }
+const GPS_TAGS: ReadonlyArray<{ tag: string; field: LocationField }> = [
+  { tag: "GPSLatitude", field: "latitude" },
+  { tag: "GPSLatitudeRef", field: "latitudeRef" },
+  { tag: "GPSLongitude", field: "longitude" },
+  { tag: "GPSLongitudeRef", field: "longitudeRef" },
+  { tag: "GPSAltitude", field: "altitude" },
+  { tag: "GPSAltitudeRef", field: "altitudeRef" },
+  { tag: "GPSMapDatum", field: "mapDatum" },
+  { tag: "GPSImgDirection", field: "imageDirection" },
+  { tag: "GPSImgDirectionRef", field: "imageDirectionRef" },
+  { tag: "GPSDestLatitude", field: "destLatitude" },
+  { tag: "GPSDestLatitudeRef", field: "destLatitudeRef" },
+  { tag: "GPSDestLongitude", field: "destLongitude" },
+  { tag: "GPSDestLongitudeRef", field: "destLongitudeRef" },
+  { tag: "GPSDestBearing", field: "destBearing" },
+  { tag: "GPSDestBearingRef", field: "destBearingRef" },
+  { tag: "City", field: "city" },
+  { tag: "Province-State", field: "provinceState" },
+  { tag: "State", field: "provinceState" },
+  { tag: "Country-PrimaryLocationName", field: "country" },
+  { tag: "Country", field: "country" },
+  { tag: "Country-PrimaryLocationCode", field: "countryCode" },
+  { tag: "CountryCode", field: "countryCode" },
+  { tag: "Sub-location", field: "subLocation" },
+  { tag: "Location", field: "location" },
+  { tag: "LocationShown", field: "locationShown" },
+  { tag: "LocationCreated", field: "locationCreated" }
 ] as const;
 
 const EDITORIAL_TAGS = [
@@ -233,13 +235,13 @@ function metadataFieldsFromTags(tags: Record<string, unknown>): MetadataFields {
 function metadataSummaryFromTags(tags: Record<string, unknown>): SourceMetadataSummary {
   return {
     editorial: metadataFieldsFromTags(tags),
-    dates: Object.fromEntries(CAPTURE_TIME_TAGS.flatMap(({ tag, label }) => {
+    dates: Object.fromEntries(CAPTURE_TIME_TAGS.flatMap(({ tag, field }) => {
       const value = tagText(tags[tag]);
-      return value ? [[label, value]] : [];
+      return value ? [[field, value]] : [];
     })),
-    gps: Object.fromEntries(GPS_TAGS.flatMap(({ tag, label }) => {
+    gps: Object.fromEntries(GPS_TAGS.flatMap(({ tag, field }) => {
       const value = tagText(tags[tag]);
-      return value ? [[label, value]] : [];
+      return value ? [[field, value]] : [];
     }))
   };
 }

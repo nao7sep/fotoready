@@ -42,8 +42,6 @@ const renderedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
 
 const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
-  label: "Text watermark",
-  pickerLabel: "Text",
   category: "Watermark",
   previewBehavior: "show-output",
   defaultParams: {

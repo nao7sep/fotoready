@@ -1,22 +1,26 @@
+import { message, type Message } from "@shared/i18n/translate";
 import type { OriginalImportIssue, OriginalImportResult } from "@shared/types/ipc";
+
+// Feedback is held as messages, rendered when shown, so a language change reaches a result that is
+// already on screen.
 
 type FeedbackIssue = {
   filePath: string;
   severity: OriginalImportIssue["severity"];
-  detail: string;
+  detail: Message;
   resolveBy: "path" | "receiver-entry";
 };
 
 type FeedbackResolution =
-  | { kind: "paths"; issues: FeedbackIssue[]; success: string }
+  | { kind: "paths"; issues: FeedbackIssue[]; success: Message | null }
   | { kind: "next-import" }
   | { kind: "queue-refresh" }
   | null;
 
 export type OriginalImportFeedback = {
   severity: OriginalImportIssue["severity"];
-  title: string;
-  details: Array<{ severity: OriginalImportIssue["severity"]; text: string }>;
+  title: Message;
+  details: Array<{ severity: OriginalImportIssue["severity"]; text: Message }>;
   resolution: FeedbackResolution;
 };
 
@@ -60,13 +64,13 @@ export function buildOriginalImportFeedback(
     ...result.issues.map((issue) => ({
       filePath: issue.filePath,
       severity: issue.severity,
-      detail: `${basename(issue.filePath)}: ${issue.reason}`,
+      detail: message("import.detail", { name: basename(issue.filePath), reason: issue.reason }),
       resolveBy: "path" as const,
     })),
     ...inaccessibleNames.map((filePath) => ({
       filePath,
       severity: "error" as const,
-      detail: `${filePath}: FotoReady could not access this local file.`,
+      detail: inaccessibleDetail(filePath),
       resolveBy: "receiver-entry" as const,
     })),
   ];
@@ -76,27 +80,32 @@ export function buildOriginalImportFeedback(
 }
 
 export function inaccessibleOriginalImportFeedback(names: string[]): OriginalImportFeedback {
-  const issues: FeedbackIssue[] = (names.length > 0 ? names : ["Dropped file"]).map((name) => ({
-    filePath: name,
-    severity: "error",
-    detail: names.length > 0
-      ? `${name}: FotoReady could not access this local file.`
-      : "FotoReady did not receive a local file path.",
-    resolveBy: "receiver-entry",
-  }));
+  const issues: FeedbackIssue[] = names.length > 0
+    ? names.map((name) => ({
+      filePath: name,
+      severity: "error",
+      detail: inaccessibleDetail(name),
+      resolveBy: "receiver-entry",
+    }))
+    : [{
+      filePath: "",
+      severity: "error",
+      detail: message("import.noLocalPath"),
+      resolveBy: "receiver-entry",
+    }];
   return {
     severity: "error",
-    title: "Originals could not be added.",
+    title: message("import.couldNotAdd"),
     details: issues.map((issue) => ({ severity: issue.severity, text: issue.detail })),
-    resolution: { kind: "paths", issues, success: "" },
+    resolution: { kind: "paths", issues, success: null },
   };
 }
 
 export function originalImportFailureFeedback(): OriginalImportFeedback {
   return {
     severity: "error",
-    title: "Originals could not be added.",
-    details: [{ severity: "error", text: "The selected files could not be read. Check that they are still available and try again." }],
+    title: message("import.couldNotAdd"),
+    details: [{ severity: "error", text: message("import.readFailed") }],
     resolution: { kind: "next-import" },
   };
 }
@@ -104,46 +113,52 @@ export function originalImportFailureFeedback(): OriginalImportFeedback {
 export function queueRefreshFailureFeedback(): OriginalImportFeedback {
   return {
     severity: "error",
-    title: "Originals changed, but status could not be refreshed.",
-    details: [{ severity: "error", text: "Reopen FotoReady to refresh the workspace status." }],
+    title: message("import.refreshFailed"),
+    details: [{ severity: "error", text: message("import.refreshFailedDetail") }],
     resolution: { kind: "queue-refresh" },
   };
 }
 
+// A dropped file that arrived without a name is named as such, in the interface language.
+function inaccessibleDetail(name: string): Message {
+  return message("import.detail", {
+    name: name || message("import.droppedFile"),
+    reason: message("import.inaccessible"),
+  });
+}
+
 function feedbackFromIssues(
   issues: FeedbackIssue[],
-  success: string,
+  success: Message | null,
 ): OriginalImportFeedback {
   const severity = issues.reduce<OriginalImportIssue["severity"]>(
     (highest, issue) => severityRank[issue.severity] > severityRank[highest] ? issue.severity : highest,
     "info",
   );
-  const issueCount = issues.length;
   return {
     severity,
     title: success
-      ? `${success}; ${issueSummary(issueCount, severity)}.`
-      : severity === "info" ? "Nothing new was added."
-        : severity === "warning" ? "Nothing was added."
-          : "Originals could not be added.",
+      ? message("import.withIssues", { success, issues: issueSummary(issues.length, severity) })
+      : message(severity === "info" ? "import.nothingNew" : severity === "warning" ? "import.nothingAdded" : "import.couldNotAdd"),
     details: issues.map((issue) => ({ severity: issue.severity, text: issue.detail })),
     resolution: { kind: "paths", issues, success },
   };
 }
 
-function successSummary(addedOriginals: number, restoredTasks: number): string {
-  const originals = `${addedOriginals} ${addedOriginals === 1 ? "original" : "originals"}`;
-  const tasks = `${restoredTasks} ${restoredTasks === 1 ? "task" : "tasks"}`;
-  if (addedOriginals > 0 && restoredTasks > 0) return `Added ${originals} and restored ${tasks}`;
-  if (addedOriginals > 0) return `Added ${originals}`;
-  if (restoredTasks > 0) return `Restored ${tasks}`;
-  return "";
+function successSummary(addedOriginals: number, restoredTasks: number): Message | null {
+  if (addedOriginals > 0 && restoredTasks > 0) {
+    return message("import.addedAndRestored", {
+      added: message("import.added", { count: addedOriginals }),
+      restored: message("import.andRestored", { count: restoredTasks }),
+    });
+  }
+  if (addedOriginals > 0) return message("import.added", { count: addedOriginals });
+  if (restoredTasks > 0) return message("import.restored", { count: restoredTasks });
+  return null;
 }
 
-function issueSummary(count: number, severity: OriginalImportIssue["severity"]): string {
-  const items = `${count} ${count === 1 ? "item" : "items"}`;
-  if (severity === "info") return `${items} ${count === 1 ? "was" : "were"} already present`;
-  return `${items} ${count === 1 ? "needs" : "need"} attention`;
+function issueSummary(count: number, severity: OriginalImportIssue["severity"]): Message {
+  return message(severity === "info" ? "import.alreadyPresent" : "import.needAttention", { count });
 }
 
 function pathIdentity(sourcePath: string): string {

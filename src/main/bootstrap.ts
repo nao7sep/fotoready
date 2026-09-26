@@ -24,6 +24,8 @@ import {
 import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 import { applyThemePreference, followOsThemeChanges, windowBackground } from "./theme";
+import { applyLanguagePreference, detectComputerLanguage, mainTranslator, setLanguageFailureReporter } from "./i18n";
+import { installApplicationMenu } from "./menu";
 import { revealWindow } from "./reveal-window";
 import { windowCloseQuits } from "./window-close";
 import type { CloseRequest } from "@shared/types/ipc";
@@ -69,6 +71,8 @@ type ExitState = { reason: string };
 
 export async function bootstrap(): Promise<void> {
   await app.whenReady();
+  // Before anything is drawn, so even a startup failure speaks the computer's language.
+  detectComputerLanguage();
 
   const paths = getAppPaths();
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
@@ -86,6 +90,11 @@ export async function bootstrap(): Promise<void> {
   // dialog before the first window exists, so launch never shows the OS appearance and then switches.
   applyThemePreference(settings.theme);
   followOsThemeChanges();
+  // The saved language settles before anything is drawn: the menu bar, the recovery notice below,
+  // and the renderer, which asks for it before showing any text.
+  setLanguageFailureReporter((message, error) => logger.warn(message, { mod: "main.i18n", err: error }));
+  applyLanguagePreference(settings.language);
+  installApplicationMenu(mainTranslator());
   const uiState = await loadState(paths.statePath, logger);
   const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
   if (settingsQuarantinedTo) {

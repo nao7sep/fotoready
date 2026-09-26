@@ -56,7 +56,7 @@ describe("ShortcutsModal", () => {
       "View",
       "App",
       "Lists and controls",
-      "Asset picker (LUTs & stamps)"
+      "Asset picker (LUTs and stamps)"
     ]);
     expect(titles[0], "the commands, App included, share the first column").toEqual([
       "Import and save",

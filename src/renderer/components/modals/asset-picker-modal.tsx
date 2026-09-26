@@ -15,6 +15,9 @@ import { filterStampsByGroup, initialStampGroupFilter } from "@renderer/stamp-fi
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { useConfirmer } from "./confirmer";
 import { ModalShell } from "./modal-shell";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import type { MessageKey } from "@shared/i18n/catalogues";
+import { message, type Message, type Translator } from "@shared/i18n/translate";
 
 type PickerEntry = {
   builtin: boolean;
@@ -26,6 +29,25 @@ type PickerEntry = {
 type PickerOperation = "delete" | "import" | "use";
 
 const pickerOperations: readonly PickerOperation[] = ["use", "import", "delete"];
+
+const OPERATION_DISMISS_LABELS: Record<PickerOperation, MessageKey> = {
+  use: "assets.closeUseResult",
+  import: "assets.closeImportResult",
+  delete: "assets.closeDeleteResult"
+};
+
+const STAMP_GROUP_LABELS: Record<StampGroupFilterId, MessageKey> = {
+  all: "stamps.group.all",
+  cover: "stamps.group.cover",
+  marks: "stamps.group.marks",
+  bubbles: "stamps.group.bubbles",
+  reactions: "stamps.group.reactions",
+  funny: "stamps.group.funny",
+  cute: "stamps.group.cute",
+  stories: "stamps.group.stories",
+  seasonal: "stamps.group.seasonal",
+  imported: "stamps.group.imported"
+};
 
 type AssetPickerModalProps<T extends PickerEntry> = {
   entries: T[];
@@ -58,7 +80,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   controls,
   contentId,
   contentLabelledBy,
-  emptyMessage = "No items in this library",
+  emptyMessage,
   onClose,
   onDelete,
   onImport,
@@ -66,6 +88,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   onRefresh,
   onUse
 }: AssetPickerModalProps<T>): React.JSX.Element {
+  const { t, text, list } = useI18n();
   const confirmer = useConfirmer();
   const ime = useImeGuard();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -74,8 +97,8 @@ export function AssetPickerModal<T extends PickerEntry>({
   const [focusPath, setFocusPath] = useState(selectedPath);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState(selectedPath);
   const [pendingReselectIndex, setPendingReselectIndex] = useState<number | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<PickerOperation, string>>>({});
-  const [notice, setNotice] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<PickerOperation, Message>>>({});
+  const [notice, setNotice] = useState<Message | null>(null);
 
   const entryIndexByPath = useMemo(
     () => new Map(entries.map((entry, index) => [entry.path, index])),
@@ -90,9 +113,9 @@ export function AssetPickerModal<T extends PickerEntry>({
   const focusedIndex = focusPath ? entryIndexByPath.get(focusPath) ?? -1 : -1;
   const canDeleteSelected = selectedEntries.length > 0 && selectedEntries.every((entry) => !entry.builtin);
 
-  function setOperationError(operation: PickerOperation, message: string | null): void {
+  function setOperationError(operation: PickerOperation, failure: Message | null): void {
     setErrors((current) => {
-      if (message) return { ...current, [operation]: message };
+      if (failure) return { ...current, [operation]: failure };
       if (!current[operation]) return current;
       const next = { ...current };
       delete next[operation];
@@ -172,11 +195,7 @@ export function AssetPickerModal<T extends PickerEntry>({
       setOperationError("use", null);
       onClose();
     } catch (entryError) {
-      setOperationError("use", presentFailure(
-        entryError,
-        "The selected asset could not be used. The current selection is unchanged; try again.",
-        "renderer asset use failed",
-      ));
+      setOperationError("use", presentFailure(entryError, message("failure.assetUse"), "renderer asset use failed"));
     }
   }
 
@@ -199,19 +218,13 @@ export function AssetPickerModal<T extends PickerEntry>({
         focusItem(preferredPath);
       }
       if (skippedEntries.length > 0) {
-        const namesPreview = formatNamesList(skippedEntries.map((entry) => entry.fileName));
-        const fileWord = skippedEntries.length === 1 ? "file" : "files";
-        const label = skippedEntries.length === imported.length
-          ? `${skippedEntries.length} ${fileWord} already match a library file name and were not imported: ${namesPreview}`
-          : `${skippedEntries.length} of ${imported.length} ${fileWord} already match a library file name and were not imported: ${namesPreview}`;
-        setNotice(label);
+        const names = skippedEntries.map((entry) => entry.fileName);
+        setNotice(skippedEntries.length === imported.length
+          ? message("assets.skippedAll", { count: skippedEntries.length, names: namesPreview(names, t, list) })
+          : message("assets.skippedSome", { count: skippedEntries.length, total: imported.length, names: namesPreview(names, t, list) }));
       }
     } catch (importError) {
-      setOperationError("import", presentFailure(
-        importError,
-        "Assets could not be imported. The library is unchanged; check that the selected files are still available and try again.",
-        "renderer asset import failed",
-      ));
+      setOperationError("import", presentFailure(importError, message("failure.assetImport"), "renderer asset import failed"));
     }
   }
 
@@ -223,16 +236,16 @@ export function AssetPickerModal<T extends PickerEntry>({
       .reduce((min, index) => Math.min(min, index), Number.POSITIVE_INFINITY);
     const deletedPaths = new Set(deletedEntries.map((entry) => entry.path));
     const confirmed = await confirmer.confirm({
-      title: "Remove from library?",
+      title: t("assets.removeTitle"),
       message: deletedEntries.length === 1
-        ? `Remove "${deletedEntries[0].name}" from the library? The imported asset file will be moved to the system trash and can be restored from there.`
+        ? t("assets.removeOne", { name: deletedEntries[0].name })
         : (
           <AssetFileListMessage
-            intro={`Remove these ${deletedEntries.length} items from the library? The imported asset files will be moved to the system trash and can be restored from there.`}
+            intro={t("assets.removeMany", { count: deletedEntries.length })}
             names={deletedEntries.map((entry) => entry.name)}
           />
         ),
-      confirmLabel: "Move to trash",
+      confirmLabel: t("common.moveToTrash"),
       danger: true
     });
     if (!confirmed) return;
@@ -251,17 +264,11 @@ export function AssetPickerModal<T extends PickerEntry>({
         await onRefresh();
       } catch (refreshError) {
         refreshed = false;
-        presentFailure(
-          refreshError,
-          "",
-          "renderer asset library refresh after deletion failed",
-        );
+        presentFailure(refreshError, null, "renderer asset library refresh after deletion failed");
       }
       setOperationError("delete", presentFailure(
         deleteError,
-        refreshed
-          ? "Some selected files may already be in Trash. The library list was refreshed; review it, then try any remaining items again."
-          : "Some selected files may already be in Trash, and the library list could not be refreshed. Close and reopen this picker after restoring access to the library folder.",
+        message(refreshed ? "failure.assetDelete" : "failure.assetDeleteUnrefreshed"),
         "renderer asset deletion failed",
       ));
     }
@@ -382,15 +389,15 @@ export function AssetPickerModal<T extends PickerEntry>({
   }
 
   const deleteTitle = selectedEntries.length === 0
-    ? "Select one or more items to delete."
+    ? t("assets.deleteNeedsSelection")
     : !canDeleteSelected
-      ? "Built-in items cannot be deleted."
-      : `Remove ${selectedEntries.length === 1 ? "the selected item" : "the selected items"} from the library`;
+      ? t("assets.builtinProtected")
+      : t("assets.removeSelected", { count: selectedEntries.length });
   const useTitle = selectedEntry
-    ? "Use the selected item"
+    ? t("assets.useSelectedHint")
     : selectedEntries.length === 0
-      ? "Select one item to use."
-      : "Select exactly one item to use.";
+      ? t("assets.selectOne")
+      : t("assets.selectExactlyOne");
 
   return (
     <ModalShell
@@ -401,7 +408,7 @@ export function AssetPickerModal<T extends PickerEntry>({
       onClose={onClose}
       footer={
         <>
-          <button className="toolbar-button" type="button" onClick={importAssets}>Import...</button>
+          <button className="toolbar-button" type="button" onClick={importAssets}>{t("assets.import")}</button>
           <span className="top-bar-spacer" />
           <button
             className="toolbar-button"
@@ -410,9 +417,9 @@ export function AssetPickerModal<T extends PickerEntry>({
             type="button"
             onClick={() => void deleteSelected()}
           >
-            Delete
+            {t("common.delete")}
           </button>
-          <button className="toolbar-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="toolbar-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
           <button
             className="primary-action"
             disabled={!selectedEntry}
@@ -420,7 +427,7 @@ export function AssetPickerModal<T extends PickerEntry>({
             type="button"
             onClick={() => void useSelected()}
           >
-            Use selected
+            {t("assets.useSelected")}
           </button>
         </>
       }
@@ -429,25 +436,25 @@ export function AssetPickerModal<T extends PickerEntry>({
         {controls}
         {loading ? (
           <OperationResult announce={false} className="modal-info" severity="info">
-            Preparing previews...
+            {t("assets.preparing")}
           </OperationResult>
         ) : null}
         {notice ? (
           <OperationResult className="modal-warning" severity="warning">
-            {notice}
+            {text(notice)}
           </OperationResult>
         ) : null}
         {pickerOperations.map((operation) => {
-          const message = errors[operation];
-          return message ? (
+          const failure = errors[operation];
+          return failure ? (
             <OperationResult
               className="modal-error"
-              dismissLabel={`Close ${operation} result`}
+              dismissLabel={t(OPERATION_DISMISS_LABELS[operation])}
               key={operation}
               severity="error"
               onDismiss={() => setOperationError(operation, null)}
             >
-              {message}
+              {text(failure)}
             </OperationResult>
           ) : null;
         })}
@@ -489,14 +496,14 @@ export function AssetPickerModal<T extends PickerEntry>({
                   onFocus={() => setFocusPath(entry.path)}
                 >
                   <span className="asset-picker-preview">
-                    {entry.previewDataUrl ? <img alt="" src={entry.previewDataUrl} /> : <span>No preview</span>}
+                    {entry.previewDataUrl ? <img alt="" src={entry.previewDataUrl} /> : <span>{t("assets.noPreview")}</span>}
                   </span>
                   <span className="asset-picker-name" title={entry.name}>{entry.name}</span>
-                  {entry.builtin ? <span className="asset-picker-badge">Built-in</span> : null}
+                  {entry.builtin ? <span className="asset-picker-badge">{t("assets.builtin")}</span> : null}
                 </button>
               );
             }) : (
-              <div className="ops-empty">{emptyMessage}</div>
+              <div className="ops-empty">{emptyMessage ?? t("assets.empty")}</div>
             )}
           </div>
         </div>
@@ -505,11 +512,10 @@ export function AssetPickerModal<T extends PickerEntry>({
   );
 }
 
-function formatNamesList(names: string[], maxNames = 5): string {
-  if (names.length <= maxNames) return names.join(", ");
-  const preview = names.slice(0, maxNames).join(", ");
-  const overflow = names.length - maxNames;
-  return `${preview}, and ${overflow} more`;
+// The first few names, listed the way the language lists them, with a count of the rest.
+function namesPreview(names: string[], t: Translator["t"], list: Translator["list"], maxNames = 5): string {
+  if (names.length <= maxNames) return list(names);
+  return list([...names.slice(0, maxNames), t("assets.moreNames", { count: names.length - maxNames })]);
 }
 
 function samePaths(left: readonly string[], right: readonly string[]): boolean {
@@ -550,6 +556,7 @@ export function LutPickerModal({
   onReload(): Promise<void>;
   onUse(path: string): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [previews, setPreviews] = useState<LutPreviewEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const previewOptions = useMemo<PreviewRenderOptions | undefined>(
@@ -586,11 +593,11 @@ export function LutPickerModal({
     <AssetPickerModal
       entries={entries}
       extensions={["cube"]}
-      importTitle="Import LUTs"
+      importTitle={t("lut.importTitle")}
       loading={loading}
       previewLongEdge={previewLongEdge}
       selectedPath={selectedPath}
-      title="Choose LUT"
+      title={t("lut.chooseTitle")}
       onClose={onClose}
       onDelete={(entriesToDelete) => api.luts.delete(entriesToDelete.map((entry) => entry.path))}
       onImport={(filePaths) => api.luts.import(filePaths)}
@@ -615,6 +622,7 @@ export function StampPickerModal({
   onReload(): Promise<void>;
   onUse(path: string): void | Promise<void>;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [groupId, setGroupId] = useState<StampGroupFilterId>(() => initialStampGroupFilter(stamps, selectedPath));
   const groupTabsRef = useRef<HTMLDivElement>(null);
   const groupPanelId = useId();
@@ -678,18 +686,18 @@ export function StampPickerModal({
     name: stamp.name || fileNameFromPath(stamp.path),
     previewDataUrl: previewMap[stamp.path]
   }));
-  const emptyMessage = groupId === "all"
-    ? "No stamps in this library"
+  const emptyMessage = t(groupId === "all"
+    ? "stamps.emptyLibrary"
     : groupId === "imported"
-      ? "No imported stamps"
-      : "No stamps in this group";
+      ? "stamps.emptyImported"
+      : "stamps.emptyGroup");
   return (
     <AssetPickerModal
       contentId={groupPanelId}
       contentLabelledBy={activeGroupTabId}
       controls={(
         <div
-          aria-label="Stamp groups"
+          aria-label={t("stamps.groups")}
           className="asset-picker-groups"
           onKeyDown={handleGroupKeyDown}
           ref={groupTabsRef}
@@ -710,7 +718,7 @@ export function StampPickerModal({
                 tabIndex={selected ? 0 : -1}
                 type="button"
               >
-                {group.label}
+                {t(STAMP_GROUP_LABELS[group.id])}
               </button>
             );
           })}
@@ -719,11 +727,11 @@ export function StampPickerModal({
       emptyMessage={emptyMessage}
       entries={entries}
       extensions={["png", "svg"]}
-      importTitle="Import stamps"
+      importTitle={t("stamps.importTitle")}
       loading={loading}
       previewLongEdge={previewLongEdge}
       selectedPath={selectedPath}
-      title="Choose stamp"
+      title={t("stamps.chooseTitle")}
       onClose={onClose}
       onDelete={(entriesToDelete) => api.stamps.delete(entriesToDelete.map((entry) => entry.path))}
       onImport={(filePaths) => api.stamps.import(filePaths)}

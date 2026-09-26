@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import { assertSafeRenderedFilename } from "@shared/validation/filename-template";
-import type { RenamePreview } from "@shared/types/ipc";
+import type { RenameIssue, RenamePreview } from "@shared/types/ipc";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { sidecarPathForOutput } from "@main/task-sidecar";
 import { findRenameTemplate, renderRenameTemplate, renameTemplateUsesOriginal, renameTemplateUsesSlug, type RenameTemplateId } from "@shared/rename-template";
@@ -46,7 +46,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
         customSlug: task.customSlug,
         generatedSlug: null,
         effectiveSlug: null,
-        issue: "Not saved"
+        issue: "not-saved"
       });
       continue;
     }
@@ -59,7 +59,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
     const missingSlug = needsSlug && !effectiveSlug;
     let proposedPath: string | null = null;
     let proposedName: string | null = null;
-    let issue: string | null = missingSlug ? "Missing slug" : null;
+    let issue: RenameIssue | null = missingSlug ? "missing-slug" : null;
 
     if (!issue) {
       try {
@@ -78,7 +78,7 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
         assertSafeRenderedFilename(proposedName);
         proposedPath = path.join(destinationDir, proposedName);
       } catch (error) {
-        issue = "The saved output could not be inspected. Check that it still exists and is accessible.";
+        issue = "inspect-failed";
         logger?.error("rename preview item failed", {
           mod: "rename",
           taskId: task.id,
@@ -122,27 +122,27 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
     if (hasOriginalConflict || hasSlugConflict) {
       item.status = "blocked";
       item.issue = hasOriginalConflict && hasSlugConflict
-        ? "Overlaps another original- and slug-based name"
+        ? "overlaps-original-and-slug"
         : hasOriginalConflict
-          ? "Overlaps another original-based name"
-          : "Overlaps another slug-based name";
+          ? "overlaps-original"
+          : "overlaps-slug";
       continue;
     }
     if ((proposedPathCounts.get(normalizePathKey(item.proposedPath)) ?? 0) > 1) {
       item.status = "blocked";
-      item.issue = "Overlaps another renamed file";
+      item.issue = "overlaps-renamed";
       continue;
     }
     if (item.currentPath !== item.proposedPath && await pathExists(item.proposedPath)) {
       item.status = "blocked";
-      item.issue = "A file with this name already exists";
+      item.issue = "name-exists";
       continue;
     }
     const currentParamsPath = sidecarPathForOutput(item.currentPath);
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
     if (currentParamsPath !== proposedParamsPath && await pathExists(proposedParamsPath)) {
       item.status = "blocked";
-      item.issue = "A JSON sidecar with this name already exists";
+      item.issue = "sidecar-exists";
     }
   }
 

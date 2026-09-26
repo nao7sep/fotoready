@@ -1,6 +1,7 @@
+import type { MessageKey } from "@shared/i18n/catalogues";
 import type { CloseRequest } from "@shared/types/ipc";
 
-export type CloseConfirmation = { title: string; message: string };
+export type CloseConfirmation = { title: MessageKey; message: MessageKey };
 
 /**
  * What to ask before a close goes ahead, or null when the close loses nothing. Only a close that
@@ -13,9 +14,7 @@ export function closeConfirmation(
 ): CloseConfirmation | null {
   if (!request.endsApp || !workspace.hasWork) return null;
   return {
-    title: "Close FotoReady?",
-    message: workspace.savesInFlight
-      ? "Close and discard the current workspace? Saves still in progress are cancelled, and their unfinished files are removed."
-      : "Close and discard the current workspace?",
+    title: "confirm.close.title",
+    message: workspace.savesInFlight ? "confirm.close.messageWithSaves" : "confirm.close.message",
   };
 }

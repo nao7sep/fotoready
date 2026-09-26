@@ -7,6 +7,7 @@ import { OperationResult } from "@renderer/components/operation-result";
 import { getOpRenderer, type OverlayContext } from "@renderer/ops";
 import { fitImage, imageBoundsFromSize, type ImageFitMode } from "@renderer/ops/_overlay-primitives";
 import { isTaskEditable } from "@shared/task-editing";
+import { useI18n } from "@renderer/i18n/I18nContext";
 
 export type EditorCanvasPreview = {
   dataUrl: string;
@@ -35,6 +36,7 @@ export function EditorCanvas({
   onRetryPreview(): void;
   onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 1, height: 1 });
 
@@ -134,11 +136,11 @@ export function EditorCanvas({
         </Stage>
       ) : (
         <div className="canvas-placeholder">
-          {previewState === "loading" ? "Rendering preview..." : fallbackLabel}
+          {previewState === "loading" ? t("canvas.renderingPreview") : fallbackLabel}
           {previewState === "error" ? (
             <OperationResult className="modal-error preview-error" severity="error">
-              <span>Preview failed.</span>
-              <button className="toolbar-button compact-text" type="button" onClick={onRetryPreview}>Retry</button>
+              <span>{t("canvas.previewFailed")}</span>
+              <button className="toolbar-button compact-text" type="button" onClick={onRetryPreview}>{t("common.retry")}</button>
             </OperationResult>
           ) : null}
         </div>

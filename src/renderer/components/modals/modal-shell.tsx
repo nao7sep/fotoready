@@ -5,6 +5,7 @@ import { isTopModalLayer, pushModalLayer, removeModalLayer } from "./modal-stack
 import { acquireScrollLock, releaseScrollLock } from "./scroll-lock";
 import { trapTabFocus } from "./focus-trap";
 import { isComposingKeyboardEvent } from "@renderer/utils/ime-guard";
+import { useI18n } from "@renderer/i18n/I18nContext";
 
 export type ModalSize = "default" | "small" | "wide";
 
@@ -46,6 +47,7 @@ export function ModalShell({
   footer?: React.ReactNode;
   children: React.ReactNode;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const layerIdRef = useRef<symbol | null>(null);
   layerIdRef.current ??= Symbol("modal-layer");
   const layerId = layerIdRef.current;
@@ -122,7 +124,7 @@ export function ModalShell({
       >
         <header className="modal-header">
           <h2 id={titleId} className={titleHidden ? "sr-only" : undefined}>{title}</h2>
-          <button className="modal-header-close" type="button" aria-label="Close" title="Close" disabled={closeDisabled} onClick={onClose}>
+          <button className="modal-header-close" type="button" aria-label={t("common.close")} title={t("common.close")} disabled={closeDisabled} onClick={onClose}>
             <X className="modal-header-close-icon" />
           </button>
         </header>

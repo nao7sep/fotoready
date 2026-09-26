@@ -1,3 +1,5 @@
+import type { Translator } from "@shared/i18n/translate";
+
 export function sliderLongEdge(originalSize: { width: number; height: number } | null): number {
   return originalSize ? Math.max(originalSize.width, originalSize.height) : 1000;
 }
@@ -12,7 +14,7 @@ export function percentStepsToFraction(value: number): number {
   return value / PERCENT_STEPS;
 }
 
-export function formatPercent(value: number): string {
-  const percentage = Math.round(value * 1000) / 10;
-  return `${Number.isInteger(percentage) ? percentage.toFixed(0) : percentage.toFixed(1)}%`;
+/** A fraction as a percentage to one decimal, formatted for the reader's locale. */
+export function formatPercent(value: number, percent: Translator["percent"]): string {
+  return percent(value, 1);
 }

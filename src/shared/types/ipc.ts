@@ -4,6 +4,8 @@ import type { Project } from "./project";
 import type { VisionRunMode } from "./project";
 import type { OpDefinition } from "./op";
 import type { RenameTemplateId } from "../rename-template";
+import type { InterfaceLanguage } from "../i18n/languages";
+import type { Message } from "../i18n/translate";
 
 export type { VisionRunMode } from "./project";
 
@@ -85,7 +87,8 @@ export type OriginalImportIssue = {
   filePath: string;
   kind: "duplicate" | "unsupported" | "invalid" | "failed";
   severity: "info" | "warning" | "error";
-  reason: string;
+  /** Why, as a message the renderer renders in the interface language. */
+  reason: Message;
 };
 
 export type OriginalImportResult = {
@@ -98,7 +101,7 @@ export type OriginalImportResult = {
   issues: OriginalImportIssue[];
 };
 
-export type OpCatalogItem = Pick<OpDefinition, "type" | "label" | "pickerLabel" | "category" | "defaultParams" | "previewBehavior" | "metadataOnly">;
+export type OpCatalogItem = Pick<OpDefinition, "type" | "category" | "defaultParams" | "previewBehavior" | "metadataOnly">;
 
 export type PreviewResult = {
   taskId: string;
@@ -131,6 +134,18 @@ export type AssetThumbnail = {
   height: number;
 };
 
+/** Why a rename item cannot go ahead as proposed; the renderer names it in the interface language. */
+export type RenameIssue =
+  | "not-saved"
+  | "missing-slug"
+  | "inspect-failed"
+  | "overlaps-original-and-slug"
+  | "overlaps-original"
+  | "overlaps-slug"
+  | "overlaps-renamed"
+  | "name-exists"
+  | "sidecar-exists";
+
 export type RenamePreviewItem = {
   taskId: string;
   originalName: string;
@@ -143,7 +158,7 @@ export type RenamePreviewItem = {
   customSlug: string | null;
   generatedSlug: string | null;
   effectiveSlug: string | null;
-  issue: string | null;
+  issue: RenameIssue | null;
 };
 
 export type RenamePreview = {
@@ -195,6 +210,10 @@ export type TaskEditOptions = {
 };
 
 export type FotoReadyApi = {
+  language: {
+    current(): Promise<InterfaceLanguage>;
+    onChanged(callback: (language: InterfaceLanguage) => void): () => void;
+  };
   system: {
     getInfo(): Promise<SystemInfo>;
     filePathForFile(file: File): string;

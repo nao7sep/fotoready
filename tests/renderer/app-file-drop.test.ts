@@ -56,6 +56,10 @@ describe("FotoReady app file receiver", () => {
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
+        language: {
+          current: () => Promise.resolve({ language: "en", locale: "en-US" }),
+          onChanged: () => vi.fn()
+        },
         system: {
           getInfo: () => Promise.resolve({
             appName: "FotoReady",

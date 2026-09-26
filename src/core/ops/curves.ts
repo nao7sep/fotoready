@@ -8,7 +8,6 @@ type CurvesParams = {
 
 const curvesModule: OpModule<CurvesParams> = {
   type: "curves",
-  label: "Curves",
   category: "Tone",
   previewBehavior: "show-output",
   defaultParams: { rgb: [[0, 0], [64, 64], [128, 128], [192, 192], [255, 255]] },

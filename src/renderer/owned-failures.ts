@@ -1,7 +1,9 @@
 import type React from "react";
+import type { Message } from "@shared/i18n/translate";
 import { presentFailure } from "./present-failure";
 
-export type OwnedFailures = Record<string, string>;
+/** Failures kept per owning surface, as messages rendered in the current language. */
+export type OwnedFailures = Record<string, Message>;
 export type OwnedFailureSetter = React.Dispatch<React.SetStateAction<OwnedFailures>>;
 export type OwnedActionOutcome = "completed" | "cancelled";
 
@@ -35,7 +37,7 @@ export async function runOwnedAction({
   key: string;
   operation: string;
   setFailures: OwnedFailureSetter;
-  userMessage: string;
+  userMessage: Message;
 }): Promise<void> {
   const attempt = beginAttempt(setFailures, key);
   try {

@@ -11,7 +11,6 @@ type BlurParams = {
 
 const blurModule: OpModule<BlurParams> = {
   type: "blur",
-  label: "Blur",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], radius: 20 },

@@ -11,6 +11,7 @@ import { getOpModule } from "@core/ops/catalog";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
+import { message } from "@shared/i18n/translate";
 
 export type LoadedTaskSidecar = {
   path: string;
@@ -65,7 +66,7 @@ export async function loadTaskSidecars(
         filePath,
         kind: "failed",
         severity: "error",
-        reason: "FotoReady could not read this task sidecar. Check that it still exists and is accessible."
+        reason: message("importReason.sidecarUnreadable")
       });
       continue;
     }
@@ -79,7 +80,7 @@ export async function loadTaskSidecars(
         filePath,
         kind: "invalid",
         severity: "warning",
-        reason: "This JSON file is not a valid FotoReady task sidecar."
+        reason: message("importReason.sidecarInvalid")
       });
       continue;
     }
@@ -89,7 +90,7 @@ export async function loadTaskSidecars(
         filePath,
         kind: "invalid",
         severity: "warning",
-        reason: "This JSON file is not a valid FotoReady task sidecar."
+        reason: message("importReason.sidecarInvalid")
       });
       continue;
     }
@@ -101,7 +102,7 @@ export async function loadTaskSidecars(
         filePath,
         kind: "invalid",
         severity: "warning",
-        reason: "This JSON file is not a valid FotoReady task sidecar."
+        reason: message("importReason.sidecarInvalid")
       });
     }
   }

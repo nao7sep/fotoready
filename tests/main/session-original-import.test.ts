@@ -51,7 +51,7 @@ describe("ProjectSession original import results", () => {
       filePath: imagePath,
       kind: "duplicate",
       severity: "info",
-      reason: "This original is already in the project.",
+      reason: { key: "importReason.duplicate" },
     }]);
     expect(repeated.snapshot.project.originals).toHaveLength(1);
   });
@@ -106,7 +106,7 @@ describe("ProjectSession original import results", () => {
       filePath: missingPath,
       kind: "failed",
       severity: "error",
-      reason: "FotoReady could not read this image. Check that it still exists and is accessible.",
+      reason: { key: "importReason.imageUnreadable" },
     }]);
     expect(logger.error).toHaveBeenCalledWith(
       "original import failed",
@@ -127,7 +127,7 @@ describe("ProjectSession original import results", () => {
       filePath: invalidPath,
       kind: "invalid",
       severity: "warning",
-      reason: expect.any(String),
+      reason: { key: "importReason.imageInvalid" },
     }]);
     expect(logger.warn).toHaveBeenCalledWith(
       "original image was invalid",

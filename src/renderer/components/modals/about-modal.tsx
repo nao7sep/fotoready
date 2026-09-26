@@ -4,6 +4,8 @@ import { api } from "@renderer/ipc/client";
 import { ModalShell } from "./modal-shell";
 import { dismissOwnedFailure, runOwnedAction, type OwnedFailures } from "../../owned-failures";
 import { OwnedFailureList } from "../owned-failure-list";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import { message } from "@shared/i18n/translate";
 
 const APP_REPOSITORY_URL = "https://github.com/nao7sep/fotoready";
 const APP_ISSUES_URL = `${APP_REPOSITORY_URL}/issues`;
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
+  const { t } = useI18n();
   const [linkFailures, setLinkFailures] = useState<OwnedFailures>({});
 
   function openProjectPage(key: "repository" | "issues", url: string): void {
@@ -23,35 +26,30 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
       key,
       operation: "about link open failed",
       setFailures: setLinkFailures,
-      userMessage: key === "repository"
-        ? "GitHub could not be opened. Check the default browser and try again."
-        : "Issues could not be opened. Check the default browser and try again."
+      userMessage: message(key === "repository" ? "failure.openRepository" : "failure.openIssues")
     });
   }
 
   return (
     <ModalShell
-      title="About FotoReady"
+      title={t("menu.about")}
       titleHidden
       size="small"
       onClose={onClose}
-      footer={<button className="toolbar-button" type="button" onClick={onClose}>Close</button>}
+      footer={<button className="toolbar-button" type="button" onClick={onClose}>{t("common.close")}</button>}
     >
       <div className="about-dialog">
         <div>
           <h3>FotoReady</h3>
-          <p className="about-version">Version {systemInfo?.version ?? "unknown"}</p>
+          <p className="about-version">{systemInfo?.version ? t("about.version", { version: systemInfo.version }) : t("about.versionUnknown")}</p>
         </div>
-        <p>
-          A desktop photo editor for blogging and publication workflows, with queued image processing,
-          metadata controls, rename previews, and optional Gemini-assisted descriptions and slugs.
-        </p>
+        <p>{t("about.description")}</p>
         <div className="about-links">
           <button className="toolbar-button" type="button" onClick={() => openProjectPage("repository", APP_REPOSITORY_URL)}>
             GitHub
           </button>
           <button className="toolbar-button" type="button" onClick={() => openProjectPage("issues", APP_ISSUES_URL)}>
-            Issues
+            {t("about.issues")}
           </button>
         </div>
         <OwnedFailureList
@@ -60,15 +58,15 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
           onDismiss={(key) => dismissOwnedFailure(setLinkFailures, key)}
         />
         <div className="settings-summary">
-          <span>Developer</span>
+          <span>{t("about.developer")}</span>
           <code>Yoshinao Inoguchi</code>
         </div>
         <div className="settings-summary">
-          <span>Copyright</span>
+          <span>{t("about.copyright")}</span>
           <code>© 2026 Yoshinao Inoguchi</code>
         </div>
         <div className="settings-summary">
-          <span>License</span>
+          <span>{t("about.license")}</span>
           <code>GPL-3.0-or-later</code>
         </div>
       </div>

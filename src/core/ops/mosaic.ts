@@ -12,7 +12,6 @@ type MosaicParams = {
 
 const mosaicModule: OpModule<MosaicParams> = {
   type: "mosaic",
-  label: "Mosaic",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], blockSize: 0.016 },

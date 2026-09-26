@@ -15,7 +15,6 @@ type ResizeParams = {
 
 const resizeModule: OpModule<ResizeParams> = {
   type: "resize",
-  label: "Resize",
   category: "Geometry",
   previewBehavior: "show-output",
   defaultParams: { mode: "fit", width: 1024, height: 1024, interpolation: "lanczos3" },

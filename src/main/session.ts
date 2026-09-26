@@ -31,6 +31,8 @@ import { computePrivacyWarning } from "@main/privacy-warning";
 import type { PrivacyWarning } from "@shared/types/ipc";
 import type { AppLogger } from "@main/logger";
 import { isTaskBusyForRemoval } from "@main/task-removal";
+import { message } from "@shared/i18n/translate";
+import { mainTranslator } from "@main/i18n";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -135,9 +137,7 @@ export class ProjectSession {
           filePath: sourcePath,
           kind: failedToRead ? "failed" : "invalid",
           severity: failedToRead ? "error" : "warning",
-          reason: failedToRead
-            ? "FotoReady could not read this image. Check that it still exists and is accessible."
-            : "This file could not be opened as a supported image."
+          reason: message(failedToRead ? "importReason.imageUnreadable" : "importReason.imageInvalid")
         });
         continue;
       }
@@ -150,7 +150,7 @@ export class ProjectSession {
           filePath: sourcePath,
           kind: "duplicate",
           severity: "info",
-          reason: "This original is already in the project."
+          reason: message("importReason.duplicate")
         });
       } else {
         this.#project.originals.push(original);
@@ -183,7 +183,7 @@ export class ProjectSession {
           filePath: sidecar.path,
           kind: "invalid",
           severity: "warning",
-          reason: "Its original image is not in this project. Add the matching image with the sidecar."
+          reason: message("importReason.sidecarWithoutOriginal")
         });
         continue;
       }
@@ -461,6 +461,10 @@ export class ProjectSession {
     const params = structuredClone(definition.defaultParams);
     if (opType === "watermark-image" && typeof params.assetPath === "string" && !params.assetPath && this.settings.defaultWatermarkImage) {
       params.assetPath = this.settings.defaultWatermarkImage;
+    }
+    // A new text watermark's placeholder words are interface text until the user replaces them.
+    if (opType === "watermark-text" && typeof params.text === "string") {
+      params.text = mainTranslator().t("watermarkText.defaultText");
     }
     if (opType === "watermark-text" && typeof params.fontFamily === "string" && this.settings.defaultWatermarkTextFontFamily.trim()) {
       params.fontFamily = this.settings.defaultWatermarkTextFontFamily.trim();

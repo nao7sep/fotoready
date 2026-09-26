@@ -12,6 +12,7 @@ FotoReady is a cross-platform desktop photo editor for blogging and publication 
 - **AI assist (opt-in)** — generate descriptions and slugs with Gemini, using a key stored locally
 - **Sidecar persistence** — each saved output writes a `.json` sidecar; drag it back in to re-create the task with its pipeline intact
 - **Light and dark themes** — follow the OS appearance or pick Light or Dark in Settings › App › Appearance
+- **Ten interface languages** — English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Japanese, Korean, and Simplified Chinese; follows the computer's language, or pick one in Settings › App › Language
 
 ## Requirements
 

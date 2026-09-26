@@ -217,8 +217,8 @@ describe("the live save and vision paths", () => {
         const original = snapshot.project.originals.find((item) => item.id === task.originalId)!;
         expect(original.metadataSummary.editorial.author).toBe("Synthetic Fixture Generator");
         // ExifTool joins the fixture's OffsetTimeOriginal to its DateTimeOriginal.
-        expect(original.metadataSummary.dates.Captured).toBe("2024:02:29 23:59:58+09:00");
-        expect(Object.keys(original.metadataSummary.gps)).toContain("Latitude");
+        expect(original.metadataSummary.dates.captured).toBe("2024:02:29 23:59:58+09:00");
+        expect(Object.keys(original.metadataSummary.gps)).toContain("latitude");
 
         await app.invoke("task.setGenerateSlug", task.id, false);
         await app.invoke("task.setGenerateDescription", task.id, false);

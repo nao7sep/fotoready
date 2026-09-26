@@ -147,7 +147,7 @@ describe("previewRename", () => {
     };
     const preview = await previewRename(project, SLUG_ONLY);
     expect(preview.items.every((item) => item.status === "blocked")).toBe(true);
-    expect(preview.items[0].issue).toMatch(/slug/i);
+    expect(preview.items[0].issue).toBe("overlaps-slug");
     expect(preview.blockedCount).toBe(2);
   });
 
@@ -168,7 +168,7 @@ describe("previewRename", () => {
     };
     const preview = await previewRename(project, ORIGINAL_ONLY);
     expect(preview.items.every((item) => item.status === "blocked")).toBe(true);
-    expect(preview.items[0].issue).toBe("Overlaps another original-based name");
+    expect(preview.items[0].issue).toBe("overlaps-original");
     expect(preview.blockedCount).toBe(2);
   });
 
@@ -182,7 +182,7 @@ describe("previewRename", () => {
     };
     const preview = await previewRename(project, SLUG_ONLY);
     expect(preview.items[0].status).toBe("blocked");
-    expect(preview.items[0].issue).toMatch(/already exists/i);
+    expect(preview.items[0].issue).toBe("name-exists");
   });
 
   it("blocks an intra-batch conflict that only differs by directory case (case-insensitive key fold)", async () => {
@@ -225,7 +225,7 @@ describe("previewRename", () => {
 
     const preview = await previewRename(project, ORIGINAL_ONLY);
     expect(preview.items[0].status).toBe("blocked");
-    expect(preview.items[0].issue).toMatch(/already exists/i);
+    expect(preview.items[0].issue).toBe("name-exists");
   });
 });
 

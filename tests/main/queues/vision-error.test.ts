@@ -11,33 +11,33 @@ describe("visionError", () => {
       message: "Error invoking remote method: EACCES /private/tmp/FOTOREADY_MODEL_SENTINEL",
     }), "description");
 
-    expect(result.message).toBe("This Gemini model isn't available. Open Settings and choose one from the list.");
+    expect(result.message).toEqual({ key: "visionError.modelUnavailable" });
     expect(result.retryable).toBe(false);
-    expect(result.message).not.toMatch(/EACCES|private\/tmp|SENTINEL|invoking remote method/i);
+    expect(JSON.stringify(result.message)).not.toMatch(/EACCES|private\/tmp|SENTINEL|invoking remote method/i);
     expect(result.detail).toContain("FOTOREADY_MODEL_SENTINEL");
   });
 
   it("maps authentication, throttling, and server failures from SDK statuses", () => {
     expect(visionError(new ApiError({ status: 403, message: "hostile auth prose" }), "description")).toMatchObject({
-      message: "Gemini authentication failed. Check the saved API key in Settings, then retry.", retryable: true,
+      message: { key: "visionError.authentication" }, retryable: true,
     });
     expect(visionError(new ApiError({ status: 429, message: "hostile quota prose" }), "description")).toMatchObject({
-      message: "Gemini rate limit reached. Wait a moment, then retry.", retryable: true,
+      message: { key: "visionError.rateLimit" }, retryable: true,
     });
     expect(visionError(new ApiError({ status: 503, message: "hostile server prose" }), "description")).toMatchObject({
-      message: "Gemini is temporarily unavailable. Retry in a moment.", retryable: true,
+      message: { key: "visionError.serviceUnavailable" }, retryable: true,
     });
   });
 
   it("maps app-local provider codes without parsing their messages", () => {
     expect(visionError(new VisionProviderFailure("missing-api-key", "hostile missing key prose"), "description")).toMatchObject({
-      message: "Gemini API key is missing. Open Settings and save a key, then retry.", retryable: true,
+      message: { key: "visionError.missingApiKey" }, retryable: true,
     });
     expect(visionError(new VisionProviderFailure("safety-refusal", "hostile safety prose"), "description")).toMatchObject({
-      message: "Gemini refused this image because of a safety or content policy restriction.", retryable: false,
+      message: { key: "visionError.safetyRefusal" }, retryable: false,
     });
     expect(visionError(new VisionProviderFailure("invalid-response", "hostile JSON prose"), "description")).toMatchObject({
-      message: "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.", retryable: true,
+      message: { key: "visionError.unexpectedResponse" }, retryable: true,
     });
   });
 
@@ -46,11 +46,9 @@ describe("visionError", () => {
       "model is not found; blocked by safety; Error invoking remote method: EACCES /private/tmp/FOTOREADY_VISION_SENTINEL",
     ), "description");
 
-    expect(result.message).toBe(
-      "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",
-    );
+    expect(result.message).toEqual({ key: "visionError.generic" });
     expect(result.retryable).toBe(true);
-    expect(result.message).not.toMatch(/EACCES|private\/tmp|FOTOREADY_VISION_SENTINEL|invoking remote method/i);
+    expect(JSON.stringify(result.message)).not.toMatch(/EACCES|private\/tmp|FOTOREADY_VISION_SENTINEL|invoking remote method/i);
     expect(result.detail).toContain("FOTOREADY_VISION_SENTINEL");
   });
 });

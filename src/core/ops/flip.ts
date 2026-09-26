@@ -10,7 +10,6 @@ type FlipParams = {
 
 const flipModule: OpModule<FlipParams> = {
   type: "flip",
-  label: "Flip",
   category: "Geometry",
   previewBehavior: "show-output",
   defaultParams: { horizontal: false, vertical: false },

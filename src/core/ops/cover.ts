@@ -12,7 +12,6 @@ type CoverParams = {
 
 const coverModule: OpModule<CoverParams> = {
   type: "cover",
-  label: "Cover",
   category: "Conceal",
   previewBehavior: "show-output",
   defaultParams: { rects: [DEFAULT_CONCEAL_REGION], color: "#000000", opacity: 1 },

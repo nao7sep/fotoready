@@ -27,7 +27,7 @@ const preview: RenamePreview = {
     customSlug: null,
     generatedSlug: null,
     effectiveSlug: null,
-    issue: "Missing slug",
+    issue: "missing-slug",
   }],
 };
 

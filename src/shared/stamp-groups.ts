@@ -1,22 +1,23 @@
+// The renderer names each group from the catalogue by its id.
 export const BUILTIN_STAMP_GROUPS = [
-  { id: "cover", label: "Cover" },
-  { id: "marks", label: "Marks" },
-  { id: "bubbles", label: "Bubbles" },
-  { id: "reactions", label: "Reactions" },
-  { id: "funny", label: "Funny" },
-  { id: "cute", label: "Cute" },
-  { id: "stories", label: "Stories" },
-  { id: "seasonal", label: "Seasonal" }
+  { id: "cover" },
+  { id: "marks" },
+  { id: "bubbles" },
+  { id: "reactions" },
+  { id: "funny" },
+  { id: "cute" },
+  { id: "stories" },
+  { id: "seasonal" }
 ] as const;
 
 export type BuiltinStampGroupId = (typeof BUILTIN_STAMP_GROUPS)[number]["id"];
 export type StampGroupId = BuiltinStampGroupId | "imported";
 export type StampGroupFilterId = "all" | StampGroupId;
 
-export const STAMP_GROUP_FILTERS: ReadonlyArray<{ id: StampGroupFilterId; label: string }> = [
-  { id: "all", label: "All" },
+export const STAMP_GROUP_FILTERS: ReadonlyArray<{ id: StampGroupFilterId }> = [
+  { id: "all" },
   ...BUILTIN_STAMP_GROUPS,
-  { id: "imported", label: "Imported" }
+  { id: "imported" }
 ];
 
 const BUILTIN_STAMP_GROUP_IDS = new Set<string>(BUILTIN_STAMP_GROUPS.map((group) => group.id));

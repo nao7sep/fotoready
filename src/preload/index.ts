@@ -1,8 +1,17 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { FotoReadyApi } from "@shared/types/ipc";
 import { WINDOW_ACTIVITY_CHANNEL } from "@shared/window-activity";
+import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
 
 const api: FotoReadyApi = {
+  language: {
+    current: () => ipcRenderer.invoke("language.current"),
+    onChanged: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, language: Parameters<typeof callback>[0]) => callback(language);
+      ipcRenderer.on(LANGUAGE_CHANGED_CHANNEL, listener);
+      return () => ipcRenderer.off(LANGUAGE_CHANGED_CHANNEL, listener);
+    }
+  },
   system: {
     getInfo: () => ipcRenderer.invoke("system.getInfo"),
     filePathForFile: (file) => webUtils.getPathForFile(file),

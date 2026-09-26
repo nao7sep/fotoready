@@ -1,12 +1,13 @@
+import type { Message } from "@shared/i18n/translate";
 import { reportRendererLog } from "./renderer-log";
 
-/** Log complete diagnostics while returning stable, authored display copy. */
-export function presentFailure(
+/** Log complete diagnostics while returning stable, authored display copy (a catalogue message). */
+export function presentFailure<T extends Message | null>(
   error: unknown,
-  userMessage: string,
+  userMessage: T,
   operation: string,
   fields: Record<string, unknown> = {},
-): string {
+): T {
   const diagnostic = { ...fields, error: describeError(error) };
   reportRendererLog({ level: "error", message: operation, fields: diagnostic });
   return userMessage;

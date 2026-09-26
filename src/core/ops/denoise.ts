@@ -8,7 +8,6 @@ type DenoiseParams = {
 
 const denoiseModule: OpModule<DenoiseParams> = {
   type: "denoise",
-  label: "Denoise",
   category: "Effects",
   previewBehavior: "show-output",
   defaultParams: { strength: 0.3 },

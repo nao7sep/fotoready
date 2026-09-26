@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { presentFailure } from "@renderer/present-failure";
+import { message } from "@shared/i18n/translate";
 
 afterEach(() => {
   delete (window as unknown as { api?: unknown }).api;
@@ -16,9 +17,10 @@ describe("presentFailure", () => {
     const cause = new TypeError("EACCES /private/tmp/FOTOREADY_CAUSE_SENTINEL");
     const error = new Error("Error invoking remote method FOTOREADY_SENTINEL", { cause });
 
-    const result = presentFailure(error, "The asset could not be imported. Try again.", "asset import failed");
+    const authored = message("failure.assetImport");
+    const result = presentFailure(error, authored, "asset import failed");
 
-    expect(result).toBe("The asset could not be imported. Try again.");
+    expect(result).toBe(authored);
     expect(log).toHaveBeenCalledWith(expect.objectContaining({
       fields: expect.objectContaining({
         error: expect.objectContaining({

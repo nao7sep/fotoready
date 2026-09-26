@@ -26,7 +26,7 @@ describe("task sidecar import", () => {
       filePath: invalidPath,
       kind: "invalid",
       severity: "warning",
-      reason: "This JSON file is not a valid FotoReady task sidecar.",
+      reason: { key: "importReason.sidecarInvalid" },
     }]);
   });
 
@@ -48,7 +48,7 @@ describe("task sidecar import", () => {
       filePath: missingPath,
       kind: "failed",
       severity: "error",
-      reason: "FotoReady could not read this task sidecar. Check that it still exists and is accessible.",
+      reason: { key: "importReason.sidecarUnreadable" },
     }]);
     expect(logger.error).toHaveBeenCalledWith(
       "task sidecar read failed",

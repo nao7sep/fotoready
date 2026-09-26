@@ -66,6 +66,25 @@ describe("normalizeGlobalSettings", () => {
     expect(issues).toEqual([]);
   });
 
+  it("defaults the language to System and keeps each supported choice", () => {
+    expect(fallback.language).toBe("system");
+    for (const language of ["system", "en", "ja", "zh-Hans", "pt-BR"] as const) {
+      const { settings, issues } = normalizeGlobalSettings({ ...fallback, language }, fallback);
+      expect(settings.language).toBe(language);
+      expect(issues).toEqual([]);
+    }
+  });
+
+  it("reads a missing, retired, or hand-edited language as System without resetting the file", () => {
+    const { language: _language, ...withoutLanguage } = { ...fallback, language: "de" };
+    expect(normalizeGlobalSettings(withoutLanguage, fallback).settings.language).toBe("system");
+    for (const language of ["zh-TW", "pt", "Deutsch", 7]) {
+      const { settings, issues } = normalizeGlobalSettings({ ...fallback, language }, fallback);
+      expect(settings.language).toBe("system");
+      expect(issues).toEqual([]);
+    }
+  });
+
   it("defaults the theme to System and keeps each saved choice", () => {
     expect(fallback.theme).toBe("system");
     for (const theme of ["system", "light", "dark"] as const) {

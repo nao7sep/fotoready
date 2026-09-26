@@ -8,8 +8,13 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
 import type { LutEntry, OpCatalogItem, OriginalImportResult, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
+import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
+import type { InterfaceLanguage } from "@shared/i18n/languages";
+import { message, type Message } from "@shared/i18n/translate";
+import type { MessageKey } from "@shared/i18n/catalogues";
 import { APP_NAME } from "@shared/constants";
-import { formatLabel, resolveOutputFormat } from "@shared/output-format";
+import { resolveOutputFormat } from "@shared/output-format";
+import { outputFormatName } from "./output-format-name";
 import { pipelineForPreview } from "@shared/preview-pipeline";
 import { resolveSlugRegenerationMode } from "@shared/vision-run-mode";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
@@ -65,6 +70,7 @@ const initialQueueSnapshot: QueueSnapshot = {
 
 function App(): React.JSX.Element {
   const confirmer = useConfirmer();
+  const { t, text } = useI18n();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   // Live UI shows the running platform's single modifier word, never the combined
   // "Cmd/Ctrl" (keyboard-shortcut-conventions) — same resolution the shortcuts modal uses.
@@ -75,7 +81,7 @@ function App(): React.JSX.Element {
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
   const [startupStatus, setStartupStatus] = useState<"loading" | "ready" | "failed">("loading");
-  const [startupFailure, setStartupFailure] = useState<string | null>(null);
+  const [startupFailure, setStartupFailure] = useState<Message | null>(null);
   const [shellFailures, setShellFailures] = useState<OwnedFailures>({});
   const [originalFailures, setOriginalFailures] = useState<OwnedFailures>({});
   const [taskFailures, setTaskFailures] = useState<OwnedFailures>({});
@@ -121,12 +127,8 @@ function App(): React.JSX.Element {
         dismissOwnedFailure(setShellFailures, "workspace-widths");
       })
       .catch((error) => {
-        const message = presentFailure(
-          error,
-          "The pane widths changed for this session but could not be saved. Restore access to FotoReady’s data folder, then resize a pane again.",
-          "workspace width persistence failed"
-        );
-        setShellFailures((current) => ({ ...current, "workspace-widths": message }));
+        const failure = presentFailure(error, message("failure.workspaceWidths"), "workspace width persistence failed");
+        setShellFailures((current) => ({ ...current, "workspace-widths": failure }));
       });
   }, []);
   const workspaceLayout = useWorkspaceLayout({
@@ -144,7 +146,7 @@ function App(): React.JSX.Element {
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
   const showHistogram = uiState?.showHistogram ?? false;
-  const outputDirLabel = !project?.outputDir ? "Same as original" : project.outputDir;
+  const outputDirLabel = !project?.outputDir ? t("topBar.sameAsOriginal") : project.outputDir;
   const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0 || apiKeyClearRequested;
   const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
@@ -206,11 +208,7 @@ function App(): React.JSX.Element {
       }
     ).catch((error) => {
       if (!current) return;
-      setStartupFailure(presentFailure(
-        error,
-        "FotoReady could not read the settings, workspace, or supporting data needed to open safely. Reload after restoring access to the application data folder.",
-        "renderer startup hydration failed"
-      ));
+      setStartupFailure(presentFailure(error, message("app.hydrationFailed"), "renderer startup hydration failed"));
       setStartupStatus("failed");
     });
     return () => {
@@ -294,7 +292,7 @@ function App(): React.JSX.Element {
           key: "save-all",
           operation: "save all tasks failed",
           setFailures: setTaskFailures,
-          userMessage: "The tasks could not be queued for saving. Their current state is unchanged; try again."
+          userMessage: message("failure.saveAll")
         });
       } else if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
@@ -305,7 +303,7 @@ function App(): React.JSX.Element {
           key: ownedKeyForTask(activeTask.id, "save"),
           operation: "task save failed",
           setFailures: setEditorFailures,
-          userMessage: "This task could not be queued for saving. Its current state is unchanged; try again."
+          userMessage: message("failure.saveTask")
         });
       } else if (mod && event.key.toLowerCase() === "z" && !event.shiftKey) {
         if (isTextEditingTarget(event.target)) return;
@@ -316,7 +314,7 @@ function App(): React.JSX.Element {
           key: ownedKeyForTask(activeTask.id, "undo"),
           operation: "task undo failed",
           setFailures: setEditorFailures,
-          userMessage: "The last task change could not be undone. The current task is unchanged; try again."
+          userMessage: message("failure.undo")
         });
       } else if (mod && event.key.toLowerCase() === "r") {
         event.preventDefault();
@@ -360,9 +358,9 @@ function App(): React.JSX.Element {
         };
         if (settingsDirty || apiKeyDirty) {
           const discard = await confirmer.confirm({
-            title: "Discard changes?",
-            message: "You have unsaved settings changes. Discard them and close?",
-            confirmLabel: "Discard",
+            title: t("confirm.discardSettings.title"),
+            message: t("confirm.discardSettings.message"),
+            confirmLabel: t("common.discard"),
             danger: true
           });
           if (!discard) {
@@ -376,21 +374,22 @@ function App(): React.JSX.Element {
           savesInFlight: queue.queued + queue.processing > 0
         });
         if (confirmation) {
-          await approve(await confirmer.confirm({ ...confirmation, confirmLabel: "Close", danger: true }));
+          await approve(await confirmer.confirm({
+            title: t(confirmation.title),
+            message: t(confirmation.message),
+            confirmLabel: t("common.close"),
+            danger: true
+          }));
           return;
         }
 
         await approve(true);
       })().catch((error) => {
-        const message = presentFailure(
-          error,
-          "FotoReady could not complete the close request. The window remains open; try again.",
-          "renderer close request failed"
-        );
-        setShellFailures((current) => ({ ...current, "close-request": message }));
+        const failure = presentFailure(error, message("failure.closeRequest"), "renderer close request failed");
+        setShellFailures((current) => ({ ...current, "close-request": failure }));
       });
     });
-  }, [apiKeyDirty, confirmer, project, queue, settingsDirty]);
+  }, [apiKeyDirty, confirmer, project, queue, settingsDirty, t]);
 
   useEffect(() => {
     if (!previewRequest) {
@@ -463,7 +462,7 @@ function App(): React.JSX.Element {
   }
 
   function reportOriginalImportFailure(error: unknown): void {
-    presentFailure(error, "", "renderer original import failed");
+    presentFailure(error, null, "renderer original import failed");
     setOriginalImportFeedback(originalImportFailureFeedback());
   }
 
@@ -486,9 +485,9 @@ function App(): React.JSX.Element {
     const taskCount = project?.tasks.filter((task) => task.originalId === originalId).length ?? 0;
     if (settings?.confirmDeleteOriginals) {
       const confirmed = await confirmer.confirm({
-        title: "Remove original?",
-        message: `This removes the original from the app and also removes ${taskCount} related task${taskCount === 1 ? "" : "s"}. The source file on disk is not deleted.`,
-        confirmLabel: "Remove",
+        title: t("confirm.removeOriginal.title"),
+        message: t("confirm.removeOriginal.message", { count: taskCount }),
+        confirmLabel: t("common.remove"),
         danger: false
       });
       if (!confirmed) return "cancelled";
@@ -508,9 +507,9 @@ function App(): React.JSX.Element {
   async function deleteTask(task: Task): Promise<OwnedActionOutcome> {
     if (settings?.confirmDeleteTasks) {
       const confirmed = await confirmer.confirm({
-        title: "Delete task?",
-        message: "This removes the task from the app, with the operations set up on it. Saved files on disk are kept.",
-        confirmLabel: "Delete",
+        title: t("confirm.deleteTask.title"),
+        message: t("confirm.deleteTask.message"),
+        confirmLabel: t("common.delete"),
         danger: true
       });
       if (!confirmed) return "cancelled";
@@ -524,9 +523,9 @@ function App(): React.JSX.Element {
     if (settings?.confirmDeleteOutputFiles) {
       const deletePaths = savedOutputDeletePaths(task);
       const confirmed = await confirmer.confirm({
-        title: "Move saved files to the trash?",
-        message: `These files will be moved to the system trash and can be restored from there:\n\n${deletePaths.join("\n")}`,
-        confirmLabel: "Move to trash",
+        title: t("confirm.trashOutput.title"),
+        message: t("confirm.trashOutput.message", { paths: deletePaths.join("\n") }),
+        confirmLabel: t("common.moveToTrash"),
         danger: true
       });
       if (!confirmed) return "cancelled";
@@ -624,7 +623,7 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.clearVision(activeTask.id));
   }
 
-  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<string | null> {
+  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<Message | null> {
     const snapshot = await api.vision.runForTask(taskId, options);
     await refreshProject(snapshot);
     const error = snapshot.project.tasks.find((task) => task.id === taskId)?.error;
@@ -665,12 +664,8 @@ function App(): React.JSX.Element {
       setStampEntries(nextStamps);
       dismissOwnedFailure(setShellFailures, "asset-library-refresh");
     } catch (error) {
-      const message = presentFailure(
-        error,
-        "The settings were saved, but the LUT and stamp lists could not be refreshed. Reopen Settings after restoring access to those folders.",
-        "asset libraries refresh after settings save failed"
-      );
-      setShellFailures((current) => ({ ...current, "asset-library-refresh": message }));
+      const failure = presentFailure(error, message("failure.assetLibraryRefresh"), "asset libraries refresh after settings save failed");
+      setShellFailures((current) => ({ ...current, "asset-library-refresh": failure }));
     }
   }
 
@@ -691,9 +686,9 @@ function App(): React.JSX.Element {
   async function requestCloseSettings(): Promise<void> {
     if (settingsDirty || apiKeyDirty) {
       const discard = await confirmer.confirm({
-        title: "Discard changes?",
-        message: "You have unsaved settings changes. Discard them and close?",
-        confirmLabel: "Discard",
+        title: t("confirm.discardSettings.title"),
+        message: t("confirm.discardSettings.message"),
+        confirmLabel: t("common.discard"),
         danger: true
       });
       if (!discard) return;
@@ -709,12 +704,8 @@ function App(): React.JSX.Element {
       setUiState(await api.state.update({ showHistogram: !uiState.showHistogram }));
       dismissOwnedFailure(setShellFailures, "histogram-visibility");
     } catch (error) {
-      const message = presentFailure(
-        error,
-        "The histogram setting could not be saved. The previous setting is still in use.",
-        "histogram visibility persistence failed"
-      );
-      setShellFailures((current) => ({ ...current, "histogram-visibility": message }));
+      const failure = presentFailure(error, message("failure.histogramVisibility"), "histogram visibility persistence failed");
+      setShellFailures((current) => ({ ...current, "histogram-visibility": failure }));
     }
   }
 
@@ -723,12 +714,8 @@ function App(): React.JSX.Element {
       setUiState(await api.state.update({ histogramPosition: position }));
       dismissOwnedFailure(setShellFailures, "histogram-position");
     } catch (error) {
-      const message = presentFailure(
-        error,
-        "The histogram position could not be saved. Its previous position is still in use.",
-        "histogram position persistence failed"
-      );
-      setShellFailures((current) => ({ ...current, "histogram-position": message }));
+      const failure = presentFailure(error, message("failure.histogramPosition"), "histogram position persistence failed");
+      setShellFailures((current) => ({ ...current, "histogram-position": failure }));
     }
   }
 
@@ -751,12 +738,8 @@ function App(): React.JSX.Element {
       setQueue(await api.queues.snapshot());
       dismissOwnedFailure(setShellFailures, "queue-refresh");
     } catch (error) {
-      const message = presentFailure(
-        error,
-        "The change was applied, but queue status could not be refreshed. It will update when the queue reports again.",
-        "queue refresh after project change failed"
-      );
-      setShellFailures((current) => ({ ...current, "queue-refresh": message }));
+      const failure = presentFailure(error, message("failure.queueRefresh"), "queue refresh after project change failed");
+      setShellFailures((current) => ({ ...current, "queue-refresh": failure }));
     }
   }
 
@@ -781,45 +764,45 @@ function App(): React.JSX.Element {
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
         <div className="output-badge">
-          <span className="output-badge-label" title={project?.outputDir ?? ""}>Output: {outputDirLabel}</span>
+          <span className="output-badge-label" title={project?.outputDir ?? ""}>{t("topBar.output", { folder: outputDirLabel })}</span>
           <button className="output-badge-button" type="button" onClick={() => void runOwnedAction({
             action: setOutputDir,
             key: "output-directory",
             operation: "output folder picker failed",
             setFailures: setShellFailures,
-            userMessage: "The output folder could not be changed. The current folder is still in use; try again."
+            userMessage: message("failure.outputFolderChange")
           })}>
-            {project?.outputDir ? "Change" : "Choose"}
+            {project?.outputDir ? t("common.change") : t("common.choose")}
           </button>
           {project?.outputDir ? (
-            <button className="output-badge-button icon" type="button" title="Clear (save next to source)" onClick={() => void runOwnedAction({
+            <button className="output-badge-button icon" type="button" title={t("topBar.clearOutput")} onClick={() => void runOwnedAction({
               action: clearOutputDir,
               key: "output-directory",
               operation: "output folder clear failed",
               setFailures: setShellFailures,
-              userMessage: "The output folder could not be cleared. The current folder is still in use; try again."
+              userMessage: message("failure.outputFolderClear")
             })}>
               <X size={14} />
             </button>
           ) : null}
         </div>
-        <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title={`Toggle histogram (${mod}+H)`} onClick={() => void toggleHistogram()}>
+        <button className={`icon-button ${showHistogram ? "active" : ""}`} type="button" title={t("topBar.toggleHistogram", { shortcut: `${mod}+H` })} onClick={() => void toggleHistogram()}>
           <BarChart3 size={18} />
         </button>
         <Menu
           open={menuOpen}
           onOpenChange={setMenuOpen}
-          label="Main menu"
+          label={t("topBar.mainMenu")}
           className="app-menu"
           trigger={({ ref, ...props }) => (
-            <button {...props} ref={ref} className="icon-button" title="Menu">
+            <button {...props} ref={ref} className="icon-button" title={t("topBar.menu")}>
               <MenuIcon size={18} />
             </button>
           )}
         >
-          <MenuItem onSelect={() => openSettings()}>Settings</MenuItem>
-          <MenuItem onSelect={() => setShortcutsOpen(true)}>Keyboard shortcuts</MenuItem>
-          <MenuItem onSelect={() => setAboutOpen(true)}>About FotoReady</MenuItem>
+          <MenuItem onSelect={() => openSettings()}>{t("menu.settings")}</MenuItem>
+          <MenuItem onSelect={() => setShortcutsOpen(true)}>{t("menu.shortcuts")}</MenuItem>
+          <MenuItem onSelect={() => setAboutOpen(true)}>{t("menu.about")}</MenuItem>
         </Menu>
       </header>
 
@@ -847,7 +830,7 @@ function App(): React.JSX.Element {
               key: `remove:${originalId}`,
               operation: "original removal failed",
               setFailures: setOriginalFailures,
-              userMessage: `“${basename(project?.originals.find((original) => original.id === originalId)?.sourcePath ?? "This original")}” remains in the project. Close any app using its files, then try again.`
+              userMessage: removeOriginalFailure(project?.originals.find((original) => original.id === originalId)?.sourcePath)
             })}
             onSelect={(originalId) => void runOwnedAction({
               action: () => selectOriginal(originalId),
@@ -855,11 +838,11 @@ function App(): React.JSX.Element {
               key: "select",
               operation: "original selection failed",
               setFailures: setOriginalFailures,
-              userMessage: "That original could not be selected. The current selection is unchanged; try again."
+              userMessage: message("failure.selectOriginal")
             })}
           />
         ) : null}
-        {showOriginals ? <WorkspaceSplitter label="Resize Originals panel" onPointerDown={workspaceLayout.startResize("originals")} /> : null}
+        {showOriginals ? <WorkspaceSplitter label={t("workspace.resizeOriginals")} onPointerDown={workspaceLayout.startResize("originals")} /> : null}
 
         {showTasks ? (
           <TasksPanel
@@ -871,56 +854,61 @@ function App(): React.JSX.Element {
             failures={taskFailures}
             onRename={() => setRenameOpen(true)}
             onDismissFailure={(key) => dismissOwnedFailure(setTaskFailures, key)}
-            onSaveAll={() => void runOwnedAction({ action: saveAll, key: "save-all", operation: "save all tasks failed", setFailures: setTaskFailures, userMessage: "The tasks could not be queued for saving. Their current state is unchanged; try again." })}
-            onCancelAll={() => void runOwnedAction({ action: cancelAll, key: "cancel-all", operation: "cancel all tasks failed", setFailures: setTaskFailures, userMessage: "The queued tasks could not be cancelled. Their current queue state is unchanged; try again." })}
-            onSelect={(taskId) => void runOwnedAction({ action: () => selectTask(taskId), fields: { taskId }, key: "select", operation: "task selection failed", setFailures: setTaskFailures, userMessage: "That task could not be selected. The current selection is unchanged; try again." })}
+            onSaveAll={() => void runOwnedAction({ action: saveAll, key: "save-all", operation: "save all tasks failed", setFailures: setTaskFailures, userMessage: message("failure.saveAll") })}
+            onCancelAll={() => void runOwnedAction({ action: cancelAll, key: "cancel-all", operation: "cancel all tasks failed", setFailures: setTaskFailures, userMessage: message("failure.cancelAll") })}
+            onSelect={(taskId) => void runOwnedAction({ action: () => selectTask(taskId), fields: { taskId }, key: "select", operation: "task selection failed", setFailures: setTaskFailures, userMessage: message("failure.selectTask") })}
           />
         ) : null}
-        {showTasks ? <WorkspaceSplitter label="Resize Tasks panel" onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
+        {showTasks ? <WorkspaceSplitter label={t("workspace.resizeTasks")} onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
 
         <section className="editor-panel">
           <div className="preview-toolbar">
             <span className="preview-detail" title={activeOriginal?.sourcePath ?? ""}>
-              {activeOriginal ? basename(activeOriginal.sourcePath) : "No image"}
+              {activeOriginal ? basename(activeOriginal.sourcePath) : t("editor.noImage")}
               {activeOriginal ? (
                 <em>
-                  {activeOriginal.width}×{activeOriginal.height} · {formatLabel(activeOriginal.format)}
-                  {hasJpegEstimate ? ` · assumed JPEG quality ${activeOriginal.jpegQualityEstimate}` : ""}
-                  {activeTask ? ` · output ${formatLabel(resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format))}` : ""}
-                  {activeTask ? ` · ${taskStateLabel(activeTask, queue)}` : ""}
+                  {[
+                    `${activeOriginal.width}×${activeOriginal.height}`,
+                    outputFormatName(t, activeOriginal.format),
+                    ...(hasJpegEstimate && activeOriginal.jpegQualityEstimate !== null ? [t("editor.assumedJpegQuality", { quality: activeOriginal.jpegQualityEstimate })] : []),
+                    ...(activeTask ? [
+                      t("editor.outputFormat", { format: outputFormatName(t, resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format)) }),
+                      t(taskStateLabel(activeTask, queue))
+                    ] : [])
+                  ].join(" · ")}
                 </em>
               ) : null}
             </span>
             {activeTask?.status === "not-saved" ? (
-              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => saveTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("save"), operation: "task save failed", setFailures: setEditorFailures, userMessage: "This task could not be queued for saving. Its current state is unchanged; try again." })}>
-                <Save size={14} /> Save
+              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => saveTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("save"), operation: "task save failed", setFailures: setEditorFailures, userMessage: message("failure.saveTask") })}>
+                <Save size={14} /> {t("common.save")}
               </button>
             ) : null}
             {cancellableActiveTask ? (
-              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => cancelTask(activeTask!.id), fields: { taskId: activeTask!.id }, key: taskOwnedKey("cancel"), operation: "task cancellation failed", setFailures: setEditorFailures, userMessage: "This task could not be cancelled. Its current queue state is unchanged; try again." })}>
-                <X size={14} /> Cancel
+              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => cancelTask(activeTask!.id), fields: { taskId: activeTask!.id }, key: taskOwnedKey("cancel"), operation: "task cancellation failed", setFailures: setEditorFailures, userMessage: message("failure.cancelTask") })}>
+                <X size={14} /> {t("common.cancel")}
               </button>
             ) : null}
             {activeTask && activeTask.status === "saved" ? (
-              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => forkTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("fork"), operation: "task fork failed", setFailures: setEditorFailures, userMessage: "A new editable copy could not be created. The saved task is unchanged; try again." })}>
-                <CopyPlus size={14} /> Fork
+              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => forkTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("fork"), operation: "task fork failed", setFailures: setEditorFailures, userMessage: message("failure.forkTask") })}>
+                <CopyPlus size={14} /> {t("editor.fork")}
               </button>
             ) : null}
             {activeTask ? (
-              <button className="inline-action danger" type="button" onClick={() => void runOwnedAction({ action: () => deleteTask(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete"), operation: "task deletion failed", setFailures: setEditorFailures, userMessage: "The task remains in the project. Try again." })}>
-                <Trash2 size={14} /> Delete
+              <button className="inline-action danger" type="button" onClick={() => void runOwnedAction({ action: () => deleteTask(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete"), operation: "task deletion failed", setFailures: setEditorFailures, userMessage: message("failure.deleteTask") })}>
+                <Trash2 size={14} /> {t("common.delete")}
               </button>
             ) : null}
             {activeTask?.output ? (
-              <button className="inline-action danger" disabled={activeTask.visionRunning} type="button" onClick={() => void runOwnedAction({ action: () => deleteSavedOutput(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete-output"), operation: "saved output deletion failed", setFailures: setEditorFailures, userMessage: "Some saved files may already be in Trash. Any files that could not be moved remain in the output folder; review both locations, then try again." })}>
-                <Trash2 size={14} /> Delete saved file
+              <button className="inline-action danger" disabled={activeTask.visionRunning} type="button" onClick={() => void runOwnedAction({ action: () => deleteSavedOutput(activeTask), fields: { taskId: activeTask.id }, key: taskOwnedKey("delete-output"), operation: "saved output deletion failed", setFailures: setEditorFailures, userMessage: message("failure.deleteSavedOutput") })}>
+                <Trash2 size={14} /> {t("editor.deleteSavedFile")}
               </button>
             ) : null}
           </div>
           <div className="canvas-frame">
             <EditorCanvas
-              fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : "Import an original to begin editing"}
-              onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "canvas operation parameters update failed", setFailures: setOpsFailures, userMessage: "Those canvas editing values could not be changed. Their previous values are still in use; try again." })}
+              fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : t("editor.importToBegin")}
+              onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "canvas operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.canvasParams") })}
               onRetryPreview={() => setPreviewAttempt((attempt) => attempt + 1)}
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
@@ -945,14 +933,14 @@ function App(): React.JSX.Element {
               {activeTask?.error ? (
                 <OperationResult
                   className="error-strip"
-                  dismissLabel="Close task result"
+                  dismissLabel={t("editor.closeTaskResult")}
                   severity="error"
-                  onDismiss={() => void runOwnedAction({ action: () => dismissError(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("dismiss-error"), operation: "task error dismissal failed", setFailures: setEditorFailures, userMessage: "The task result could not be cleared. It remains available; try again." })}
+                  onDismiss={() => void runOwnedAction({ action: () => dismissError(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("dismiss-error"), operation: "task error dismissal failed", setFailures: setEditorFailures, userMessage: message("failure.dismissTaskError") })}
                 >
-                  <strong>{errorStageLabel(activeTask.error.stage)}</strong>
-                  <span>{activeTask.error.message}</span>
+                  <strong>{t(errorStageLabel(activeTask.error.stage))}</strong>
+                  <span>{text(activeTask.error.message)}</span>
                   {activeTask.error.retryable ? (
-                    <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => retryTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("retry"), operation: "task retry failed", setFailures: setEditorFailures, userMessage: "The task could not be queued again. Its current state is unchanged; try again." })}>Retry</button>
+                    <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => retryTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("retry"), operation: "task retry failed", setFailures: setEditorFailures, userMessage: message("failure.retryTask") })}>{t("common.retry")}</button>
                   ) : null}
                 </OperationResult>
               ) : null}
@@ -960,7 +948,7 @@ function App(): React.JSX.Element {
           ) : null}
         </section>
 
-        {showOps ? <WorkspaceSplitter label="Resize Ops panel" onPointerDown={workspaceLayout.startResize("ops")} /> : null}
+        {showOps ? <WorkspaceSplitter label={t("workspace.resizeOps")} onPointerDown={workspaceLayout.startResize("ops")} /> : null}
 
         {showOps ? (
           <OpsPanel
@@ -978,21 +966,21 @@ function App(): React.JSX.Element {
             outputFailures={visibleOutputFailures}
             onDismissFailure={(key) => dismissOwnedFailure(setOpsFailures, key)}
             onSelectOp={selectOp}
-            onAddOp={(opType) => void runOwnedAction({ action: () => addOp(opType), fields: { opType }, key: taskOwnedKey("ops:add"), operation: "operation add failed", setFailures: setOpsFailures, userMessage: "The editing operation could not be added. The task is unchanged; try again." })}
-            onClearVision={() => void runOwnedAction({ action: clearVision, key: taskOwnedKey("output:vision-result"), operation: "vision result clear failed", setFailures: setOpsFailures, userMessage: "The generated description and slug could not be cleared. The task is unchanged; try again." })}
-            onGenerateDescriptionChange={(value) => void runOwnedAction({ action: () => setGenerateDescription(value), key: taskOwnedKey("output:description-toggle"), operation: "description setting update failed", setFailures: setOpsFailures, userMessage: "The description setting could not be changed. Its previous value is still in use; try again." })}
-            onGenerateSlugChange={(value) => void runOwnedAction({ action: () => setGenerateSlug(value), key: taskOwnedKey("output:slug-toggle"), operation: "slug setting update failed", setFailures: setOpsFailures, userMessage: "The slug setting could not be changed. Its previous value is still in use; try again." })}
-            onGenerateVision={(mode) => void runOwnedAction({ action: () => generateVision(mode), fields: { mode }, key: taskOwnedKey("output:generate-vision"), operation: "vision generation command failed", setFailures: setOpsFailures, userMessage: "The image analysis could not be started. The current metadata is unchanged; try again." })}
-            onCustomSlugChange={(value) => void runOwnedAction({ action: () => setCustomSlug(value), key: taskOwnedKey("output:custom-slug"), operation: "custom slug update failed", setFailures: setOpsFailures, userMessage: "The custom slug could not be changed. Its previous value is still in use; try again." })}
+            onAddOp={(opType) => void runOwnedAction({ action: () => addOp(opType), fields: { opType }, key: taskOwnedKey("ops:add"), operation: "operation add failed", setFailures: setOpsFailures, userMessage: message("failure.addOp") })}
+            onClearVision={() => void runOwnedAction({ action: clearVision, key: taskOwnedKey("output:vision-result"), operation: "vision result clear failed", setFailures: setOpsFailures, userMessage: message("failure.clearVision") })}
+            onGenerateDescriptionChange={(value) => void runOwnedAction({ action: () => setGenerateDescription(value), key: taskOwnedKey("output:description-toggle"), operation: "description setting update failed", setFailures: setOpsFailures, userMessage: message("failure.descriptionToggle") })}
+            onGenerateSlugChange={(value) => void runOwnedAction({ action: () => setGenerateSlug(value), key: taskOwnedKey("output:slug-toggle"), operation: "slug setting update failed", setFailures: setOpsFailures, userMessage: message("failure.slugToggle") })}
+            onGenerateVision={(mode) => void runOwnedAction({ action: () => generateVision(mode), fields: { mode }, key: taskOwnedKey("output:generate-vision"), operation: "vision generation command failed", setFailures: setOpsFailures, userMessage: message("failure.generateVision") })}
+            onCustomSlugChange={(value) => void runOwnedAction({ action: () => setCustomSlug(value), key: taskOwnedKey("output:custom-slug"), operation: "custom slug update failed", setFailures: setOpsFailures, userMessage: message("failure.customSlug") })}
             onOpenSettings={() => void openSettings("vision")}
             onReloadLuts={reloadLuts}
             onReloadStamps={reloadStamps}
-            onMoveOp={(opId, toIndex) => void runOwnedAction({ action: () => moveOp(opId, toIndex), fields: { opId, toIndex }, key: taskOwnedKey(`op:${opId}:move`), operation: "operation move failed", setFailures: setOpsFailures, userMessage: "The editing operation could not be moved. The previous order is still in use; try again." })}
-            onOpEnabledChange={(opId, enabled) => void runOwnedAction({ action: () => setOpEnabled(opId, enabled), fields: { opId }, key: taskOwnedKey(`op:${opId}:enabled`), operation: "operation enabled state update failed", setFailures: setOpsFailures, userMessage: "The editing operation could not be changed. Its previous state is still in use; try again." })}
-            onOpParamChange={(opId, key, value, options) => void runOwnedAction({ action: () => updateOpParam(opId, key, value, options), fields: { opId, key }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameter update failed", setFailures: setOpsFailures, userMessage: "That editing value could not be changed. Its previous value is still in use; try again." })}
-            onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameters update failed", setFailures: setOpsFailures, userMessage: "Those editing values could not be changed. Their previous values are still in use; try again." })}
-            onOutputChange={(key, value, options) => void runOwnedAction({ action: () => updateOutput(key, value, options), fields: { key }, key: taskOwnedKey(`output:setting:${key}`), operation: "output setting update failed", setFailures: setOpsFailures, userMessage: "That output setting could not be changed. Its previous value is still in use; try again." })}
-            onRemoveOp={(opId) => void runOwnedAction({ action: () => removeOp(opId), fields: { opId }, key: taskOwnedKey(`op:${opId}:remove`), operation: "operation removal failed", setFailures: setOpsFailures, userMessage: "The editing operation could not be removed. The task is unchanged; try again." })}
+            onMoveOp={(opId, toIndex) => void runOwnedAction({ action: () => moveOp(opId, toIndex), fields: { opId, toIndex }, key: taskOwnedKey(`op:${opId}:move`), operation: "operation move failed", setFailures: setOpsFailures, userMessage: message("failure.moveOp") })}
+            onOpEnabledChange={(opId, enabled) => void runOwnedAction({ action: () => setOpEnabled(opId, enabled), fields: { opId }, key: taskOwnedKey(`op:${opId}:enabled`), operation: "operation enabled state update failed", setFailures: setOpsFailures, userMessage: message("failure.opEnabled") })}
+            onOpParamChange={(opId, key, value, options) => void runOwnedAction({ action: () => updateOpParam(opId, key, value, options), fields: { opId, key }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameter update failed", setFailures: setOpsFailures, userMessage: message("failure.opParam") })}
+            onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.opParams") })}
+            onOutputChange={(key, value, options) => void runOwnedAction({ action: () => updateOutput(key, value, options), fields: { key }, key: taskOwnedKey(`output:setting:${key}`), operation: "output setting update failed", setFailures: setOpsFailures, userMessage: message("failure.outputSetting") })}
+            onRemoveOp={(opId) => void runOwnedAction({ action: () => removeOp(opId), fields: { opId }, key: taskOwnedKey(`op:${opId}:remove`), operation: "operation removal failed", setFailures: setOpsFailures, userMessage: message("failure.removeOp") })}
             onRevealOpHandled={() => setPendingRevealOpId(null)}
             settings={settings}
             selectedOpId={selectedOpId}
@@ -1018,7 +1006,8 @@ function App(): React.JSX.Element {
             if (!task?.output) return;
             const mode = resolveSlugRegenerationMode(task.output.vision?.description);
             const failure = await runVisionForTask(taskId, { mode });
-            if (failure) throw new Error(failure);
+            // The rename modal shows its own authored text; the key stays in the diagnostic.
+            if (failure) throw new Error(`slug generation failed: ${failure.key}`);
           }}
           onRun={async (templateId, summary) => {
             const result = await api.rename.run(templateId);
@@ -1026,7 +1015,7 @@ function App(): React.JSX.Element {
             if (result.status === "stopped") return "stopped";
             setRenameOpen(false);
             await confirmer.alert({
-              title: "Rename complete",
+              title: t("renameComplete.title"),
               message: <RenameCompleteMessage summary={summary} />
             });
             return "complete";
@@ -1094,33 +1083,34 @@ function StatusBar({
   hasGeminiApiKey: boolean | null;
   onOpenSettings(): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const privacyCount = privacyWarnings ? Object.keys(privacyWarnings).length : 0;
   const idle = queue.processing === 0 && queue.queued === 0 && queue.errors === 0;
   return (
     <>
       <div className="status-zone status-zone-left">
         {queue.total === 0 ? (
-          <span className="status-chip status-chip-muted">No tasks</span>
+          <span className="status-chip status-chip-muted">{t("status.noTasks")}</span>
         ) : (
           <>
-            <span className="status-chip status-chip-muted">{queue.total} {queue.total === 1 ? "task" : "tasks"}</span>
-            <span className="status-chip status-chip-muted">{queue.saved}/{queue.total} saved</span>
+            <span className="status-chip status-chip-muted">{t("status.tasks", { count: queue.total })}</span>
+            <span className="status-chip status-chip-muted">{t("status.saved", { saved: queue.saved, total: queue.total })}</span>
           </>
         )}
-        {queue.processing > 0 ? <span className="status-chip status-chip-active">{queue.processing} running</span> : null}
-        {queue.queued > 0 ? <span className="status-chip status-chip-info">{queue.queued} queued</span> : null}
-        {queue.errors > 0 ? <span className="status-chip status-chip-danger">{queue.errors} failed</span> : null}
+        {queue.processing > 0 ? <span className="status-chip status-chip-active">{t("status.running", { count: queue.processing })}</span> : null}
+        {queue.queued > 0 ? <span className="status-chip status-chip-info">{t("status.queued", { count: queue.queued })}</span> : null}
+        {queue.errors > 0 ? <span className="status-chip status-chip-danger">{t("status.failed", { count: queue.errors })}</span> : null}
         {queue.activeTaskLabel ? <span className="status-active-label" title={queue.activeTaskLabel}>{queue.activeTaskLabel}</span> : null}
-        {idle && queue.total > 0 ? <span className="status-chip status-chip-idle">Idle</span> : null}
+        {idle && queue.total > 0 ? <span className="status-chip status-chip-idle">{t("status.idle")}</span> : null}
       </div>
       <span className="top-bar-spacer" />
       <div className="status-zone status-zone-right">
         {privacyCount > 0 ? (
           <span
             className="status-chip status-chip-warning"
-            title={`${privacyCount} ${privacyCount === 1 ? "task has" : "tasks have"} source metadata that will remain in the saved file. Add a Strip metadata card to remove.`}
+            title={t("status.privateMetadataHint", { count: privacyCount })}
           >
-            {privacyCount} with private metadata
+            {t("status.privateMetadata", { count: privacyCount })}
           </span>
         ) : null}
         {hasGeminiApiKey === false ? (
@@ -1128,9 +1118,9 @@ function StatusBar({
             className="status-chip status-chip-link status-chip-muted"
             type="button"
             onClick={onOpenSettings}
-            title="Gemini API key is not set. Click to open Settings."
+            title={t("status.noApiKeyHint")}
           >
-            <KeyRound size={12} /> Gemini: no API key
+            <KeyRound size={12} /> {t("status.noApiKey")}
           </button>
         ) : null}
       </div>
@@ -1139,16 +1129,17 @@ function StatusBar({
 }
 
 function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="rename-complete-summary">
       {summary.renamed.length > 0 ? (
         <section>
-          <strong>Renamed {summary.renamed.length} file{summary.renamed.length === 1 ? "" : "s"}</strong>
+          <strong>{t("renameComplete.renamed", { count: summary.renamed.length })}</strong>
           <table className="rename-complete-table">
             <thead>
               <tr>
-                <th scope="col">Before</th>
-                <th scope="col">After</th>
+                <th scope="col">{t("renameComplete.before")}</th>
+                <th scope="col">{t("renameComplete.after")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1162,15 +1153,15 @@ function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): Reac
           </table>
         </section>
       ) : (
-        <p>No files needed renaming.</p>
+        <p>{t("renameComplete.none")}</p>
       )}
       {summary.skipped.length > 0 ? (
         <section>
-          <strong>Skipped {summary.skipped.length} unchanged file name{summary.skipped.length === 1 ? "" : "s"}</strong>
+          <strong>{t("renameComplete.skipped", { count: summary.skipped.length })}</strong>
           <table className="rename-complete-table compact">
             <thead>
               <tr>
-                <th scope="col">Name</th>
+                <th scope="col">{t("renameComplete.name")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1234,10 +1225,14 @@ function savedOutputDeletePaths(task: Task): string[] {
   ].filter((filePath): filePath is string => typeof filePath === "string" && filePath.length > 0)));
 }
 
-function errorStageLabel(stage: "processing" | "vision" | "rename"): string {
-  if (stage === "processing") return "Save failed";
-  if (stage === "vision") return "Image analysis failed";
-  return "Rename failed";
+function errorStageLabel(stage: "processing" | "vision" | "rename"): MessageKey {
+  if (stage === "processing") return "editor.stage.processing";
+  if (stage === "vision") return "editor.stage.vision";
+  return "editor.stage.rename";
+}
+
+function removeOriginalFailure(sourcePath: string | undefined): Message {
+  return sourcePath ? message("failure.removeOriginal", { name: basename(sourcePath) }) : message("failure.removeUnknownOriginal");
 }
 
 function stringifyLogArgs(args: unknown[]): string {
@@ -1256,10 +1251,43 @@ window.addEventListener("dragover", denyUnhandledExternalDrop);
 window.addEventListener("drop", denyUnhandledExternalDrop);
 installWindowActivityState(api.lifecycle.onWindowActivityChanged, document.documentElement);
 
+/**
+ * The interface language comes from the main process, which resolves the saved choice against the
+ * computer's language, so the menu bar and the window always agree. Nothing is drawn until it is
+ * known, so the first words on screen are already in that language; a failed read speaks English.
+ */
+function LocalizedRoot(): React.JSX.Element | null {
+  const [language, setLanguage] = useState<InterfaceLanguage | null>(null);
+
+  useEffect(() => {
+    let current = true;
+    const off = api.language.onChanged((next) => setLanguage(next));
+    void api.language.current()
+      .then((next) => {
+        if (current) setLanguage(next);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to read the interface language", error);
+        if (current) setLanguage({ language: "en", locale: "en" });
+      });
+    return () => {
+      current = false;
+      off();
+    };
+  }, []);
+
+  if (!language) return null;
+  return (
+    <I18nProvider language={language.language} locale={language.locale}>
+      <ConfirmerProvider>
+        <App />
+      </ConfirmerProvider>
+    </I18nProvider>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <ConfirmerProvider>
-      <App />
-    </ConfirmerProvider>
+    <LocalizedRoot />
   </ErrorBoundary>
 );

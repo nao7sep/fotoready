@@ -11,6 +11,7 @@ import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
 import { ApiError } from "@google/genai";
+import { message, type Message } from "@shared/i18n/translate";
 
 /** What a vision request was computed from: the saved output it describes and the slug the user had. */
 type VisionBasis = { outputKey: string; customSlug: string | null };
@@ -277,37 +278,31 @@ export function visionError(error: unknown, retryMode: VisionRunMode): TaskError
   };
 }
 
-function classifyVisionFailure(error: unknown): { message: string; retryable: boolean } {
+function classifyVisionFailure(error: unknown): { message: Message; retryable: boolean } {
   if (error instanceof VisionProviderFailure) {
     switch (error.code) {
       case "missing-api-key":
-        return { message: "Gemini API key is missing. Open Settings and save a key, then retry.", retryable: true };
+        return { message: message("visionError.missingApiKey"), retryable: true };
       case "safety-refusal":
-        return { message: "Gemini refused this image because of a safety or content policy restriction.", retryable: false };
+        return { message: message("visionError.safetyRefusal"), retryable: false };
       case "incomplete-response":
       case "invalid-response":
-        return {
-          message: "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.",
-          retryable: true,
-        };
+        return { message: message("visionError.unexpectedResponse"), retryable: true };
     }
   }
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) {
-      return { message: "Gemini authentication failed. Check the saved API key in Settings, then retry.", retryable: true };
+      return { message: message("visionError.authentication"), retryable: true };
     }
     if (error.status === 404) {
-      return { message: "This Gemini model isn't available. Open Settings and choose one from the list.", retryable: false };
+      return { message: message("visionError.modelUnavailable"), retryable: false };
     }
     if (error.status === 429) {
-      return { message: "Gemini rate limit reached. Wait a moment, then retry.", retryable: true };
+      return { message: message("visionError.rateLimit"), retryable: true };
     }
     if (error.status >= 500) {
-      return { message: "Gemini is temporarily unavailable. Retry in a moment.", retryable: true };
+      return { message: message("visionError.serviceUnavailable"), retryable: true };
     }
   }
-  return {
-    message: "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",
-    retryable: true,
-  };
+  return { message: message("visionError.generic"), retryable: true };
 }

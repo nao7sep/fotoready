@@ -1,3 +1,5 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
+import type { MessageKey } from "@shared/i18n/catalogues";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import { normalizeAngle } from "@shared/rotation";
 import { singleLine } from "@shared/text-cleanup";
@@ -39,7 +41,6 @@ const DEFAULT_TEXT_WATERMARK_BORDER_WIDTH = 0.002;
 const BOX_COLOR_SWATCHES = [
   {
     key: "transparent",
-    label: "Transparent",
     value: "transparent",
     style: {
       background:
@@ -48,13 +49,28 @@ const BOX_COLOR_SWATCHES = [
       backgroundSize: "12px 12px"
     }
   },
-  { key: "white", label: "White", value: "#ffffff", style: { background: "#ffffff" } },
-  { key: "black", label: "Black", value: "#000000", style: { background: "#000000" } }
+  { key: "white", value: "#ffffff", style: { background: "#ffffff" } },
+  { key: "black", value: "#000000", style: { background: "#000000" } }
 ] as const;
+
+type SwatchKey = (typeof BOX_COLOR_SWATCHES)[number]["key"];
+
+const BACKGROUND_SWATCH_LABELS: Record<SwatchKey, MessageKey> = {
+  transparent: "watermarkText.background.transparent",
+  white: "watermarkText.background.white",
+  black: "watermarkText.background.black"
+};
+
+const BORDER_SWATCH_LABELS: Record<SwatchKey, MessageKey> = {
+  transparent: "watermarkText.border.transparent",
+  white: "watermarkText.border.white",
+  black: "watermarkText.border.black"
+};
 
 export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
   type: "watermark-text",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
+    const { t, percent } = useI18n();
     const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
     const normalizedBox = normalizeTextWatermarkBox(params, imageBounds);
     const xMax = fractionToPercentSteps(imageBounds.maxX);
@@ -103,7 +119,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.x)}
             onChange={(event) => updateBox({ x: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.x)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.x, percent)}</span>
         </label>
         <label className="slider-row">
           <span>Y</span>
@@ -116,10 +132,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.y)}
             onChange={(event) => updateBox({ y: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.y)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.y, percent)}</span>
         </label>
         <label className="slider-row">
-          <span>Width</span>
+          <span>{t("geometry.width")}</span>
           <input
             disabled={disabled}
             max={widthMax}
@@ -129,10 +145,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.w)}
             onChange={(event) => updateBox({ w: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.w)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.w, percent)}</span>
         </label>
         <label className="slider-row">
-          <span>Height</span>
+          <span>{t("geometry.height")}</span>
           <input
             disabled={disabled}
             max={heightMax}
@@ -142,19 +158,19 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.h)}
             onChange={(event) => updateBox({ h: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.h)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.h, percent)}</span>
         </label>
         <AngleControl disabled={disabled} value={normalizedBox.rotation} onChange={(rotation) => updateBox({ rotation: normalizeAngle(rotation) })} />
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Background</span>
+          <span className="geometry-status">{t("watermarkText.background")}</span>
           <div className="geometry-swatch-group">
             <SegmentedRadioGroup
               className="geometry-swatch-group"
               optionClassName="color-swatch"
-              ariaLabel="Background color"
+              ariaLabel={t("watermarkText.backgroundColor")}
               options={BOX_COLOR_SWATCHES.map((swatch) => ({
                 id: swatch.key,
-                ariaLabel: `Use ${swatch.label.toLowerCase()} background`,
+                ariaLabel: t(BACKGROUND_SWATCH_LABELS[swatch.key]),
                 style: swatch.style,
                 className: swatch.value === "transparent" ? "transparent" : undefined,
               }))}
@@ -171,20 +187,20 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           </div>
         </div>
         <label className="slider-row">
-          <span>Background opacity</span>
+          <span>{t("watermarkText.backgroundOpacity")}</span>
           <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={normalizedBox.backgroundOpacity} onChange={(event) => onParamChange("backgroundOpacity", event.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${Math.round(normalizedBox.backgroundOpacity * 100)}%`}</span>
+          <span className="slider-value">{percent(normalizedBox.backgroundOpacity)}</span>
         </label>
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Border</span>
+          <span className="geometry-status">{t("watermarkText.border")}</span>
           <div className="geometry-swatch-group">
             <SegmentedRadioGroup
               className="geometry-swatch-group"
               optionClassName="color-swatch"
-              ariaLabel="Border color"
+              ariaLabel={t("watermarkText.borderColor")}
               options={BOX_COLOR_SWATCHES.map((swatch) => ({
                 id: swatch.key,
-                ariaLabel: `Use ${swatch.label.toLowerCase()} border`,
+                ariaLabel: t(BORDER_SWATCH_LABELS[swatch.key]),
                 style: swatch.style,
                 className: swatch.value === "transparent" ? "transparent" : undefined,
               }))}
@@ -205,12 +221,12 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           </div>
         </div>
         <label className="slider-row">
-          <span>Border opacity</span>
+          <span>{t("watermarkText.borderOpacity")}</span>
           <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={normalizedBox.borderOpacity} onChange={(event) => onParamChange("borderOpacity", event.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${Math.round(normalizedBox.borderOpacity * 100)}%`}</span>
+          <span className="slider-value">{percent(normalizedBox.borderOpacity)}</span>
         </label>
         <label className="slider-row">
-          <span>Border thickness</span>
+          <span>{t("watermarkText.borderThickness")}</span>
           <input
             disabled={disabled}
             max={fractionToPercentSteps(0.03)}
@@ -220,10 +236,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.borderWidth)}
             onChange={(event) => onParamChange("borderWidth", percentStepsToFraction(event.currentTarget.valueAsNumber))}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.borderWidth)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.borderWidth, percent)}</span>
         </label>
         <label className="slider-row">
-          <span>Corner radius</span>
+          <span>{t("watermarkText.cornerRadius")}</span>
           <input
             disabled={disabled}
             max={fractionToPercentSteps(0.08)}
@@ -233,10 +249,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.cornerRadius)}
             onChange={(event) => onParamChange("cornerRadius", percentStepsToFraction(event.currentTarget.valueAsNumber))}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.cornerRadius)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.cornerRadius, percent)}</span>
         </label>
         <label className="slider-row">
-          <span>Horizontal padding</span>
+          <span>{t("watermarkText.paddingX")}</span>
           <input
             disabled={disabled}
             max={fractionToPercentSteps(0.08)}
@@ -246,10 +262,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.paddingX)}
             onChange={(event) => onParamChange("paddingX", percentStepsToFraction(event.currentTarget.valueAsNumber))}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.paddingX)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.paddingX, percent)}</span>
         </label>
         <label className="slider-row">
-          <span>Vertical padding</span>
+          <span>{t("watermarkText.paddingY")}</span>
           <input
             disabled={disabled}
             max={fractionToPercentSteps(0.08)}
@@ -259,10 +275,10 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
             value={fractionToPercentSteps(normalizedBox.paddingY)}
             onChange={(event) => onParamChange("paddingY", percentStepsToFraction(event.currentTarget.valueAsNumber))}
           />
-          <span className="slider-value">{formatPercent(normalizedBox.paddingY)}</span>
+          <span className="slider-value">{formatPercent(normalizedBox.paddingY, percent)}</span>
         </label>
         <label className="stacked-field">
-          Font family
+          {t("watermarkText.fontFamily")}
           <input
             ref={fontFamilyField.ref}
             className="compact-control"
@@ -274,19 +290,19 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
           />
         </label>
         <div className="watermark-style-row">
-          <button aria-pressed={normalizedBox.bold} className={`toolbar-button compact-text ${normalizedBox.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !normalizedBox.bold)}>Bold</button>
-          <button aria-pressed={normalizedBox.italic} className={`toolbar-button compact-text ${normalizedBox.italic ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("italic", !normalizedBox.italic)}>Italic</button>
-          <button aria-pressed={normalizedBox.underline} className={`toolbar-button compact-text ${normalizedBox.underline ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("underline", !normalizedBox.underline)}>Underline</button>
-          <button aria-pressed={normalizedBox.strikeThrough} className={`toolbar-button compact-text ${normalizedBox.strikeThrough ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("strikeThrough", !normalizedBox.strikeThrough)}>Strike</button>
+          <button aria-pressed={normalizedBox.bold} className={`toolbar-button compact-text ${normalizedBox.bold ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("bold", !normalizedBox.bold)}>{t("watermarkText.bold")}</button>
+          <button aria-pressed={normalizedBox.italic} className={`toolbar-button compact-text ${normalizedBox.italic ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("italic", !normalizedBox.italic)}>{t("watermarkText.italic")}</button>
+          <button aria-pressed={normalizedBox.underline} className={`toolbar-button compact-text ${normalizedBox.underline ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("underline", !normalizedBox.underline)}>{t("watermarkText.underline")}</button>
+          <button aria-pressed={normalizedBox.strikeThrough} className={`toolbar-button compact-text ${normalizedBox.strikeThrough ? "active" : ""}`} disabled={disabled} type="button" onClick={() => onParamChange("strikeThrough", !normalizedBox.strikeThrough)}>{t("watermarkText.strike")}</button>
         </div>
         <label className="control-row">
-          <span>Text color</span>
+          <span>{t("watermarkText.textColor")}</span>
           <input disabled={disabled} type="color" value={normalizedBox.color} onChange={(event) => onParamChange("color", event.currentTarget.value)} />
         </label>
         <label className="slider-row">
-          <span>Text opacity</span>
+          <span>{t("watermarkText.textOpacity")}</span>
           <input disabled={disabled} max={1} min={0} step={0.01} type="range" value={normalizedBox.opacity} onChange={(event) => onParamChange("opacity", event.currentTarget.valueAsNumber)} />
-          <span className="slider-value">{`${Math.round(normalizedBox.opacity * 100)}%`}</span>
+          <span className="slider-value">{percent(normalizedBox.opacity)}</span>
         </label>
       </div>
     );

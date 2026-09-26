@@ -9,7 +9,6 @@ type AutoToneParams = {
 
 const autoToneModule: OpModule<AutoToneParams> = {
   type: "auto-tone",
-  label: "Auto Tone",
   category: "Tone",
   previewBehavior: "show-output",
   defaultParams: { shadowClip: 0, highlightClip: 0 },

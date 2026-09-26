@@ -1,18 +1,19 @@
+// Presets offered for the text watermark's font family; the renderer names each by its id.
 export const TEXT_WATERMARK_FONT_OPTIONS = [
   {
-    label: "System UI",
+    id: "system-ui",
     value: "system-ui, sans-serif"
   },
   {
-    label: "Serif",
+    id: "serif",
     value: 'ui-serif, Georgia, Cambria, "Times New Roman", serif'
   },
   {
-    label: "Monospace",
+    id: "monospace",
     value: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
   },
   {
-    label: "Rounded",
+    id: "rounded",
     value: '"Avenir Next Rounded", "SF Pro Rounded", "Arial Rounded MT Bold", "Helvetica Rounded", system-ui, sans-serif'
   }
 ] as const;

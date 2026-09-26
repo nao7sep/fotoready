@@ -40,8 +40,8 @@ function makeOriginal(summary: SourceMetadataSummary): Original {
 
 const fullSummary: SourceMetadataSummary = {
   editorial: { author: "Jane" },
-  dates: { DateTimeOriginal: "2026:01:01 00:00:00" },
-  gps: { GPSLatitude: "35.0" }
+  dates: { captured: "2026:01:01 00:00:00" },
+  gps: { latitude: "35.0" }
 };
 
 const stripOp = (keep: string[]): OpInstance => ({

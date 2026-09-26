@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React from "react";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import type { OpCardProps } from "./op-renderer";
@@ -18,6 +19,7 @@ export function ConcealCard<P extends { rects: ConcealRegion[] } & Record<string
   onParamChange,
   children
 }: OpCardProps<P> & { children?: React.ReactNode }): React.JSX.Element {
+  const { t } = useI18n();
   const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
   const firstRegion = clampConcealRegion(readConcealRegionList(params.rects)[0] ?? DEFAULT_CONCEAL_REGION, imageBounds);
 
@@ -30,10 +32,10 @@ export function ConcealCard<P extends { rects: ConcealRegion[] } & Record<string
     <div className="geometry-controls">
       <SegmentedRadioGroup
         className="segmented-control"
-        ariaLabel="Conceal shape"
+        ariaLabel={t("conceal.shape")}
         options={[
-          { id: "rectangle", label: "Rectangle" },
-          { id: "ellipse", label: "Ellipse" },
+          { id: "rectangle", label: t("conceal.rectangle") },
+          { id: "ellipse", label: t("conceal.ellipse") },
         ]}
         value={firstRegion.shape}
         onChange={(shape) => updateRegion({ shape })}

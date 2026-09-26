@@ -71,9 +71,12 @@ beforeEach(() => {
   electron.windows = [];
 });
 
+// The page's own words come from the caller, already in the interface language.
+const words = { closeLabel: "OK", detailsLabel: "Message details", lang: "en" };
+
 describe("plain message dialog", () => {
   it("renders distinct header, body, and footer regions", () => {
-    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message", detail: "Detail" });
+    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message", detail: "Detail", ...words });
 
     expect(html).toContain('id="dialog-header"');
     expect(html).toContain('id="dialog-body"');
@@ -82,12 +85,26 @@ describe("plain message dialog", () => {
     expect(html).toContain("*::-webkit-scrollbar{width:16px;height:16px}");
   });
 
+  it("speaks the language it is given, in its button, region name and document language", () => {
+    const html = renderPlainMessageDialogHtml({
+      title: "Titel",
+      message: "Nachricht",
+      closeLabel: "OK <sofort>",
+      detailsLabel: "Details der Meldung",
+      lang: "de",
+    });
+
+    expect(html).toContain('<html lang="de">');
+    expect(html).toContain('aria-label="Details der Meldung"');
+    expect(html).toContain(">OK &lt;sofort&gt;</button>");
+  });
+
   it("follows the resolved theme in its page and its window background", async () => {
-    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message" });
+    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message", ...words });
     expect(html).toContain("@media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#161616");
 
     electron.dark = true;
-    const result = showPlainMessageDialog({ title: "Title", message: "Message" });
+    const result = showPlainMessageDialog({ title: "Title", message: "Message", ...words });
     await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
     expect(electron.windows[0]?.options.backgroundColor).toBe("#161616");
     electron.windows[0]?.close();
@@ -97,7 +114,7 @@ describe("plain message dialog", () => {
   it("rejects and closes instead of hanging when the page cannot load", async () => {
     electron.loadError = new Error("load failed");
 
-    await expect(showPlainMessageDialog({ title: "Title", message: "Message" })).rejects.toThrow("load failed");
+    await expect(showPlainMessageDialog({ title: "Title", message: "Message", ...words })).rejects.toThrow("load failed");
 
     expect(electron.windows[0]?.show).not.toHaveBeenCalled();
     expect(electron.windows[0]?.close).toHaveBeenCalledOnce();
@@ -106,7 +123,7 @@ describe("plain message dialog", () => {
   it("rejects and closes instead of leaving a hidden window when sizing fails", async () => {
     electron.executeResults = [new Error("measurement failed")];
 
-    await expect(showPlainMessageDialog({ title: "Title", message: "Message" })).rejects.toThrow("measurement failed");
+    await expect(showPlainMessageDialog({ title: "Title", message: "Message", ...words })).rejects.toThrow("measurement failed");
 
     expect(electron.windows[0]?.show).not.toHaveBeenCalled();
     expect(electron.windows[0]?.close).toHaveBeenCalledOnce();
@@ -116,7 +133,7 @@ describe("plain message dialog", () => {
     electron.executeResults = [220, new Error("focus failed")];
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const result = showPlainMessageDialog({ title: "Title", message: "Message" });
+    const result = showPlainMessageDialog({ title: "Title", message: "Message", ...words });
     await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
     electron.windows[0]?.close();
 

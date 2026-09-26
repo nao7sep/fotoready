@@ -1,5 +1,6 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type MetadataFields } from "../types/settings";
+import { normalizeLanguagePreference } from "../i18n/languages";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
@@ -18,6 +19,8 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     : (issues.push("settings must be a JSON object."), {});
 
   const settings: GlobalSettings = {
+    // A missing, retired, or hand-edited language means System, never a reset of the whole file.
+    language: readValue(source, "language", fallback.language, issues, (value) => normalizeLanguagePreference(value)),
     theme: readValue(source, "theme", fallback.theme, issues, (value, path) => assertOneOf(value, path, THEME_PREFERENCES)),
     // UI font is free text; blank is allowed and resolves to the built-in default stack at apply time.
     uiFontFamily: readValue(source, "uiFontFamily", fallback.uiFontFamily, issues, assertString),

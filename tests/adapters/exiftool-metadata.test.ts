@@ -96,7 +96,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
 
     const summary = await readSourceMetadataSummary(sourcePath);
 
-    expect(summary.dates).toMatchObject({ "Date created": expect.stringContaining("2024:05:01"), "Time created": expect.stringContaining("10:00:00") });
+    expect(summary.dates).toMatchObject({ dateCreated: expect.stringContaining("2024:05:01"), timeCreated: expect.stringContaining("10:00:00") });
   });
 
   it("strips every place name, in IPTC and XMP, when the task strips GPS", async () => {
@@ -126,7 +126,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
 
     const summary = await readSourceMetadataSummary(sourcePath);
 
-    expect(summary.gps).toMatchObject({ City: "Kyoto", "Province/state": "Kyoto Prefecture", Country: "Japan", "Country code": "JP" });
+    expect(summary.gps).toMatchObject({ city: "Kyoto", provinceState: "Kyoto Prefecture", country: "Japan", countryCode: "JP" });
   });
 });
 

@@ -9,8 +9,6 @@ type StripMetadataParams = {
 
 const stripMetadataModule: OpModule<StripMetadataParams> = {
   type: "strip-metadata",
-  label: "Strip metadata",
-  pickerLabel: "Strip",
   category: "Metadata",
   previewBehavior: "show-output",
   metadataOnly: true,

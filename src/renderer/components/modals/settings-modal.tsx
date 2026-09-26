@@ -3,40 +3,52 @@ import type { SystemInfo } from "@shared/types/ipc";
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields, type ThemePreference } from "@shared/types/settings";
 import { cleanMetadataField } from "@shared/text-cleanup";
-import { availableOutputFormats, formatLabel } from "@shared/output-format";
+import { availableOutputFormats } from "@shared/output-format";
+import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { GEMINI_MODELS, defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
 import { OperationResult } from "../operation-result";
 import { presentFailure } from "../../present-failure";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import { CATALOGUES, type MessageKey } from "@shared/i18n/catalogues";
+import { LANGUAGES, normalizeLanguagePreference } from "@shared/i18n/languages";
+import { message, type Message, type Translator } from "@shared/i18n/translate";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
 
-const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
-  { id: "save", label: "Save" },
-  { id: "metadata", label: "Metadata" },
-  { id: "vision", label: "Vision" },
-  { id: "assets", label: "Assets" },
-  { id: "app", label: "App" }
+const tabs: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
+  { id: "save", label: "settings.tab.save" },
+  { id: "metadata", label: "settings.tab.metadata" },
+  { id: "vision", label: "settings.tab.vision" },
+  { id: "assets", label: "settings.tab.assets" },
+  { id: "app", label: "settings.tab.app" }
 ];
 
-const themeOptions: ReadonlyArray<{ value: ThemePreference; label: string }> = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" }
+const themeOptions: ReadonlyArray<{ value: ThemePreference; label: MessageKey }> = [
+  { value: "system", label: "settings.themeSystem" },
+  { value: "light", label: "settings.themeLight" },
+  { value: "dark", label: "settings.themeDark" }
 ];
 
-const metadataFieldHelp: Record<keyof MetadataFields, string> = {
-  author: "Person or organization publishing the saved image.",
-  credit: "How downstream users should credit the image in captions or acknowledgements.",
-  source: "Origin of the image or the collection it came from.",
-  copyright: "Copyright notice, rights owner, or copyright line for the saved output.",
-  webStatement: "Public URL that explains rights, licensing, or reuse terms.",
-  usageTerms: "Plain-language reuse terms, restrictions, or required attribution wording.",
-  contactEmail: "Email address for licensing, takedown, or reuse questions.",
-  contactUrl: "Contact page or profile for image-rights questions.",
-  description: "Reusable image description for search, databases, alt-like summaries, or later slug generation."
+const metadataFieldHelp: Record<keyof MetadataFields, MessageKey> = {
+  author: "metadataHelp.author",
+  credit: "metadataHelp.credit",
+  source: "metadataHelp.source",
+  copyright: "metadataHelp.copyright",
+  webStatement: "metadataHelp.webStatement",
+  usageTerms: "metadataHelp.usageTerms",
+  contactEmail: "metadataHelp.contactEmail",
+  contactUrl: "metadataHelp.contactUrl",
+  description: "metadataHelp.description"
+};
+
+const fontOptionLabels: Record<(typeof TEXT_WATERMARK_FONT_OPTIONS)[number]["id"], MessageKey> = {
+  "system-ui": "settings.fontOption.systemUi",
+  serif: "settings.fontOption.serif",
+  monospace: "settings.fontOption.monospace",
+  rounded: "settings.fontOption.rounded"
 };
 
 export function AppSettingsModal({
@@ -68,8 +80,9 @@ export function AppSettingsModal({
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
+  const { t, text } = useI18n();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
-  const [saveFailure, setSaveFailure] = useState<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<Message | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
@@ -81,11 +94,7 @@ export function AppSettingsModal({
     try {
       await onSaveSettings();
     } catch (error) {
-      setSaveFailure(presentFailure(
-        error,
-        "Some settings changes could not be saved. Any changes that succeeded are already in use; the remaining changes stay open so you can try again.",
-        "settings save failed"
-      ));
+      setSaveFailure(presentFailure(error, message("failure.settingsSave"), "settings save failed"));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -128,15 +137,15 @@ export function AppSettingsModal({
 
   return (
     <ModalShell
-      title="Settings"
+      title={t("settings.title")}
       size="default"
       tall
       closeDisabled={saving}
       onClose={onClose}
       footer={
         <>
-          <button className="toolbar-button" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
+          <button className="toolbar-button" type="button" disabled={saving} onClick={onClose}>{t("common.cancel")}</button>
+          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</button>
         </>
       }
     >
@@ -144,7 +153,7 @@ export function AppSettingsModal({
       <div
         ref={tablistRef}
         role="tablist"
-        aria-label="Settings sections"
+        aria-label={t("settings.sections")}
         className="settings-tabs"
         onKeyDown={onTablistKeyDown}
       >
@@ -159,18 +168,18 @@ export function AppSettingsModal({
             type="button"
             onClick={() => setTab(entry.id)}
           >
-            {entry.label}
+            {t(entry.label)}
           </button>
         ))}
       </div>
       {saveFailure ? (
         <OperationResult
           className="modal-error"
-          dismissLabel="Close settings result"
+          dismissLabel={t("settings.closeResult")}
           severity="error"
           onDismiss={() => setSaveFailure(null)}
         >
-          {saveFailure}
+          {text(saveFailure)}
         </OperationResult>
       ) : null}
       {settingsDraft ? (
@@ -199,56 +208,53 @@ export function AppSettingsModal({
 }
 
 function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
+  const { t } = useI18n();
   const outputFormatOptions = useMemo(
-    () => availableOutputFormats().map((format) => ({ value: format, label: formatLabel(format) })),
-    []
+    () => availableOutputFormats().map((format) => ({ value: format, label: outputFormatName(t, format) })),
+    [t]
   );
 
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Output folder</h3>
+        <h3>{t("settings.outputFolder")}</h3>
         <div className="settings-grid">
           <PathField
             allowClear
-            buttonLabel="Choose folder"
-            emptyLabel="Same folder as original"
-            label="Folder"
-            pick={async () => window.api.system.pickDirectory({ title: "Choose Output Folder" })}
+            buttonLabel={t("settings.chooseFolder")}
+            emptyLabel={t("settings.sameFolderAsOriginal")}
+            label={t("settings.folder")}
+            pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseOutputFolder") })}
             value={settings.defaultOutputDirectory}
             onChange={(value) => setSettings({ ...settings, defaultOutputDirectory: value })}
           />
-          <div className="row-detail">
-            New tasks start with this folder. Leave it blank to save beside each source image.
-          </div>
+          <div className="row-detail">{t("settings.outputFolderDetail")}</div>
         </div>
       </section>
 
       <section>
-        <h3>Output format</h3>
+        <h3>{t("settings.outputFormat")}</h3>
         <div className="settings-grid">
           <SelectField
             className="span-two"
-            label="Default format"
+            label={t("settings.defaultFormat")}
             options={outputFormatOptions}
             value={settings.defaultOutputFormat}
             onChange={(value) => setSettings({ ...settings, defaultOutputFormat: value as GlobalSettings["defaultOutputFormat"] })}
           />
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.defaultFlattenTransparency} onChange={(event) => setSettings({ ...settings, defaultFlattenTransparency: event.currentTarget.checked })} />
-            Flatten transparency by default
+            {t("settings.flattenDefault")}
           </label>
           {/* The caption is its own label rather than a wrapper around the row: a
               label covers everything inside it, so wrapping the row made the empty
               space beside the chip a click on the control — which shut the colour
               picker and reopened it in one gesture. */}
           <div className="stacked-field span-two">
-            <label htmlFor="default-background-color">Background color for flattened exports</label>
+            <label htmlFor="default-background-color">{t("settings.backgroundColor")}</label>
             <input id="default-background-color" type="color" value={settings.defaultBackgroundForTransparency} onChange={(event) => setSettings({ ...settings, defaultBackgroundForTransparency: event.currentTarget.value })} />
           </div>
-          <div className="row-detail">
-            JPEG always needs a background fill. PNG, WebP, and AVIF keep transparency unless flattening is enabled here or on the task.
-          </div>
+          <div className="row-detail">{t("settings.formatDetail")}</div>
         </div>
       </section>
 
@@ -264,19 +270,19 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
                 jpegQualityMode: enabled ? settings.jpegQualityMode : "fixed"
               });
             }} />
-            Estimate source JPEG quality from loaded image bytes
+            {t("settings.jpegEstimate")}
           </label>
           <label className="stacked-field">
-            Quality mode
+            {t("settings.qualityMode")}
             <select value={settings.jpegQualityMode} onChange={(event) => setSettings({ ...settings, jpegQualityMode: event.currentTarget.value as GlobalSettings["jpegQualityMode"] })}>
-              <option disabled={!settings.enableJpegQualityEstimate} value="auto">Assume source JPEG quality</option>
-              <option value="fixed">Use fixed quality</option>
+              <option disabled={!settings.enableJpegQualityEstimate} value="auto">{t("settings.assumeSourceQuality")}</option>
+              <option value="fixed">{t("settings.useFixedQuality")}</option>
             </select>
           </label>
-          <NumberField label="Fixed quality" max={100} min={1} value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
+          <NumberField label={t("settings.fixedQuality")} max={100} min={1} value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
           <SelectField
             className="span-two"
-            label="Chroma subsampling"
+            label={t("settings.chromaSubsampling")}
             options={[
               { value: "4:2:0", label: "4:2:0" },
               { value: "4:2:2", label: "4:2:2" },
@@ -285,16 +291,12 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
             value={settings.jpegChromaSubsampling}
             onChange={(value) => setSettings({ ...settings, jpegChromaSubsampling: value as GlobalSettings["jpegChromaSubsampling"] })}
           />
-          <div className="row-detail">
-            4:4:4 keeps the most color detail. 4:2:0 makes smaller files and stays the safest default for broad web compatibility.
-          </div>
+          <div className="row-detail">{t("settings.chromaDetail")}</div>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.jpegProgressive} onChange={(event) => setSettings({ ...settings, jpegProgressive: event.currentTarget.checked })} />
-            Write progressive JPEGs
+            {t("settings.progressive")}
           </label>
-          <div className="row-detail">
-            Quality estimation is only used for confirmed JPEG inputs and only while the file is being loaded into memory.
-          </div>
+          <div className="row-detail">{t("settings.estimateDetail")}</div>
         </div>
       </section>
 
@@ -302,23 +304,23 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
         <h3>PNG</h3>
         <label className="toggle-row settings-toggle-card">
           <input type="checkbox" checked={settings.defaultPngPalette} onChange={(event) => setSettings({ ...settings, defaultPngPalette: event.currentTarget.checked })} />
-          Use indexed palette PNG when possible (256-color style, smaller files)
+          {t("settings.pngPalette")}
         </label>
       </section>
 
       <section>
         <h3>WebP</h3>
         <div className="settings-grid">
-          <NumberField label="Quality" max={100} min={1} value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
-          <NumberField label="Method" max={6} min={0} value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
+          <NumberField label={t("settings.quality")} max={100} min={1} value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
+          <NumberField label={t("settings.webpMethod")} max={6} min={0} value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
         </div>
       </section>
 
       <section>
         <h3>AVIF</h3>
         <div className="settings-grid">
-          <NumberField label="Quality" max={100} min={1} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
-          <NumberField label="Effort" max={9} min={0} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
+          <NumberField label={t("settings.quality")} max={100} min={1} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
+          <NumberField label={t("settings.avifEffort")} max={9} min={0} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
         </div>
       </section>
     </div>
@@ -326,35 +328,36 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
 }
 
 function MetadataTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Output stamps</h3>
+        <h3>{t("settings.outputStamps")}</h3>
         <div className="settings-grid">
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.writeSoftwareTag} onChange={(event) => setSettings({ ...settings, writeSoftwareTag: event.currentTarget.checked })} />
-            Write Software tag (FotoReady)
+            {t("settings.writeSoftwareTag")}
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.writeModifyDate} onChange={(event) => setSettings({ ...settings, writeModifyDate: event.currentTarget.checked })} />
-            Write ModifyDate (save time, local clock)
+            {t("settings.writeModifyDate")}
           </label>
         </div>
       </section>
       <section>
-        <h3>Defaults</h3>
-        <p className="row-detail">Used by the Inject metadata op.</p>
+        <h3>{t("settings.metadataDefaults")}</h3>
+        <p className="row-detail">{t("settings.metadataDefaultsDetail")}</p>
         <div className="settings-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field metadata-field span-two" key={field}>
-              {metadataFieldLabel(field)}
+              {t(metadataFieldLabel(field))}
               <AutoTextarea
                 minRows={field === "description" ? 3 : 1}
                 value={settings.injectFields[field] ?? ""}
                 onChange={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: value } })}
                 onCommit={(value) => setSettings({ ...settings, injectFields: { ...settings.injectFields, [field]: cleanMetadataField(field, value) } })}
               />
-              <span className="field-help">{metadataFieldHelp[field]}</span>
+              <span className="field-help">{t(metadataFieldHelp[field])}</span>
             </label>
           ))}
         </div>
@@ -380,44 +383,45 @@ function VisionTab({
   onClearApiKey(): void;
   onKeepApiKey(): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="settings-section-stack">
       <section>
         <h3>Gemini</h3>
         <div className="settings-grid">
           <label className="stacked-field span-two">
-            API key
+            {t("settings.apiKey")}
             {hasGeminiApiKey && !apiKeyClearRequested ? (
               <>
-                <span className="field-help">Gemini API key is saved.</span>
+                <span className="field-help">{t("settings.apiKeySaved")}</span>
                 <div className="settings-path-row">
                   <input
-                    placeholder="Type a new key to replace it"
+                    placeholder={t("settings.apiKeyReplacePlaceholder")}
                     type="password"
                     value={apiKeyDraft}
                     onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)}
                   />
-                  <button className="toolbar-button" type="button" onClick={onClearApiKey}>Clear</button>
+                  <button className="toolbar-button" type="button" onClick={onClearApiKey}>{t("common.clear")}</button>
                 </div>
-                <span className="field-help">Leave this blank to keep the saved key. Type a new key to replace it.</span>
+                <span className="field-help">{t("settings.apiKeyKeepHint")}</span>
               </>
             ) : hasGeminiApiKey && apiKeyClearRequested ? (
               <>
                 <div className="settings-path-row">
                   <input type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
-                  <button className="toolbar-button" type="button" onClick={onKeepApiKey}>Keep key</button>
+                  <button className="toolbar-button" type="button" onClick={onKeepApiKey}>{t("settings.keepKey")}</button>
                 </div>
-                <span className="field-help">Gemini API key will be cleared when you save. Type a new key to replace it instead.</span>
+                <span className="field-help">{t("settings.apiKeyWillClear")}</span>
               </>
             ) : (
               <>
                 <input type="password" value={apiKeyDraft} onChange={(event) => onApiKeyDraftChange(event.currentTarget.value)} />
-                <span className="field-help">No Gemini API key is saved.</span>
+                <span className="field-help">{t("settings.noApiKey")}</span>
               </>
             )}
           </label>
           <label className="stacked-field">
-            Model
+            {t("settings.model")}
             <select value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })}>
               {GEMINI_MODELS.map((id) => (
                 <option key={id} value={id}>{id}</option>
@@ -431,15 +435,15 @@ function VisionTab({
                 (gemini-2.5-pro does), so the label must not imply it is broken.
               */}
               {settings.model && !GEMINI_MODELS.some((id) => id === settings.model) ? (
-                <option value={settings.model}>{settings.model} — no longer offered</option>
+                <option value={settings.model}>{t("settings.modelNoLongerOffered", { model: settings.model })}</option>
               ) : null}
             </select>
           </label>
-          <NumberField label="Vision image long edge" max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
-          <NumberField label="Concurrent vision requests" max={32} min={1} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
-          <NumberField label="Request timeout (ms)" max={600000} min={1000} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
-          <NumberField label="Max retries on failure" max={10} min={0} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
-          <NumberField label="Initial retry backoff (ms)" max={30000} min={0} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
+          <NumberField label={t("settings.visionLongEdge")} max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
+          <NumberField label={t("settings.visionConcurrency")} max={32} min={1} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
+          <NumberField label={t("settings.visionTimeout")} max={600000} min={1000} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
+          <NumberField label={t("settings.visionMaxRetries")} max={10} min={0} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
+          <NumberField label={t("settings.visionBackoff")} max={30000} min={0} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"
@@ -447,7 +451,7 @@ function VisionTab({
               disabled={settings.defaultGenerateSlug}
               onChange={(event) => setSettings({ ...settings, defaultGenerateDescription: event.currentTarget.checked })}
             />
-            Generate description for new tasks after save
+            {t("settings.generateDescriptionDefault")}
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input
@@ -462,15 +466,15 @@ function VisionTab({
                 });
               }}
             />
-            Generate slug for new tasks after save
+            {t("settings.generateSlugDefault")}
           </label>
         </div>
       </section>
 
       <section>
-        <h3>Prompts</h3>
+        <h3>{t("settings.prompts")}</h3>
         <label className="stacked-field">
-          Description prompt
+          {t("settings.descriptionPrompt")}
           <textarea rows={5} value={settings.visionDescriptionPrompt} onChange={(event) => setSettings({ ...settings, visionDescriptionPrompt: event.currentTarget.value })} />
           <button
             className="toolbar-button"
@@ -479,11 +483,11 @@ function VisionTab({
             disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
             onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
           >
-            Reset description prompt
+            {t("settings.resetDescriptionPrompt")}
           </button>
         </label>
         <label className="stacked-field">
-          Slug prompt
+          {t("settings.slugPrompt")}
           <textarea rows={5} value={settings.visionSlugPrompt} onChange={(event) => setSettings({ ...settings, visionSlugPrompt: event.currentTarget.value })} />
           <button
             className="toolbar-button"
@@ -492,7 +496,7 @@ function VisionTab({
             disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
             onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
           >
-            Reset slug prompt
+            {t("settings.resetSlugPrompt")}
           </button>
         </label>
       </section>
@@ -501,51 +505,52 @@ function VisionTab({
 }
 
 function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
+  const { t } = useI18n();
   const fontFamilyListId = useId();
   // Reflect the REAL resolved default (which relocates with FOTOREADY_HOME)
   // rather than a hardcoded ~/.fotoready path. Fall back to a generic label
   // until app info has loaded.
-  const lutEmptyLabel = systemInfo ? `Default (${systemInfo.lutsDir})` : "Default (app data folder)";
-  const stampEmptyLabel = systemInfo ? `Default (${systemInfo.stampsDir})` : "Default (app data folder)";
+  const lutEmptyLabel = systemInfo ? t("settings.defaultFolder", { path: systemInfo.lutsDir }) : t("settings.defaultAppDataFolder");
+  const stampEmptyLabel = systemInfo ? t("settings.defaultFolder", { path: systemInfo.stampsDir }) : t("settings.defaultAppDataFolder");
 
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Imported asset folders</h3>
+        <h3>{t("settings.assetFolders")}</h3>
         <PathField
           allowClear
-          buttonLabel="Choose folder"
+          buttonLabel={t("settings.chooseFolder")}
           emptyLabel={lutEmptyLabel}
-          label="Imported LUT folder"
-          pick={async () => window.api.system.pickDirectory({ title: "Choose LUT Folder" })}
+          label={t("settings.lutFolder")}
+          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseLutFolder") })}
           value={settings.lutFolder}
           onChange={(value) => setSettings({ ...settings, lutFolder: value })}
         />
         <PathField
           allowClear
-          buttonLabel="Choose folder"
+          buttonLabel={t("settings.chooseFolder")}
           emptyLabel={stampEmptyLabel}
-          label="Imported stamp folder"
-          pick={async () => window.api.system.pickDirectory({ title: "Choose Stamp Folder" })}
+          label={t("settings.stampFolder")}
+          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseStampFolder") })}
           value={settings.stampFolder}
           onChange={(value) => setSettings({ ...settings, stampFolder: value })}
         />
       </section>
 
       <section>
-        <h3>Watermark</h3>
+        <h3>{t("settings.watermark")}</h3>
         <div className="settings-grid">
           <PathField
             allowClear
-            buttonLabel="Choose file"
-            emptyLabel="No default image watermark"
-            label="Default image watermark"
-            pick={async () => window.api.system.pickFile({ title: "Choose default image watermark", extensions: ["png", "svg"] })}
+            buttonLabel={t("settings.chooseFile")}
+            emptyLabel={t("settings.noDefaultWatermark")}
+            label={t("settings.defaultWatermark")}
+            pick={async () => window.api.system.pickFile({ title: t("dialog.chooseDefaultWatermark"), extensions: ["png", "svg"] })}
             value={settings.defaultWatermarkImage}
             onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
           />
           <label className="stacked-field span-two">
-            Default text watermark font family
+            {t("settings.defaultWatermarkFont")}
             <input
               list={fontFamilyListId}
               placeholder={DEFAULT_TEXT_WATERMARK_FONT_FAMILY}
@@ -555,13 +560,11 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
             />
             <datalist id={fontFamilyListId}>
               {TEXT_WATERMARK_FONT_OPTIONS.map((option) => (
-                <option key={option.label} label={option.label} value={option.value} />
+                <option key={option.id} label={t(fontOptionLabels[option.id])} value={option.value} />
               ))}
             </datalist>
           </label>
-          <div className="row-detail">
-            New text watermark ops start with this CSS font-family string. Choose a preset or type your own stack.
-          </div>
+          <div className="row-detail">{t("settings.defaultWatermarkFontDetail")}</div>
         </div>
       </section>
     </div>
@@ -569,19 +572,45 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
 }
 
 function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
+  const { t } = useI18n();
   const cpuCount = systemInfo?.cpuCount ?? 8;
-  const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount), [cpuCount]);
+  const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount, t), [cpuCount, t]);
   const themeName = useId();
+  const languageId = useId();
 
   return (
     <div className="settings-section-stack">
       <section>
-        <h3>Appearance</h3>
+        <h3>{t("settings.language")}</h3>
+        <div className="settings-grid">
+          {/* System first, then each language in its own name and its own glyphs; applied on Save
+              with the rest of Settings (localization-conventions). */}
+          <div className="stacked-field span-two">
+            <label htmlFor={languageId}>{t("settings.language")}</label>
+            <select
+              id={languageId}
+              value={settings.language}
+              onChange={(event) => setSettings({ ...settings, language: normalizeLanguagePreference(event.currentTarget.value) })}
+            >
+              <option value="system">{t("settings.languageSystem")}</option>
+              {LANGUAGES.map((language) => (
+                <option key={language} value={language} lang={language}>
+                  {CATALOGUES[language]["language.name"] as string}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="row-detail">{t("settings.languageDetail")}</div>
+        </div>
+      </section>
+
+      <section>
+        <h3>{t("settings.appearance")}</h3>
         <div className="settings-grid">
           {/* A native radio group: one tab stop, arrow keys move and select. Applied on Save with
               the rest of Settings, never on its own. */}
           <fieldset className="radio-field span-two">
-            <legend>Theme</legend>
+            <legend>{t("settings.theme")}</legend>
             <div className="radio-field-options">
               {themeOptions.map((option) => (
                 <label key={option.value} className="toggle-row">
@@ -592,16 +621,14 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
                     checked={settings.theme === option.value}
                     onChange={() => setSettings({ ...settings, theme: option.value })}
                   />
-                  {option.label}
+                  {t(option.label)}
                 </label>
               ))}
             </div>
           </fieldset>
-          <div className="row-detail">
-            System follows the OS appearance.
-          </div>
+          <div className="row-detail">{t("settings.themeDetail")}</div>
           <label className="stacked-field span-two">
-            UI font
+            {t("settings.uiFont")}
             <input
               type="text"
               placeholder="Inter"
@@ -609,75 +636,65 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
               onChange={(event) => setSettings({ ...settings, uiFontFamily: event.currentTarget.value })}
             />
           </label>
-          <div className="row-detail">
-            The app interface font. Comma-separated families; the first one your system has is used. Blank uses the built-in default.
-          </div>
+          <div className="row-detail">{t("settings.uiFontDetail")}</div>
         </div>
       </section>
 
       <section>
-        <h3>Performance</h3>
+        <h3>{t("settings.performance")}</h3>
         <div className="settings-grid">
           <NumberField
             className="span-two"
-            label="Preview image long edge"
+            label={t("settings.previewLongEdge")}
             max={MAX_PREVIEW_LONG_EDGE}
             min={320}
             value={settings.previewLongEdge}
             onChange={(value) => setSettings({ ...settings, previewLongEdge: value })}
           />
-          <div className="row-detail">
-            Sets the working size for live previews and the histogram. Lower values feel lighter; higher values make inspection more faithful.
-          </div>
+          <div className="row-detail">{t("settings.previewLongEdgeDetail")}</div>
           <NumberField
             className="span-two"
-            label="Asset picker preview size"
+            label={t("settings.assetPreviewSize")}
             max={MAX_ASSET_PICKER_PREVIEW_LONG_EDGE}
             min={MIN_ASSET_PICKER_PREVIEW_LONG_EDGE}
             value={settings.assetPickerPreviewLongEdge}
             onChange={(value) => setSettings({ ...settings, assetPickerPreviewLongEdge: value })}
           />
-          <div className="row-detail">
-            Sets the thumbnail size for LUT and stamp picker modals. Smaller values fit more choices on compact screens.
-          </div>
+          <div className="row-detail">{t("settings.assetPreviewSizeDetail")}</div>
           <NumberField
             className="span-two"
-            label="Preview update debounce (ms)"
+            label={t("settings.previewDebounce")}
             max={2000}
             min={0}
             value={settings.previewDebounceMs}
             onChange={(value) => setSettings({ ...settings, previewDebounceMs: value })}
           />
-          <div className="row-detail">
-            Wait this long after the latest edit before re-rendering the preview. Higher values reduce churn while dragging sliders; lower values feel more immediate.
-          </div>
+          <div className="row-detail">{t("settings.previewDebounceDetail")}</div>
           <SelectField
             className="span-two"
-            label="Concurrent saves"
+            label={t("settings.concurrentSaves")}
             options={concurrencyOptions}
             value={settings.workerPoolSize === null ? "auto" : String(settings.workerPoolSize)}
             onChange={(value) => setSettings({ ...settings, workerPoolSize: value === "auto" ? null : Number(value) })}
           />
-          <div className="row-detail">
-            Automatic uses this machine&apos;s CPU count to choose a sensible worker count at runtime. This Mac currently reports {cpuCount} logical cores.
-          </div>
+          <div className="row-detail">{t("settings.concurrentSavesDetail", { count: cpuCount })}</div>
         </div>
       </section>
 
       <section>
-        <h3>Confirmations</h3>
+        <h3>{t("settings.confirmations")}</h3>
         <div className="settings-grid">
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.confirmDeleteOriginals} onChange={(event) => setSettings({ ...settings, confirmDeleteOriginals: event.currentTarget.checked })} />
-            Confirm before removing originals from the app
+            {t("settings.confirmRemoveOriginals")}
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.confirmDeleteTasks} onChange={(event) => setSettings({ ...settings, confirmDeleteTasks: event.currentTarget.checked })} />
-            Confirm before deleting tasks from the app
+            {t("settings.confirmDeleteTasks")}
           </label>
           <label className="toggle-row settings-toggle-card span-two">
             <input type="checkbox" checked={settings.confirmDeleteOutputFiles} onChange={(event) => setSettings({ ...settings, confirmDeleteOutputFiles: event.currentTarget.checked })} />
-            Confirm before moving saved files to the trash
+            {t("settings.confirmTrashOutput")}
           </label>
         </div>
       </section>
@@ -705,6 +722,7 @@ function NumberField({
   onChange(value: number): void;
   value: number;
 }): React.JSX.Element {
+  const { t, number } = useI18n();
   const [draftValue, setDraftValue] = useState(String(value));
 
   useEffect(() => {
@@ -712,6 +730,11 @@ function NumberField({
   }, [value]);
 
   const issue = getNumberFieldIssue(draftValue, min, max);
+  const issueText = issue === "whole-number"
+    ? t("settings.wholeNumber")
+    : issue === "out-of-range"
+      ? t("settings.numberRange", { min: number(min), max: number(max) })
+      : null;
 
   return (
     <label className={`stacked-field${className ? ` ${className}` : ""}`}>
@@ -731,7 +754,7 @@ function NumberField({
           if (parsed !== null && parsed >= min && parsed <= max) onChange(parsed);
         }}
       />
-      {issue ? <span className="field-help">{issue}</span> : null}
+      {issueText ? <span className="field-help">{issueText}</span> : null}
     </label>
   );
 }
@@ -776,7 +799,8 @@ function PathField({
   value: string;
   onChange(value: string): void;
 }): React.JSX.Element {
-  const [pickFailure, setPickFailure] = useState<string | null>(null);
+  const { t, text } = useI18n();
+  const [pickFailure, setPickFailure] = useState<Message | null>(null);
   const inputId = useId();
 
   function change(next: string): void {
@@ -789,12 +813,7 @@ function PathField({
       const picked = await pick();
       if (picked !== null) change(picked);
     } catch (error) {
-      setPickFailure(presentFailure(
-        error,
-        "That location could not be chosen. The current path is unchanged; try again.",
-        "settings path picker failed",
-        { field: label }
-      ));
+      setPickFailure(presentFailure(error, message("failure.pathPick"), "settings path picker failed", { field: label }));
     }
   }
 
@@ -804,16 +823,16 @@ function PathField({
       <div className="settings-path-row">
         <input id={inputId} type="text" placeholder={emptyLabel} value={value} onChange={(event) => change(event.currentTarget.value)} />
         <button className="toolbar-button" type="button" onClick={() => void choose()}>{buttonLabel}</button>
-        {allowClear ? <button className="toolbar-button" type="button" onClick={() => change("")}>Clear</button> : null}
+        {allowClear ? <button className="toolbar-button" type="button" onClick={() => change("")}>{t("common.clear")}</button> : null}
       </div>
       {pickFailure ? (
         <OperationResult
           className="modal-error"
-          dismissLabel="Close path result"
+          dismissLabel={t("settings.closePathResult")}
           severity="error"
           onDismiss={() => setPickFailure(null)}
         >
-          {pickFailure}
+          {text(pickFailure)}
         </OperationResult>
       ) : null}
     </div>
@@ -859,15 +878,15 @@ function parseIntegerDraft(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getNumberFieldIssue(value: string, min: number, max: number): string | null {
+function getNumberFieldIssue(value: string, min: number, max: number): "whole-number" | "out-of-range" | null {
   if (value.length === 0) return null;
   const parsed = parseIntegerDraft(value);
-  if (parsed === null) return "Enter a whole number.";
-  if (parsed < min || parsed > max) return `Must be between ${min.toLocaleString()} and ${max.toLocaleString()}.`;
+  if (parsed === null) return "whole-number";
+  if (parsed < min || parsed > max) return "out-of-range";
   return null;
 }
 
-function buildConcurrencyOptions(cpuCount: number): Array<{ value: string; label: string }> {
+function buildConcurrencyOptions(cpuCount: number, t: Translator["t"]): Array<{ value: string; label: string }> {
   const values = new Set<number>([1]);
   let current = 1;
   while (current < cpuCount) {
@@ -876,7 +895,7 @@ function buildConcurrencyOptions(cpuCount: number): Array<{ value: string; label
   }
   if (cpuCount > 2) values.add(cpuCount);
   return [
-    { value: "auto", label: `Automatic (recommended, based on ${cpuCount} cores)` },
+    { value: "auto", label: t("settings.concurrentSavesAutomatic", { count: cpuCount }) },
     ...Array.from(values).sort((left, right) => left - right).map((value) => ({ value: String(value), label: String(value) }))
   ];
 }

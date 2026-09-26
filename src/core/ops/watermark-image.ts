@@ -4,8 +4,6 @@ import { createAssetOverlayModule } from "./_asset-overlay";
 
 registerOp(createAssetOverlayModule({
   type: "watermark-image",
-  label: "Image watermark",
-  pickerLabel: "Image",
   category: "Watermark",
   defaultParams: {
     assetPath: "",

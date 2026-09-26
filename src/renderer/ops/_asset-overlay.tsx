@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React, { useEffect, useState } from "react";
 import {
   DEFAULT_ASSET_OVERLAY_WIDTH,
@@ -78,6 +79,7 @@ function AssetOverlayControls({
   sourceAction: React.ReactNode;
   sourceField: React.ReactNode;
 }): React.JSX.Element {
+  const { t, percent } = useI18n();
   const bounds = imageBoundsFromOriginalSize(ctx.originalSize);
   const o = clampAssetOverlay(params, bounds);
   const minSize = fractionToPercentSteps(MIN_ASSET_OVERLAY_SIZE);
@@ -104,7 +106,7 @@ function AssetOverlayControls({
           value={fractionToPercentSteps(o.x)}
           onChange={(e) => applyBoxPatch({ x: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(o.x)}</span>
+        <span className="slider-value">{formatPercent(o.x, percent)}</span>
       </label>
       <label className="slider-row">
         <span>Y</span>
@@ -117,7 +119,7 @@ function AssetOverlayControls({
           value={fractionToPercentSteps(o.y)}
           onChange={(e) => applyBoxPatch({ y: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(o.y)}</span>
+        <span className="slider-value">{formatPercent(o.y, percent)}</span>
       </label>
       <label className="toggle-row">
         <input
@@ -126,10 +128,10 @@ function AssetOverlayControls({
           type="checkbox"
           onChange={(e) => applyBoxPatch({ lockAspectRatio: e.currentTarget.checked })}
         />
-        Lock aspect ratio
+        {t("geometry.lockAspect")}
       </label>
       <label className="slider-row">
-        <span>Width</span>
+        <span>{t("geometry.width")}</span>
         <input
           disabled={disabled}
           max={fractionToPercentSteps(bounds.maxX)}
@@ -139,10 +141,10 @@ function AssetOverlayControls({
           value={fractionToPercentSteps(o.width)}
           onChange={(e) => applyBoxPatch({ width: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(o.width)}</span>
+        <span className="slider-value">{formatPercent(o.width, percent)}</span>
       </label>
       <label className="slider-row">
-        <span>Height</span>
+        <span>{t("geometry.height")}</span>
         <input
           disabled={disabled}
           max={fractionToPercentSteps(bounds.maxY)}
@@ -152,7 +154,7 @@ function AssetOverlayControls({
           value={fractionToPercentSteps(o.height)}
           onChange={(e) => applyBoxPatch({ height: percentStepsToFraction(e.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(o.height)}</span>
+        <span className="slider-value">{formatPercent(o.height, percent)}</span>
       </label>
       <AngleControl
         disabled={disabled}
@@ -163,7 +165,7 @@ function AssetOverlayControls({
         <AssetOverlayFlipControls disabled={disabled} params={o} onParamChange={onParamChange} />
       ) : null}
       <label className="slider-row">
-        <span>Opacity</span>
+        <span>{t("geometry.opacity")}</span>
         <input
           disabled={disabled}
           max={1}
@@ -173,7 +175,7 @@ function AssetOverlayControls({
           value={o.opacity}
           onChange={(e) => onParamChange("opacity", e.currentTarget.valueAsNumber)}
         />
-        <span className="slider-value">{`${Math.round(o.opacity * 100)}%`}</span>
+        <span className="slider-value">{percent(o.opacity)}</span>
       </label>
     </div>
   );
@@ -188,6 +190,7 @@ function AssetOverlayFlipControls({
   params: AssetOverlayParams;
   onParamChange<K extends keyof AssetOverlayParams>(key: K, value: AssetOverlayParams[K]): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="field-grid">
       <label className="toggle-row span-two">
@@ -197,7 +200,7 @@ function AssetOverlayFlipControls({
           type="checkbox"
           onChange={(event) => onParamChange("flipHorizontal", event.currentTarget.checked)}
         />
-        <span>Flip horizontally</span>
+        <span>{t("geometry.flipHorizontal")}</span>
       </label>
       <label className="toggle-row span-two">
         <input
@@ -206,7 +209,7 @@ function AssetOverlayFlipControls({
           type="checkbox"
           onChange={(event) => onParamChange("flipVertical", event.currentTarget.checked)}
         />
-        <span>Flip vertically</span>
+        <span>{t("geometry.flipVertical")}</span>
       </label>
     </div>
   );

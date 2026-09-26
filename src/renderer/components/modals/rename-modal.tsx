@@ -2,12 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
-import { missingSlugLabel, missingSlugVisualState, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
+import { missingSlugLabel, missingSlugVisualState, renameIssueLabel, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
 import { useImeGuard } from "@renderer/utils/ime-guard";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
 import type { OwnedActionOutcome } from "@renderer/owned-failures";
 import { ModalShell } from "./modal-shell";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import type { MessageKey } from "@shared/i18n/catalogues";
+import { message, type Message } from "@shared/i18n/translate";
 
 export type RenameRunSummary = {
   renamed: Array<{ from: string; to: string }>;
@@ -15,8 +18,15 @@ export type RenameRunSummary = {
 };
 
 type RenameFailure = {
-  message: string;
+  message: Message;
   settingsRecovery?: boolean;
+};
+
+const TEMPLATE_NAMES: Record<RenameTemplateId, MessageKey> = {
+  "builtin-slug-size": "rename.templateName.slugSize",
+  "builtin-slug": "rename.templateName.slug",
+  "builtin-original-size": "rename.templateName.originalSize",
+  "builtin-original": "rename.templateName.original"
 };
 
 export function RenameModal({
@@ -44,6 +54,7 @@ export function RenameModal({
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void | OwnedActionOutcome>;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [dirtySlugDrafts, setDirtySlugDrafts] = useState<Record<string, boolean>>({});
   const [templateId, setTemplateId] = useState<RenameTemplateId>(DEFAULT_RENAME_TEMPLATE_ID);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
@@ -104,11 +115,7 @@ export function RenameModal({
       })
       .catch((caught: unknown) => {
         if (!cancelled) retainFailure("preview", {
-          message: presentFailure(
-            caught,
-            "The rename preview could not be prepared. Saved files are unchanged; try again.",
-            "renderer rename preview failed",
-          )
+          message: presentFailure(caught, message("failure.renamePreview"), "renderer rename preview failed")
         });
       })
       .finally(() => {
@@ -131,19 +138,13 @@ export function RenameModal({
     try {
       const outcome = await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
       if (outcome === "stopped") {
-        retainFailure("run", {
-          message: "The rename stopped before every file was completed. Some files may already have their new names; review the refreshed list, then try the remaining items."
-        });
+        retainFailure("run", { message: message("failure.renameStopped") });
         runBusyRef.current = false;
         setRunBusy(false);
       }
     } catch (caught) {
       retainFailure("run", {
-        message: presentFailure(
-          caught,
-          "The rename stopped before every file was completed. Some files may already have their new names; review the refreshed list, then try the remaining items.",
-          "renderer rename failed",
-        )
+        message: presentFailure(caught, message("failure.renameStopped"), "renderer rename failed")
       });
       runBusyRef.current = false;
       setRunBusy(false);
@@ -153,7 +154,7 @@ export function RenameModal({
   async function updateOutputDirectory(
     action: () => Promise<void | OwnedActionOutcome>,
     operation: string,
-    userMessage: string
+    userMessage: Message
   ): Promise<void> {
     try {
       const outcome = await action();
@@ -165,49 +166,49 @@ export function RenameModal({
 
   return (
     <ModalShell
-      title="Rename all"
+      title={t("rename.title")}
       size="wide"
       tall
       closeDisabled={runBusy}
       onClose={onClose}
       footer={
         <>
-          <button className="toolbar-button" type="button" disabled={runBusy} onClick={onClose}>Cancel</button>
+          <button className="toolbar-button" type="button" disabled={runBusy} onClick={onClose}>{t("common.cancel")}</button>
           <button className="primary-action" type="button" disabled={modalBusy || previewBusy || actionTaskIds.length > 0 || !canRun} onClick={() => void confirm()}>
-            Rename all
+            {t("rename.run")}
           </button>
         </>
       }
     >
       <div className="rename-output-dir">
         <div className="rename-output-dir-copy">
-          <span className="rename-output-dir-label">Output folder</span>
+          <span className="rename-output-dir-label">{t("rename.outputFolder")}</span>
           <span className="rename-output-dir-value" title={outputDirPath ?? ""}>{outputDirLabel}</span>
         </div>
         <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void updateOutputDirectory(
           onSetOutputDir,
           "renderer rename output folder selection failed",
-          "The output folder could not be changed. The current folder is still in use; try again."
-        )}>{outputDirPath ? "Change" : "Choose"}</button>
+          message("failure.outputFolderChange")
+        )}>{outputDirPath ? t("common.change") : t("common.choose")}</button>
         {outputDirPath ? <button className="toolbar-button compact-text" disabled={modalBusy} type="button" onClick={() => void updateOutputDirectory(
           onClearOutputDir,
           "renderer rename output folder clear failed",
-          "The output folder could not be cleared. The current folder is still in use; try again."
-        )}>Clear</button> : null}
+          message("failure.outputFolderClear")
+        )}>{t("common.clear")}</button> : null}
       </div>
 
       <label className="stacked-field">
-        Template
+        {t("rename.template")}
         <select disabled={modalBusy} value={templateId} onChange={(event) => setTemplateId(event.currentTarget.value as RenameTemplateId)}>
           {builtinRenameTemplates.map((template) => (
-            <option key={template.id} value={template.id}>{template.name}</option>
+            <option key={template.id} value={template.id}>{t(TEMPLATE_NAMES[template.id])}</option>
           ))}
         </select>
       </label>
 
       {preview?.blockedCount ? (
         <OperationResult className="modal-warning" severity="warning">
-          {preview.blockedCount} item{preview.blockedCount === 1 ? "" : "s"} need{preview.blockedCount === 1 ? "s" : ""} attention before rename.
+          {t("rename.blocked", { count: preview.blockedCount })}
         </OperationResult>
       ) : null}
 
@@ -240,12 +241,7 @@ export function RenameModal({
                 await onRegenerateSlug(taskId);
               } catch (caught) {
                 retainFailure(key, {
-                  message: presentFailure(
-                    caught,
-                    "A replacement slug could not be generated. Check the Gemini settings, then try again.",
-                    "renderer rename slug generation failed",
-                    { taskId },
-                  ),
+                  message: presentFailure(caught, message("failure.regenerateSlug"), "renderer rename slug generation failed", { taskId }),
                   settingsRecovery: true
                 });
               } finally {
@@ -260,12 +256,7 @@ export function RenameModal({
                 await onSetRenameSlug(taskId, customSlug);
               } catch (caught) {
                 retainFailure(key, {
-                  message: presentFailure(
-                    caught,
-                    "The rename slug could not be saved. Your edit is still shown; try again.",
-                    "renderer rename slug save failed",
-                    { taskId },
-                  )
+                  message: presentFailure(caught, message("failure.renameSlugSave"), "renderer rename slug save failed", { taskId })
                 });
               } finally {
                 setActionTaskIds((current) => current.filter((id) => id !== taskId));
@@ -275,7 +266,7 @@ export function RenameModal({
             showSlugEditor={Boolean(preview.usesSlug && item.currentPath)}
           />
         )) : (
-          <div className="ops-empty">{previewBusy ? "Preparing preview..." : "No tasks to rename"}</div>
+          <div className="ops-empty">{previewBusy ? t("rename.preparing") : t("rename.noTasks")}</div>
         )}
       </div>
     </ModalShell>
@@ -307,6 +298,7 @@ function RenamePreviewRow({
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   showSlugEditor: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const initialSlugValue = item.customSlug ?? "";
   const [slugDraft, setSlugDraft] = useState(initialSlugValue);
   const skipBlurCommitRef = useRef(false);
@@ -322,11 +314,11 @@ function RenamePreviewRow({
   const draftEmpty = showSlugEditor && draftSlug.length === 0;
   const previewVisualState = renameItemVisualState(task, item);
   const visualState = draftEmpty ? missingSlugVisualState(task) : previewVisualState;
-  const stateText = draftEmpty
+  const stateText = t(draftEmpty
     ? missingSlugLabel(visualState)
     : draftDirty
-      ? "Editing slug"
-      : renameItemStateLabel(previewVisualState, item);
+      ? "rename.editingSlug"
+      : renameItemStateLabel(previewVisualState, item));
   const rowDisabled = disabled || actionBusy || Boolean(task?.visionRunning);
 
   useEffect(() => {
@@ -345,13 +337,13 @@ function RenamePreviewRow({
           <span className={`rename-preview-dot state-${visualState}`} aria-hidden="true" />
           <span>{stateText}</span>
         </span>
-        <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? (item.status === "not-saved" ? "Not saved yet" : (item.issue ?? "Unavailable"))}</span>
+        <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? (item.status === "not-saved" ? t("rename.notSavedYet") : t(item.issue ? renameIssueLabel(item.issue) : "rename.unavailable"))}</span>
         <span className="rename-preview-meta" title={item.currentPath ?? ""}>
-          <span className="rename-preview-meta-label">Current</span>
-          <span>{item.currentName ?? "Not saved"}</span>
+          <span className="rename-preview-meta-label">{t("rename.current")}</span>
+          <span>{item.currentName ?? t("taskState.notSaved")}</span>
         </span>
         <span className="rename-preview-meta" title={item.originalName}>
-          <span className="rename-preview-meta-label">Original</span>
+          <span className="rename-preview-meta-label">{t("rename.original")}</span>
           <span>{item.originalName}</span>
         </span>
       </div>
@@ -361,7 +353,7 @@ function RenamePreviewRow({
             <input
               className="rename-preview-slug-input"
               disabled={rowDisabled}
-              placeholder="descriptive-slug"
+              placeholder={t("output.slugPlaceholder")}
               type="text"
               value={slugDraft}
               {...ime.compositionProps}
@@ -389,7 +381,7 @@ function RenamePreviewRow({
               }}
               onClick={() => void onRegenerateSlug(item.taskId)}
             >
-              {actionBusy ? (item.generatedSlug ? "Regenerating" : "Generating") : item.generatedSlug ? "Regenerate" : "Generate"}
+              {t(actionBusy ? (item.generatedSlug ? "rename.regenerating" : "rename.generating") : item.generatedSlug ? "rename.regenerate" : "rename.generate")}
             </button>
             {failures.map(([key, failure]) => (
               <RenameFailureNotice
@@ -418,12 +410,13 @@ function RenameFailureNotice({
   onDismiss(): void;
   onOpenSettings(): void;
 }): React.JSX.Element {
+  const { t, text } = useI18n();
   return (
-    <OperationResult className="modal-error" dismissLabel="Close rename result" severity="error" onDismiss={onDismiss}>
-      <span>{failure.message}</span>
+    <OperationResult className="modal-error" dismissLabel={t("rename.closeResult")} severity="error" onDismiss={onDismiss}>
+      <span>{text(failure.message)}</span>
       {failure.settingsRecovery ? (
         <button className="toolbar-button compact-text" type="button" disabled={disabled} onClick={onOpenSettings}>
-          Open Settings
+          {t("common.openSettings")}
         </button>
       ) : null}
     </OperationResult>

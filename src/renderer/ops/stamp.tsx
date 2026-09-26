@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React, { useState } from "react";
 import { StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
@@ -6,28 +7,35 @@ import type { AssetOverlayParams } from "@shared/asset-overlay";
 import { fileNameFromPath } from "@shared/file-path";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
+import { message, type Message } from "@shared/i18n/translate";
 
 export const stampRenderer = createAssetOverlayRenderer({
   type: "stamp",
   color: "#38bdf8",
   flipControlsPlacement: "after-source",
   renderSourceField({ ctx, params }) {
-    const selected = ctx.stamps.find((stamp) => stamp.path === params.assetPath) ?? null;
-    return (
-      <div className="asset-source-row asset-source-row-value-only">
-        <span className="asset-source-value" title={selected?.path ?? params.assetPath}>{selected?.name ?? fileLabel(params.assetPath) ?? "No stamp selected"}</span>
-      </div>
-    );
+    return <StampSourceField ctx={ctx} params={params} />;
   },
   renderSourceAction(props) {
     return <StampSourceAction {...props} />;
   }
 });
 
+function StampSourceField({ ctx, params }: Pick<OpCardProps<AssetOverlayParams>, "ctx" | "params">): React.JSX.Element {
+    const { t } = useI18n();
+    const selected = ctx.stamps.find((stamp) => stamp.path === params.assetPath) ?? null;
+    return (
+      <div className="asset-source-row asset-source-row-value-only">
+        <span className="asset-source-value" title={selected?.path ?? params.assetPath}>{selected?.name ?? fileLabel(params.assetPath) ?? t("stamp.noneSelected")}</span>
+      </div>
+    );
+}
+
 export function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProps<AssetOverlayParams>): React.JSX.Element {
+  const { t, text } = useI18n();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reloadBusy, setReloadBusy] = useState(false);
-  const [reloadFailure, setReloadFailure] = useState<string | null>(null);
+  const [reloadFailure, setReloadFailure] = useState<Message | null>(null);
 
   async function openPicker(): Promise<void> {
     setReloadBusy(true);
@@ -36,12 +44,7 @@ export function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpC
       setReloadFailure(null);
       setPickerOpen(true);
     } catch (error) {
-      setReloadFailure(presentFailure(
-        error,
-        "The stamp library could not be refreshed. The chooser remains closed; restore access to the stamp folder and try again.",
-        "stamp library refresh before chooser failed",
-        { opId: ctx.opId }
-      ));
+      setReloadFailure(presentFailure(error, message("failure.stampRefresh"), "stamp library refresh before chooser failed", { opId: ctx.opId }));
     } finally {
       setReloadBusy(false);
     }
@@ -50,16 +53,16 @@ export function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpC
   return (
     <>
       <button className="toolbar-button compact-text" disabled={disabled || reloadBusy} type="button" onClick={() => void openPicker()}>
-        Choose stamp...
+        {t("stamp.choose")}
       </button>
       {reloadFailure ? (
         <OperationResult
           className="modal-error"
-          dismissLabel="Close stamp chooser result"
+          dismissLabel={t("stamp.closeResult")}
           severity="error"
           onDismiss={() => setReloadFailure(null)}
         >
-          {reloadFailure}
+          {text(reloadFailure)}
         </OperationResult>
       ) : null}
       {pickerOpen ? (

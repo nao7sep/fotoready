@@ -1,34 +1,38 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import { Line, Rect } from "react-konva";
 import type { OpRenderer } from "./op-renderer";
+import type { MessageKey } from "@shared/i18n/catalogues";
+import type React from "react";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 
 type RotateParams = { degrees: number; fillColor: string };
 
 const rotateFillSwatches = [
-  { value: "rgba(0,0,0,0)", label: "Transparent", style: { background: "linear-gradient(45deg, #d1d5db 25%, transparent 25%, transparent 75%, #d1d5db 75%), linear-gradient(45deg, #d1d5db 25%, #ffffff 25%, #ffffff 75%, #d1d5db 75%)", backgroundPosition: "0 0, 6px 6px", backgroundSize: "12px 12px" } },
-  { value: "#ffffff", label: "White", style: { background: "#ffffff" } },
-  { value: "#000000", label: "Black", style: { background: "#000000" } },
-  { value: "#00ff66", label: "Key green", style: { background: "#00ff66" } },
-  { value: "#0088ff", label: "Key blue", style: { background: "#0088ff" } }
-] as const;
+  { value: "rgba(0,0,0,0)", label: "rotate.fill.transparent", style: { background: "linear-gradient(45deg, #d1d5db 25%, transparent 25%, transparent 75%, #d1d5db 75%), linear-gradient(45deg, #d1d5db 25%, #ffffff 25%, #ffffff 75%, #d1d5db 75%)", backgroundPosition: "0 0, 6px 6px", backgroundSize: "12px 12px" } },
+  { value: "#ffffff", label: "rotate.fill.white", style: { background: "#ffffff" } },
+  { value: "#000000", label: "rotate.fill.black", style: { background: "#000000" } },
+  { value: "#00ff66", label: "rotate.fill.keyGreen", style: { background: "#00ff66" } },
+  { value: "#0088ff", label: "rotate.fill.keyBlue", style: { background: "#0088ff" } }
+] as const satisfies ReadonlyArray<{ value: string; label: MessageKey; style: React.CSSProperties }>;
 
 export const rotateRenderer: OpRenderer<RotateParams> = {
   type: "rotate",
   Card({ params, disabled, onParamChange }) {
+    const { t } = useI18n();
     return (
       <div className="geometry-controls">
-        <AngleControl disabled={disabled} rangeLabel="Rotate left / right" value={params.degrees} onChange={(degrees) => onParamChange("degrees", normalizeAngle(degrees))} />
+        <AngleControl disabled={disabled} rangeLabel={t("rotate.range")} value={params.degrees} onChange={(degrees) => onParamChange("degrees", normalizeAngle(degrees))} />
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Fill</span>
+          <span className="geometry-status">{t("rotate.fill")}</span>
           <div className="geometry-swatch-group">
             <SegmentedRadioGroup
               className="geometry-swatch-group"
               optionClassName="color-swatch"
-              ariaLabel="Rotate fill color"
+              ariaLabel={t("rotate.fillColor")}
               options={rotateFillSwatches.map((swatch) => ({
                 id: swatch.value,
-                ariaLabel: `Use ${swatch.label.toLowerCase()} fill`,
+                ariaLabel: t(swatch.label),
                 style: swatch.style,
                 className: swatch.value === "rgba(0,0,0,0)" ? "transparent" : undefined,
               }))}

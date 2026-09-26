@@ -12,6 +12,7 @@ import type { OriginalImportFeedback } from "@renderer/original-import-feedback"
 import { OperationResult } from "@renderer/components/operation-result";
 import { OwnedFailureList } from "@renderer/components/owned-failure-list";
 import type { OwnedFailures } from "@renderer/owned-failures";
+import { useI18n } from "@renderer/i18n/I18nContext";
 
 export function OriginalsPanel({
   activeOriginalId,
@@ -38,6 +39,7 @@ export function OriginalsPanel({
   onRemove(originalId: string): void;
   onSelect(originalId: string): void;
 }): React.JSX.Element {
+  const { t, text } = useI18n();
   const [dropActive, setDropActive] = useState(false);
   const dragDepthRef = useRef(0);
 
@@ -55,7 +57,7 @@ export function OriginalsPanel({
 
   return (
     <aside className="panel originals-panel">
-      <PanelHeader title="Originals" />
+      <PanelHeader title={t("originals.title")} />
       <div
         className={`originals-receiver ${dropActive ? "is-delivery-candidate" : ""}`}
         onDragEnter={(event) => {
@@ -87,9 +89,9 @@ export function OriginalsPanel({
         }}
         onDragEnd={clearDrop}
       >
-        <div className="list" aria-label="Originals" {...listbox.listboxProps}>
+        <div className="list" aria-label={t("originals.title")} {...listbox.listboxProps}>
           {originals.length === 0 ? (
-            <div className="empty-state">No originals. Add or drop an image or FotoReady sidecar.</div>
+            <div className="empty-state">{t("originals.empty")}</div>
           ) : originals.map((original) => (
             <div className="original-list-entry" key={original.id}>
               <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`}>
@@ -99,10 +101,10 @@ export function OriginalsPanel({
                   </span>
                   <span className="row-copy">
                     <span className="row-title">{basename(original.sourcePath)}</span>
-                    <span className="row-detail">{original.width}x{original.height} · {formatLabel(original.format)}</span>
+                    <span className="row-detail">{`${original.width}×${original.height} · ${formatLabel(original.format)}`}</span>
                   </span>
                 </button>
-                <button className="icon-button compact row-remove-button" title="Remove original" type="button" tabIndex={-1} onClick={() => onRemove(original.id)}>
+                <button className="icon-button compact row-remove-button" title={t("originals.remove")} type="button" tabIndex={-1} onClick={() => onRemove(original.id)}>
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -119,12 +121,12 @@ export function OriginalsPanel({
             className={`import-feedback ${feedback.severity}`}
             severity={feedback.severity}
             onDismiss={onDismissFeedback}
-            dismissLabel="Close import result"
+            dismissLabel={t("originals.closeImportResult")}
           >
             <div>
-              <strong>{feedback.title}</strong>
+              <strong>{text(feedback.title)}</strong>
               {feedback.details.map((detail, index) => (
-                <div className={`import-feedback-detail ${detail.severity}`} key={`${detail.text}\0${index}`}>{detail.text}</div>
+                <div className={`import-feedback-detail ${detail.severity}`} key={index}>{text(detail.text)}</div>
               ))}
             </div>
           </OperationResult>
@@ -133,7 +135,7 @@ export function OriginalsPanel({
         <div className="panel-footer">
           <button className="toolbar-button" type="button" onClick={onAdd}>
             <ImagePlus size={14} />
-            Add originals
+            {t("originals.add")}
           </button>
         </div>
       </div>

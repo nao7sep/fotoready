@@ -1,5 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
+import { useI18n } from "@renderer/i18n/I18nContext";
 
 export type OperationResultSeverity = "error" | "info" | "warning";
 
@@ -9,7 +10,7 @@ export function OperationResult({
   severity,
   announce = true,
   onDismiss,
-  dismissLabel = "Close result"
+  dismissLabel
 }: {
   children: React.ReactNode;
   className?: string;
@@ -19,6 +20,7 @@ export function OperationResult({
   onDismiss?: () => void;
   dismissLabel?: string;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const role = announce ? (severity === "error" ? "alert" : "status") : undefined;
 
   return (
@@ -30,7 +32,7 @@ export function OperationResult({
       <div className="operation-result-content">{children}</div>
       {onDismiss ? (
         <button
-          aria-label={dismissLabel}
+          aria-label={dismissLabel ?? t("common.closeResult")}
           className="operation-result-dismiss"
           type="button"
           onClick={onDismiss}

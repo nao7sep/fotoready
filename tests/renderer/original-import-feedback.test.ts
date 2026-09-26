@@ -5,7 +5,21 @@ import {
   inaccessibleOriginalImportFeedback,
   queueRefreshFailureFeedback,
   settleOriginalImportFeedback,
+  type OriginalImportFeedback,
 } from "@renderer/original-import-feedback";
+import { createTranslator, message } from "@shared/i18n/translate";
+
+const en = createTranslator("en");
+
+// Feedback holds messages; these tests read it as an English reader would see it.
+function shown(feedback: OriginalImportFeedback | null) {
+  if (!feedback) return feedback;
+  return {
+    severity: feedback.severity,
+    title: en.text(feedback.title),
+    details: feedback.details.map((detail) => ({ severity: detail.severity, text: en.text(detail.text) })),
+  };
+}
 
 function result(overrides: Partial<OriginalImportResult> = {}): OriginalImportResult {
   return {
@@ -31,15 +45,15 @@ describe("original import feedback", () => {
   });
 
   it("presents a duplicate as persistent neutral information", () => {
-    expect(buildOriginalImportFeedback(result({
+    expect(shown(buildOriginalImportFeedback(result({
       acceptedImages: 1,
       issues: [{
         filePath: "/photos/repeat.jpg",
         kind: "duplicate",
         severity: "info",
-        reason: "This original is already in the project.",
+        reason: message("importReason.duplicate"),
       }],
-    }))).toMatchObject({
+    })))).toMatchObject({
       severity: "info",
       title: "Nothing new was added.",
       details: [{ severity: "info", text: "repeat.jpg: This original is already in the project." }],
@@ -47,7 +61,7 @@ describe("original import feedback", () => {
   });
 
   it("summarizes both successful and rejected sides of one mixed batch", () => {
-    expect(buildOriginalImportFeedback(result({
+    expect(shown(buildOriginalImportFeedback(result({
       acceptedImages: 2,
       addedOriginals: 2,
       restoredTasks: 1,
@@ -55,9 +69,9 @@ describe("original import feedback", () => {
         filePath: "/photos/broken.json",
         kind: "invalid",
         severity: "warning",
-        reason: "This JSON file is not a valid FotoReady task sidecar.",
+        reason: message("importReason.sidecarInvalid"),
       }],
-    }))).toMatchObject({
+    })))).toMatchObject({
       severity: "warning",
       title: "Added 2 originals and restored 1 task; 1 item needs attention.",
       details: [{ severity: "warning", text: "broken.json: This JSON file is not a valid FotoReady task sidecar." }],
@@ -65,30 +79,39 @@ describe("original import feedback", () => {
   });
 
   it("uses the highest issue severity and accounts for inaccessible delivered files", () => {
-    expect(buildOriginalImportFeedback(result({
+    expect(shown(buildOriginalImportFeedback(result({
       addedOriginals: 1,
       issues: [{
         filePath: "/photos/animation.gif",
         kind: "unsupported",
         severity: "warning",
-        reason: "Use a supported image.",
+        reason: message("importReason.unsupported"),
       }],
-    }), ["missing.jpg"])).toMatchObject({
+    }), ["missing.jpg"]))).toMatchObject({
       severity: "error",
       title: "Added 1 original; 2 items need attention.",
       details: [
-        { severity: "warning", text: "animation.gif: Use a supported image." },
+        { severity: "warning", text: "animation.gif: Use JPEG, PNG, WebP, AVIF, TIFF, or a FotoReady task sidecar (JSON)." },
         { severity: "error", text: "missing.jpg: FotoReady could not access this local file." },
       ],
     });
   });
 
   it("treats a drop with no accessible local paths as a failed operation", () => {
-    expect(inaccessibleOriginalImportFeedback(["protected.jpg"])).toMatchObject({
+    expect(shown(inaccessibleOriginalImportFeedback(["protected.jpg"]))).toMatchObject({
       severity: "error",
       title: "Originals could not be added.",
       details: [{ severity: "error", text: "protected.jpg: FotoReady could not access this local file." }],
     });
+  });
+
+  it("names a dropped file that arrived without a name, and a drop that delivered nothing", () => {
+    expect(shown(inaccessibleOriginalImportFeedback([""]))?.details).toEqual([
+      { severity: "error", text: "Dropped file: FotoReady could not access this local file." },
+    ]);
+    expect(shown(inaccessibleOriginalImportFeedback([]))?.details).toEqual([
+      { severity: "error", text: "FotoReady did not receive a local file path." },
+    ]);
   });
 
   it("clears pathless receiver feedback only after a later committed Originals import", () => {
@@ -108,7 +131,7 @@ describe("original import feedback", () => {
         filePath: "/photos/retry.jpg",
         kind: "failed",
         severity: "error",
-        reason: "FotoReady could not read this image.",
+        reason: message("importReason.imageUnreadable"),
       }],
     }));
     if (!prior) throw new Error("feedback not built");
@@ -128,19 +151,19 @@ describe("original import feedback", () => {
     const prior = buildOriginalImportFeedback(result({
       addedOriginals: 1,
       issues: [
-        { filePath: "/photos/first.jpg", kind: "failed", severity: "error", reason: "Could not read." },
-        { filePath: "/photos/second.gif", kind: "unsupported", severity: "warning", reason: "Unsupported." },
+        { filePath: "/photos/first.jpg", kind: "failed", severity: "error", reason: message("importReason.imageUnreadable") },
+        { filePath: "/photos/second.gif", kind: "unsupported", severity: "warning", reason: message("importReason.imageInvalid") },
       ],
     }));
     if (!prior) throw new Error("feedback not built");
 
-    expect(settleOriginalImportFeedback(prior, result({
+    expect(shown(settleOriginalImportFeedback(prior, result({
       addedOriginals: 1,
       succeededPaths: ["/photos/first.jpg"],
-    }))).toMatchObject({
+    })))).toMatchObject({
       severity: "warning",
       title: "Added 1 original; 1 item needs attention.",
-      details: [{ severity: "warning", text: "second.gif: Unsupported." }],
+      details: [{ severity: "warning", text: "second.gif: This file could not be opened as a supported image." }],
     });
   });
 

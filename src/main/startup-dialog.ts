@@ -1,13 +1,25 @@
 import { showPlainMessageDialog } from "./plain-message-dialog";
+import { mainTranslator } from "./i18n";
 import type { Logger } from "@shared/types/log";
+import type { MessageKey } from "@shared/i18n/catalogues";
+
+// Both notices speak the interface language: the corrupt-settings notice shows after the settings
+// were read, and a startup failure before then speaks the computer's language (System).
+async function showNotice(title: MessageKey, message: MessageKey, detail: MessageKey): Promise<void> {
+  const { language, t } = mainTranslator();
+  await showPlainMessageDialog({
+    title: t(title),
+    message: t(message),
+    detail: t(detail),
+    closeLabel: t("common.ok"),
+    detailsLabel: t("dialog.messageDetails"),
+    lang: language,
+  });
+}
 
 /** App-authored recovery surface; quarantine paths remain in the session log. */
 export async function notifyCorruptSettings(): Promise<void> {
-  await showPlainMessageDialog({
-    title: "Settings could not be read",
-    message: "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost.",
-    detail: "FotoReady has started with default values for the unreadable fields. Your projects and photos are untouched. The saved copy location is recorded in the session log.",
-  });
+  await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail");
 }
 
 /**
@@ -27,9 +39,5 @@ export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">
 }
 
 export async function notifyStartupFailure(): Promise<void> {
-  await showPlainMessageDialog({
-    title: "FotoReady could not start",
-    message: "FotoReady could not finish opening its settings and workspace.",
-    detail: "No photos or project files were changed. Check the session log, then start FotoReady again.",
-  });
+  await showNotice("startup.failedTitle", "startup.failedMessage", "startup.failedDetail");
 }

@@ -41,6 +41,8 @@
     "src/adapters/**/*",
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    // The catalogues the main process shares with the renderer.
+    "src/shared/i18n/locales/*.json"
   ]
 }

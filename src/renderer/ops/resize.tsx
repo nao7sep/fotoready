@@ -1,21 +1,24 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React from "react";
 import { MAX_RESIZE_DIMENSION, MAX_RESIZE_PIXELS } from "@shared/constants";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
+import type { MessageKey } from "@shared/i18n/catalogues";
 
 type ResizeMode = "fit" | "exact";
 type ResizeUiMode = "fit" | "exact";
 type ResizeParams = { mode: ResizeMode; width: number; height: number; interpolation: string };
 
-const resizeModeOptions: ReadonlyArray<{ id: ResizeUiMode; label: string }> = [
-  { id: "fit", label: "Fit" },
-  { id: "exact", label: "Exact" }
+const resizeModeOptions: ReadonlyArray<{ id: ResizeUiMode; label: MessageKey }> = [
+  { id: "fit", label: "resize.fit" },
+  { id: "exact", label: "resize.exact" }
 ];
 const resizePresets = [200, 256, 400, 512, 800, 1024, 1280, 1600, 1920, 2048, 2560, 3200, 3840] as const;
 
 export const resizeRenderer: OpRenderer<ResizeParams> = {
   type: "resize",
   Card({ params, disabled, onParamChange, onParamsChange }) {
+    const { t, rich } = useI18n();
     const activeMode = toUiMode(params.mode);
     const widthMax = maxResizeDimension(params.height);
     const heightMax = maxResizeDimension(params.width);
@@ -56,13 +59,13 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
     return (
       <div className="geometry-controls">
         <div className="geometry-toolbar-row">
-          <span className="geometry-status">Target: <strong>{params.width}×{params.height}px</strong></span>
+          <span className="geometry-status">{rich("resize.targetStatus", { size: <strong>{params.width}×{params.height}px</strong> })}</span>
         </div>
         <SegmentedRadioGroup
           className="geometry-chip-group"
           optionClassName="toolbar-button compact-text"
-          ariaLabel="Resize mode"
-          options={resizeModeOptions}
+          ariaLabel={t("resize.mode")}
+          options={resizeModeOptions.map((option) => ({ id: option.id, label: t(option.label) }))}
           value={activeMode}
           onChange={(mode) => onParamChange("mode", mode)}
           disabled={disabled}
@@ -70,7 +73,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
         <div
           ref={presetsRef}
           role="toolbar"
-          aria-label="Common resize presets"
+          aria-label={t("resize.presets")}
           className="geometry-chip-group"
           onKeyDown={onPresetsKeyDown}
         >
@@ -91,7 +94,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
         </div>
         <div className="field-grid">
           <label className="stacked-field geometry-number-field">
-            Width
+            {t("geometry.width")}
             <input
               disabled={disabled}
               max={widthMax}
@@ -103,7 +106,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
             />
           </label>
           <label className="stacked-field geometry-number-field">
-            Height
+            {t("geometry.height")}
             <input
               disabled={disabled}
               max={heightMax}
@@ -116,7 +119,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
           </label>
         </div>
         <label className="slider-row">
-          <span>Width</span>
+          <span>{t("geometry.width")}</span>
           <input
             disabled={disabled}
             max={100}
@@ -129,7 +132,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
           <span className="slider-value">{`${params.width}px`}</span>
         </label>
         <label className="slider-row">
-          <span>Height</span>
+          <span>{t("geometry.height")}</span>
           <input
             disabled={disabled}
             max={100}
@@ -141,7 +144,7 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
           />
           <span className="slider-value">{`${params.height}px`}</span>
         </label>
-        <div className="modal-warning">Resize usually works best near the end of the pipeline.</div>
+        <div className="modal-warning">{t("resize.hint")}</div>
       </div>
     );
   }

@@ -7,9 +7,9 @@ export const BUILTIN_RENAME_TEMPLATE_IDS = {
 
 export type RenameTemplateId = (typeof BUILTIN_RENAME_TEMPLATE_IDS)[keyof typeof BUILTIN_RENAME_TEMPLATE_IDS];
 
+// The renderer names each template from the catalogue by its id.
 export type RenameTemplate = {
   id: RenameTemplateId;
-  name: string;
   base: "original" | "slug";
   includeSize: boolean;
 };
@@ -23,10 +23,10 @@ export type RenderRenameTemplateInput = {
 };
 
 export const builtinRenameTemplates: readonly RenameTemplate[] = [
-  { id: BUILTIN_RENAME_TEMPLATE_IDS.slugSize, name: "Slug + size", base: "slug", includeSize: true },
-  { id: BUILTIN_RENAME_TEMPLATE_IDS.slug, name: "Slug only", base: "slug", includeSize: false },
-  { id: BUILTIN_RENAME_TEMPLATE_IDS.originalSize, name: "Original + size", base: "original", includeSize: true },
-  { id: BUILTIN_RENAME_TEMPLATE_IDS.original, name: "Original only", base: "original", includeSize: false }
+  { id: BUILTIN_RENAME_TEMPLATE_IDS.slugSize, base: "slug", includeSize: true },
+  { id: BUILTIN_RENAME_TEMPLATE_IDS.slug, base: "slug", includeSize: false },
+  { id: BUILTIN_RENAME_TEMPLATE_IDS.originalSize, base: "original", includeSize: true },
+  { id: BUILTIN_RENAME_TEMPLATE_IDS.original, base: "original", includeSize: false }
 ] as const;
 
 export const DEFAULT_RENAME_TEMPLATE_ID: RenameTemplateId = BUILTIN_RENAME_TEMPLATE_IDS.slugSize;

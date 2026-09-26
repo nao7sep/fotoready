@@ -13,6 +13,9 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings } from "@main/settings-io";
 import { applyThemePreference } from "@main/theme";
+import { changeLanguagePreference, interfaceLanguage, mainTranslator } from "@main/i18n";
+import { installApplicationMenu } from "@main/menu";
+import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
 import type { StateCoordinator } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
@@ -20,6 +23,7 @@ import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
+import { message } from "@shared/i18n/translate";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -123,12 +127,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   handle("system.pickFile", "info", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
+    const { t } = mainTranslator();
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
       properties: ["openFile"],
       filters: [
-        { name: "Supported files", extensions: options.extensions },
-        { name: "All Files", extensions: ["*"] }
+        { name: t("dialog.filterSupported"), extensions: options.extensions },
+        { name: t("dialog.filterAll"), extensions: ["*"] }
       ]
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
@@ -136,12 +141,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   });
   handle("system.pickFiles", "info", async (event, options: { title: string; extensions: string[] }) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
+    const { t } = mainTranslator();
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
       properties: ["openFile", "multiSelections"],
       filters: [
-        { name: "Supported files", extensions: options.extensions },
-        { name: "All Files", extensions: ["*"] }
+        { name: t("dialog.filterSupported"), extensions: options.extensions },
+        { name: t("dialog.filterAll"), extensions: ["*"] }
       ]
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
@@ -157,6 +163,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
   handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>) => {
     return serializeSettings(async () => {
@@ -167,8 +174,14 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       }
       await saveSettings(ctx.paths.settingsPath, settings);
       Object.assign(ctx.settings, settings);
-      // Settings apply on Save, the theme included (app-chrome conventions, Theme).
+      // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
+      // localization-conventions). A language change rebuilds the menu bar and reaches every window.
       applyThemePreference(settings.theme);
+      if (changeLanguagePreference(settings.language)) {
+        installApplicationMenu(mainTranslator());
+        const language = interfaceLanguage();
+        for (const win of BrowserWindow.getAllWindows()) win.webContents.send(LANGUAGE_CHANGED_CHANNEL, language);
+      }
       return ctx.settings;
     });
   });
@@ -189,7 +202,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("project.setOutputDirFromDialog", "info", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
-      title: "Choose Output Directory",
+      title: mainTranslator().t("dialog.chooseOutputFolder"),
       properties: ["openDirectory", "createDirectory"]
     };
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
@@ -204,12 +217,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("project.clearOutputDir", "info", async () => publishResult(ctx.projectSession.setOutputDir("")));
   handle("project.addOriginalsFromDialog", "info", async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
+    const { t } = mainTranslator();
     const options: OpenDialogOptions = {
-      title: "Add Originals",
+      title: t("dialog.addOriginals"),
       properties: ["openFile", "multiSelections"],
       filters: [
-        { name: "Images and FotoReady parameters", extensions: [...IMPORT_FILE_EXTENSIONS] },
-        { name: "All Files", extensions: ["*"] }
+        { name: t("dialog.filterImportable"), extensions: [...IMPORT_FILE_EXTENSIONS] },
+        { name: t("dialog.filterAll"), extensions: ["*"] }
       ]
     };
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
@@ -282,10 +296,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     return assetThumbnailCache.get(assetPath, longEdge);
   });
   handle("ops.list", "debug", async () =>
-    listOpDefinitions().map(({ type, label, pickerLabel, category, defaultParams, previewBehavior, metadataOnly }) => ({
+    listOpDefinitions().map(({ type, category, defaultParams, previewBehavior, metadataOnly }) => ({
       type,
-      label,
-      pickerLabel,
       category,
       defaultParams,
       previewBehavior,
@@ -333,7 +345,7 @@ function normalizeAddOriginalsPaths(
         filePath: resolved,
         kind: "unsupported",
         severity: "warning",
-        reason: "Use JPEG, PNG, WebP, AVIF, TIFF, or a FotoReady JSON task sidecar."
+        reason: message("importReason.unsupported")
       });
       continue;
     }

@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsPanel } from "@renderer/components/panels/ops-panel";
 import type { Task } from "@shared/types/project";
+import { message } from "@shared/i18n/translate";
+import type { OwnedFailures } from "@renderer/owned-failures";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -25,21 +27,21 @@ describe("OpsPanel result geometry", () => {
     expect(document.querySelector(".current-ops-section")?.classList.contains("has-owned-failures")).toBe(false);
     expect(document.querySelector(".current-ops")).not.toBeNull();
 
-    await render({ "task-1\0ops:add": "The operation could not be added." });
+    await render({ "task-1\0ops:add": message("failure.addOp") });
     expect(document.querySelector(".current-ops-section")?.classList.contains("has-owned-failures")).toBe(true);
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
   });
 
   it("keeps an operation failure inside the operation card", async () => {
-    await render({ "task-1\0op:op-1:params": "The editing value could not be changed." }, taskWithOneOp());
+    await render({ "task-1\0op:op-1:params": message("failure.opParam") }, taskWithOneOp());
 
     expect(document.querySelector(".current-ops-section")?.classList.contains("has-owned-failures")).toBe(false);
     expect(document.querySelector(".pipeline-op-card [role=\"alert\"]")?.textContent)
-      .toContain("The editing value could not be changed.");
+      .toContain("That editing value could not be changed.");
   });
 });
 
-async function render(opFailures: Record<string, string>, activeTask: Task | null = null): Promise<void> {
+async function render(opFailures: OwnedFailures, activeTask: Task | null = null): Promise<void> {
   await act(async () => {
     root.render(createElement(OpsPanel, {
       activeOriginal: null,

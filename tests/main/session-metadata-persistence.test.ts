@@ -106,7 +106,7 @@ function savedTask(): Task {
     },
     error: {
       stage: "vision",
-      message: "Previous vision result",
+      message: { key: "visionError.generic" },
       detail: null,
       occurredAt: "2026-09-01T00:00:00.000Z",
       retryable: true,

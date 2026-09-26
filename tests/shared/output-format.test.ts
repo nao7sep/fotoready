@@ -53,7 +53,6 @@ describe("outputFormatExtension", () => {
 
 describe("formatLabel", () => {
   it("labels known formats and uppercases unknowns", () => {
-    expect(formatLabel("original")).toBe("Same as original");
     expect(formatLabel("jpeg")).toBe("JPEG");
     expect(formatLabel("tiff")).toBe("TIFF");
     expect(formatLabel("heic")).toBe("HEIC");

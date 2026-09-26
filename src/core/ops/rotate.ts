@@ -9,7 +9,6 @@ type RotateParams = {
 
 const rotateModule: OpModule<RotateParams> = {
   type: "rotate",
-  label: "Rotate",
   category: "Geometry",
   previewBehavior: "show-output",
   defaultParams: { degrees: 0, fillColor: "rgba(0,0,0,0)" },

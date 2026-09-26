@@ -6,6 +6,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
 import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
+import type { OpCategory } from "@shared/types/op";
 import { isTaskEditable } from "@shared/task-editing";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
@@ -13,8 +14,12 @@ import { useCommitDraftField } from "@renderer/components/useDraftField";
 import { revealInScrollContainer } from "@renderer/utils/reveal-in-scroll-container";
 import { OwnedFailureList } from "@renderer/components/owned-failure-list";
 import type { OwnedFailures } from "@renderer/owned-failures";
+import { outputFormatName } from "@renderer/output-format-name";
+import { opCategoryLabel, opNameLabel, opPickerLabel } from "@renderer/op-names";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import type { Translator } from "@shared/i18n/translate";
 
-const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const;
+const ADD_OP_SECTIONS = ["Geometry", "Tone", "Effects", "Conceal", "Watermark", "Metadata"] as const satisfies readonly OpCategory[];
 const ADD_OP_ORDER: Partial<Record<(typeof ADD_OP_SECTIONS)[number], string[]>> = {
   Tone: ["auto-tone", "levels", "curves", "white-balance", "hsl"],
   Conceal: ["cover", "blur", "mosaic", "stamp"]
@@ -57,6 +62,7 @@ type OpsPanelProps = {
 };
 
 export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
+  const { t, compare } = useI18n();
   const { activeTask, opCatalog, pendingRevealOpId, selectedOpId } = props;
   const currentOpsRef = useRef<HTMLDivElement>(null);
   const opRefs = useRef(new Map<string, HTMLElement>());
@@ -78,7 +84,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
     <div className="ops-region" style={{ gridTemplateColumns: `minmax(0, 1fr) ${props.addOpsWidth}px` }}>
       <aside className="panel ops-panel ops-edit-pane">
         <section className={`op-section current-ops-section${Object.keys(panelOpFailures).length > 0 ? " has-owned-failures" : ""}`}>
-          <h3>Ops</h3>
+          <h3>{t("ops.title")}</h3>
           <OwnedFailureList className="panel-owned-failures" failures={panelOpFailures} onDismiss={props.onDismissFailure} />
           <div className="current-ops" ref={currentOpsRef}>
             {activeTask ? (
@@ -92,7 +98,6 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                     }
                   }}
                   assetPickerPreviewLongEdge={props.settings?.assetPickerPreviewLongEdge ?? DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE}
-                  catalogItem={opCatalog.find((item) => item.type === op.type) ?? null}
                   disabled={!isTaskEditable(activeTask.status)}
                   failures={failuresForConsequencePrefix(props.opFailures, `op:${op.id}:`)}
                   index={index}
@@ -115,12 +120,12 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   selected={selectedOpId === op.id}
                   stamps={props.stamps}
                 />
-              )) : <div className="ops-empty">No ops in this task</div>
-            ) : <div className="ops-empty">No task selected</div>}
+              )) : <div className="ops-empty">{t("ops.emptyTask")}</div>
+            ) : <div className="ops-empty">{t("ops.noTask")}</div>}
           </div>
         </section>
         <section className="op-section output-section">
-          <h3>Output</h3>
+          <h3>{t("ops.output")}</h3>
           <OwnedFailureList failures={props.outputFailures} onDismiss={props.onDismissFailure} />
           <div className="output-fixed">
             <OutputControls
@@ -146,11 +151,11 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
       <aside className="panel ops-panel ops-add-pane">
         {ADD_OP_SECTIONS.map((section) => (
           <section className="op-section" key={section}>
-            <h3>{section}</h3>
+            <h3>{t(opCategoryLabel(section))}</h3>
             <div className="op-buttons">
-              {sortOpsForSection(opCatalog.filter((op) => op.category === section), section).map((op) => (
+              {sortOpsForSection(opCatalog.filter((op) => op.category === section), section, t, compare).map((op) => (
                 <button className="toolbar-button full-width" disabled={!activeTask || !isTaskEditable(activeTask.status)} key={op.type} type="button" onClick={() => props.onAddOp(op.type)}>
-                  {op.pickerLabel ?? op.label}
+                  {pickerName(op.type, t)}
                 </button>
               ))}
             </div>
@@ -161,7 +166,17 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   );
 }
 
-function sortOpsForSection(opCatalog: OpCatalogItem[], section: (typeof ADD_OP_SECTIONS)[number]): OpCatalogItem[] {
+function pickerName(type: string, t: Translator["t"]): string {
+  const key = opPickerLabel(type);
+  return key ? t(key) : type;
+}
+
+function sortOpsForSection(
+  opCatalog: OpCatalogItem[],
+  section: (typeof ADD_OP_SECTIONS)[number],
+  t: Translator["t"],
+  compare: Translator["compare"]
+): OpCatalogItem[] {
   const order = ADD_OP_ORDER[section];
   if (!order) return opCatalog;
   return [...opCatalog].sort((left, right) => {
@@ -170,7 +185,7 @@ function sortOpsForSection(opCatalog: OpCatalogItem[], section: (typeof ADD_OP_S
     const leftRank = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
     const rightRank = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
     if (leftRank !== rightRank) return leftRank - rightRank;
-    return (left.pickerLabel ?? left.label).localeCompare(right.pickerLabel ?? right.label);
+    return compare(pickerName(left.type, t), pickerName(right.type, t));
   });
 }
 
@@ -219,7 +234,6 @@ function isContinuousInput(target: EventTarget | null): target is HTMLInputEleme
 function PipelineOpCard({
   assetPickerPreviewLongEdge,
   cardRef,
-  catalogItem,
   disabled,
   failures,
   index,
@@ -243,7 +257,6 @@ function PipelineOpCard({
 }: {
   assetPickerPreviewLongEdge: number;
   cardRef(element: HTMLElement | null): void;
-  catalogItem: OpCatalogItem | null;
   disabled: boolean;
   failures: OwnedFailures;
   index: number;
@@ -265,8 +278,10 @@ function PipelineOpCard({
   selected: boolean;
   stamps: StampEntry[];
 }): React.JSX.Element {
+  const { t } = useI18n();
   const renderer = getOpRenderer(op.type);
   const Card = renderer?.Card;
+  const nameKey = opNameLabel(op.type);
   const continuousHistory = useContinuousControlHistoryScope(`op:${op.id}`);
 
   return (
@@ -289,22 +304,22 @@ function PipelineOpCard({
             onChange={(event) => onEnabledChange(event.currentTarget.checked)}
             onClick={(event) => event.stopPropagation()}
           />
-          {index + 1}. {catalogItem?.label ?? op.type}
+          {t("ops.cardTitle", { index: index + 1, name: nameKey ? t(nameKey) : op.type })}
         </label>
         <div className="op-card-actions">
-          <button className="icon-button compact" type="button" title="Move op up" disabled={disabled || index === 0} onClick={(event) => {
+          <button className="icon-button compact" type="button" title={t("ops.moveUp")} disabled={disabled || index === 0} onClick={(event) => {
             event.stopPropagation();
             onMove(index - 1);
           }}>
             <ArrowUp size={14} />
           </button>
-          <button className="icon-button compact" type="button" title="Move op down" disabled={disabled || index >= opCount - 1} onClick={(event) => {
+          <button className="icon-button compact" type="button" title={t("ops.moveDown")} disabled={disabled || index >= opCount - 1} onClick={(event) => {
             event.stopPropagation();
             onMove(index + 1);
           }}>
             <ArrowDown size={14} />
           </button>
-          <button className="icon-button compact" type="button" title="Remove op" disabled={disabled} onClick={(event) => {
+          <button className="icon-button compact" type="button" title={t("ops.remove")} disabled={disabled} onClick={(event) => {
             event.stopPropagation();
             onRemove();
           }}>
@@ -332,7 +347,7 @@ function PipelineOpCard({
           onParamsChange={(patch, options) => onParamsChange(patch as Record<string, unknown>, options ?? continuousHistory.options())}
         />
       ) : (
-        <div className="row-detail">No editable parameters.</div>
+        <div className="row-detail">{t("ops.noParams")}</div>
       )}
     </section>
   );
@@ -384,6 +399,7 @@ function OutputControls({
   onCustomSlugChange(value: string | null): void;
   onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const continuousHistory = useContinuousControlHistoryScope("output");
   // Each slug change rewrites the saved output's sidecar, so it commits on Enter or blur, not per keystroke.
   const slugField = useCommitDraftField<HTMLInputElement>(
@@ -419,19 +435,19 @@ function OutputControls({
   const generatedSlug = vision?.slugCandidates[0] ?? null;
   const hasGeneratedDescription = description.length > 0;
   const hasGeneratedSlug = Boolean(generatedSlug?.trim());
-  const generationStatus = visionGenerationMode === null
-    ? "Generating..."
+  const generationStatus = t(visionGenerationMode === null
+    ? "output.generating"
     : visionGenerationMode === "slug"
-    ? "Generating slug..."
+    ? "output.generatingSlug"
     : visionGenerationMode === "description-and-slug"
       ? hasGeneratedDescription && !hasGeneratedSlug
-        ? "Generating slug..."
-        : "Generating description and slug..."
-      : "Generating description...";
-  const descriptionActionLabel = hasGeneratedDescription ? "Regenerate description" : "Generate description";
-  const combinedActionLabel = hasGeneratedDescription && hasGeneratedSlug ? "Regenerate description and slug" : "Generate description and slug";
+        ? "output.generatingSlug"
+        : "output.generatingDescriptionAndSlug"
+      : "output.generatingDescription");
+  const descriptionActionLabel = t(hasGeneratedDescription ? "output.regenerateDescription" : "output.generateDescription");
+  const combinedActionLabel = t(hasGeneratedDescription && hasGeneratedSlug ? "output.regenerateBoth" : "output.generateBoth");
   const showSlugAction = hasGeneratedDescription;
-  const slugActionLabel = hasGeneratedSlug ? "Regenerate slug" : "Generate slug";
+  const slugActionLabel = t(hasGeneratedSlug ? "output.regenerateSlug" : "output.generateSlug");
   const visionStateClass = `state-${taskVisualState(task)}`;
   return (
     <div
@@ -443,11 +459,13 @@ function OutputControls({
       onPointerUpCapture={continuousHistory.onPointerEndCapture}
     >
       <label className="stacked-field">
-        Format
+        {t("output.format")}
         <select disabled={outputDisabled || !task} value={task?.pipeline.output.format ?? "original"} onChange={(event) => onOutputChange("format", event.currentTarget.value)}>
           {outputFormatOptions.map((format) => (
             <option key={format} value={format}>
-              {format === "original" && original ? `${formatLabel(format)} (${formatLabel(resolveOutputFormat(format, original.format))})` : formatLabel(format)}
+              {format === "original" && original
+                ? t("format.sameAsOriginalResolved", { format: formatLabel(resolveOutputFormat(format, original.format)) })
+                : outputFormatName(t, format)}
             </option>
           ))}
         </select>
@@ -461,10 +479,10 @@ function OutputControls({
               checked={task?.pipeline.output.flattenTransparency ?? false}
               onChange={(event) => onOutputChange("flattenTransparency", event.currentTarget.checked)}
             />
-            Flatten transparency
+            {t("output.flatten")}
           </label>
           <label className="stacked-field">
-            Flatten background
+            {t("output.flattenBackground")}
             <input
               disabled={outputDisabled || !task || !task.pipeline.output.flattenTransparency}
               type="color"
@@ -476,7 +494,7 @@ function OutputControls({
       ) : null}
       {resolvedFormat === "jpeg" ? (
         <label className="stacked-field">
-          JPEG quality mode
+          {t("output.jpegQualityMode")}
           <select
             disabled={outputDisabled || !task}
             value={jpegQualityMode}
@@ -486,15 +504,15 @@ function OutputControls({
             }}
           >
             <option disabled={!canAutoEstimateJpeg} value="auto">
-              Use assumed value{assumedQuality ? ` (${assumedQuality})` : ""}
+              {assumedQuality ? t("output.useAssumedWithValue", { quality: assumedQuality }) : t("output.useAssumed")}
             </option>
-            <option value="fixed">Fixed value</option>
+            <option value="fixed">{t("output.fixedValue")}</option>
           </select>
         </label>
       ) : null}
       {resolvedFormat && !losslessFormat ? (
         <label className="slider-row">
-          <span>Quality</span>
+          <span>{t("output.quality")}</span>
           <input
             disabled={outputDisabled || !task || (resolvedFormat === "jpeg" && jpegQualityMode === "auto")}
             max={100}
@@ -516,18 +534,18 @@ function OutputControls({
               checked={(task?.generateDescription ?? true) || Boolean(task?.generateSlug)}
               onChange={(event) => onGenerateDescriptionChange(event.currentTarget.checked)}
             />
-            Generate description
+            {t("output.generateDescription")}
           </label>
           <label className="toggle-row">
             <input type="checkbox" disabled={metadataDisabled || !task} checked={task?.generateSlug ?? true} onChange={(event) => onGenerateSlugChange(event.currentTarget.checked)} />
-            Generate slug
+            {t("output.generateSlug")}
           </label>
         </>
       ) : null}
       {hasSavedOutput && !hasGeminiApiKey ? (
         <div className="modal-warning">
-          Gemini API key required for description and slug generation.
-          <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>Open settings</button>
+          {t("output.apiKeyRequired")}
+          <button className="toolbar-button compact-text" type="button" onClick={onOpenSettings}>{t("common.openSettings")}</button>
         </div>
       ) : null}
       {hasSavedOutput && visionGenerating ? (
@@ -536,12 +554,12 @@ function OutputControls({
       {hasSavedOutput ? (
         <div className={`vision-description ${visionStateClass}`}>
           <div className="vision-description-item">
-            <span>Description</span>
-            <p>{hasGeneratedDescription ? description : "Not generated"}</p>
+            <span>{t("output.description")}</span>
+            <p>{hasGeneratedDescription ? description : t("common.notGenerated")}</p>
           </div>
           <div className="vision-description-item">
-            <span>Slug</span>
-            <p>{hasGeneratedSlug ? generatedSlug : "Not generated"}</p>
+            <span>{t("output.slug")}</span>
+            <p>{hasGeneratedSlug ? generatedSlug : t("common.notGenerated")}</p>
           </div>
           <div className="vision-description-actions">
             <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>{descriptionActionLabel}</button>
@@ -552,14 +570,14 @@ function OutputControls({
           </div>
           {vision ? (
             <div className="vision-description-secondary-actions">
-              <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={onClearVision}>Clear</button>
+              <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={onClearVision}>{t("common.clear")}</button>
             </div>
           ) : null}
         </div>
       ) : null}
       <label className="stacked-field">
-        Rename slug
-        <input {...slugField} disabled={metadataDisabled || !task} placeholder="descriptive-slug" type="text" />
+        {t("output.renameSlug")}
+        <input {...slugField} disabled={metadataDisabled || !task} placeholder={t("output.slugPlaceholder")} type="text" />
       </label>
     </div>
   );

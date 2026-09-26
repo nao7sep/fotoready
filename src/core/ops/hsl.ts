@@ -24,7 +24,6 @@ const zeroAdjustment: HslAdjustment = { hue: 0, sat: 0, lum: 0 };
 
 const hslModule: OpModule<HslParams> = {
   type: "hsl",
-  label: "HSL",
   category: "Tone",
   previewBehavior: "show-output",
   defaultParams: Object.fromEntries(HSL_KEYS.map((range) => [range, { ...zeroAdjustment }])) as HslParams,

@@ -1,4 +1,5 @@
 import React from "react";
+import { useI18n } from "@renderer/i18n/I18nContext";
 import { OperationResult } from "./operation-result";
 import type { OwnedFailures } from "../owned-failures";
 
@@ -11,6 +12,7 @@ export function OwnedFailureList({
   failures: OwnedFailures;
   onDismiss(key: string): void;
 }): React.JSX.Element | null {
+  const { t, text } = useI18n();
   const entries = Object.entries(failures);
   if (entries.length === 0) return null;
   return (
@@ -18,12 +20,12 @@ export function OwnedFailureList({
       {entries.map(([key, message]) => (
         <OperationResult
           className="modal-error"
-          dismissLabel="Close action result"
+          dismissLabel={t("common.closeActionResult")}
           key={key}
           severity="error"
           onDismiss={() => onDismiss(key)}
         >
-          {message}
+          {text(message)}
         </OperationResult>
       ))}
     </div>

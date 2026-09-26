@@ -10,9 +10,7 @@ export type OpCategory = "Geometry" | "Tone" | "Effects" | "Conceal" | "Watermar
 /** The renderer-safe description of an op. Lives in the IPC catalog. */
 export type OpDefinition<TParams extends Record<string, unknown> = Record<string, unknown>> = {
   type: string;
-  label: string;
-  /** Optional shorter label used in the right-hand op picker. */
-  pickerLabel?: string;
+  // An op's name is interface text: the renderer names each type from the catalogue.
   category: OpCategory;
   defaultParams: TParams;
   /**

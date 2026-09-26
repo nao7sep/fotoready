@@ -14,6 +14,7 @@ import { writeTaskSidecarFile } from "@main/task-sidecar";
 import { resolveProjectOutputDir } from "@main/output-paths";
 import type { AppLogger } from "@main/logger";
 import { PipelineError, isRetryableCategory } from "@runtime/pipeline-error";
+import { message, type Message } from "@shared/i18n/translate";
 
 export async function processTask(
   project: Project,
@@ -219,23 +220,23 @@ function taskError(error: unknown): TaskError {
   };
 }
 
-function processingFailureMessage(error: unknown): string {
+function processingFailureMessage(error: unknown): Message {
   if (!(error instanceof PipelineError)) {
-    return "FotoReady could not save this task. The source and existing saved files are unchanged; try again.";
+    return message("processingError.generic");
   }
   switch (error.category) {
     case "decode":
-      return "FotoReady could not read the source image. Check that it is still available and supported.";
+      return message("processingError.decode");
     case "process":
-      return "FotoReady could not apply this task's adjustments. Review the enabled operations before saving again.";
+      return message("processingError.process");
     case "encode":
-      return "FotoReady could not create the selected output format. Choose another format or adjust the task before saving again.";
+      return message("processingError.encode");
     case "io":
-      return "FotoReady could not write the output files. Check that the output folder is available, then retry.";
+      return message("processingError.io");
     case "metadata":
-      return "The image was prepared, but its metadata could not be written. Check the output folder, then retry.";
+      return message("processingError.metadata");
     case "unknown":
-      return "FotoReady could not save this task. The source and existing saved files are unchanged; try again.";
+      return message("processingError.generic");
   }
 }
 

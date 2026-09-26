@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React from "react";
 import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
 import { cleanMetadataField } from "@shared/text-cleanup";
@@ -10,13 +11,14 @@ type InjectMetadataParams = { fields: MetadataFields };
 export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
   type: "inject-metadata",
   Card({ params, disabled, ctx, onParamChange }) {
+    const { t } = useI18n();
     const fields = params.fields ?? {};
     return (
       <div className="geometry-controls">
         <div className="field-grid">
           {EDITABLE_METADATA_FIELDS.map((field) => (
             <label className="stacked-field span-two" key={field}>
-              {metadataFieldLabel(field)}
+              {t(metadataFieldLabel(field))}
               <MetadataFieldTextArea
                 disabled={disabled}
                 identity={`${ctx.activeTaskId}:${ctx.opId}:${field}`}

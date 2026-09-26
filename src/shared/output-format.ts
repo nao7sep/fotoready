@@ -11,8 +11,9 @@ type MissingFromEncodedFormats = Exclude<EncodedOutputFormat, (typeof encodedFor
 const _everyFormatIsOffered: MissingFromEncodedFormats extends never ? true : never = true;
 void _everyFormatIsOffered;
 
-export function formatLabel(format: OutputFormat | EncodedOutputFormat | string): string {
-  if (format === "original") return "Same as original";
+// The format's own name, the same in every language. "Same as original" is interface text; the
+// renderer names it from the catalogue (outputFormatName).
+export function formatLabel(format: EncodedOutputFormat | string): string {
   if (format === "jpeg") return "JPEG";
   if (format === "png") return "PNG";
   if (format === "webp") return "WebP";

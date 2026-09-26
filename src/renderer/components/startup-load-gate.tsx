@@ -1,4 +1,6 @@
 import React from "react";
+import { useI18n } from "@renderer/i18n/I18nContext";
+import type { Message } from "@shared/i18n/translate";
 
 const shellStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -18,11 +20,12 @@ const panelStyle: React.CSSProperties = {
   gap: "0.75rem"
 };
 
-export function StartupLoadGate({ message }: { message: string | null }): React.JSX.Element {
+export function StartupLoadGate({ message }: { message: Message | null }): React.JSX.Element {
+  const { t, text } = useI18n();
   if (message === null) {
     return (
-      <main aria-busy="true" aria-label="Loading FotoReady" style={shellStyle}>
-        <p>Loading FotoReady…</p>
+      <main aria-busy="true" aria-label={t("app.loading")} style={shellStyle}>
+        <p>{t("app.loading")}</p>
       </main>
     );
   }
@@ -30,10 +33,10 @@ export function StartupLoadGate({ message }: { message: string | null }): React.
   return (
     <main role="alert" style={shellStyle}>
       <section style={panelStyle}>
-        <h1 style={{ margin: 0, fontSize: "1.25rem" }}>FotoReady could not load its workspace</h1>
-        <p style={{ margin: 0 }}>{message}</p>
+        <h1 style={{ margin: 0, fontSize: "1.25rem" }}>{t("app.loadFailed")}</h1>
+        <p style={{ margin: 0 }}>{text(message)}</p>
         <button className="primary-action" type="button" onClick={() => window.location.reload()}>
-          Reload
+          {t("common.reload")}
         </button>
       </section>
     </main>

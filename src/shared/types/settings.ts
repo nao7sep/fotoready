@@ -1,3 +1,4 @@
+import type { LanguagePreference } from "../i18n/languages";
 import type { OutputFormat } from "./pipeline";
 
 export const METADATA_KEEP_GROUPS = ["editorial", "dates", "gps"] as const;
@@ -35,6 +36,9 @@ export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 
 export type GlobalSettings = {
+  // The interface language: "system" follows the computer's language on every launch, or a tag
+  // from LANGUAGES. The main process resolves it and tells the renderer (localization-conventions).
+  language: LanguagePreference;
   // The app theme. The main process hands it to nativeTheme.themeSource at startup and on each
   // Save; nothing in the renderer resolves it.
   theme: ThemePreference;

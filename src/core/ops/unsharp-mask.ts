@@ -9,7 +9,6 @@ type UnsharpMaskParams = {
 
 const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
   type: "unsharp-mask",
-  label: "Unsharp Mask",
   category: "Effects",
   previewBehavior: "show-output",
   defaultParams: { radius: 0.8, amount: 1.2 },

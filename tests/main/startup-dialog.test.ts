@@ -3,14 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const showPlainMessageDialog = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@main/plain-message-dialog", () => ({ showPlainMessageDialog }));
+vi.mock("electron", () => ({ app: { isPackaged: false }, systemPreferences: {} }));
 
+import { applyLanguagePreference } from "@main/i18n";
 import {
   notifyCorruptSettings,
   notifyStartupFailure,
   requireCorruptSettingsNotice,
 } from "@main/startup-dialog";
 
-beforeEach(() => showPlainMessageDialog.mockClear());
+beforeEach(() => {
+  showPlainMessageDialog.mockClear();
+  applyLanguagePreference("en");
+});
 
 describe("startup recovery dialog", () => {
   it("keeps the quarantine path in diagnostics only", async () => {
@@ -50,6 +55,21 @@ describe("startup recovery dialog", () => {
       title: "FotoReady could not start",
       message: "FotoReady could not finish opening its settings and workspace.",
       detail: "No photos or project files were changed. Check the session log, then start FotoReady again.",
+      closeLabel: "OK",
+      detailsLabel: "Message details",
+      lang: "en",
     });
+  });
+
+  it("speaks the interface language, in its words and its document language", async () => {
+    applyLanguagePreference("de");
+    await notifyStartupFailure();
+
+    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: "FotoReady konnte nicht starten",
+      closeLabel: "OK",
+      detailsLabel: "Einzelheiten der Meldung",
+      lang: "de",
+    }));
   });
 });

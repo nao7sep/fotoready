@@ -1,11 +1,25 @@
 import type { Pipeline } from "./pipeline";
 import type { MetadataFields } from "./settings";
+import type { Message } from "../i18n/translate";
 
+/** Capture-time and location values keyed by what they are (see the adapter's tag tables), so the
+ * renderer can name each in the interface language. */
 export type SourceMetadataSummary = {
   editorial: MetadataFields;
-  dates: Record<string, string>;
-  gps: Record<string, string>;
+  dates: Partial<Record<CaptureTimeField, string>>;
+  gps: Partial<Record<LocationField, string>>;
 };
+
+export type CaptureTimeField =
+  | "captured" | "capturedSubseconds" | "capturedTimeZone" | "created" | "digitized"
+  | "createdSubseconds" | "createdTimeZone" | "dateCreated" | "timeCreated"
+  | "digitalCreationDate" | "digitalCreationTime" | "gpsDate" | "gpsTime" | "gpsDateTime" | "creationTime";
+
+export type LocationField =
+  | "latitude" | "latitudeRef" | "longitude" | "longitudeRef" | "altitude" | "altitudeRef" | "mapDatum"
+  | "imageDirection" | "imageDirectionRef" | "destLatitude" | "destLatitudeRef" | "destLongitude"
+  | "destLongitudeRef" | "destBearing" | "destBearingRef" | "city" | "provinceState" | "country"
+  | "countryCode" | "subLocation" | "location" | "locationShown" | "locationCreated";
 
 export type Original = {
   id: string;
@@ -43,7 +57,8 @@ export type TaskOutput = {
 };
 
 type TaskErrorBase = {
-  message: string;
+  /** What went wrong, as a message the renderer renders in the interface language. */
+  message: Message;
   detail: string | null;
   occurredAt: string;
   retryable: boolean;

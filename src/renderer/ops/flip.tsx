@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import type { OpRenderer } from "./op-renderer";
 
 type FlipParams = {
@@ -8,6 +9,7 @@ type FlipParams = {
 export const flipRenderer: OpRenderer<FlipParams> = {
   type: "flip",
   Card({ params, disabled, onParamChange }) {
+    const { t } = useI18n();
     return (
       <div className="geometry-controls">
         <div className="field-grid">
@@ -18,7 +20,7 @@ export const flipRenderer: OpRenderer<FlipParams> = {
               type="checkbox"
               onChange={(event) => onParamChange("horizontal", event.currentTarget.checked)}
             />
-            <span>Flip horizontally</span>
+            <span>{t("geometry.flipHorizontal")}</span>
           </label>
           <label className="toggle-row span-two">
             <input
@@ -27,7 +29,7 @@ export const flipRenderer: OpRenderer<FlipParams> = {
               type="checkbox"
               onChange={(event) => onParamChange("vertical", event.currentTarget.checked)}
             />
-            <span>Flip vertically</span>
+            <span>{t("geometry.flipVertical")}</span>
           </label>
         </div>
       </div>

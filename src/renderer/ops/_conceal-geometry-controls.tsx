@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import React from "react";
 import type { ConcealRegion } from "@shared/types/conceal";
 import { AngleControl, normalizeAngle } from "./_angle-controls";
@@ -14,6 +15,7 @@ export function ConcealGeometryControls({
   region: ConcealRegion;
   onChange(patch: Partial<ConcealRegion>): void;
 }): React.JSX.Element {
+  const { t, percent } = useI18n();
   const minSize = fractionToPercentSteps(0.01);
   const xMax = fractionToPercentSteps(imageBounds.maxX);
   const yMax = fractionToPercentSteps(imageBounds.maxY);
@@ -33,7 +35,7 @@ export function ConcealGeometryControls({
           value={fractionToPercentSteps(region.x)}
           onChange={(event) => onChange({ x: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(region.x)}</span>
+        <span className="slider-value">{formatPercent(region.x, percent)}</span>
       </label>
       <label className="slider-row">
         <span>Y</span>
@@ -46,10 +48,10 @@ export function ConcealGeometryControls({
           value={fractionToPercentSteps(region.y)}
           onChange={(event) => onChange({ y: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(region.y)}</span>
+        <span className="slider-value">{formatPercent(region.y, percent)}</span>
       </label>
       <label className="slider-row">
-        <span>Width</span>
+        <span>{t("geometry.width")}</span>
         <input
           disabled={disabled}
           max={wMax}
@@ -59,10 +61,10 @@ export function ConcealGeometryControls({
           value={fractionToPercentSteps(region.w)}
           onChange={(event) => onChange({ w: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(region.w)}</span>
+        <span className="slider-value">{formatPercent(region.w, percent)}</span>
       </label>
       <label className="slider-row">
-        <span>Height</span>
+        <span>{t("geometry.height")}</span>
         <input
           disabled={disabled}
           max={hMax}
@@ -72,7 +74,7 @@ export function ConcealGeometryControls({
           value={fractionToPercentSteps(region.h)}
           onChange={(event) => onChange({ h: percentStepsToFraction(event.currentTarget.valueAsNumber) })}
         />
-        <span className="slider-value">{formatPercent(region.h)}</span>
+        <span className="slider-value">{formatPercent(region.h, percent)}</span>
       </label>
       <AngleControl disabled={disabled} value={region.rotation} onChange={(rotation) => onChange({ rotation: normalizeAngle(rotation) })} />
     </>

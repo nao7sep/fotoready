@@ -15,7 +15,6 @@ type CropParams = {
 
 const cropModule: OpModule<CropParams> = {
   type: "crop",
-  label: "Crop",
   category: "Geometry",
   previewBehavior: "show-input",
   defaultParams: { x: 0, y: 0, w: 1, h: 1, aspectLock: null },

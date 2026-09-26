@@ -10,7 +10,6 @@ type WhiteBalanceParams = {
 
 const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
   type: "white-balance",
-  label: "White Balance",
   category: "Tone",
   previewBehavior: "show-output",
   defaultParams: { temperature: 0, tint: 0, samplePoint: null },

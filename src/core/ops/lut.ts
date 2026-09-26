@@ -10,7 +10,6 @@ type LutParams = {
 
 const lutModule: OpModule<LutParams> = {
   type: "lut",
-  label: "LUT",
   category: "Effects",
   previewBehavior: "show-output",
   defaultParams: { cubePath: "", strength: 1 },

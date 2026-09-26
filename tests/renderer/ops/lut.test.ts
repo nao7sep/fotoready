@@ -37,7 +37,7 @@ describe("LutCard chooser reload", () => {
       }));
     });
 
-    await act(async () => chooseButton("Choose LUT...").click());
+    await act(async () => chooseButton("Choose LUT…").click());
 
     const result = document.querySelector('[role="alert"]');
     expect(reloadLuts).toHaveBeenCalledOnce();

@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnedFailureList } from "@renderer/components/owned-failure-list";
 import { dismissOwnedFailure, runOwnedAction, type OwnedFailures } from "@renderer/owned-failures";
+import { message } from "@shared/i18n/translate";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,19 +37,19 @@ describe("owned action failures", () => {
       key: "first",
       operation: "first action failed",
       setFailures,
-      userMessage: "The first change could not be saved. Try again."
+      userMessage: message("failure.saveAll")
     });
     await runOwnedAction({
       action: async () => { throw sentinel; },
       key: "second",
       operation: "second action failed",
       setFailures,
-      userMessage: "The second change could not be saved. Try again."
+      userMessage: message("failure.saveTask")
     });
 
     expect(failures).toEqual({
-      first: "The first change could not be saved. Try again.",
-      second: "The second change could not be saved. Try again."
+      first: message("failure.saveAll"),
+      second: message("failure.saveTask")
     });
     expect(JSON.stringify(failures)).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SENTINEL|invoking remote method/i);
     expect(log).toHaveBeenCalledTimes(2);
@@ -58,18 +59,18 @@ describe("owned action failures", () => {
       key: "first",
       operation: "first action failed",
       setFailures,
-      userMessage: "unused"
+      userMessage: message("failure.undo")
     });
-    expect(failures).toEqual({ second: "The second change could not be saved. Try again." });
+    expect(failures).toEqual({ second: message("failure.saveTask") });
 
     await runOwnedAction({
       action: async () => "cancelled",
       key: "second",
       operation: "second action failed",
       setFailures,
-      userMessage: "unused"
+      userMessage: message("failure.undo")
     });
-    expect(failures).toEqual({ second: "The second change could not be saved. Try again." });
+    expect(failures).toEqual({ second: message("failure.saveTask") });
 
     dismissOwnedFailure(setFailures, "second");
     expect(failures).toEqual({});
@@ -79,13 +80,14 @@ describe("owned action failures", () => {
     const onDismiss = vi.fn();
     await act(async () => {
       root.render(createElement(OwnedFailureList, {
-        failures: { first: "First result", second: "A much longer second result that wraps naturally." },
+        failures: { first: message("failure.saveAll"), second: message("failure.deleteSavedOutput") },
         onDismiss
       }));
     });
 
     const results = document.querySelectorAll('[role="alert"]');
     expect(results).toHaveLength(2);
+    expect(document.body.textContent).toContain("The tasks could not be queued for saving.");
     expect(document.body.textContent).not.toMatch(/Error:|Warning:/);
     expect(document.querySelectorAll("svg")).toHaveLength(2);
     const close = document.querySelector<HTMLButtonElement>('button[aria-label="Close action result"]');
@@ -105,14 +107,14 @@ describe("owned action failures", () => {
       key: "same",
       operation: "same action failed",
       setFailures,
-      userMessage: "Older failure"
+      userMessage: message("failure.opParam")
     });
     const newer = runOwnedAction({
       action: async () => undefined,
       key: "same",
       operation: "same action failed",
       setFailures,
-      userMessage: "Newer failure"
+      userMessage: message("failure.opParams")
     });
 
     await newer;

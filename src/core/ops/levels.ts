@@ -10,7 +10,6 @@ type LevelsParams = {
 
 const levelsModule: OpModule<LevelsParams> = {
   type: "levels",
-  label: "Levels",
   category: "Tone",
   previewBehavior: "show-output",
   defaultParams: { blackPoint: 0, whitePoint: 255, gamma: 1 },

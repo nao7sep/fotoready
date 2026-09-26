@@ -1,9 +1,19 @@
+import type { MessageKey } from "@shared/i18n/catalogues";
 import type { MetadataFields } from "@shared/types/settings";
 
-export function metadataFieldLabel(field: keyof MetadataFields): string {
-  if (field === "webStatement") return "Rights URL";
-  if (field === "usageTerms") return "Usage terms";
-  if (field === "contactEmail") return "Contact email";
-  if (field === "contactUrl") return "Contact URL";
-  return field.replace(/^./, (letter) => letter.toUpperCase());
+const LABELS: Record<keyof MetadataFields, MessageKey> = {
+  source: "metadataField.source",
+  description: "metadataField.description",
+  author: "metadataField.author",
+  contactEmail: "metadataField.contactEmail",
+  contactUrl: "metadataField.contactUrl",
+  credit: "metadataField.credit",
+  copyright: "metadataField.copyright",
+  webStatement: "metadataField.webStatement",
+  usageTerms: "metadataField.usageTerms"
+};
+
+/** The catalogue key naming a metadata field. */
+export function metadataFieldLabel(field: keyof MetadataFields): MessageKey {
+  return LABELS[field];
 }

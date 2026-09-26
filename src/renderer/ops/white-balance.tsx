@@ -1,3 +1,4 @@
+import { useI18n } from "@renderer/i18n/I18nContext";
 import { Circle } from "react-konva";
 import { clamp } from "@shared/numeric";
 import type { OpRenderer } from "./op-renderer";
@@ -12,12 +13,13 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
   type: "white-balance",
   consumesImageClick: true,
   Card({ params, disabled, onParamsChange }) {
+    const { t } = useI18n();
     const samplePoint = params.samplePoint;
     return (
       <div className="geometry-controls">
-        <div className="row-detail">Temperature: blue to amber. Tint: green to magenta.</div>
+        <div className="row-detail">{t("whiteBalance.detail")}</div>
         <label className="slider-row">
-          <span>Temperature</span>
+          <span>{t("whiteBalance.temperature")}</span>
           <input
             disabled={disabled}
             max={100}
@@ -30,7 +32,7 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
           <span className="slider-value">{formatSigned(params.temperature)}</span>
         </label>
         <label className="slider-row">
-          <span>Tint</span>
+          <span>{t("whiteBalance.tint")}</span>
           <input
             disabled={disabled}
             max={100}
@@ -45,8 +47,8 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
         <div className="geometry-toolbar-row">
           <span className="geometry-status">
             {samplePoint
-              ? `Sample active at ${samplePoint[0].toFixed(3)}, ${samplePoint[1].toFixed(3)}. Move either slider to fine-tune.`
-              : "Click the preview while this op is selected to sample a neutral point."}
+              ? t("whiteBalance.sampleActive", { x: samplePoint[0].toFixed(3), y: samplePoint[1].toFixed(3) })
+              : t("whiteBalance.sampleHint")}
           </span>
         </div>
       </div>

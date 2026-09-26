@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { closeConfirmation } from "@renderer/close-confirmation";
 import { windowCloseQuits } from "@main/window-close";
+import { createTranslator } from "@shared/i18n/translate";
 
 describe("closeConfirmation", () => {
   it("asks before a close that ends the app, naming the saves it cancels", () => {
-    expect(closeConfirmation({ endsApp: true }, { hasWork: true, savesInFlight: true })?.message)
-      .toMatch(/discard the current workspace\? Saves still in progress are cancelled/);
-    expect(closeConfirmation({ endsApp: true }, { hasWork: true, savesInFlight: false })?.message)
-      .toBe("Close and discard the current workspace?");
+    const en = createTranslator("en");
+    const withSaves = closeConfirmation({ endsApp: true }, { hasWork: true, savesInFlight: true });
+    expect(withSaves && en.t(withSaves.message)).toMatch(/discard the current workspace\? Saves still in progress are cancelled/);
+    const withoutSaves = closeConfirmation({ endsApp: true }, { hasWork: true, savesInFlight: false });
+    expect(withoutSaves && en.t(withoutSaves.message)).toBe("Close and discard the current workspace?");
   });
 
   it("asks nothing when the close keeps the workspace and its saves running", () => {

@@ -129,11 +129,11 @@ describe("StampPickerModal groups", () => {
       status: "skipped-name-conflict"
     }]);
     await renderStampPicker();
-    await clickButton("Import...");
+    await clickButton("Import…");
 
     const warning = document.querySelector('[role="status"]');
     expect(warning?.textContent).not.toContain("Warning:");
-    expect(warning?.textContent).toContain("already match a library file name");
+    expect(warning?.textContent).toContain("1 file already matches a library file name and was not imported: mine.svg");
     expect(warning?.querySelector("svg")).toBeNull();
   });
 
@@ -143,7 +143,7 @@ describe("StampPickerModal groups", () => {
       "Error invoking remote method 'stamps.import': EACCES /private/tmp/FOTOREADY_SENTINEL"
     ));
     await renderStampPicker();
-    await clickButton("Import...");
+    await clickButton("Import…");
 
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent).toContain(

@@ -4,7 +4,6 @@ import { createAssetOverlayModule } from "./_asset-overlay";
 
 registerOp(createAssetOverlayModule({
   type: "stamp",
-  label: "Stamp",
   category: "Conceal",
   defaultParams: {
     assetPath: "",

@@ -35,8 +35,6 @@ export function validateAssetOverlayParams(value: unknown, path: string): AssetO
 
 export function createAssetOverlayModule(definition: {
   type: string;
-  label: string;
-  pickerLabel?: string;
   category: OpCategory;
   defaultParams: AssetOverlayParams;
 }): OpModule<AssetOverlayParams> {

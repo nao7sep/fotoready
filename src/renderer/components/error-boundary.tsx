@@ -1,6 +1,7 @@
 import React from "react";
 import { reportRendererLog } from "@renderer/renderer-log";
 import { describeError } from "@renderer/present-failure";
+import { documentTranslator } from "@renderer/i18n/I18nContext";
 
 // A render-phase throw anywhere in the tree unmounts the whole React root, leaving the window
 // silently blank with no on-screen clue and (for a throw before the app installs its console hook)
@@ -74,16 +75,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render(): React.ReactNode {
     const { error } = this.state;
     if (!error) return this.props.children;
+    // Outside the language provider: speak the language the document last declared.
+    const { t } = documentTranslator();
     return (
       <div role="alert" style={overlayStyle}>
         <div style={cardStyle}>
-          <h1 style={{ margin: 0, fontSize: "1.25rem" }}>FotoReady hit an unexpected error</h1>
-          <p style={{ margin: 0 }}>
-            The window could not be drawn. Reload to try again; your saved files on disk are not
-            affected. Complete details were written to the log.
-          </p>
+          <h1 style={{ margin: 0, fontSize: "1.25rem" }}>{t("errorBoundary.title")}</h1>
+          <p style={{ margin: 0 }}>{t("errorBoundary.body")}</p>
           <button type="button" style={buttonStyle} onClick={this.handleReload}>
-            Reload
+            {t("common.reload")}
           </button>
         </div>
       </div>

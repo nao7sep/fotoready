@@ -22,10 +22,31 @@ import type { Logger } from "@shared/types/log";
 
 const APP_SOFTWARE_TAG = "FotoReady";
 
-// Tags shown in the source-metadata summary. ModifyDate is intentionally excluded:
-// this app re-stamps it on every save, so it never carries source content into output
-// and should not contribute to the privacy warning.
-const DATE_TAGS = ["DateTimeOriginal", "CreateDate"] as const;
+// Every tag that records when the photo was taken or digitized, in any group: EXIF, IPTC and XMP
+// (as Lightroom, Photo Mechanic and news workflows write it), the GPS fix time, and PNG's creation
+// time. This one list is both what "Time" strips and what the summary and privacy warning read, so
+// nothing the strip leaves behind goes unflagged. An unqualified name read or cleared by ExifTool
+// covers the tag in every group that has it (IPTC and XMP-photoshop DateCreated, EXIF and XMP-exif
+// DateTimeOriginal, and so on). ModifyDate is not here: every save re-stamps or clears it.
+const CAPTURE_TIME_TAGS = [
+  { tag: "DateTimeOriginal", label: "Captured" },
+  { tag: "SubSecTimeOriginal", label: "Captured subseconds" },
+  { tag: "OffsetTimeOriginal", label: "Captured time zone" },
+  { tag: "CreateDate", label: "Created" },
+  { tag: "DateTimeDigitized", label: "Digitized" },
+  { tag: "SubSecTimeDigitized", label: "Created subseconds" },
+  { tag: "OffsetTimeDigitized", label: "Created time zone" },
+  { tag: "DateCreated", label: "Date created" },
+  { tag: "TimeCreated", label: "Time created" },
+  { tag: "DigitalCreationDate", label: "Digital creation date" },
+  { tag: "DigitalCreationTime", label: "Digital creation time" },
+  { tag: "GPSDateStamp", label: "GPS date" },
+  { tag: "GPSTimeStamp", label: "GPS time" },
+  { tag: "GPSDateTime", label: "GPS date and time" },
+  { tag: "CreationTime", label: "Creation time" }
+] as const;
+
+// The GPS fix's date and time are capture times, listed with the time tags above.
 const GPS_TAGS = [
   "GPSLatitude",
   "GPSLatitudeRef",
@@ -33,8 +54,6 @@ const GPS_TAGS = [
   "GPSLongitudeRef",
   "GPSAltitude",
   "GPSAltitudeRef",
-  "GPSDateStamp",
-  "GPSTimeStamp",
   "GPSMapDatum",
   "GPSImgDirection",
   "GPSImgDirectionRef",
@@ -120,13 +139,15 @@ export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | 
   args.push(...ALWAYS_STALE_TAGS.map(clear));
   if (stripActive) {
     if (!keep.includes("editorial")) args.push(...EDITORIAL_TAGS.map(clear));
-    if (!keep.includes("dates")) args.push(clear("DateTimeOriginal"), clear("CreateDate"));
+    if (!keep.includes("dates")) args.push(...CAPTURE_TIME_TAGS.map(({ tag }) => clear(tag)));
     // Coordinates live in the GPS IFD and may be mirrored in XMP; both go.
     if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"));
   }
   // Re-stamp or clear Software/ModifyDate. When off, clear explicitly so a source value doesn't leak through.
+  // The source's ModifyDate subseconds and time zone never describe the re-stamped value, so they always go.
   args.push(writeSoftwareTag ? `-Software=${APP_SOFTWARE_TAG}` : clear("Software"));
   args.push(writeModifyDate ? `-ModifyDate=${exifDate(savedAt)}` : clear("ModifyDate"));
+  args.push(clear("SubSecTime"), clear("OffsetTime"));
   args.push("-overwrite_original");
   return args;
 }
@@ -195,9 +216,9 @@ function metadataFieldsFromTags(tags: Record<string, unknown>): MetadataFields {
 function metadataSummaryFromTags(tags: Record<string, unknown>): SourceMetadataSummary {
   return {
     editorial: metadataFieldsFromTags(tags),
-    dates: Object.fromEntries(DATE_TAGS.flatMap((key) => {
-      const value = tagDate(tags[key]);
-      return value ? [[dateLabel(key), value]] : [];
+    dates: Object.fromEntries(CAPTURE_TIME_TAGS.flatMap(({ tag, label }) => {
+      const value = tagText(tags[tag]);
+      return value ? [[label, value]] : [];
     })),
     gps: Object.fromEntries(GPS_TAGS.flatMap((key) => {
       const value = tagText(tags[key]);
@@ -245,20 +266,8 @@ function tagText(value: unknown): string | undefined {
   return undefined;
 }
 
-function dateLabel(key: (typeof DATE_TAGS)[number]): string {
-  if (key === "DateTimeOriginal") return "Captured";
-  return "Created";
-}
-
 function gpsLabel(key: (typeof GPS_TAGS)[number]): string {
   return key.replace(/^GPS/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
-}
-
-function tagDate(value: unknown): string | undefined {
-  if (!value) return undefined;
-  if (value instanceof Date) return exifDate(value);
-  if (typeof value === "object" && "rawValue" in value && typeof value.rawValue === "string") return value.rawValue;
-  return typeof value === "string" ? value : undefined;
 }
 
 // EXIF datetime tags (DateTimeOriginal, CreateDate, ModifyDate) are local

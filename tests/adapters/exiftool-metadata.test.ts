@@ -4,7 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { exiftool } from "exiftool-vendored";
-import { applyMetadataToOutput, metadataCopyArgs } from "@adapters/exiftool";
+import { applyMetadataToOutput, metadataCopyArgs, readSourceMetadataSummary } from "@adapters/exiftool";
 
 const baseInput = {
   sourcePath: "/source/photo.jpg",
@@ -70,4 +70,62 @@ describe("applyMetadataToOutput with ExifTool", () => {
     expect(Object.keys(tags).some((key) => key.endsWith("DateTimeOriginal"))).toBe(true);
     expect(await fs.readdir(dir)).toEqual(["output.tmp", "source.jpg"]);
   });
+
+  it("strips every capture time, in EXIF, IPTC, XMP and GPS, when the task strips time", async () => {
+    const sourcePath = await capturedTimeSource(dir);
+    const outputPath = path.join(dir, "output.tmp");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
+
+    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, keep: ["gps", "editorial"], injectFields: {} });
+
+    const times = await exiftool.read(outputPath, ["-time:all", "-G1", "-a"]) as unknown as Record<string, unknown>;
+    expect(Object.keys(times).filter((key) => /Date|Time/.test(key) && !/^(System|File):/.test(key))).toEqual([]);
+    const kept = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
+    expect(kept["IFD0:Make"] ?? kept.Make).toBe("Canon");
+    expect(Object.keys(kept).some((key) => key.endsWith("GPSLatitude"))).toBe(true);
+  });
+
+  it("flags a capture time carried only in IPTC and XMP", async () => {
+    const sourcePath = path.join(dir, "source.jpg");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, {
+      "IPTC:DateCreated": "2024:05:01",
+      "IPTC:TimeCreated": "10:00:00+09:00",
+      "XMP-photoshop:DateCreated": "2024:05:01 10:00:00+09:00"
+    } as never, ["-overwrite_original"]);
+
+    const summary = await readSourceMetadataSummary(sourcePath);
+
+    expect(summary.dates).toMatchObject({ "Date created": expect.stringContaining("2024:05:01"), "Time created": expect.stringContaining("10:00:00") });
+  });
 });
+
+/** A JPEG that records its capture time everywhere photo tools write it, plus a GPS position and a camera make. */
+async function capturedTimeSource(dir: string): Promise<string> {
+  const sourcePath = path.join(dir, "source.jpg");
+  await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+  await exiftool.write(sourcePath, {
+    DateTimeOriginal: "2024:05:01 10:00:00",
+    CreateDate: "2024:05:01 10:00:00",
+    SubSecTimeOriginal: "123",
+    SubSecTimeDigitized: "456",
+    SubSecTime: "789",
+    OffsetTimeOriginal: "+09:00",
+    OffsetTimeDigitized: "+09:00",
+    OffsetTime: "+09:00",
+    "IPTC:DateCreated": "2024:05:01",
+    "IPTC:TimeCreated": "10:00:00+09:00",
+    "IPTC:DigitalCreationDate": "2024:05:01",
+    "IPTC:DigitalCreationTime": "10:00:00+09:00",
+    "XMP-photoshop:DateCreated": "2024:05:01 10:00:00+09:00",
+    "XMP-xmp:CreateDate": "2024:05:01 10:00:00+09:00",
+    "XMP-exif:DateTimeOriginal": "2024:05:01 10:00:00+09:00",
+    "XMP-exif:DateTimeDigitized": "2024:05:01 10:00:00+09:00",
+    GPSLatitude: 35.1,
+    GPSLongitude: 139.2,
+    GPSDateStamp: "2024:05:01",
+    GPSTimeStamp: "01:00:00",
+    Make: "Canon"
+  } as never, ["-overwrite_original"]);
+  return sourcePath;
+}

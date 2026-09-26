@@ -513,7 +513,8 @@ export class ProjectSession {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
     this.recordTaskEdit(task);
-    task.pipeline.ops[opIndex].enabled = enabled;
+    // Ops are replaced, never changed in place: a preview in flight renders from the op objects it keyed.
+    task.pipeline.ops[opIndex] = { ...task.pipeline.ops[opIndex], enabled };
     touchTask(task);
     return this.snapshot();
   }

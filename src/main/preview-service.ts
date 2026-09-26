@@ -150,6 +150,7 @@ export class PreviewService {
 
   private async renderStage(original: Original, task: Task, previewLongEdge: number, targetStageIndex: number): Promise<PreviewBitmap> {
     // The task can be edited while this render awaits; everything it renders comes from this snapshot.
+    // Copying the array is enough because the session replaces an edited op rather than mutating it.
     const pipeline: Pipeline = { ...task.pipeline, ops: [...task.pipeline.ops] };
     const baseKey = previewBaseKey(original, previewLongEdge);
     const stageKeys = previewStageKeys(baseKey, pipeline.ops);

@@ -58,6 +58,25 @@ describe("PreviewService stage cache", () => {
     expect(stageCalls).toHaveLength(2);
   });
 
+  it("renders each stage from the enabled state it was keyed by, even if the op is toggled mid-render", async () => {
+    const options = { holdStages: true };
+    const { pool, stageCalls } = fakePool(options);
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool);
+    const { task } = arrange(session.snapshot().project);
+    task.pipeline.ops.push({ id: "lut-late", type: "lut", enabled: false, params: { cubePath: "/luts/film.cube", strength: 0.5 } });
+
+    const late = session.renderPreview(task.id);
+    await until(() => stageCalls.length === 1);
+    session.setOpEnabled(task.id, "lut-late", true);
+    options.holdStages = false;
+    stageCalls[0].release();
+    // Keyed with the second op off, the late render must not apply it.
+    expect(await firstPixel(await late)).toBe(10);
+
+    session.setOpEnabled(task.id, "lut-late", false);
+    expect(await firstPixel(await session.renderPreview(task.id))).toBe(10);
+  });
+
   it("keeps recently previewed tasks within the byte budget and always keeps the active one", async () => {
     const { pool, baseCalls } = fakePool();
     const bitmapBytes = WIDTH * HEIGHT * 4;

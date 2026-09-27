@@ -89,4 +89,23 @@ describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
       delete process.env.FOTOREADY_ROOT_TEST_EMPTY;
     }
   });
+
+  it.skipIf(process.platform === "win32")("creates a fresh root as owner-only (0700)", () => {
+    const target = path.join(tmpBase, "fresh-root");
+    process.env[ENV_VAR] = target;
+    const root = resolveStorageRoot(DATA_DIR_NAME, []);
+    expect(fs.statSync(root).mode & 0o777).toBe(0o700);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "tightens an existing broader root (0755) to 0700 at launch",
+    () => {
+      const target = path.join(tmpBase, "existing-root");
+      fs.mkdirSync(target, { mode: 0o755 });
+      expect(fs.statSync(target).mode & 0o777).toBe(0o755);
+      process.env[ENV_VAR] = target;
+      const root = resolveStorageRoot(DATA_DIR_NAME, []);
+      expect(fs.statSync(root).mode & 0o777).toBe(0o700);
+    }
+  );
 });

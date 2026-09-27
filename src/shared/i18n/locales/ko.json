@@ -352,6 +352,7 @@
   "settings.themeDetail": "‘시스템’은 운영 체제의 모양을 따릅니다.",
   "settings.uiFont": "UI 글꼴",
   "settings.uiFontDetail": "앱 화면의 글꼴입니다. 쉼표로 구분한 글꼴 모음 중 시스템에 있는 첫 번째 글꼴을 사용합니다. 비워 두면 내장 기본 글꼴을 사용합니다.",
+  "settings.uiFontPlaceholder": "비워 두면 시스템 기본 서체",
   "settings.performance": "성능",
   "settings.previewLongEdge": "미리 보기 이미지의 긴 변",
   "settings.previewLongEdgeDetail": "실시간 미리 보기와 히스토그램의 작업 크기를 정합니다. 값이 작을수록 가볍고, 클수록 더 정확하게 확인할 수 있습니다.",

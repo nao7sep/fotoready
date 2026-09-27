@@ -352,6 +352,7 @@
   "settings.themeDetail": "System follows the OS appearance.",
   "settings.uiFont": "UI font",
   "settings.uiFontDetail": "The app interface font. Comma-separated families; the first one your system has is used. Blank uses the built-in default.",
+  "settings.uiFontPlaceholder": "Blank = default system font",
   "settings.performance": "Performance",
   "settings.previewLongEdge": "Preview image long edge",
   "settings.previewLongEdgeDetail": "Sets the working size for live previews and the histogram. Lower values feel lighter; higher values make inspection more faithful.",

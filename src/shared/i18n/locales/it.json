@@ -352,6 +352,7 @@
   "settings.themeDetail": "Sistema segue l’aspetto del sistema operativo.",
   "settings.uiFont": "Carattere dell’interfaccia",
   "settings.uiFontDetail": "Il carattere dell’interfaccia dell’app. Famiglie separate da virgole; si usa la prima presente nel tuo sistema. Se vuoto, si usa il carattere predefinito integrato.",
+  "settings.uiFontPlaceholder": "Vuoto = font di sistema predefinito",
   "settings.performance": "Prestazioni",
   "settings.previewLongEdge": "Lato lungo dell’immagine di anteprima",
   "settings.previewLongEdgeDetail": "Imposta la dimensione di lavoro delle anteprime dal vivo e dell’istogramma. Valori bassi sono più leggeri; valori alti rendono il controllo più fedele.",

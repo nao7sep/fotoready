@@ -631,7 +631,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
             {t("settings.uiFont")}
             <input
               type="text"
-              placeholder="Inter"
+              placeholder={t("settings.uiFontPlaceholder")}
               value={settings.uiFontFamily}
               onChange={(event) => setSettings({ ...settings, uiFontFamily: event.currentTarget.value })}
             />

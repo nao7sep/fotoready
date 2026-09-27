@@ -352,6 +352,7 @@
   "settings.themeDetail": "„System“ folgt dem Erscheinungsbild des Betriebssystems.",
   "settings.uiFont": "Schrift der Oberfläche",
   "settings.uiFontDetail": "Die Schrift der App-Oberfläche. Schriftfamilien durch Kommas getrennt; die erste auf Ihrem System vorhandene wird verwendet. Leer bedeutet die eingebaute Standardschrift.",
+  "settings.uiFontPlaceholder": "Leer = Standardschrift des Systems",
   "settings.performance": "Leistung",
   "settings.previewLongEdge": "Lange Kante des Vorschaubilds",
   "settings.previewLongEdgeDetail": "Legt die Arbeitsgröße für Live-Vorschauen und das Histogramm fest. Kleinere Werte wirken leichter, größere machen die Prüfung genauer.",

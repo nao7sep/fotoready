@@ -352,6 +352,7 @@
   "settings.themeDetail": "«\u00a0Système\u00a0» suit l’apparence du système d’exploitation.",
   "settings.uiFont": "Police de l’interface",
   "settings.uiFontDetail": "La police de l’interface de l’application. Familles séparées par des virgules\u00a0; la première présente sur votre système est utilisée. Vide, la police intégrée par défaut est utilisée.",
+  "settings.uiFontPlaceholder": "Vide = police système par défaut",
   "settings.performance": "Performances",
   "settings.previewLongEdge": "Grand côté de l’image d’aperçu",
   "settings.previewLongEdgeDetail": "Définit la taille de travail des aperçus en direct et de l’histogramme. Des valeurs basses sont plus légères\u00a0; des valeurs élevées rendent l’inspection plus fidèle.",

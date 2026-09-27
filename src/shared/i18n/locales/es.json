@@ -352,6 +352,7 @@
   "settings.themeDetail": "Sistema sigue la apariencia del sistema operativo.",
   "settings.uiFont": "Fuente de la interfaz",
   "settings.uiFontDetail": "La fuente de la interfaz de la aplicación. Familias separadas por comas; se usa la primera que tenga tu sistema. Si está vacío, se usa la fuente integrada predeterminada.",
+  "settings.uiFontPlaceholder": "Vacío = fuente predeterminada del sistema",
   "settings.performance": "Rendimiento",
   "settings.previewLongEdge": "Lado largo de la imagen de vista previa",
   "settings.previewLongEdgeDetail": "Define el tamaño de trabajo de las vistas previas en vivo y del histograma. Los valores bajos son más ligeros; los altos hacen la revisión más fiel.",

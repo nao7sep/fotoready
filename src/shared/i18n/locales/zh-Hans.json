@@ -352,6 +352,7 @@
   "settings.themeDetail": "“跟随系统”会使用操作系统的外观。",
   "settings.uiFont": "界面字体",
   "settings.uiFontDetail": "应用界面的字体。用逗号分隔多个字体系列，将使用系统中已有的第一个。留空则使用内置的默认字体。",
+  "settings.uiFontPlaceholder": "留空 = 系统默认字体",
   "settings.performance": "性能",
   "settings.previewLongEdge": "预览图像的长边",
   "settings.previewLongEdgeDetail": "设置实时预览和直方图的工作尺寸。数值越小越轻快，越大检查越精确。",

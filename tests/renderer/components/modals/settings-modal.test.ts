@@ -44,6 +44,17 @@ describe("AppSettingsModal theme", () => {
   });
 });
 
+describe("AppSettingsModal UI font", () => {
+  it("shows the built-in default as the field's placeholder, not a stored value", async () => {
+    await renderSettings({ initialTab: "app" });
+
+    const input = [...document.querySelectorAll<HTMLInputElement>('input[type="text"]')]
+      .find((candidate) => candidate.placeholder === "Blank = default system font");
+    expect(input).not.toBeUndefined();
+    expect(input?.value).toBe("");
+  });
+});
+
 describe("AppSettingsModal failure ownership", () => {
   it("keeps a failed save inside the open modal with authored copy", async () => {
     await renderSettings({ onSaveSettings: vi.fn(async () => { throw hostile; }) });

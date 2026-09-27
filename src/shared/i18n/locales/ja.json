@@ -352,6 +352,7 @@
   "settings.themeDetail": "「システム」は OS の外観に従います。",
   "settings.uiFont": "UI のフォント",
   "settings.uiFontDetail": "アプリの画面のフォントです。ファミリーをカンマで区切って指定し、システムにある最初のものが使われます。空欄にすると内蔵の既定フォントを使います。",
+  "settings.uiFontPlaceholder": "空欄 = システムの既定フォント",
   "settings.performance": "パフォーマンス",
   "settings.previewLongEdge": "プレビュー画像の長辺",
   "settings.previewLongEdgeDetail": "ライブプレビューとヒストグラムの作業サイズを決めます。小さい値ほど軽く、大きい値ほど確認が正確になります。",

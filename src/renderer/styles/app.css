@@ -2357,8 +2357,20 @@ select:disabled {
   font-size: 12px;
 }
 
+/* The dismiss X sits on the first text line: a top-aligned flex row (never a
+   fixed top/right offset that only approximates it), with the button nudged
+   down by --op-result-dismiss-offset so it centres on that line whether the
+   message is one line or wraps to several. Same recipe as every other
+   dismiss control in the app (see xalign.md): derive the offset from the
+   line height the message already has, not a chosen number — `1lh` on the
+   button resolves to its own computed line-height, which equals the
+   message's (the button uses `font: inherit`, and line-height inherits with
+   it), so the message's own font/line-height/padding are untouched. */
 .operation-result {
-  position: relative;
+  --op-result-dismiss-size: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   flex: 0 0 auto;
   min-width: 0;
   max-width: 100%;
@@ -2367,20 +2379,16 @@ select:disabled {
 
 .operation-result-content {
   min-width: 0;
-}
-
-.operation-result:has(.operation-result-dismiss) {
-  padding-right: 36px;
+  flex: 1 1 auto;
 }
 
 .operation-result-dismiss {
-  position: absolute;
-  top: 5px;
-  right: 6px;
+  flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: var(--op-result-dismiss-size);
+  height: var(--op-result-dismiss-size);
+  margin-top: calc((1lh - var(--op-result-dismiss-size)) / 2);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);

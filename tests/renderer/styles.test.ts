@@ -58,3 +58,25 @@ describe("button pressed states", () => {
     expect(compact).toMatch(/button:disabled,[^{]*\{[^}]*opacity:0\.55/);
   });
 });
+
+// The per-item dismiss X on an OperationResult (error strips, import feedback,
+// owned-failure rows) sits on the message's first text line, not at a fixed
+// top/right pixel offset that only approximates it for one particular message
+// length. The container is a top-aligned flex row, and the button's margin-top
+// is derived from `1lh` — the line height the message text already has (the
+// button inherits it via `font: inherit`) — minus the button's own size,
+// halved, so the message's own font, line height and padding are never
+// touched and the offset stays correct whether the message is one line or
+// wraps to several.
+describe("operation-result dismiss alignment", () => {
+  it("lays the row out as a top-aligned flex row instead of absolute positioning", () => {
+    expect(compact).toMatch(/\.operation-result\{[^}]*display:flex[^}]*align-items:flex-start/);
+    expect(compact).not.toMatch(/\.operation-result-dismiss\{[^}]*position:absolute/);
+  });
+
+  it("derives the dismiss button's offset from the message's own line height, not a chosen number", () => {
+    expect(compact).toContain("margin-top:calc((1lh-var(--op-result-dismiss-size))/2)");
+    expect(compact).not.toMatch(/\.modal-warning,\.modal-info,\.modal-error\{[^}]*line-height/);
+    expect(compact).not.toMatch(/\.operation-result-content\{[^}]*line-height/);
+  });
+});

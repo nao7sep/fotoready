@@ -2087,12 +2087,14 @@ select:disabled {
   align-items: center;
   gap: var(--control-gap);
   padding: 12px 20px;
-  background: var(--surface-raised-bg);
+  /* Every band shares the body's own surface; only the hairline separates them. */
+  background: var(--surface-bg);
 }
 
 .modal-header {
-  border-bottom: 1px solid var(--border-color);
-  background: var(--header-bg);
+  /* No fainter than the app's own control borders, so the band stays visible
+     without a tint. */
+  border-bottom: 1px solid var(--field-border-color);
 }
 
 /* A hidden title leaves the close control alone in the band: it keeps its
@@ -2148,8 +2150,9 @@ select:disabled {
 
 .modal-actions {
   justify-content: flex-end;
-  /* The same hairline as the header's, so the two bands read as a pair. */
-  border-top: 1px solid var(--border-color);
+  /* The same hairline as the header's, so the two bands read as a pair, and
+     no fainter than the app's own control borders. */
+  border-top: 1px solid var(--field-border-color);
 }
 
 /* The confirming button of the dialog that asks is filled, so a solid red marks

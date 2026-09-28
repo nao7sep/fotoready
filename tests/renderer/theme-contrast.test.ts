@@ -100,8 +100,26 @@ const MARK_PAIRS: ReadonlyArray<[string, string]> = [
   ["--brand-secondary", "--surface-muted-bg"]
 ];
 
+// A soft line drawn on a nested surface: [line, the surface it is painted on,
+// the container that surface sits in]. The line must stand out from its surface
+// more than that surface stands out from its container, or the fill step alone
+// carries the edge and the line adds nothing.
+const NESTED_SOFT_LINES: ReadonlyArray<[string, string, string]> = [
+  ["--border-soft-on-raised", "--surface-raised-bg", "--surface-bg"],
+  ["--border-soft-on-muted", "--surface-muted-bg", "--surface-raised-bg"]
+];
+
 describe("theme token contrast", () => {
   for (const theme of ["light", "dark"] as const) {
+    it(`keeps each nested soft line more visible than its surface step in the ${theme} theme`, () => {
+      const block = themeBlock(theme);
+      for (const [line, surface, container] of NESTED_SOFT_LINES) {
+        const step = contrast(hexOf(block, surface), hexOf(block, container));
+        expect(contrast(hexOf(block, line), hexOf(block, surface)), `${line} on ${surface} vs step from ${container}`)
+          .toBeGreaterThan(step);
+      }
+    });
+
     it(`keeps text at 4.5:1 or more in the ${theme} theme`, () => {
       const block = themeBlock(theme);
       for (const [foreground, background] of TEXT_PAIRS) {

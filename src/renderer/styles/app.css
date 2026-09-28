@@ -42,6 +42,12 @@
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
   --border-soft-color: #e7e5e4;
+  /* The soft line re-scoped onto the raised op cards and the muted HSL bands,
+     where one value would sit almost on the fill; each keeps a visible step
+     from its own surface. .pipeline-op-card and .hsl-band set
+     --border-soft-color to them. */
+  --border-soft-on-raised: #dcdbda;
+  --border-soft-on-muted: #cecccb;
   /* A text field or select sits on a fill of nearly its surrounding surface's color, so its outline
      alone identifies it and stays at 3:1 against both. */
   --field-border-color: #817a75;
@@ -140,6 +146,8 @@
     --border-color: #383838;
     --border-strong-color: #555555;
     --border-soft-color: #333333;
+    --border-soft-on-raised: #333333;
+    --border-soft-on-muted: #333333;
     --field-border-color: #818181;
     --selection-border-color: #fbbf24;
     --text-color: #e5e5e5;
@@ -1503,6 +1511,7 @@ select:disabled {
 }
 
 .pipeline-op-card {
+  --border-soft-color: var(--border-soft-on-raised);
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -2816,6 +2825,7 @@ select:disabled {
 }
 
 .hsl-band {
+  --border-soft-color: var(--border-soft-on-muted);
   display: grid;
   gap: 8px;
   padding: 10px;

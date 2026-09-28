@@ -126,7 +126,19 @@
         "zh_CN"
       ],
       "extendInfo": {
-        "CFBundleIconName": "pancake-stack-bokeh"
+        "CFBundleIconName": "pancake-stack-bokeh",
+        "CFBundleLocalizations": [
+          "en",
+          "de",
+          "es",
+          "fr",
+          "it",
+          "pt-BR",
+          "ru",
+          "ja",
+          "ko",
+          "zh-Hans"
+        ]
       },
       "target": [
         {
@@ -163,6 +175,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
+      "multiLanguageInstaller": true,
       "installerLanguages": [
         "en_US",
         "de_DE",

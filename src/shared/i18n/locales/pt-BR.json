@@ -502,7 +502,7 @@
 
   "about.version": "Versão {version}",
   "about.versionUnknown": "Versão desconhecida",
-  "about.description": "Um editor de fotos para desktop feito para blogs e publicações, com processamento de imagens em fila, controle de metadados, prévias de renomeação e descrições e slugs opcionais gerados com a ajuda do Gemini.",
+  "about.description": "Empilhe edições não destrutivas nas fotos para publicação, escolha exatamente quais metadados são exportados com elas e renomeie os resultados em lote.",
   "about.issues": "Problemas relatados",
   "about.developer": "Desenvolvedor",
   "about.copyright": "Direitos autorais",

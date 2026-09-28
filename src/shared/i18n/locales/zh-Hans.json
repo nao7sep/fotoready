@@ -502,7 +502,7 @@
 
   "about.version": "版本 {version}",
   "about.versionUnknown": "版本未知",
-  "about.description": "一款面向博客和出版工作流程的桌面照片编辑器，提供排队的图像处理、元数据控制和重命名预览，还可选择借助 Gemini 生成描述和别名。",
+  "about.description": "为照片叠加非破坏性编辑以便发布，精确选择随之导出的元数据，并批量重命名结果。",
   "about.issues": "问题反馈",
   "about.developer": "开发者",
   "about.copyright": "版权",

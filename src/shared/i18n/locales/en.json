@@ -502,7 +502,7 @@
 
   "about.version": "Version {version}",
   "about.versionUnknown": "Version unknown",
-  "about.description": "A desktop photo editor for blogging and publication workflows, with queued image processing, metadata controls, rename previews, and optional Gemini-assisted descriptions and slugs.",
+  "about.description": "Stack non-destructive edits on photos for publishing, choose exactly which metadata goes out with them, and batch-rename the results.",
   "about.issues": "Issues",
   "about.developer": "Developer",
   "about.copyright": "Copyright",

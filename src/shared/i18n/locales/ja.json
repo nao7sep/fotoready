@@ -502,7 +502,7 @@
 
   "about.version": "バージョン {version}",
   "about.versionUnknown": "バージョン不明",
-  "about.description": "ブログや出版のワークフロー向けのデスクトップ写真編集アプリです。キューによる画像処理、メタデータの管理、名前変更のプレビューに加え、Gemini による説明文とスラッグの生成も利用できます。",
+  "about.description": "写真に非破壊の編集を重ねて公開用に仕上げ、書き出すメタデータを選び、結果の名前をまとめて変更しましょう。",
   "about.issues": "Issues",
   "about.developer": "開発者",
   "about.copyright": "著作権",

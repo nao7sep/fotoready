@@ -502,7 +502,7 @@
 
   "about.version": "Version {version}",
   "about.versionUnknown": "Version unbekannt",
-  "about.description": "Ein Desktop-Fotoeditor für Blogs und Veröffentlichungen, mit Bildverarbeitung in einer Warteschlange, Metadaten-Steuerung, Vorschauen zum Umbenennen und optionalen Beschreibungen und Slugs mit Unterstützung von Gemini.",
+  "about.description": "Stapeln Sie nicht-destruktive Bearbeitungen auf Fotos für die Veröffentlichung, wählen Sie genau aus, welche Metadaten mit ihnen exportiert werden, und benennen Sie die Ergebnisse stapelweise um.",
   "about.issues": "Issues",
   "about.developer": "Entwickler",
   "about.copyright": "Copyright",

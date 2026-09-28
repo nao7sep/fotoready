@@ -502,7 +502,7 @@
 
   "about.version": "버전 {version}",
   "about.versionUnknown": "버전 알 수 없음",
-  "about.description": "블로그와 출판 작업을 위한 데스크톱 사진 편집기입니다. 대기열 방식의 이미지 처리, 메타데이터 제어, 이름 변경 미리 보기와 함께 Gemini를 이용한 설명과 슬러그 생성도 선택해서 쓸 수 있습니다.",
+  "about.description": "사진에 비파괴 편집을 쌓아 게시용으로 준비하고, 함께 내보낼 메타데이터를 정확히 선택하고, 결과물의 이름을 일괄 변경하세요.",
   "about.issues": "이슈",
   "about.developer": "개발자",
   "about.copyright": "저작권",

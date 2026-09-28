@@ -1,6 +1,6 @@
 # FotoReady
 
-FotoReady is a cross-platform desktop photo editor for blogging and publication workflows. You stack non-destructive, reorderable edits on each image (crop, levels, curves, white balance, HSL, LUTs, watermarks, conceal, and more), control exactly which metadata survives the re-encode, and batch-rename outputs with collision-safe templates. It's for people preparing images for publication who want repeatable, privacy-aware output rather than a general-purpose darkroom. Built on Electron for macOS and Windows (also runnable from source on Linux).
+Stack non-destructive edits on photos for publishing, choose exactly which metadata goes out with them, and batch-rename the results. FotoReady is a cross-platform desktop photo editor: reorder edits on each image (crop, levels, curves, white balance, HSL, LUTs, watermarks, conceal, and more) and export with collision-safe rename templates. It's for people preparing images for publication who want repeatable, privacy-aware output rather than a general-purpose darkroom. Built on Electron for macOS and Windows (also runnable from source on Linux).
 
 ## Features
 

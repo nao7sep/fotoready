@@ -502,7 +502,7 @@
 
   "about.version": "Version {version}",
   "about.versionUnknown": "Version inconnue",
-  "about.description": "Un éditeur photo de bureau pour les blogs et la publication, avec traitement d’images en file, contrôle des métadonnées, aperçus de renommage, et descriptions et slugs facultatifs générés avec l’aide de Gemini.",
+  "about.description": "Empilez des opérations de retouche non destructives sur vos photos avant publication, choisissez exactement quelles métadonnées les accompagnent, et renommez les résultats par lots.",
   "about.issues": "Tickets",
   "about.developer": "Développeur",
   "about.copyright": "Droits d’auteur",

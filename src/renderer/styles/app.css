@@ -1878,7 +1878,10 @@ select:disabled {
 }
 
 .modal-small {
-  width: min(460px, calc(100vw - 80px));
+  /* Sized for the About dialog (its only user): balanced by eye against the
+     introduction line in en/de/ja/ru so the paragraph reads as full lines
+     rather than a short spillover, without stretching into a tower. */
+  width: min(380px, calc(100vw - 80px));
 }
 
 .modal-default {

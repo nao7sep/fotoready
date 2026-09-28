@@ -54,7 +54,7 @@
   --text-color: #292524;
   --text-strong-color: #1c1917;
   --text-muted-color: #57534e;
-  --text-soft-color: #736b66;
+  --text-soft-color: #6d6560;
   --text-disabled-color: #a8a29e;
   --checker-bg: #e5e5e5;
   --brand-primary: #f97316;
@@ -139,8 +139,8 @@
     --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     --border-color: #383838;
     --border-strong-color: #555555;
-    --border-soft-color: #2c2c2c;
-    --field-border-color: #767676;
+    --border-soft-color: #333333;
+    --field-border-color: #818181;
     --selection-border-color: #fbbf24;
     --text-color: #e5e5e5;
     --text-strong-color: #fafafa;

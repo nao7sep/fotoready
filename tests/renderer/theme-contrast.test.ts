@@ -55,6 +55,7 @@ const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
   ["--text-soft-color", "--app-bg"],
   ["--text-soft-color", "--surface-bg"],
   ["--text-soft-color", "--surface-raised-bg"],
+  ["--text-soft-color", "--surface-muted-bg"],
   ["--text-color", "--button-bg"],
   ["--text-strong-color", "--button-bg"],
   ["--text-strong-color", "--button-active-bg"],
@@ -96,7 +97,6 @@ const MARK_PAIRS: ReadonlyArray<[string, string]> = [
   ["--accent-border", "--surface-raised-bg"],
   ["--accent-bg", "--surface-bg"],
   ["--accent-bg", "--surface-raised-bg"],
-  ["--text-soft-color", "--surface-muted-bg"],
   ["--brand-secondary", "--surface-muted-bg"]
 ];
 

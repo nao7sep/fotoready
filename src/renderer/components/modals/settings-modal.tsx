@@ -8,6 +8,7 @@ import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { assertModelEndpoint } from "@shared/validation/settings";
 import { AI_ROLES } from "@shared/ai-models";
+import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { ExtraModelIdsEditor, ModelPicker } from "../model-picker";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
@@ -64,7 +65,6 @@ export function AppSettingsModal({
   onKeepApiKey,
   onClose,
   onSaveSettings,
-  onResetPrompt,
   settingsDraft,
   setSettingsDraft,
   systemInfo
@@ -79,7 +79,6 @@ export function AppSettingsModal({
   onKeepApiKey(): void;
   onClose(): void;
   onSaveSettings(): Promise<void>;
-  onResetPrompt(key: "visionDescriptionPrompt" | "visionSlugPrompt"): void;
   settingsDraft: GlobalSettings | null;
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
@@ -228,7 +227,6 @@ export function AppSettingsModal({
               onApiKeyDraftChange={updateApiKeyDraft}
               onClearApiKey={() => { setSaveFailure(null); onClearApiKey(); }}
               onKeepApiKey={() => { setSaveFailure(null); onKeepApiKey(); }}
-              onResetPrompt={(key) => { setSaveFailure(null); onResetPrompt(key); }}
               fetchedIds={fetchedIds}
               refreshingModels={refreshingModels}
               onRefreshModels={() => void loadModels(true)}
@@ -411,7 +409,6 @@ function VisionTab({
   onApiKeyDraftChange,
   onClearApiKey,
   onKeepApiKey,
-  onResetPrompt,
   fetchedIds,
   refreshingModels,
   onRefreshModels,
@@ -427,7 +424,6 @@ function VisionTab({
   onApiKeyDraftChange(value: string): void;
   onClearApiKey(): void;
   onKeepApiKey(): void;
-  onResetPrompt(key: "visionDescriptionPrompt" | "visionSlugPrompt"): void;
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
@@ -531,7 +527,8 @@ function VisionTab({
             className="toolbar-button"
             type="button"
             style={{ justifySelf: "start" }}
-            onClick={() => onResetPrompt("visionDescriptionPrompt")}
+            disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
+            onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
           >
             {t("settings.resetDescriptionPrompt")}
           </button>
@@ -543,7 +540,8 @@ function VisionTab({
             className="toolbar-button"
             type="button"
             style={{ justifySelf: "start" }}
-            onClick={() => onResetPrompt("visionSlugPrompt")}
+            disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
+            onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
           >
             {t("settings.resetSlugPrompt")}
           </button>

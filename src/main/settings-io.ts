@@ -2,9 +2,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
-import type { GlobalSettings } from "@shared/types/settings";
+import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
+import { cleanMetadataField, multiline, singleLine } from "@shared/text-cleanup";
 import { utcStamp } from "@shared/time";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
@@ -55,22 +56,60 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
   return { settings: effectiveSettings(sets, logger), quarantinedTo };
 }
 
+const MULTILINE_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["visionDescriptionPrompt", "visionSlugPrompt"]);
+const MODEL_ID_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["gemini.description", "gemini.slug"]);
+
+/**
+ * The text-cleanup form a set is compared and stored in: multiline for the prompts, single-line for
+ * other text. An empty metadata member is dropped, since an empty default injects nothing.
+ */
+function cleanSet(key: keyof GlobalSettings, value: unknown): unknown {
+  if (typeof value === "string") return MULTILINE_SETS.has(key) ? multiline(value) : singleLine(value);
+  if (key === "injectFields" && isRecord(value)) {
+    return Object.fromEntries(Object.entries(value)
+      .map(([field, text]) => [field, typeof text === "string" ? cleanMetadataField(field as keyof MetadataFields, text) : text])
+      .filter(([, text]) => text !== ""));
+  }
+  return value;
+}
+
+function equalsBuiltIn<K extends keyof GlobalSettings>(key: K, value: GlobalSettings[K], builtIn: GlobalSettings[K]): boolean {
+  if (MODEL_ID_SETS.has(key)) return String(value).toLowerCase() === String(builtIn).toLowerCase();
+  return JSON.stringify(value) === JSON.stringify(builtIn);
+}
+
+/**
+ * Writes the sets in `patch` and decides each one alone: a set equal to its built-in after cleanup
+ * has its key removed, a set that differs is written whole, and an invalid set is reported and
+ * leaves its stored copy untouched. A stored copy outside the patch that equals its built-in is
+ * removed too. A result equal to the file writes nothing; a result with no keys leaves no file.
+ */
 export async function saveSettings(
   settingsPath: string,
   patch: Partial<GlobalSettings>,
-  resetKeys: (keyof GlobalSettings)[] = [],
   logger?: AppLogger
 ): Promise<GlobalSettings> {
   const { sets } = await readSettingsMap(settingsPath, logger);
-  const { settings: normalizedPatch, issues } = normalizeGlobalSettings(patch, effectiveSettings(sets));
-  for (const issue of issues) logger?.warn("settings patch contained invalid data", { mod: "settings", issue });
+  const builtIns = defaults();
   const next: Record<string, unknown> = {};
   for (const key of SETTINGS_KEYS) {
-    if (Object.hasOwn(sets, key)) next[key] = sets[key];
-    if (Object.hasOwn(patch, key)) next[key] = normalizedPatch[key];
-    if (resetKeys.includes(key)) delete next[key];
+    const stored = Object.hasOwn(sets, key);
+    const patched = Object.hasOwn(patch, key);
+    if (!stored && !patched) continue;
+    const { settings: parsed, issues } = normalizeGlobalSettings({ [key]: cleanSet(key, patched ? patch[key] : sets[key]) }, builtIns);
+    if (issues.length) {
+      if (patched) for (const issue of issues) logger?.warn("settings patch contained invalid data; its stored copy is unchanged", { mod: "settings", issue });
+      if (stored) next[key] = sets[key];
+    } else if (!equalsBuiltIn(key, parsed[key], builtIns[key])) {
+      next[key] = patched ? parsed[key] : sets[key];
+    }
   }
-  // recorded: durable config sets use the managed atomic write and backup history.
-  await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
+  if (Object.keys(next).length === 0) {
+    // not recorded: an empty settings map is stored as no file, as on first run.
+    await fs.rm(settingsPath, { force: true });
+  } else if (JSON.stringify(next) !== JSON.stringify(sets)) {
+    // recorded: durable config sets use the managed atomic write and backup history.
+    await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
+  }
   return effectiveSettings(next, logger);
 }

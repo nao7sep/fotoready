@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import { closeBackupStore } from "@main/backup-store";
 import { defaultGlobalSettings } from "@shared/defaults";
+import { multiline, singleLine } from "@shared/text-cleanup";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppLogger } from "@main/logger";
 
@@ -68,7 +69,7 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("normalizes invalid range and shape patches before writing and reports each issue", async () => {
+  it("never writes an invalid value, leaving each stored copy untouched and reporting each issue", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
     const warn = vi.fn();
     const patch = {
@@ -81,23 +82,13 @@ describe("settings by set", () => {
       writeSoftwareTag: false,
     } as unknown as Partial<GlobalSettings>;
 
-    const effective = await saveSettings(settingsPath(), patch, [], { warn } as unknown as AppLogger);
-    const expected = {
-      defaultWebpQuality: 71,
-      injectFields: { author: "Jane" },
-      theme: "dark",
-      previewDebounceMs: defaults().previewDebounceMs,
-      defaultOutputFormat: defaults().defaultOutputFormat,
-      confirmDeleteTasks: defaults().confirmDeleteTasks,
-      "gemini.description": defaults()["gemini.description"],
-      writeSoftwareTag: false,
-    };
+    const effective = await saveSettings(settingsPath(), patch, { warn } as unknown as AppLogger);
+    const expected = { defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark", writeSoftwareTag: false };
     expect(await written()).toEqual(expected);
     expect(effective).toEqual({ ...defaults(), ...expected });
-    expect((await loadSettings(settingsPath())).settings).toEqual(effective);
     expect(warn).toHaveBeenCalledTimes(6);
     for (const key of ["defaultWebpQuality", "previewDebounceMs", "defaultOutputFormat", "confirmDeleteTasks", "injectFields.author", "gemini.description"]) {
-      expect(warn).toHaveBeenCalledWith("settings patch contained invalid data", {
+      expect(warn).toHaveBeenCalledWith("settings patch contained invalid data; its stored copy is unchanged", {
         mod: "settings",
         issue: expect.stringContaining(`settings.${key}`),
       });
@@ -111,22 +102,75 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("preserves an untouched invalid stored set while validating a changed set", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
+  it("preserves an untouched invalid stored set while rejecting an invalid changed set", async () => {
+    const text = JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" });
+    await fs.writeFile(settingsPath(), text);
     const warn = vi.fn();
-    const effective = await saveSettings(settingsPath(), { visionMaxRetries: -1 }, [], { warn } as unknown as AppLogger);
-    expect(await written()).toEqual({ defaultWebpQuality: 999, "gemini.description": "unlisted-model", visionMaxRetries: defaults().visionMaxRetries });
+    const effective = await saveSettings(settingsPath(), { visionMaxRetries: -1 }, { warn } as unknown as AppLogger);
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
     expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
     expect(effective["gemini.description"]).toBe("unlisted-model");
+    expect(effective.visionMaxRetries).toBe(defaults().visionMaxRetries);
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
-  it("deletes reset prompts while retaining other saved sets", async () => {
+  it("removes a set's key when it is saved back to its built-in, and leaves no file when no key remains", async () => {
+    await saveSettings(settingsPath(), { defaultWebpQuality: 71, confirmDeleteTasks: false });
+    await saveSettings(settingsPath(), { defaultWebpQuality: defaults().defaultWebpQuality });
+    expect(await written()).toEqual({ confirmDeleteTasks: false });
+    const effective = await saveSettings(settingsPath(), { confirmDeleteTasks: true });
+    await expect(fs.stat(settingsPath())).rejects.toMatchObject({ code: "ENOENT" });
+    expect(effective).toEqual(defaults());
+  });
+
+  it("removes reset prompts while retaining other saved sets", async () => {
     await saveSettings(settingsPath(), { visionDescriptionPrompt: "custom description", visionSlugPrompt: "custom slug", defaultWebpQuality: 71 });
-    const effective = await saveSettings(settingsPath(), {}, ["visionDescriptionPrompt", "visionSlugPrompt"]);
+    const effective = await saveSettings(settingsPath(), { visionDescriptionPrompt: defaults().visionDescriptionPrompt, visionSlugPrompt: defaults().visionSlugPrompt });
     expect(await written()).toEqual({ defaultWebpQuality: 71 });
     expect(effective.visionDescriptionPrompt).toBe(defaults().visionDescriptionPrompt);
     expect(effective.visionSlugPrompt).toBe(defaults().visionSlugPrompt);
+  });
+
+  it("compares after cleanup: a prompt differing by line endings or trailing spaces and a model id differing by case are not stored", async () => {
+    await saveSettings(settingsPath(), {
+      visionDescriptionPrompt: `\r\n${defaults().visionDescriptionPrompt}  \r\n`,
+      visionSlugPrompt: `${defaults().visionSlugPrompt}   `,
+      "gemini.description": ` ${defaults()["gemini.description"].toUpperCase()} `,
+      "gemini.endpoint": `${defaults()["gemini.endpoint"]} `
+    });
+    expect(await fs.readdir(dir)).toEqual([]);
+  });
+
+  it("stores a differing set in its cleaned form", async () => {
+    await saveSettings(settingsPath(), { visionSlugPrompt: "  Line one  \r\n\r\n  Line two  \n", "gemini.slug": " typed-model ", uiFontFamily: " Inter\n Display " });
+    expect(await written()).toEqual({ visionSlugPrompt: "  Line one\n\n  Line two", "gemini.slug": "typed-model", uiFontFamily: "Inter Display" });
+  });
+
+  it("removes an untouched stored copy equal to its built-in at the next save of another set", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 }));
+    await saveSettings(settingsPath(), { confirmDeleteTasks: false });
+    expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
+  });
+
+  it("treats an empty metadata member as absent, since it injects nothing", async () => {
+    await saveSettings(settingsPath(), { injectFields: { author: "  ", credit: "" } });
+    expect(await fs.readdir(dir)).toEqual([]);
+    await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: " " } });
+    expect(await written()).toEqual({ injectFields: { author: "Jane" } });
+  });
+
+  it("writes nothing when the result equals the file", async () => {
+    await saveSettings(settingsPath(), { defaultWebpQuality: 71 });
+    const before = await fs.stat(settingsPath());
+    await saveSettings(settingsPath(), { defaultWebpQuality: 71, confirmDeleteTasks: true });
+    const after = await fs.stat(settingsPath());
+    expect(after.ino).toBe(before.ino);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
+  it("writes nothing when a built-in is saved with no file present", async () => {
+    await saveSettings(settingsPath(), { defaultWebpQuality: defaults().defaultWebpQuality, workerPoolSize: null });
+    expect(await fs.readdir(dir)).toEqual([]);
   });
 
   it("logs a bad set and reads only that set as absent without quarantining or rewriting", async () => {
@@ -157,5 +201,16 @@ describe("settings by set", () => {
     vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("quarantine refused"));
     await expect(loadSettings(settingsPath())).rejects.toThrow("quarantine refused");
     expect(await fs.readFile(settingsPath(), "utf8")).toBe("{ bad json");
+  });
+});
+
+describe("built-in texts", () => {
+  it("are kept in the cleaned form a saved copy is compared in", () => {
+    const builtIns = defaults();
+    expect(builtIns.visionDescriptionPrompt).toBe(multiline(builtIns.visionDescriptionPrompt));
+    expect(builtIns.visionSlugPrompt).toBe(multiline(builtIns.visionSlugPrompt));
+    for (const [key, value] of Object.entries(builtIns)) {
+      if (typeof value === "string" && !key.endsWith("Prompt")) expect(value, key).toBe(singleLine(value));
+    }
   });
 });

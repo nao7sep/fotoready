@@ -10,7 +10,6 @@ export async function persistSettingsChanges({
   onApiKeyStored,
   onSettingsStored,
   settings,
-  resetKeys,
   settingsDraft,
   setApiKey,
   updateSettings
@@ -22,10 +21,9 @@ export async function persistSettingsChanges({
   onApiKeyStored(): void;
   onSettingsStored(settings: GlobalSettings): void;
   settings: GlobalSettings;
-  resetKeys: (keyof GlobalSettings)[];
   settingsDraft: GlobalSettings;
   setApiKey(apiKey: string): Promise<void>;
-  updateSettings(patch: Partial<GlobalSettings>, resetKeys: (keyof GlobalSettings)[]): Promise<GlobalSettings>;
+  updateSettings(patch: Partial<GlobalSettings>): Promise<GlobalSettings>;
 }): Promise<void> {
   if (apiKeyClearRequested) {
     await clearApiKey();
@@ -35,18 +33,14 @@ export async function persistSettingsChanges({
     onApiKeyStored();
   }
 
-  const patch = changedSettings(settings, settingsDraft, resetKeys);
-  if (Object.keys(patch).length || resetKeys.length) {
-    onSettingsStored(await updateSettings(patch, resetKeys));
+  const patch = changedSettings(settings, settingsDraft);
+  if (Object.keys(patch).length) {
+    onSettingsStored(await updateSettings(patch));
   }
 }
 
-export function changedSettings(
-  effective: GlobalSettings,
-  draft: GlobalSettings,
-  resetKeys: (keyof GlobalSettings)[] = []
-): Partial<GlobalSettings> {
+export function changedSettings(effective: GlobalSettings, draft: GlobalSettings): Partial<GlobalSettings> {
   return Object.fromEntries(SETTINGS_KEYS
-    .filter((key) => !resetKeys.includes(key) && JSON.stringify(draft[key]) !== JSON.stringify(effective[key]))
+    .filter((key) => JSON.stringify(draft[key]) !== JSON.stringify(effective[key]))
     .map((key) => [key, draft[key]])) as Partial<GlobalSettings>;
 }

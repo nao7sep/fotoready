@@ -291,14 +291,14 @@ describe("write-through: a real managed save records the exact bytes after the r
     expect(logCalls.warn).toHaveLength(0); // silent on success
   });
 
-  it("a second saveSettings with identical settings is deduped (write-through respects the content skip)", async () => {
+  it("a second saveSettings with identical settings records nothing", async () => {
     const { saveSettings } = await import("@main/settings-io");
     const { defaultGlobalSettings } = await import("@shared/defaults");
     const file = path.join(root, "config.json");
     const settings = { ...defaultGlobalSettings(null), defaultWebpQuality: 55 };
 
     await saveSettings(file, settings);
-    await saveSettings(file, settings); // identical serialized bytes -> deduped
+    await saveSettings(file, settings); // the result equals the file, so nothing is written
 
     expect(readRows(root)).toHaveLength(1);
   });

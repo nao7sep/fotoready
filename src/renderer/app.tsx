@@ -29,7 +29,6 @@ import { OperationResult } from "./components/operation-result";
 import { OwnedFailureList } from "./components/owned-failure-list";
 import { StartupLoadGate } from "./components/startup-load-gate";
 import { presentFailure } from "./present-failure";
-import { defaultGlobalSettings } from "@shared/defaults";
 import { persistSettingsChanges } from "./settings-save";
 import { dismissOwnedFailure, runOwnedAction, type OwnedActionOutcome, type OwnedFailures } from "./owned-failures";
 import { isModalOpen } from "./components/modals/modal-stack";
@@ -91,7 +90,6 @@ function App(): React.JSX.Element {
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiKeyClearRequested, setApiKeyClearRequested] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
-  const [settingsResetKeys, setSettingsResetKeys] = useState<(keyof GlobalSettings)[]>([]);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("save");
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const [originalImportFeedback, setOriginalImportFeedback] = useState<OriginalImportFeedback | null>(null);
@@ -149,7 +147,7 @@ function App(): React.JSX.Element {
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
   const showHistogram = uiState?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? t("topBar.sameAsOriginal") : project.outputDir;
-  const settingsDirty = settingsResetKeys.length > 0 || Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
+  const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
   const apiKeyDirty = apiKeyDraft.trim().length > 0 || apiKeyClearRequested;
   const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
   const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning);
@@ -635,7 +633,6 @@ function App(): React.JSX.Element {
   function openSettings(initialTab: SettingsTab = "save"): void {
     setSettingsInitialTab(initialTab);
     setSettingsDraft(settings);
-    setSettingsResetKeys([]);
     setApiKeyClearRequested(false);
     setSettingsOpen(true);
   }
@@ -657,10 +654,8 @@ function App(): React.JSX.Element {
       onSettingsStored: (stored) => {
         setSettings(stored);
         setSettingsDraft(stored);
-        setSettingsResetKeys([]);
       },
       settings,
-      resetKeys: settingsResetKeys,
       settingsDraft,
       setApiKey: api.settings.setGeminiApiKey,
       updateSettings: api.settings.update
@@ -1048,14 +1043,7 @@ function App(): React.JSX.Element {
           onClose={() => void requestCloseSettings()}
           onSaveSettings={saveSettingsDraft}
           settingsDraft={settingsDraft}
-          onResetPrompt={(key) => {
-            setSettingsResetKeys((keys) => keys.includes(key) ? keys : [...keys, key]);
-            setSettingsDraft((draft) => draft ? { ...draft, [key]: defaultGlobalSettings()[key] } : draft);
-          }}
-          setSettingsDraft={(draft) => {
-            setSettingsDraft(draft);
-            setSettingsResetKeys((keys) => keys.filter((key) => draft[key] === defaultGlobalSettings()[key]));
-          }}
+          setSettingsDraft={setSettingsDraft}
           systemInfo={systemInfo}
         />
       ) : null}

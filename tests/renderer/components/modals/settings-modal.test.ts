@@ -158,16 +158,35 @@ describe("AppSettingsModal failure ownership", () => {
   });
 });
 
+describe("AppSettingsModal prompt reset", () => {
+  it("fills the draft with the built-in prompt and stores nothing; Cancel then discards it", async () => {
+    const setSettingsDraft = vi.fn();
+    const onSaveSettings = vi.fn(async () => undefined);
+    const onClose = vi.fn();
+    const settings = { ...defaultGlobalSettings(), visionDescriptionPrompt: "custom" };
+    await renderSettings({ initialTab: "vision", onSaveSettings, onClose, settings, setSettingsDraft });
+
+    expect(button("Reset slug prompt")?.disabled).toBe(true);
+    await clickButton("Reset description prompt");
+    expect(setSettingsDraft).toHaveBeenCalledExactlyOnceWith({ ...settings, visionDescriptionPrompt: defaultGlobalSettings().visionDescriptionPrompt });
+    await clickButton("Cancel");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onSaveSettings).not.toHaveBeenCalled();
+  });
+});
+
 async function renderSettings({
   initialTab = "save",
   hasGeminiApiKey = false,
   onSaveSettings = vi.fn(async () => undefined),
+  onClose = () => undefined,
   settings = defaultGlobalSettings(),
   setSettingsDraft = vi.fn()
 }: {
   initialTab?: "save" | "app" | "vision";
   hasGeminiApiKey?: boolean;
   onSaveSettings?: () => Promise<void>;
+  onClose?: () => void;
   settings?: ReturnType<typeof defaultGlobalSettings>;
   setSettingsDraft?: (settings: ReturnType<typeof defaultGlobalSettings>) => void;
 } = {}): Promise<void> {
@@ -181,9 +200,8 @@ async function renderSettings({
       onApiKeyDraftChange: () => undefined,
       onClearApiKey: () => undefined,
       onKeepApiKey: () => undefined,
-      onClose: () => undefined,
+      onClose,
       onSaveSettings,
-      onResetPrompt: vi.fn(),
       settingsDraft: settings,
       setSettingsDraft,
       systemInfo: null

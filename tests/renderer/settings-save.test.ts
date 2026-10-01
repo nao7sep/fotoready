@@ -14,7 +14,6 @@ describe("persistSettingsChanges", () => {
       onApiKeyStored,
       onSettingsStored,
       settings: defaultGlobalSettings(),
-      resetKeys: [],
       settingsDraft: { ...defaultGlobalSettings(), defaultWebpQuality: 71 },
       setApiKey: vi.fn(async () => undefined),
       updateSettings: vi.fn(async () => { throw new Error("settings write failed"); })
@@ -34,7 +33,6 @@ describe("persistSettingsChanges", () => {
       onApiKeyStored: vi.fn(),
       onSettingsStored: vi.fn(),
       settings: defaultGlobalSettings(),
-      resetKeys: [],
       settingsDraft: { ...defaultGlobalSettings(), defaultWebpQuality: 71 },
       setApiKey: vi.fn(),
       updateSettings: vi.fn(async () => { throw new Error("settings write failed"); })
@@ -53,7 +51,6 @@ describe("persistSettingsChanges", () => {
       onApiKeyStored,
       onSettingsStored: vi.fn(),
       settings: defaultGlobalSettings(),
-      resetKeys: [],
       settingsDraft: defaultGlobalSettings(),
       setApiKey: vi.fn(async () => { throw new Error("key write failed"); }),
       updateSettings: vi.fn()
@@ -70,13 +67,13 @@ describe("changedSettings", () => {
     expect(changedSettings(settings, draft)).toEqual({ defaultOutputFormat: "webp", injectFields: draft.injectFields });
   });
 
-  it("omits reset sets from the patch even when the built-in differs from the saved prompt", () => {
+  it("sends a reset prompt as its built-in when a copy is stored", () => {
     const settings = { ...defaultGlobalSettings(), visionDescriptionPrompt: "custom" };
-    expect(changedSettings(settings, defaultGlobalSettings(), ["visionDescriptionPrompt"])).toEqual({});
+    expect(changedSettings(settings, defaultGlobalSettings())).toEqual({ visionDescriptionPrompt: defaultGlobalSettings().visionDescriptionPrompt });
   });
 });
 
-it("sends a reset deletion even when the effective prompt already equals the built-in", async () => {
+it("sends nothing when the draft equals the effective settings", async () => {
   const updateSettings = vi.fn(async () => defaultGlobalSettings());
   await persistSettingsChanges({
     apiKeyClearRequested: false,
@@ -86,10 +83,9 @@ it("sends a reset deletion even when the effective prompt already equals the bui
     onApiKeyStored: vi.fn(),
     onSettingsStored: vi.fn(),
     settings: defaultGlobalSettings(),
-    resetKeys: ["visionSlugPrompt"],
     settingsDraft: defaultGlobalSettings(),
     setApiKey: vi.fn(),
     updateSettings
   });
-  expect(updateSettings).toHaveBeenCalledExactlyOnceWith({}, ["visionSlugPrompt"]);
+  expect(updateSettings).not.toHaveBeenCalled();
 });

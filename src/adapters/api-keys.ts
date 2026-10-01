@@ -9,19 +9,19 @@ import type { Logger } from "@shared/types/log";
  * separate from settings. This is the fleet api-key-storage-conventions realized
  * for fotoready.
  *
- * fotoready uses a single key today (`["gemini"]` → GEMINI_API_KEY), but the
- * store is the generic, segment-addressed form so its contract matches every
- * other app in the fleet.
+ * fotoready uses a single key today (`"gemini"` → GEMINI_API_KEY), but the
+ * store is the generic, id-addressed form so its contract matches every other
+ * app in the fleet.
  *
  * Contract (api-key-storage-conventions):
- *   - A key id is its segments joined by ".", lowercase; its environment variable
- *     is the segments uppercased, joined by "_", suffixed "_API_KEY". Stored ids
- *     are matched case-insensitively; non-conforming ids are ignored.
- *   - Resolution is source-first: every environment candidate (most→least
- *     specific) then every stored candidate. Environment wins; the more specific
- *     key wins within each source. `fallback: false` consults only the exact key.
- *     Every value is trimmed; blank counts as absent; an environment value is
- *     never written back.
+ *   - A key id is one flat lowercase string (`gemini`, or `provider.purpose` such
+ *     as `gemini.vision`); its environment variable is the id uppercased, dots to
+ *     underscores, suffixed "_API_KEY". Stored ids are matched case-insensitively;
+ *     non-conforming ids are ignored.
+ *   - Resolution consults exactly two places for the exact id: the environment
+ *     variable, then the stored value. There is no fallback from a longer id to a
+ *     shorter one (`gemini.vision` never resolves to `gemini`). Every value is
+ *     trimmed; blank counts as absent; an environment value is never written back.
  *   - The stored value is `obf:` + base64 of the reversed UTF-8 bytes; an untagged
  *     value is treated as plaintext. This is NOT encryption — the 0600 mode is the
  *     real protection.
@@ -34,40 +34,24 @@ const MARKER = "obf:";
 const SECRETS_FILE_MODE = 0o600;
 const ENFORCE_FILE_MODE = process.platform !== "win32";
 
-const SEGMENT_RE = /^[a-z0-9]+$/;
 const KEY_ID_RE = /^[a-z0-9]+(\.[a-z0-9]+)*$/;
-
-interface ResolveOptions {
-  fallback?: boolean;
-}
 
 interface ApiKeysFile {
   keys: Record<string, string>;
 }
 
-function assertSegments(segments: string[]): void {
-  if (segments.length === 0 || !segments.every((s) => SEGMENT_RE.test(s))) {
-    throw new Error(`Invalid api-key segments [${segments.join(", ")}]: each must match [a-z0-9]+`);
+function assertKeyId(id: string): void {
+  if (!KEY_ID_RE.test(id)) {
+    throw new Error(`Invalid api-key id "${id}": must match [a-z0-9]+(.[a-z0-9]+)*`);
   }
 }
 
-// The prefixes of a segment list, most specific first: [a,b,c] → [[a,b,c],[a,b],[a]].
-function prefixes(segments: string[]): string[][] {
-  const out: string[][] = [];
-  for (let n = segments.length; n >= 1; n--) out.push(segments.slice(0, n));
-  return out;
+export function apiKeyEnvVar(id: string): string {
+  return `${id.toUpperCase().replaceAll(".", "_")}_API_KEY`;
 }
 
-function keyId(segments: string[]): string {
-  return segments.join(".");
-}
-
-export function apiKeyEnvVar(segments: string[]): string {
-  return `${segments.map((s) => s.toUpperCase()).join("_")}_API_KEY`;
-}
-
-function envValue(segments: string[]): string | null {
-  const value = process.env[apiKeyEnvVar(segments)]?.trim();
+function envValue(id: string): string | null {
+  const value = process.env[apiKeyEnvVar(id)]?.trim();
   return value ? value : null;
 }
 
@@ -122,62 +106,54 @@ export class ApiKeyStore {
   ) {}
 
   /** Whether a key resolves from either the environment or the stored file. */
-  async has(segments: string[], options: ResolveOptions = {}): Promise<boolean> {
-    return (await this.resolve(segments, options)) !== null;
+  async has(id: string): Promise<boolean> {
+    return (await this.resolve(id)) !== null;
   }
 
   /**
-   * Resolve a key's plaintext value, source-first (environment then stored,
-   * most→least specific), or null. `fallback: false` consults only the exact key.
+   * Resolve a key's plaintext value for the exact id: the environment variable,
+   * then the stored value, or null. There is no fallback to any other id.
    */
-  async resolve(segments: string[], options: ResolveOptions = {}): Promise<string | null> {
-    assertSegments(segments);
-    const levels = options.fallback === false ? [segments] : prefixes(segments);
-
-    for (const level of levels) {
-      const fromEnv = envValue(level);
-      if (fromEnv) return fromEnv;
-    }
+  async resolve(id: string): Promise<string | null> {
+    assertKeyId(id);
+    const fromEnv = envValue(id);
+    if (fromEnv) return fromEnv;
     return this.serialize(async () => {
       const all = await this.readFile();
-      for (const level of levels) {
-        const stored = all.keys[keyId(level)];
-        if (typeof stored === "string") {
-          const decoded = decodeApiKey(stored);
-          if (decoded === null) {
-            this.logger?.warn("stored api key value is malformed; treating as absent", {
-              mod: "api-keys",
-              keyId: keyId(level),
-            });
-            continue;
-          }
-          const key = decoded.trim();
-          if (key) return key;
-        }
+      const stored = all.keys[id];
+      if (typeof stored !== "string") return null;
+      const decoded = decodeApiKey(stored);
+      if (decoded === null) {
+        this.logger?.warn("stored api key value is malformed; treating as absent", {
+          mod: "api-keys",
+          keyId: id,
+        });
+        return null;
       }
-      return null;
+      const key = decoded.trim();
+      return key ? key : null;
     });
   }
 
   /** Persist a key (trimmed, obfuscated). A blank key clears it instead. */
-  set(segments: string[], value: string): Promise<void> {
-    assertSegments(segments);
+  set(id: string, value: string): Promise<void> {
+    assertKeyId(id);
     const trimmed = value.trim();
     return this.serialize(async () => {
       const all = await this.readFile();
-      if (trimmed.length === 0) delete all.keys[keyId(segments)];
-      else all.keys[keyId(segments)] = encodeApiKey(trimmed);
+      if (trimmed.length === 0) delete all.keys[id];
+      else all.keys[id] = encodeApiKey(trimmed);
       await this.write(all);
     });
   }
 
   /** Remove the stored key. Any environment value is unaffected. */
-  clear(segments: string[]): Promise<void> {
-    assertSegments(segments);
+  clear(id: string): Promise<void> {
+    assertKeyId(id);
     return this.serialize(async () => {
       const all = await this.readFile();
-      if (keyId(segments) in all.keys) {
-        delete all.keys[keyId(segments)];
+      if (id in all.keys) {
+        delete all.keys[id];
         await this.write(all);
       }
     });

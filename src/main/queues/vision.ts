@@ -75,15 +75,15 @@ export class VisionQueue {
   }
 
   async setGeminiApiKey(value: string): Promise<void> {
-    await this.#apiKeys.set(["gemini"], value);
+    await this.#apiKeys.set("gemini", value);
   }
 
   async hasGeminiApiKey(): Promise<boolean> {
-    return this.#apiKeys.has(["gemini"]);
+    return this.#apiKeys.has("gemini");
   }
 
   async clearGeminiApiKey(): Promise<void> {
-    await this.#apiKeys.clear(["gemini"]);
+    await this.#apiKeys.clear("gemini");
   }
 
   /**
@@ -174,7 +174,7 @@ export class VisionQueue {
     try {
       if (!isCurrent()) return;
       const startedAt = performance.now();
-      const apiKey = await this.#apiKeys.resolve(["gemini"]);
+      const apiKey = await this.#apiKeys.resolve("gemini");
       if (!apiKey) {
         throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }

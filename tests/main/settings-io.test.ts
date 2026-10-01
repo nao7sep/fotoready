@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import { closeBackupStore } from "@main/backup-store";
 import { defaultGlobalSettings } from "@shared/defaults";
+import type { GlobalSettings } from "@shared/types/settings";
 import type { AppLogger } from "@main/logger";
 
 const ENV_VAR = "FOTOREADY_DATA_DIR";
@@ -57,6 +58,59 @@ describe("settings by set", () => {
     await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
     await saveSettings(settingsPath(), { injectFields: { author: "John" } });
     expect(await written()).toEqual({ injectFields: { author: "John" } });
+  });
+
+  it("normalizes invalid range and shape patches before writing and reports each issue", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
+    const warn = vi.fn();
+    const patch = {
+      defaultWebpQuality: 999,
+      previewDebounceMs: 1.5,
+      defaultOutputFormat: "gif",
+      confirmDeleteTasks: "false",
+      injectFields: { author: 42 },
+      model: "",
+      writeSoftwareTag: false,
+    } as unknown as Partial<GlobalSettings>;
+
+    const effective = await saveSettings(settingsPath(), patch, [], { warn } as unknown as AppLogger);
+    const expected = {
+      defaultWebpQuality: 71,
+      injectFields: { author: "Jane" },
+      theme: "dark",
+      previewDebounceMs: defaults().previewDebounceMs,
+      defaultOutputFormat: defaults().defaultOutputFormat,
+      confirmDeleteTasks: defaults().confirmDeleteTasks,
+      model: defaults().model,
+      writeSoftwareTag: false,
+    };
+    expect(await written()).toEqual(expected);
+    expect(effective).toEqual({ ...defaults(), ...expected });
+    expect((await loadSettings(settingsPath())).settings).toEqual(effective);
+    expect(warn).toHaveBeenCalledTimes(6);
+    for (const key of ["defaultWebpQuality", "previewDebounceMs", "defaultOutputFormat", "confirmDeleteTasks", "injectFields.author", "model"]) {
+      expect(warn).toHaveBeenCalledWith("settings patch contained invalid data", {
+        mod: "settings",
+        issue: expect.stringContaining(`settings.${key}`),
+      });
+    }
+  });
+
+  it("normalizes metadata members without merging or writing absent sets", async () => {
+    await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
+    const injectFields = { author: "John", unknownField: "discard" };
+    await saveSettings(settingsPath(), { injectFields });
+    expect(await written()).toEqual({ injectFields: { author: "John" } });
+  });
+
+  it("preserves an untouched invalid stored set while validating a changed set", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, model: "unlisted-model" }));
+    const warn = vi.fn();
+    const effective = await saveSettings(settingsPath(), { visionMaxRetries: -1 }, [], { warn } as unknown as AppLogger);
+    expect(await written()).toEqual({ defaultWebpQuality: 999, model: "unlisted-model", visionMaxRetries: defaults().visionMaxRetries });
+    expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
+    expect(effective.model).toBe("unlisted-model");
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it("deletes reset prompts while retaining other saved sets", async () => {

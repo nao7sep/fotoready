@@ -62,10 +62,12 @@ export async function saveSettings(
   logger?: AppLogger
 ): Promise<GlobalSettings> {
   const { sets } = await readSettingsMap(settingsPath, logger);
+  const { settings: normalizedPatch, issues } = normalizeGlobalSettings(patch, effectiveSettings(sets));
+  for (const issue of issues) logger?.warn("settings patch contained invalid data", { mod: "settings", issue });
   const next: Record<string, unknown> = {};
   for (const key of SETTINGS_KEYS) {
     if (Object.hasOwn(sets, key)) next[key] = sets[key];
-    if (Object.hasOwn(patch, key)) next[key] = patch[key];
+    if (Object.hasOwn(patch, key)) next[key] = normalizedPatch[key];
     if (resetKeys.includes(key)) delete next[key];
   }
   // recorded: durable config sets use the managed atomic write and backup history.

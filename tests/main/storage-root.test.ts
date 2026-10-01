@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveStorageRoot } from "@main/storage-root";
 import { DATA_DIR_NAME } from "@shared/constants";
 
-const ENV_VAR = "FOTOREADY_HOME";
+const ENV_VAR = "FOTOREADY_DATA_DIR";
 
-describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
+describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
   let tmpBase: string;
   const original = process.env[ENV_VAR];
 
@@ -61,7 +61,7 @@ describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
     const filePath = path.join(tmpBase, "not-a-dir");
     fs.writeFileSync(filePath, "x");
     process.env[ENV_VAR] = filePath;
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
   });
 
   it("hard-errors on a reference to an unset $VAR, naming the variable (never a literal $VAR directory)", () => {
@@ -71,7 +71,7 @@ describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
     // app would create a directory literally named "$FOTOREADY_ROOT_TEST_UNSET".
     // Per the storage-path-conventions (and the mumbler/tapebox reference
     // shape), this is a reported startup error instead.
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/not set/);
     // And no literal-$VAR directory was materialized under HOME.
@@ -83,7 +83,7 @@ describe("resolveStorageRoot (FOTOREADY_HOME)", () => {
     process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_EMPTY";
     try {
       // Must throw rather than silently resolving to path.resolve(homeDir, "") === homeDir.
-      expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_HOME/);
+      expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
       expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/empty path/);
     } finally {
       delete process.env.FOTOREADY_ROOT_TEST_EMPTY;

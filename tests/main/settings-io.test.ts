@@ -11,7 +11,7 @@ import { normalizeGlobalSettings } from "@shared/validation/settings";
 // exercised end to end. Unlike volatile state.json, config.json IS materialized on first run
 // (storage-path conventions: built-in defaultable files exist on disk after first launch).
 
-const ENV_VAR = "FOTOREADY_HOME";
+const ENV_VAR = "FOTOREADY_DATA_DIR";
 const prevHome = process.env[ENV_VAR];
 
 let dir: string;
@@ -20,7 +20,7 @@ const defaults = () => defaultGlobalSettings(null);
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-settings-"));
-  // The write-through data-backup store resolves its file from FOTOREADY_HOME; point it at this test's
+  // The write-through data-backup store resolves its file from FOTOREADY_DATA_DIR; point it at this test's
   // throwaway root so saveSettings' record writes backups.sqlite3 HERE (cleaned up below) rather than the
   // developer's home dir. (findInvalid below already filters to config-*.invalid, so the store's own files
   // never confuse a directory assertion.)

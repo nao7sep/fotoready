@@ -11,9 +11,9 @@ import { getAppPaths } from "@main/paths";
 import { resolveLutDir } from "@main/lut-catalog";
 import { resolveStampDir } from "@main/stamp-catalog";
 
-const ENV_VAR = "FOTOREADY_HOME";
+const ENV_VAR = "FOTOREADY_DATA_DIR";
 
-describe("getAppPaths luts/stamps relocate with FOTOREADY_HOME", () => {
+describe("getAppPaths luts/stamps relocate with FOTOREADY_DATA_DIR", () => {
   let tmpBase: string;
   const original = process.env[ENV_VAR];
 

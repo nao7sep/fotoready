@@ -18,7 +18,7 @@ export type AppPaths = {
 // Standard subdirectories created under the storage root on first use.
 const STANDARD_SUBDIRS = ["logs"] as const;
 
-// Resolves the storage root from the home directory (honoring FOTOREADY_HOME),
+// Resolves the storage root from the home directory (honoring FOTOREADY_DATA_DIR),
 // never from the working directory or the code's location, and creates the root
 // plus its standard subdirs. An unusable override is a reported startup error.
 export function getDataDir(): string {

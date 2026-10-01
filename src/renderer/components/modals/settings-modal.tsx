@@ -507,7 +507,7 @@ function VisionTab({
 function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
   const { t } = useI18n();
   const fontFamilyListId = useId();
-  // Reflect the REAL resolved default (which relocates with FOTOREADY_HOME)
+  // Reflect the REAL resolved default (which relocates with FOTOREADY_DATA_DIR)
   // rather than a hardcoded ~/.fotoready path. Fall back to a generic label
   // until app info has loaded.
   const lutEmptyLabel = systemInfo ? t("settings.defaultFolder", { path: systemInfo.lutsDir }) : t("settings.defaultAppDataFolder");

@@ -10,13 +10,13 @@ import { defaultUiState } from "@shared/validation/state";
 // to end. state.json is volatile UI state: it must NOT be created on a first run, only once there
 // is real state to record.
 
-const ENV_VAR = "FOTOREADY_HOME";
+const ENV_VAR = "FOTOREADY_DATA_DIR";
 const prevHome = process.env[ENV_VAR];
 
 let dir: string;
 const statePath = () => path.join(dir, "state.json");
 
-// The write-through data-backup store resolves its file from FOTOREADY_HOME; point it at this test's
+// The write-through data-backup store resolves its file from FOTOREADY_DATA_DIR; point it at this test's
 // throwaway root so saveState's record writes backups.sqlite3 HERE (cleaned up below) instead of the
 // developer's home dir. Its files are normal SQLite artifacts under the root, filtered out of any
 // directory-contents assertion below (data-backup conventions).

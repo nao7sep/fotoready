@@ -16,7 +16,7 @@
  *
  * Rows are read back with an INDEPENDENT node:sqlite connection so the store's own writes — not a mock —
  * are what the assertions see. The session logger is swapped for a capturing one via setBackupLogger so warn
- * counts are exact. FOTOREADY_HOME points at a throwaway root so no test writes into the developer's home
+ * counts are exact. FOTOREADY_DATA_DIR points at a throwaway root so no test writes into the developer's home
  * dir, and the store singleton is closed + module-reset per test so each opens against its own root.
  */
 
@@ -29,7 +29,7 @@ import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { LogFields } from "@shared/types/log";
 
-const ENV_VAR = "FOTOREADY_HOME";
+const ENV_VAR = "FOTOREADY_DATA_DIR";
 
 // Capturing logger swapped in for the store's session logger so warn/error lines are asserted exactly and
 // nothing is written to the real session log.
@@ -251,7 +251,7 @@ describe("best-effort: a record failure never throws, logs one warn, and does no
   });
 
   it("logs one warn and disables recording for the session when the store cannot be opened", async () => {
-    // Point FOTOREADY_HOME at a path whose parent is a FILE, so mkdir + open cannot succeed. record must
+    // Point FOTOREADY_DATA_DIR at a path whose parent is a FILE, so mkdir + open cannot succeed. record must
     // not throw, must warn exactly once (open failure), and must no-op every subsequent call (no repeat
     // warn per save — disabled for the session).
     const blocker = path.join(root, "blocker");

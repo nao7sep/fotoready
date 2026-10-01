@@ -70,7 +70,7 @@ type App = Awaited<ReturnType<typeof startApp>>;
 
 /** Starts the main process on `home` the way src/main/bootstrap.ts does, minus the window. */
 async function startApp(home: string) {
-  process.env.FOTOREADY_HOME = home;
+  process.env.FOTOREADY_DATA_DIR = home;
   handlers.clear();
   const { getAppPaths } = await import("@main/paths");
   const { createLogger } = await import("@main/logger");

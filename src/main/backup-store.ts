@@ -1,6 +1,6 @@
 /**
  * The write-through data-backup store (data-backup conventions). It owns one add-only SQLite file,
- * `backups.sqlite3`, directly under fotoready's storage root (`FOTOREADY_HOME` or `~/.fotoready`, resolved
+ * `backups.sqlite3`, directly under fotoready's storage root (`FOTOREADY_DATA_DIR` or `~/.fotoready`, resolved
  * in one place by {@link resolveStorageRoot} — never a hardcoded path). Every managed *text* save records
  * the exact bytes it just wrote here, strictly AFTER its atomic rename lands, so the history is always as
  * current as the last save. There is no startup scan, no periodic pass, no restore path.
@@ -34,7 +34,7 @@ import type { Logger } from "@shared/types/log";
 import { resolveStorageRoot } from "./storage-root";
 
 /** The store file under the resolved storage root. Computed lazily (not frozen into a module constant at
- *  import time) so `FOTOREADY_HOME` is read after the environment is set, per the storage-path convention's
+ *  import time) so `FOTOREADY_DATA_DIR` is read after the environment is set, per the storage-path convention's
  *  caution against import-time resolution. */
 function storeFile(): string {
   return path.join(resolveStorageRoot(DATA_DIR_NAME), "backups.sqlite3");
@@ -186,7 +186,7 @@ export function record(absolutePath: string, bytes: Buffer): void {
 
 /** Close the store (best-effort). For tests that need to release the file handle between throwaway roots;
  *  the app itself lets the process exit close it. Resets the singleton so the next {@link record} re-opens
- *  against the current `FOTOREADY_HOME`. */
+ *  against the current `FOTOREADY_DATA_DIR`. */
 export function closeBackupStore(): void {
   try {
     db?.close();

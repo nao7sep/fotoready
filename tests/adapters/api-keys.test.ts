@@ -51,6 +51,42 @@ describe("ApiKeyStore", () => {
     expect(await store.resolve("gemini")).toBe("stored-key");
   });
 
+  it("peeks at the stored plaintext key even when the environment overrides resolution", async () => {
+    const store = new ApiKeyStore(filePath);
+    await store.set("gemini", "  stored-key  ");
+    process.env[GEMINI_ENV] = "env-key";
+
+    expect(await store.peek("gemini")).toBe("stored-key");
+    expect(await store.resolve("gemini")).toBe("env-key");
+    await store.clear("gemini");
+    expect(await store.peek("gemini")).toBeNull();
+    expect(await store.resolve("gemini")).toBe("env-key");
+  });
+
+  it("peeks only at the exact stored id and never materializes an environment key", async () => {
+    const store = new ApiKeyStore(filePath);
+    process.env[GEMINI_ENV] = "env-key";
+    process.env.GEMINI_VISION_API_KEY = "vision-env-key";
+
+    expect(await store.peek("gemini")).toBeNull();
+    expect(await store.peek("gemini.vision")).toBeNull();
+    expect(fs.existsSync(filePath)).toBe(false);
+    await store.set("gemini", "stored-key");
+    expect(await store.peek("gemini.vision")).toBeNull();
+    await store.set("gemini.vision", "stored-vision-key");
+    expect(await store.peek("gemini.vision")).toBe("stored-vision-key");
+  });
+
+  it("peeks at raw stored plaintext and treats malformed encoded values as absent", async () => {
+    fs.writeFileSync(filePath, `${JSON.stringify({ keys: { gemini: "  pasted-key  ", "gemini.vision": "obf:invalid!!" } })}\n`);
+    const store = new ApiKeyStore(filePath);
+    process.env[GEMINI_ENV] = "env-key";
+
+    expect(await store.peek("gemini")).toBe("pasted-key");
+    expect(await store.peek("gemini.vision")).toBeNull();
+    expect(() => store.peek("Gemini")).toThrow(/Invalid api-key id/);
+  });
+
   it("reports a key present via the environment even with no stored file", async () => {
     const store = new ApiKeyStore(filePath);
     process.env[GEMINI_ENV] = "env-only-key";

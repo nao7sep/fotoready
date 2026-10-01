@@ -118,6 +118,12 @@ export class ApiKeyStore {
     assertKeyId(id);
     const fromEnv = envValue(id);
     if (fromEnv) return fromEnv;
+    return this.peek(id);
+  }
+
+  /** Return the stored plaintext value for the exact id, ignoring the environment. */
+  peek(id: string): Promise<string | null> {
+    assertKeyId(id);
     return this.serialize(async () => {
       const all = await this.readFile();
       const stored = all.keys[id];

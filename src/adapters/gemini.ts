@@ -95,34 +95,32 @@ export class GeminiVisionProvider {
 
   private async generate(opts: VisionCallOptions & { model: string }, parts: Part[], featureConfig: GenerateContentConfig = {}): Promise<GenerateContentResponse> {
     // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
-    // one request, the signal spans every attempt and backoff, and an unknown outcome is
-    // returned to the user, never resent.
+    // each request, and a timed-out or otherwise unknown outcome is returned to the user, never resent.
     const ai = new GoogleGenAI({
       apiKey: this.apiKey,
       httpOptions: { baseUrl: this.endpoint, timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
     });
-    const signal = AbortSignal.timeout(opts.timeoutMs);
-    return callWithRetry(opts, signal, () => ai.models.generateContent({
+    return callWithRetry(opts, () => ai.models.generateContent({
       model: opts.model,
       contents: parts,
-      config: { ...modelConfig(opts.model), ...featureConfig, abortSignal: signal }
+      config: { ...modelConfig(opts.model), ...featureConfig }
     }));
   }
 }
 
-async function callWithRetry<T>(opts: VisionCallOptions, signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
-  const attempts = Math.min(3, Math.max(1, opts.maxRetries + 1));
+async function callWithRetry<T>(opts: VisionCallOptions, fn: () => Promise<T>): Promise<T> {
+  const attempts = Math.max(1, opts.maxRetries + 1);
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (signal.aborted || attempt === attempts - 1 || !isRetryable(error)) {
+      if (attempt === attempts - 1 || !isRetryable(error)) {
         throw error;
       }
       const delay = backoffDelayMs(opts.initialBackoffMs, attempt);
-      await sleep(delay, signal);
+      await sleep(delay);
     }
   }
   throw lastError;
@@ -140,13 +138,8 @@ function backoffDelayMs(initial: number, attempt: number): number {
   return Math.min(30000, base + jitter);
 }
 
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const abort = () => { clearTimeout(timer); reject(signal.reason); };
-    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, ms);
-    signal.addEventListener("abort", abort, { once: true });
-    if (signal.aborted) abort();
-  });
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function descriptionPrompt(prompt: string): string {

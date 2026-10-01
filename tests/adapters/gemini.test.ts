@@ -9,10 +9,13 @@ const opts = { model: "gemini-3.8-flash", descriptionPrompt: "Describe", timeout
 const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const };
 const ok = () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A mug." }] } }] }));
 const fail = (status: number) => new Response(JSON.stringify({ error: { message: "Please try later." } }), { status, headers: { "Content-Type": "application/json" } });
+const stall = (_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+  init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
+});
 const run = (overrides = {}) => new GeminiVisionProvider(key, "https://proxy.example/gemini").describeImage(request, { ...opts, ...overrides });
 
 beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("Gemini requests follow the id, independent of endpoint", () => {
   it.each([
@@ -46,10 +49,10 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
 });
 
 describe("Gemini resend policy", () => {
-  it.each([408, 429, 503])("caps %s at three total attempts", async (status) => {
+  it.each([408, 429, 503])("resends %s up to the retry setting", async (status) => {
     fetchMock.mockImplementation(async () => fail(status));
-    await expect(run()).rejects.toBeInstanceOf(ApiError);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await expect(run({ maxRetries: 5 })).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it.each([400, 404, 500, 502, 504])("returns %s to the waiting user without resending", async (status) => {
@@ -71,18 +74,33 @@ describe("Gemini resend policy", () => {
   });
 
   it("bounds a stalled call and does not retry a timeout", async () => {
-    const controller = new AbortController();
-    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
-    fetchMock.mockImplementation(async (_url, init) => new Promise<Response>((_resolve, reject) => {
-      init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
-    }));
-    const work = run();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
-    controller.abort(new DOMException("Timed out", "TimeoutError"));
-    await expect(work).rejects.toMatchObject({ name: "AbortError" });
-    expect(timeout).toHaveBeenCalledWith(60000);
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(stall);
+    const work = run({ timeoutMs: 1000 }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock.mock.calls[0]![1]!.signal!.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await work).toMatchObject({ name: "AbortError" });
     expect(fetchMock).toHaveBeenCalledOnce();
-    timeout.mockRestore();
+  });
+
+  it("gives each attempt its own full timeout", async () => {
+    vi.useFakeTimers();
+    const startedAt: number[] = [];
+    const abortedAt: number[] = [];
+    fetchMock
+      .mockImplementationOnce(() => { startedAt.push(Date.now()); return new Promise((resolve) => setTimeout(() => resolve(fail(503)), 800)); })
+      .mockImplementation((url, init) => {
+        startedAt.push(Date.now());
+        init!.signal!.addEventListener("abort", () => abortedAt.push(Date.now()), { once: true });
+        return stall(url, init);
+      });
+    const work = run({ timeoutMs: 1000 }).catch((error: unknown) => error);
+    await vi.runAllTimersAsync();
+    expect(await work).toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(startedAt[1]! - startedAt[0]!).toBeGreaterThanOrEqual(800);
+    expect(abortedAt[0]! - startedAt[1]!).toBe(1000);
   });
 
   it.each(["SAFETY", "PROHIBITED_CONTENT"])("returns candidate refusal %s without retries", async (finishReason) => {

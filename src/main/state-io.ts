@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } from "@shared/validation/state";
-import { writeManagedFile } from "./write-managed-file";
+import { atomicWriteFile } from "@adapters/atomic-file";
 import type { AppLogger } from "./logger";
 
 type StateClassification =
@@ -46,9 +46,9 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  // recorded: state.json is user-meaningful managed text — pane widths and histogram placement. It
-  // is recorded on every save deliberately; dedup absorbs the interaction churn.
-  await writeManagedFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
+  // not recorded: state.json is volatile UI state and nothing else (pane widths, histogram placement),
+  // so it stays out of the backup history; the write is still atomic.
+  await atomicWriteFile(statePath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
 export type StateCoordinator = {

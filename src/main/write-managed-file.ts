@@ -1,7 +1,7 @@
 /**
  * The single managed-text atomic-write choke point (data-backup + storage-path conventions). Every durable
- * text file fotoready OWNS and reloads as its own state — `config.json` (settings-io) and `state.json`
- * (state-io) — is written through this one helper, so the data-backup hook lives in exactly ONE place. A
+ * text file fotoready OWNS and reloads as its own data — `config.json` (settings-io) — is written
+ * through this one helper, so the data-backup hook lives in exactly ONE place. A
  * managed-text write that bypasses this helper is a silent backup gap.
  *
  * It delegates the atomic temp-then-rename to {@link atomicWriteFile} (the layer-neutral writer shared with
@@ -10,7 +10,7 @@
  * silent: {@link record} catches, logs once at `warn`, and swallows every failure, so a backup problem can
  * never throw back into this write or affect the save's success.
  *
- * Not every atomic write is a managed-text write. Secrets, imported instruments, output images and
+ * Not every atomic write is a managed-text write. Volatile state (`state.json`), secrets, imported instruments, output images and
  * sidecars, logs, and recovery artifacts keep using their own unrecorded paths, with the reason beside
  * each logical write site. That per-write-site split IS the record/no-record decision, made at authoring
  * time by the call site, never by sniffing content here.

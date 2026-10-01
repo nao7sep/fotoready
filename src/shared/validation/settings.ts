@@ -48,11 +48,9 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
-    provider: readValue(source, "provider", fallback.provider, issues, (value, path) => assertOneOf(value, path, ["gemini"])),
     "gemini.endpoint": readValue(source, "gemini.endpoint", fallback["gemini.endpoint"], issues, assertModelEndpoint),
     "gemini.description": readValue(source, "gemini.description", fallback["gemini.description"], issues, assertNonEmptyString),
     "gemini.slug": readValue(source, "gemini.slug", fallback["gemini.slug"], issues, assertNonEmptyString),
-    extraModelIds: readValue(source, "extraModelIds", fallback.extraModelIds, issues, validateExtraModelIds),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
@@ -122,11 +120,4 @@ export function assertModelEndpoint(value: unknown, field: string): string {
     throw new Error(`${field} must be an HTTP(S) endpoint without credentials, a query, or a fragment.`);
   }
   return endpoint;
-}
-
-function validateExtraModelIds(value: unknown, field: string): GlobalSettings["extraModelIds"] {
-  const record = assertRecord(value, field);
-  if (record.gemini === undefined) return {};
-  if (!Array.isArray(record.gemini)) throw new Error(`${field}.gemini must be an array.`);
-  return { gemini: record.gemini.map((id, index) => assertNonEmptyString(id, `${field}.gemini[${index}]`)) };
 }

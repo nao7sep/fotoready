@@ -24,7 +24,6 @@ const api: FotoReadyApi = {
   },
   settings: {
     get: () => ipcRenderer.invoke("settings.get"),
-    models: (request) => ipcRenderer.invoke("settings.models", request),
     update: (patch) => ipcRenderer.invoke("settings.update", patch),
     hasGeminiApiKey: () => ipcRenderer.invoke("settings.hasGeminiApiKey"),
     setGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings.setGeminiApiKey", apiKey),

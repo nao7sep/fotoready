@@ -10,7 +10,6 @@ import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
 
 let root: Root;
 const log = vi.fn(async () => undefined);
-const models = vi.fn<(request: { endpoint: string; force?: boolean }) => Promise<string[]>>();
 const pickDirectory = vi.fn<() => Promise<string | null>>();
 const hostile = new Error("Error invoking remote method: EACCES /private/tmp/FOTOREADY_SETTINGS_SENTINEL");
 
@@ -18,9 +17,7 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>';
   log.mockClear();
   pickDirectory.mockReset();
-  models.mockReset();
-  models.mockResolvedValue(["gemini-3.99-future"]);
-  vi.stubGlobal("api", { system: { log, pickDirectory }, settings: { models } });
+  vi.stubGlobal("api", { system: { log, pickDirectory } });
   root = createRoot(document.querySelector("#root")!);
 });
 
@@ -58,26 +55,37 @@ describe("AppSettingsModal UI font", () => {
   });
 });
 
-describe("AppSettingsModal open role models", () => {
-  it("offers role suggestions, fetched ids, extras, and an unchanged out-of-list selection", async () => {
-    const settings = { ...defaultGlobalSettings(), "gemini.description": "old-typed-id", extraModelIds: { gemini: ["custom-extra"] } };
-    await renderSettings({ initialTab: "vision", settings, hasGeminiApiKey: true });
-    const description = [...document.querySelectorAll<HTMLSelectElement>("select")].find((select) => select.getAttribute("aria-label") === "Description model")!;
-    expect(description.value).toBe("old-typed-id");
-    expect([...description.querySelectorAll("optgroup")].map((group) => group.label)).toEqual(["Suggested models", "Provider models", "Extra model IDs (one per line)"]);
-    expect([...description.options].map((option) => option.value)).toEqual(["gemini-3.8-flash", "gemini-3.99-future", "custom-extra", "old-typed-id"]);
-    expect(description.selectedOptions[0]?.textContent).toBe("old-typed-id (out of list)");
-    const slug = document.querySelector<HTMLSelectElement>('select[aria-label="Slug model"]')!;
-    expect(slug.querySelector("optgroup")?.textContent).toBe("gemini-3.5-flash-lite");
-    expect(models).toHaveBeenCalledOnce();
-    expect(models).toHaveBeenCalledWith({ endpoint: settings["gemini.endpoint"], force: false, useStoredKey: true });
+describe("AppSettingsModal Gemini section", () => {
+  it("lays out the section in order, with free-typed model fields and no list", async () => {
+    await renderSettings({ initialTab: "vision", hasGeminiApiKey: true });
+    const sections = [...document.querySelectorAll(".settings-page section")];
+    expect(sections[0]?.querySelector("h3")?.textContent).toBe("Gemini");
+    expect(sections[0]?.querySelector(":scope > .field-help")?.textContent).toBe("Gemini is the only provider supported.");
+    const fields = [...sections[0]!.querySelectorAll(".stacked-field")].map((field) => field.firstChild?.textContent);
+    expect(fields).toEqual(["Endpoint", "API key", "Description model", "Slug model"]);
+    expect(fieldOf("Endpoint").input.value).toBe(defaultGlobalSettings()["gemini.endpoint"]);
+    expect(fieldOf("Endpoint").help).toContain("The address FotoReady sends Gemini requests to.");
+    expect(fieldOf("Description model").input.value).toBe("gemini-3.8-flash");
+    expect(fieldOf("Description model").help).toContain("Writes the one-sentence description of each photo.");
+    expect(fieldOf("Slug model").help).toContain("Suggests file names from the description.");
+    expect(sections[1]?.querySelector("h3")).toBeNull();
+    expect(sections[1]?.querySelector(".stacked-field")?.textContent).toContain("Vision image long edge");
+    expect(sections[2]?.querySelector("h3")?.textContent).toBe("Prompts");
+    expect(document.querySelectorAll(".settings-page select")).toHaveLength(0);
+    expect(button("Refresh models")).toBeUndefined();
+    expect(document.querySelector(".field-warning")).toBeNull();
+  });
+
+  it("warns under an id with no supported row, and matches a row trimmed and case-insensitively", async () => {
+    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": " GEMINI-3.8-FLASH ", "gemini.slug": "typed-unknown" } });
+    expect(fieldOf("Description model").warning).toBeNull();
+    expect(fieldOf("Slug model").warning).toBe("Not a supported model. It may not work as expected.");
   });
 
   it("lets a user type an unknown role id into the draft without replacing any other role", async () => {
     const setSettingsDraft = vi.fn();
     await renderSettings({ initialTab: "vision", setSettingsDraft });
-    const label = [...document.querySelectorAll("label")].find((candidate) => candidate.textContent === "Description model")!;
-    const input = document.getElementById(label.htmlFor) as HTMLInputElement;
+    const input = fieldOf("Description model").input;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "typed-any-model");
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -85,18 +93,10 @@ describe("AppSettingsModal open role models", () => {
     expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ "gemini.description": "typed-any-model", "gemini.slug": "gemini-3.5-flash-lite" }));
   });
 
-  it("refreshes only on open or an explicit Refresh", async () => {
-    const settings = defaultGlobalSettings();
-    await renderSettings({ initialTab: "vision", settings, hasGeminiApiKey: true });
-    await renderSettings({ initialTab: "vision", settings: { ...settings, visionConcurrency: 4 }, hasGeminiApiKey: true });
-    expect(models).toHaveBeenCalledOnce();
-    await clickButton("Refresh models");
-    expect(models).toHaveBeenCalledTimes(2);
-    expect(models).toHaveBeenLastCalledWith({ endpoint: settings["gemini.endpoint"], force: true, useStoredKey: true });
-  });
-
-  it("disables Save for an empty role id without validating against a provider list", async () => {
+  it("disables Save for an empty role id or an invalid endpoint, not for an unsupported id", async () => {
     await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.slug": "" } });
+    expect(document.querySelector<HTMLButtonElement>("button.primary-action")?.disabled).toBe(true);
+    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.endpoint": "not a url" } });
     expect(document.querySelector<HTMLButtonElement>("button.primary-action")?.disabled).toBe(true);
     await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.slug": "unknown-allowed" } });
     expect(document.querySelector<HTMLButtonElement>("button.primary-action")?.disabled).toBe(false);
@@ -220,4 +220,13 @@ async function clickButton(label: string): Promise<void> {
 function button(label: string): HTMLButtonElement | undefined {
   return [...document.querySelectorAll<HTMLButtonElement>("button")]
     .find((candidate) => candidate.textContent === label);
+}
+
+function fieldOf(label: string): { input: HTMLInputElement; help: string; warning: string | null } {
+  const field = [...document.querySelectorAll(".settings-page .stacked-field")].find((candidate) => candidate.firstChild?.textContent === label)!;
+  return {
+    input: field.querySelector("input")!,
+    help: [...field.querySelectorAll(".field-help")].map((help) => help.textContent).join(" "),
+    warning: field.querySelector(".field-warning")?.textContent ?? null
+  };
 }

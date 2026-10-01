@@ -8,7 +8,6 @@ export type AppPaths = {
   settingsPath: string;
   statePath: string;
   apiKeysPath: string;
-  modelListsPath: string;
   logsDir: string;
   lutsDir: string;
   stampsDir: string;
@@ -33,7 +32,6 @@ export function getAppPaths(): AppPaths {
     settingsPath: path.join(dataDir, "config.json"),
     statePath: path.join(dataDir, "state.json"),
     apiKeysPath: path.join(dataDir, "api-keys.json"),
-    modelListsPath: path.join(dataDir, "model-lists.json"),
     logsDir: path.join(dataDir, "logs"),
     lutsDir: path.join(dataDir, "luts"),
     stampsDir: path.join(dataDir, "stamps"),

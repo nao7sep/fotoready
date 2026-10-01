@@ -22,9 +22,6 @@ import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
-import { assertModelEndpoint } from "@shared/validation/settings";
-import { ModelLists } from "./model-lists";
-import { ApiKeyStore } from "@adapters/api-keys";
 import { message } from "@shared/i18n/translate";
 
 export type RouterContext = {
@@ -39,7 +36,6 @@ export type RouterContext = {
 
 export function registerIpcHandlers(ctx: RouterContext): void {
   const assetThumbnailCache = new AssetThumbnailCache();
-  const modelLists = new ModelLists(ctx.paths.modelListsPath, () => new ApiKeyStore(ctx.paths.apiKeysPath, ctx.logger).resolve("gemini"), ctx.logger);
 
   // Single IPC chokepoint: every handler is logged once on completion with its
   // duration and outcome, and any thrown failure is logged at `error` before it
@@ -168,16 +164,6 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
-  handle("settings.models", "debug", async (_event, request: unknown) => {
-    if (!isRecord(request) || typeof request.endpoint !== "string") throw new Error("Invalid model-list request.");
-    assertModelEndpoint(request.endpoint, "model list endpoint");
-    return modelLists.load({
-      endpoint: request.endpoint,
-      force: request.force === true,
-      apiKey: typeof request.apiKey === "string" ? request.apiKey : undefined,
-      useStoredKey: request.useStoredKey !== false
-    });
-  });
   handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>) => {
     return serializeSettings(async () => {
       const settings = await saveSettings(ctx.paths.settingsPath, isRecord(patch) ? patch : {}, ctx.logger);

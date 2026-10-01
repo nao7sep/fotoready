@@ -2902,6 +2902,13 @@ select:disabled {
   line-height: 1.4;
 }
 
+/* One line under a field whose value the app does not support but still accepts. */
+.field-warning {
+  color: var(--warning-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* Two balanced columns of sections, falling back to one when the surface is too
    narrow for both — which is what UI zoom does to the Wide modal's width. Each
    column is its own stack, so the sections keep their order down one column and

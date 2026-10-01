@@ -70,12 +70,10 @@ export type GlobalSettings = {
   jpegProgressive: boolean;
   webpMethod: number;
   avifEffort: number;
-  provider: "gemini";
   "gemini.endpoint": string;
   // Selected ids remain open; only the provider decides whether they work.
   "gemini.description": string;
   "gemini.slug": string;
-  extraModelIds: { gemini?: string[] };
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;
   visionSlugPrompt: string;

@@ -6,7 +6,7 @@ import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
-import { GEMINI_MODELS, defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
+import { GEMINI_MODELS } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
 import { OperationResult } from "../operation-result";
@@ -62,6 +62,7 @@ export function AppSettingsModal({
   onKeepApiKey,
   onClose,
   onSaveSettings,
+  onResetPrompt,
   settingsDraft,
   setSettingsDraft,
   systemInfo
@@ -76,6 +77,7 @@ export function AppSettingsModal({
   onKeepApiKey(): void;
   onClose(): void;
   onSaveSettings(): Promise<void>;
+  onResetPrompt(key: "visionDescriptionPrompt" | "visionSlugPrompt"): void;
   settingsDraft: GlobalSettings | null;
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
@@ -194,6 +196,7 @@ export function AppSettingsModal({
               onApiKeyDraftChange={updateApiKeyDraft}
               onClearApiKey={() => { setSaveFailure(null); onClearApiKey(); }}
               onKeepApiKey={() => { setSaveFailure(null); onKeepApiKey(); }}
+              onResetPrompt={(key) => { setSaveFailure(null); onResetPrompt(key); }}
               settings={settingsDraft}
               setSettings={updateSettingsDraft}
             />
@@ -373,6 +376,7 @@ function VisionTab({
   onApiKeyDraftChange,
   onClearApiKey,
   onKeepApiKey,
+  onResetPrompt,
   settings,
   setSettings
 }: SettingsProps & {
@@ -382,6 +386,7 @@ function VisionTab({
   onApiKeyDraftChange(value: string): void;
   onClearApiKey(): void;
   onKeepApiKey(): void;
+  onResetPrompt(key: "visionDescriptionPrompt" | "visionSlugPrompt"): void;
 }): React.JSX.Element {
   const { t } = useI18n();
   return (
@@ -480,8 +485,7 @@ function VisionTab({
             className="toolbar-button"
             type="button"
             style={{ justifySelf: "start" }}
-            disabled={settings.visionDescriptionPrompt === defaultVisionDescriptionPrompt}
-            onClick={() => setSettings({ ...settings, visionDescriptionPrompt: defaultVisionDescriptionPrompt })}
+            onClick={() => onResetPrompt("visionDescriptionPrompt")}
           >
             {t("settings.resetDescriptionPrompt")}
           </button>
@@ -493,8 +497,7 @@ function VisionTab({
             className="toolbar-button"
             type="button"
             style={{ justifySelf: "start" }}
-            disabled={settings.visionSlugPrompt === defaultVisionSlugPrompt}
-            onClick={() => setSettings({ ...settings, visionSlugPrompt: defaultVisionSlugPrompt })}
+            onClick={() => onResetPrompt("visionSlugPrompt")}
           >
             {t("settings.resetSlugPrompt")}
           </button>

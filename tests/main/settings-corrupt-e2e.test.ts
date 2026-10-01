@@ -23,8 +23,8 @@ describe("a corrupt settings file on disk", () => {
 
     expect(quarantinedTo).toEqual(expect.stringContaining(".invalid"));
     expect(readFileSync(quarantinedTo as string, "utf8")).toBe(corrupt);
-    // The reset wrote fresh defaults at the original path, beside the preserved copy.
-    expect(readdirSync(dir)).toContain("config.json");
+    // Recovery starts as a fresh install, leaving no seeded replacement.
+    expect(readdirSync(dir)).not.toContain("config.json");
   });
 
   it("reports nothing for a sound file and leaves it untouched", async () => {

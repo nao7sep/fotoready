@@ -105,6 +105,9 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
   };
 }
 
+// The built-in map declares every known config set; each top-level key is saved independently.
+export const SETTINGS_KEYS = Object.keys(defaultGlobalSettings()) as (keyof GlobalSettings)[];
+
 export function createEmptyProject(outputDir: string | null = null): Project {
   return {
     outputDir,

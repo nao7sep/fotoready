@@ -34,20 +34,20 @@ describe("normalizeGlobalSettings", () => {
     expect(settings).toEqual(fallback);
   });
 
-  it("forces description generation on when slug generation is on", () => {
+  it("preserves description selection independently of the slug set", () => {
     const { settings } = normalizeGlobalSettings(
       { ...fallback, defaultGenerateSlug: true, defaultGenerateDescription: false },
       fallback
     );
-    expect(settings.defaultGenerateDescription).toBe(true);
+    expect(settings.defaultGenerateDescription).toBe(false);
   });
 
-  it("downgrades jpeg quality mode to fixed when the estimate is disabled", () => {
+  it("preserves jpeg quality mode independently of the estimate set", () => {
     const { settings } = normalizeGlobalSettings(
       { ...fallback, enableJpegQualityEstimate: false, jpegQualityMode: "auto" },
       fallback
     );
-    expect(settings.jpegQualityMode).toBe("fixed");
+    expect(settings.jpegQualityMode).toBe("auto");
   });
 
   it("accepts a null worker pool size", () => {
@@ -81,7 +81,7 @@ describe("normalizeGlobalSettings", () => {
     for (const language of ["zh-TW", "pt", "Deutsch", 7]) {
       const { settings, issues } = normalizeGlobalSettings({ ...fallback, language }, fallback);
       expect(settings.language).toBe("system");
-      expect(issues).toEqual([]);
+      expect(issues).toHaveLength(1);
     }
   });
 

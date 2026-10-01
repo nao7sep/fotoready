@@ -133,6 +133,7 @@ async function renderSettings({
       onKeepApiKey: () => undefined,
       onClose: () => undefined,
       onSaveSettings,
+      onResetPrompt: vi.fn(),
       settingsDraft: settings,
       setSettingsDraft,
       systemInfo: null

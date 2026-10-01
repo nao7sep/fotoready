@@ -20,7 +20,6 @@ import type { StateCoordinator } from "@main/state-io";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
-import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
 import { message } from "@shared/i18n/translate";
@@ -165,14 +164,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
-  handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>) => {
+  handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>, resetKeys: (keyof GlobalSettings)[] = []) => {
     return serializeSettings(async () => {
-      const nextCandidate = isRecord(patch) ? { ...ctx.settings, ...patch } : ctx.settings;
-      const { settings, issues } = normalizeGlobalSettings(nextCandidate, ctx.settings);
-      for (const issue of issues) {
-        ctx.logger.warn("settings patch contained invalid data", { mod: "main.ipc", issue });
-      }
-      await saveSettings(ctx.paths.settingsPath, settings);
+      const settings = await saveSettings(ctx.paths.settingsPath, isRecord(patch) ? patch : {}, resetKeys, ctx.logger);
       Object.assign(ctx.settings, settings);
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
       // localization-conventions). A language change rebuilds the menu bar and reaches every window.

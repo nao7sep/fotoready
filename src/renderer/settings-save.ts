@@ -1,3 +1,4 @@
+import { SETTINGS_KEYS } from "@shared/defaults";
 import type { GlobalSettings } from "@shared/types/settings";
 
 /** Persist each independent settings substep and reconcile its draft immediately after commit. */
@@ -8,7 +9,8 @@ export async function persistSettingsChanges({
   onApiKeyCleared,
   onApiKeyStored,
   onSettingsStored,
-  settingsDirty,
+  settings,
+  resetKeys,
   settingsDraft,
   setApiKey,
   updateSettings
@@ -19,10 +21,11 @@ export async function persistSettingsChanges({
   onApiKeyCleared(): void;
   onApiKeyStored(): void;
   onSettingsStored(settings: GlobalSettings): void;
-  settingsDirty: boolean;
+  settings: GlobalSettings;
+  resetKeys: (keyof GlobalSettings)[];
   settingsDraft: GlobalSettings;
   setApiKey(apiKey: string): Promise<void>;
-  updateSettings(settings: GlobalSettings): Promise<GlobalSettings>;
+  updateSettings(patch: Partial<GlobalSettings>, resetKeys: (keyof GlobalSettings)[]): Promise<GlobalSettings>;
 }): Promise<void> {
   if (apiKeyClearRequested) {
     await clearApiKey();
@@ -32,7 +35,18 @@ export async function persistSettingsChanges({
     onApiKeyStored();
   }
 
-  if (settingsDirty) {
-    onSettingsStored(await updateSettings(settingsDraft));
+  const patch = changedSettings(settings, settingsDraft, resetKeys);
+  if (Object.keys(patch).length || resetKeys.length) {
+    onSettingsStored(await updateSettings(patch, resetKeys));
   }
+}
+
+export function changedSettings(
+  effective: GlobalSettings,
+  draft: GlobalSettings,
+  resetKeys: (keyof GlobalSettings)[] = []
+): Partial<GlobalSettings> {
+  return Object.fromEntries(SETTINGS_KEYS
+    .filter((key) => !resetKeys.includes(key) && JSON.stringify(draft[key]) !== JSON.stringify(effective[key]))
+    .map((key) => [key, draft[key]])) as Partial<GlobalSettings>;
 }

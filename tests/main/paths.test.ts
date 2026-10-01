@@ -3,6 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The resolver imports os's default object while the catalogs import the
+// named homedir function; both must see the same disposable home.
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:os")>();
+  const homedir = vi.fn<() => string>();
+  return { ...actual, homedir, default: { ...actual, homedir } };
+});
+
 // paths.ts statically imports `app` from electron, which is not available under
 // the vitest node environment, so stub it to a minimal non-packaged app.
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
@@ -13,21 +21,26 @@ import { resolveStampDir } from "@main/stamp-catalog";
 
 const ENV_VAR = "FOTOREADY_DATA_DIR";
 
+let tmpBase: string;
+let tmpHome: string;
+
+beforeEach(() => {
+  tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-paths-"));
+  tmpHome = path.join(tmpBase, "home");
+  fs.mkdirSync(tmpHome);
+  // getAppPaths creates and tightens the default root too, so isolate every
+  // path case rather than only cases that supply the relocation override.
+  vi.mocked(os.homedir).mockReturnValue(tmpHome);
+  vi.stubEnv(ENV_VAR, undefined);
+});
+
+afterEach(() => {
+  vi.mocked(os.homedir).mockReset();
+  vi.unstubAllEnvs();
+  fs.rmSync(tmpBase, { recursive: true, force: true });
+});
+
 describe("getAppPaths luts/stamps relocate with FOTOREADY_DATA_DIR", () => {
-  let tmpBase: string;
-  const original = process.env[ENV_VAR];
-
-  beforeEach(() => {
-    tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-paths-"));
-    delete process.env[ENV_VAR];
-  });
-
-  afterEach(() => {
-    if (original === undefined) delete process.env[ENV_VAR];
-    else process.env[ENV_VAR] = original;
-    fs.rmSync(tmpBase, { recursive: true, force: true });
-  });
-
   it("places lutsDir/stampsDir under the override root", () => {
     const target = path.join(tmpBase, "relocated");
     process.env[ENV_VAR] = target;
@@ -39,27 +52,13 @@ describe("getAppPaths luts/stamps relocate with FOTOREADY_DATA_DIR", () => {
 
   it("places lutsDir/stampsDir under the default root when the override is unset", () => {
     const paths = getAppPaths();
-    const defaultRoot = path.join(os.homedir(), ".fotoready");
+    const defaultRoot = path.join(tmpHome, ".fotoready");
     expect(paths.lutsDir).toBe(path.join(defaultRoot, "luts"));
     expect(paths.stampsDir).toBe(path.join(defaultRoot, "stamps"));
   });
 });
 
 describe("getAppPaths storage filenames", () => {
-  let tmpBase: string;
-  const original = process.env[ENV_VAR];
-
-  beforeEach(() => {
-    tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-paths-"));
-    delete process.env[ENV_VAR];
-  });
-
-  afterEach(() => {
-    if (original === undefined) delete process.env[ENV_VAR];
-    else process.env[ENV_VAR] = original;
-    fs.rmSync(tmpBase, { recursive: true, force: true });
-  });
-
   it("resolves the durable settings to config.json under the storage root", () => {
     const target = path.join(tmpBase, "relocated");
     process.env[ENV_VAR] = target;
@@ -93,8 +92,8 @@ describe("resolveLutDir / resolveStampDir", () => {
   });
 
   it("expands a leading ~ in a custom folder against the home directory", () => {
-    expect(resolveLutDir("~/x", defaultLutDir)).toBe(path.join(os.homedir(), "x"));
-    expect(resolveStampDir("~/x", defaultStampDir)).toBe(path.join(os.homedir(), "x"));
+    expect(resolveLutDir("~/x", defaultLutDir)).toBe(path.join(tmpHome, "x"));
+    expect(resolveStampDir("~/x", defaultStampDir)).toBe(path.join(tmpHome, "x"));
   });
 
   it("returns an absolute custom folder unchanged", () => {

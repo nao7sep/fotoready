@@ -16,10 +16,9 @@ const prevHome = process.env[ENV_VAR];
 let dir: string;
 const statePath = () => path.join(dir, "state.json");
 
-// The write-through data-backup store resolves its file from FOTOREADY_DATA_DIR; point it at this test's
-// throwaway root so saveState's record writes backups.sqlite3 HERE (cleaned up below) instead of the
-// developer's home dir. Its files are normal SQLite artifacts under the root, filtered out of any
-// directory-contents assertion below (data-backup conventions).
+// The root override keeps these tests isolated from the developer's data. saveState does not
+// record volatile UI state in backups.sqlite3; any backup-store artifacts are excluded from the
+// state-directory assertions below.
 const STORE_FILES = new Set(["backups.sqlite3", "backups.sqlite3-wal", "backups.sqlite3-shm"]);
 const withoutStoreFiles = (files: string[]): string[] => files.filter((f) => !STORE_FILES.has(f));
 

@@ -86,11 +86,13 @@ describe("Gemini model-list transport", () => {
     const signal = new AbortController().signal;
     await expect(fetchGeminiModelIds(endpoint, key, signal)).resolves.toEqual(["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
     expect(String(fetchMock.mock.calls[1]![0])).toContain("pageToken=next");
-    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "GET", redirect: "error", signal, headers: { "x-goog-api-key": key } });
+    expect(String(fetchMock.mock.calls[0]![0])).toBe(`${endpoint}/v1beta/models?pageSize=1000`);
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "GET", signal: expect.any(AbortSignal) });
+    expect(new Headers(fetchMock.mock.calls[0]![1]!.headers).get("x-goog-api-key")).toBe(key);
   });
 
   it("rejects a malformed list instead of recording a false empty success", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ models: "wrong" }))));
-    await expect(fetchGeminiModelIds(endpoint, key, new AbortController().signal)).rejects.toThrow("invalid model list");
+    await expect(fetchGeminiModelIds(endpoint, key, new AbortController().signal)).rejects.toThrow("invalid model entry");
   });
 });

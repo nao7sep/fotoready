@@ -1,5 +1,4 @@
-import { ApiError } from "@google/genai";
-import { GeminiApiError, geminiRequest, geminiUrl } from "./gemini-http";
+import { ApiError, GoogleGenAI, Type, type GenerateContentResponse, type Part } from "@google/genai";
 import { modelParameters } from "./gemini-model-registry";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
@@ -41,13 +40,13 @@ export class VisionProviderFailure extends Error {
 }
 
 const SLUG_RESPONSE_SCHEMA = {
-  type: "OBJECT",
+  type: Type.OBJECT,
   properties: {
     slugs: {
-      type: "ARRAY",
+      type: Type.ARRAY,
       minItems: "3",
       maxItems: "5",
-      items: { type: "STRING" }
+      items: { type: Type.STRING }
     }
   },
   required: ["slugs"]
@@ -62,36 +61,30 @@ export class GeminiVisionProvider {
       { text: descriptionPrompt(opts.descriptionPrompt) }
     ], 1024);
     assertUsableResponse(response, "image");
-    return parseDescription(responseText(response));
+    return parseDescription(response.text ?? "");
   }
 
   async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
     const response = await this.generate(opts, [{ text: slugPrompt(description, opts.slugPrompt) }], 512, SLUG_RESPONSE_SCHEMA);
     assertUsableResponse(response, "description");
-    return parseSlugs(responseText(response));
+    return parseSlugs(response.text ?? "");
   }
 
-  private async generate(opts: VisionCallOptions & { model: string }, parts: unknown[], ceiling: number, schema?: typeof SLUG_RESPONSE_SCHEMA): Promise<GeminiResponse> {
-    // Raw fetch carries no SDK retry layer. The timeout spans every attempt and
-    // backoff, and an unknown outcome is returned to the user, never resent.
+  private async generate(opts: VisionCallOptions & { model: string }, parts: Part[], ceiling: number, schema?: typeof SLUG_RESPONSE_SCHEMA): Promise<GenerateContentResponse> {
+    // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
+    // one request, the signal spans every attempt and backoff, and an unknown outcome is
+    // returned to the user, never resent.
+    const ai = new GoogleGenAI({
+      apiKey: this.apiKey,
+      httpOptions: { baseUrl: this.endpoint, timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
+    });
     const signal = AbortSignal.timeout(opts.timeoutMs);
-    const response = await callWithRetry(opts, signal, () => geminiRequest(
-      geminiUrl(this.endpoint, `models/${encodeURIComponent(opts.model.replace(/^models\//, ""))}:generateContent`),
-      this.apiKey, signal,
-      { contents: [{ role: "user", parts }], generationConfig: modelParameters(opts.model, ceiling, schema) }
-    ));
-    if (!isRecord(response)) throw new VisionProviderFailure("invalid-response", "Gemini returned a non-object response.");
-    return response as GeminiResponse;
+    return callWithRetry(opts, signal, () => ai.models.generateContent({
+      model: opts.model,
+      contents: parts,
+      config: { ...modelParameters(opts.model, ceiling, schema), abortSignal: signal }
+    }));
   }
-}
-
-type GeminiResponse = {
-  promptFeedback?: { blockReason?: string };
-  candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
-};
-
-function responseText(response: GeminiResponse): string {
-  return response.candidates?.[0]?.content?.parts?.filter((part) => !part.thought).map((part) => part.text ?? "").join("") ?? "";
 }
 
 async function callWithRetry<T>(opts: VisionCallOptions, signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
@@ -105,7 +98,7 @@ async function callWithRetry<T>(opts: VisionCallOptions, signal: AbortSignal, fn
       if (signal.aborted || attempt === attempts - 1 || !isRetryable(error)) {
         throw error;
       }
-      const delay = backoffDelayMs(opts.initialBackoffMs, attempt, retryAfterMs(error));
+      const delay = backoffDelayMs(opts.initialBackoffMs, attempt);
       await sleep(delay, signal);
     }
   }
@@ -118,22 +111,10 @@ function isRetryable(error: unknown): boolean {
   return isRecord(cause) && ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"].includes(String(cause.code));
 }
 
-function backoffDelayMs(initial: number, attempt: number, retryAfter: number | null): number {
-  if (retryAfter !== null) return Math.min(30000, retryAfter);
+function backoffDelayMs(initial: number, attempt: number): number {
   const base = initial * Math.pow(2, attempt);
   const jitter = Math.random() * initial;
   return Math.min(30000, base + jitter);
-}
-
-function retryAfterMs(error: unknown): number | null {
-  if (!error || typeof error !== "object") return null;
-  const value = error instanceof GeminiApiError ? error.retryAfter : null;
-  if (!value) return null;
-  const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const date = Date.parse(value);
-  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
-  return null;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {

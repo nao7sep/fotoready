@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
+import { GoogleGenAI } from "@google/genai";
 import { atomicWriteFile } from "@adapters/atomic-file";
-import { geminiRequest, geminiUrl } from "@adapters/gemini-http";
 import { resolveModel } from "@adapters/gemini-model-registry";
 import { isRecord } from "@shared/validation/common";
 import type { AppLogger } from "./logger";
@@ -12,28 +12,13 @@ export type ModelListRequest = { endpoint: string; force?: boolean; apiKey?: str
 type ModelListFact = { fetchedAtUtc: string; ids: string[] };
 
 export async function fetchGeminiModelIds(endpoint: string, key: string, signal: AbortSignal): Promise<string[]> {
+  const ai = new GoogleGenAI({ apiKey: key, httpOptions: { baseUrl: endpoint, retryOptions: { attempts: 1 } } });
   const ids: string[] = [];
-  const seenPages = new Set<string>();
-  let pageToken = "";
-  do {
-    const url = geminiUrl(endpoint, "models");
-    url.searchParams.set("pageSize", "1000");
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
-    const page = await geminiRequest(url, key, signal);
-    if (!isRecord(page) || (page.models !== undefined && !Array.isArray(page.models))) {
-      throw new Error("Gemini returned an invalid model list.");
-    }
-    for (const model of (page.models ?? []) as unknown[]) {
-      if (!isRecord(model) || typeof model.name !== "string") throw new Error("Gemini returned an invalid model entry.");
-      const id = model.name.replace(/^models\//, "");
-      if (!resolveModel(id).generic && Array.isArray(model.supportedGenerationMethods) && model.supportedGenerationMethods.includes("generateContent")) ids.push(id);
-    }
-    const next = page.nextPageToken;
-    if (next !== undefined && typeof next !== "string") throw new Error("Gemini returned an invalid model-list cursor.");
-    pageToken = next ?? "";
-    if (pageToken && seenPages.has(pageToken)) throw new Error("Gemini repeated a model-list page.");
-    seenPages.add(pageToken);
-  } while (pageToken);
+  for await (const model of await ai.models.list({ config: { pageSize: 1000, abortSignal: signal } })) {
+    if (typeof model.name !== "string") throw new Error("Gemini returned an invalid model entry.");
+    const id = model.name.replace(/^models\//, "");
+    if (!resolveModel(id).generic && model.supportedActions?.includes("generateContent")) ids.push(id);
+  }
   return [...new Set(ids)];
 }
 

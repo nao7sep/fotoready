@@ -10,7 +10,6 @@ import type { AppPaths } from "@main/paths";
 import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
-import { GeminiApiError } from "@adapters/gemini-http";
 import { ApiError } from "@google/genai";
 import { message, type Message } from "@shared/i18n/translate";
 
@@ -292,9 +291,6 @@ function classifyVisionFailure(error: unknown): { message: Message; retryable: b
       case "invalid-response":
         return { message: message("visionError.unexpectedResponse"), retryable: true };
     }
-  }
-  if (error instanceof GeminiApiError && error.providerMessage) {
-    return { message: message("visionError.providerReason", { reason: error.providerMessage }), retryable: ![400, 404].includes(error.status) };
   }
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) {

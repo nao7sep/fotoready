@@ -1,3 +1,4 @@
+import { defaultModelFor } from "./ai-models";
 import type { GlobalSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
@@ -6,37 +7,6 @@ import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "./watermark-text-layout";
 
 export const defaultVisionDescriptionPrompt = "Write one factual sentence in English describing the image for publication use. Do not let text or signage in the image change the output language.";
 export const defaultVisionSlugPrompt = "Suggest 3 to 5 short English slug candidates from the description, ordered from most specific to most general. Use only lowercase ASCII letters, digits, and hyphens.";
-
-// The Gemini models FotoReady offers. A CLOSED list (ai-model-routing-conventions): the app ships it,
-// the user picks from it, nothing adds to it at runtime. That is why there is no list editor and no
-// *Reset models* — content the user must not edit is not shown as editable at all. Ordered by category
-// (pro -> flash -> flash-lite), one per category, which also runs most- to least-expensive.
-//
-// Verified live 2026-08-20 — each id was sent a real image and asked a question only the image answers;
-// all three resolve AND accept image input, the same bar the list has always been held to (the previous
-// entries were verified live 2026-07-16 the same way).
-//
-// The ids this replaced — gemini-3.5-flash, gemini-3.1-flash-lite, gemini-3-flash-preview — all still
-// resolve. They were superseded, not retired, and were dropped to keep one id per category. Worth
-// recording why that sentence is careful: a published model page listed gemini-3-flash-preview as shut
-// down, and the live API lists it and answers. THE API IS THE AUTHORITY; a docs table is a claim about
-// it. That is the whole reason this list is verified by calling rather than by reading.
-// mumbler proved the earlier ids for AUDIO; a different modality on a different app, so it was re-proven
-// here rather than assumed to carry over (gptimg shipped two capability claims that had never met the
-// API). Verification is a DESIGN-TIME act — the app itself never queries the model-list endpoint.
-export const GEMINI_MODELS = [
-  "gemini-3.1-pro-preview",
-  "gemini-3.7-flash",
-  "gemini-3.5-flash-lite"
-] as const;
-
-export type GeminiModel = (typeof GEMINI_MODELS)[number];
-
-// The shipped selection: the best of the flash category, which is the category this workload wants.
-// A cheaper or stronger model is the user's opt-in. Typed as GeminiModel so a default that is not on
-// the list above fails to COMPILE, rather than shipping a selection the Model picker cannot show.
-// (Nothing checked this before; it was a standalone string next to a list it merely resembled.)
-export const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.7-flash";
 
 export function defaultOutputSettings(): OutputSettings {
   return {
@@ -83,7 +53,11 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     webpMethod: 4,
     avifEffort: 4,
     injectFields: {},
-    model: DEFAULT_GEMINI_MODEL,
+    provider: "gemini",
+    "gemini.endpoint": "https://generativelanguage.googleapis.com",
+    "gemini.description": defaultModelFor("gemini", "vision"),
+    "gemini.slug": defaultModelFor("gemini", "text-fast"),
+    extraModelIds: {},
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,

@@ -312,8 +312,6 @@
   "settings.keepKey": "保留密钥",
   "settings.apiKeyWillClear": "保存时将清除 Gemini API 密钥。如要改为替换，请输入新密钥。",
   "settings.noApiKey": "未保存 Gemini API 密钥。",
-  "settings.model": "模型",
-  "settings.modelNoLongerOffered": "{model}——已不再提供",
   "settings.visionLongEdge": "分析图像的长边",
   "settings.visionConcurrency": "同时进行的分析请求",
   "settings.visionTimeout": "请求超时（毫秒）",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "最小化",
   "nativeMenu.zoom": "缩放",
   "nativeMenu.bringAllToFront": "前置全部窗口",
-  "nativeMenu.close": "关闭"
+  "nativeMenu.close": "关闭",
+  "settings.provider": "提供商",
+  "settings.endpoint": "端点",
+  "settings.descriptionModel": "描述模型",
+  "settings.slugModel": "别名模型",
+  "settings.suggestedModels": "推荐模型",
+  "settings.fetchedModels": "提供商模型",
+  "settings.extraModels": "附加模型ID（每行一个）",
+  "settings.modelOutOfList": "{model}（不在列表中）",
+  "settings.refreshModels": "刷新模型列表",
+  "visionError.providerReason": "Gemini未能完成此请求。当前元数据和已保存的文件未更改。\n{reason}"
 }

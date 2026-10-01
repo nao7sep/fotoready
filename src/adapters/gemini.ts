@@ -1,4 +1,7 @@
-import { ApiError, GoogleGenAI, Type } from "@google/genai";
+import { ApiError } from "@google/genai";
+import { GeminiApiError, geminiRequest, geminiUrl } from "./gemini-http";
+import { modelParameters } from "./gemini-model-registry";
+import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
 
@@ -37,106 +40,86 @@ export class VisionProviderFailure extends Error {
   }
 }
 
-/**
- * Dynamic thinking — the model decides how much to reason. Stated rather than left to the
- * provider's default, because the default is not one behaviour: measured live across the
- * shipped list, 3.1-pro-preview / 3.5-flash / 3-flash-preview all think unasked while
- * 3.1-flash-lite does not. Silence shipped four behaviours nobody chose, any of which the
- * provider could change without this app cutting a release; this ships one.
- *
- * `-1` and not `0`: disabling is NOT portable — gemini-3.1-pro-preview rejects it outright
- * ("Budget 0 is invalid. This model only works in thinking mode"), so a shipped `0` would
- * delete a model from the list by making it uncallable. Dynamic is accepted by every model
- * tested. Matches mumbler, which reached the same shape from the same measurement.
- *
- * This does NOT make the calls cheaper — dynamic is roughly what silence was already doing.
- * It is worth knowing that thinking is ~87% of the per-image bill (2026-07-16: ~1.4c/image
- * on 3.5-flash, of which ~1.2c is thinking, and the SLUG call reasons harder than the vision
- * call — ~1000-1200 tokens to emit three slugs). Capping the budget is the only lever that
- * would cut it, and it was declined deliberately: it risks the description quality this app
- * exists to produce, to save a cent. Revisit only if batches get large.
- */
-const THINKING_CONFIG = { thinkingBudget: -1 } as const;
-
 const SLUG_RESPONSE_SCHEMA = {
-  type: Type.OBJECT,
+  type: "OBJECT",
   properties: {
     slugs: {
-      type: Type.ARRAY,
+      type: "ARRAY",
       minItems: "3",
       maxItems: "5",
-      items: { type: Type.STRING }
+      items: { type: "STRING" }
     }
   },
   required: ["slugs"]
 } as const;
 
 export class GeminiVisionProvider {
-  constructor(private readonly apiKey: string) {}
+  constructor(private readonly apiKey: string, private readonly endpoint: string) {}
 
   async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
-    const ai = new GoogleGenAI({ apiKey: this.apiKey });
-    const response = await callWithRetry(opts, () =>
-      ai.models.generateContent({
-        model: opts.model,
-        contents: [
-          { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
-          { text: descriptionPrompt(opts.descriptionPrompt) }
-        ],
-        config: {
-          thinkingConfig: THINKING_CONFIG,
-          httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
-        }
-      })
-    );
+    const response = await this.generate(opts, [
+      { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
+      { text: descriptionPrompt(opts.descriptionPrompt) }
+    ], 1024);
     assertUsableResponse(response, "image");
-    return parseDescription(response.text ?? "");
+    return parseDescription(responseText(response));
   }
 
   async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
-    const ai = new GoogleGenAI({ apiKey: this.apiKey });
-    const response = await callWithRetry(opts, () =>
-      ai.models.generateContent({
-        model: opts.model,
-        contents: [{ text: slugPrompt(description, opts.slugPrompt) }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: SLUG_RESPONSE_SCHEMA,
-          thinkingConfig: THINKING_CONFIG,
-          httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
-        }
-      })
-    );
+    const response = await this.generate(opts, [{ text: slugPrompt(description, opts.slugPrompt) }], 512, SLUG_RESPONSE_SCHEMA);
     assertUsableResponse(response, "description");
-    return parseSlugs(response.text ?? "");
+    return parseSlugs(responseText(response));
+  }
+
+  private async generate(opts: VisionCallOptions & { model: string }, parts: unknown[], ceiling: number, schema?: typeof SLUG_RESPONSE_SCHEMA): Promise<GeminiResponse> {
+    // Raw fetch carries no SDK retry layer. The timeout spans every attempt and
+    // backoff, and an unknown outcome is returned to the user, never resent.
+    const signal = AbortSignal.timeout(opts.timeoutMs);
+    const response = await callWithRetry(opts, signal, () => geminiRequest(
+      geminiUrl(this.endpoint, `models/${encodeURIComponent(opts.model.replace(/^models\//, ""))}:generateContent`),
+      this.apiKey, signal,
+      { contents: [{ role: "user", parts }], generationConfig: modelParameters(opts.model, ceiling, schema) }
+    ));
+    if (!isRecord(response)) throw new VisionProviderFailure("invalid-response", "Gemini returned a non-object response.");
+    return response as GeminiResponse;
   }
 }
 
-async function callWithRetry<T>(opts: VisionCallOptions, fn: () => Promise<T>): Promise<T> {
-  const attempts = Math.max(1, opts.maxRetries + 1);
+type GeminiResponse = {
+  promptFeedback?: { blockReason?: string };
+  candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+};
+
+function responseText(response: GeminiResponse): string {
+  return response.candidates?.[0]?.content?.parts?.filter((part) => !part.thought).map((part) => part.text ?? "").join("") ?? "";
+}
+
+async function callWithRetry<T>(opts: VisionCallOptions, signal: AbortSignal, fn: () => Promise<T>): Promise<T> {
+  const attempts = Math.min(3, Math.max(1, opts.maxRetries + 1));
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (attempt === attempts - 1 || !isRetryable(error)) {
+      if (signal.aborted || attempt === attempts - 1 || !isRetryable(error)) {
         throw error;
       }
       const delay = backoffDelayMs(opts.initialBackoffMs, attempt, retryAfterMs(error));
-      await sleep(delay);
+      await sleep(delay, signal);
     }
   }
   throw lastError;
 }
 
 function isRetryable(error: unknown): boolean {
-  if (error instanceof ApiError) return error.status === 429 || error.status >= 500;
-  return false;
+  if (error instanceof ApiError) return [408, 429, 503].includes(error.status);
+  const cause = error instanceof Error ? error.cause : null;
+  return isRecord(cause) && ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"].includes(String(cause.code));
 }
 
 function backoffDelayMs(initial: number, attempt: number, retryAfter: number | null): number {
-  if (retryAfter !== null) return retryAfter;
+  if (retryAfter !== null) return Math.min(30000, retryAfter);
   const base = initial * Math.pow(2, attempt);
   const jitter = Math.random() * initial;
   return Math.min(30000, base + jitter);
@@ -144,8 +127,7 @@ function backoffDelayMs(initial: number, attempt: number, retryAfter: number | n
 
 function retryAfterMs(error: unknown): number | null {
   if (!error || typeof error !== "object") return null;
-  const headers = (error as { headers?: Record<string, string> }).headers;
-  const value = headers?.["retry-after"] ?? headers?.["Retry-After"];
+  const value = error instanceof GeminiApiError ? error.retryAfter : null;
   if (!value) return null;
   const seconds = Number(value);
   if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
@@ -154,8 +136,13 @@ function retryAfterMs(error: unknown): number | null {
   return null;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(signal.reason); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, ms);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
 }
 
 function descriptionPrompt(prompt: string): string {
@@ -184,6 +171,9 @@ function assertUsableResponse(response: { promptFeedback?: { blockReason?: strin
     );
   }
   const finishReason = response.candidates?.[0]?.finishReason;
+  if (finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT") {
+    throw new VisionProviderFailure("safety-refusal", `Gemini refused this ${what} (${finishReason}).`);
+  }
   if (finishReason === "MAX_TOKENS") {
     throw new VisionProviderFailure(
       "incomplete-response",

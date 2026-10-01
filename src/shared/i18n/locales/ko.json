@@ -312,8 +312,6 @@
   "settings.keepKey": "키 유지",
   "settings.apiKeyWillClear": "저장하면 Gemini API 키가 지워집니다. 대신 바꾸려면 새 키를 입력하십시오.",
   "settings.noApiKey": "저장된 Gemini API 키가 없습니다.",
-  "settings.model": "모델",
-  "settings.modelNoLongerOffered": "{model} — 더 이상 제공되지 않음",
   "settings.visionLongEdge": "분석용 이미지의 긴 변",
   "settings.visionConcurrency": "동시 분석 요청 수",
   "settings.visionTimeout": "요청 제한 시간(ms)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "최소화",
   "nativeMenu.zoom": "확대/축소",
   "nativeMenu.bringAllToFront": "모두 앞으로 가져오기",
-  "nativeMenu.close": "닫기"
+  "nativeMenu.close": "닫기",
+  "settings.provider": "제공업체",
+  "settings.endpoint": "엔드포인트",
+  "settings.descriptionModel": "설명 모델",
+  "settings.slugModel": "슬러그 모델",
+  "settings.suggestedModels": "추천 모델",
+  "settings.fetchedModels": "제공업체 모델",
+  "settings.extraModels": "추가 모델 ID (한 줄에 하나씩)",
+  "settings.modelOutOfList": "{model} (목록에 없음)",
+  "settings.refreshModels": "모델 목록 새로 고침",
+  "visionError.providerReason": "Gemini가 이 요청을 완료하지 못했습니다. 현재 메타데이터와 저장된 파일은 변경되지 않았습니다.\n{reason}"
 }

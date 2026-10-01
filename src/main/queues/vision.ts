@@ -10,6 +10,7 @@ import type { AppPaths } from "@main/paths";
 import type { AppLogger } from "@main/logger";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
+import { GeminiApiError } from "@adapters/gemini-http";
 import { ApiError } from "@google/genai";
 import { message, type Message } from "@shared/i18n/translate";
 
@@ -26,7 +27,7 @@ type VisionJob = { mode: VisionRunMode; basis: VisionBasis; cancelled: boolean; 
 export type VisionProvider = Pick<GeminiVisionProvider, "describeImage" | "suggestSlugs">;
 
 export type VisionQueueDeps = {
-  createProvider(apiKey: string): VisionProvider;
+  createProvider(apiKey: string, endpoint: string): VisionProvider;
   prepareInput(stagedPath: string, longEdge: number): Promise<Buffer>;
 };
 
@@ -37,7 +38,7 @@ export type VisionQueueDeps = {
 export type VisionCommit = (task: Task, apply: () => boolean) => Promise<boolean>;
 
 const defaultDeps: VisionQueueDeps = {
-  createProvider: (apiKey) => new GeminiVisionProvider(apiKey),
+  createProvider: (apiKey, endpoint) => new GeminiVisionProvider(apiKey, endpoint),
   prepareInput: prepareVisionInput
 };
 
@@ -166,6 +167,7 @@ export class VisionQueue {
 
   async #run(task: Task, job: VisionJob, commit: VisionCommit): Promise<void> {
     const { mode, basis } = job;
+    const settings = structuredClone(this.settings);
     // The saved output can be deleted, re-saved or renamed while the key is fetched or a Gemini call is
     // in flight. A result belongs only to the output it was requested for.
     const isCurrent = (): boolean => task.output !== null && outputKey(task.output) === basis.outputKey;
@@ -179,29 +181,29 @@ export class VisionQueue {
         throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }
       if (!task.output || !isCurrent()) return;
-      this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, model: this.settings.model });
+      this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, descriptionModel: settings["gemini.description"], slugModel: settings["gemini.slug"] });
 
       const callOptions = {
-        timeoutMs: this.settings.visionTimeoutMs,
-        maxRetries: this.settings.visionMaxRetries,
-        initialBackoffMs: this.settings.visionInitialBackoffMs
+        timeoutMs: settings.visionTimeoutMs,
+        maxRetries: settings.visionMaxRetries,
+        initialBackoffMs: settings.visionInitialBackoffMs
       };
-      const provider = this.#deps.createProvider(apiKey);
+      const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"]);
       let description = task.output.vision?.description ?? "";
       if (includesDescriptionGeneration(mode)) {
-        const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, this.settings.preResizeLongEdge);
+        const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, settings.preResizeLongEdge);
         description = await provider.describeImage(
           { imageBytes, mimeType: "image/jpeg" },
           {
-            model: this.settings.model,
-            descriptionPrompt: this.settings.visionDescriptionPrompt,
+            model: settings["gemini.description"],
+            descriptionPrompt: settings.visionDescriptionPrompt,
             ...callOptions
           }
         );
         if (includesSlugGeneration(mode)) {
           const committed = await commit(task, () => {
             if (!task.output || !isCurrent()) return false;
-            task.output.vision = { description, slugCandidates: [], model: this.settings.model, ranAt: nowIso() };
+            task.output.vision = { description, slugCandidates: [], model: settings["gemini.description"], ranAt: nowIso() };
             task.error = null;
             task.updatedAt = nowIso();
             return true;
@@ -214,8 +216,8 @@ export class VisionQueue {
       }
       const slugCandidates = includesSlugGeneration(mode)
         ? await provider.suggestSlugs(description, {
-          model: this.settings.model,
-          slugPrompt: this.settings.visionSlugPrompt,
+          model: settings["gemini.slug"],
+          slugPrompt: settings.visionSlugPrompt,
           ...callOptions
         })
         : null;
@@ -224,7 +226,8 @@ export class VisionQueue {
         task.output.vision = {
           description,
           slugCandidates: slugCandidates ?? task.output.vision?.slugCandidates ?? [],
-          model: this.settings.model,
+          model: includesDescriptionGeneration(mode) ? settings["gemini.description"] : task.output.vision!.model,
+          ...(slugCandidates ? { slugModel: settings["gemini.slug"] } : task.output.vision?.slugModel ? { slugModel: task.output.vision.slugModel } : {}),
           ranAt: nowIso()
         };
         // A slug the user typed while the run was in flight is theirs; only an untouched one is replaced.
@@ -289,6 +292,9 @@ function classifyVisionFailure(error: unknown): { message: Message; retryable: b
       case "invalid-response":
         return { message: message("visionError.unexpectedResponse"), retryable: true };
     }
+  }
+  if (error instanceof GeminiApiError && error.providerMessage) {
+    return { message: message("visionError.providerReason", { reason: error.providerMessage }), retryable: ![400, 404].includes(error.status) };
   }
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) {

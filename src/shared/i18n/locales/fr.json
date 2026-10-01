@@ -312,8 +312,6 @@
   "settings.keepKey": "Conserver la clé",
   "settings.apiKeyWillClear": "La clé API Gemini sera effacée à l’enregistrement. Saisissez plutôt une nouvelle clé pour la remplacer.",
   "settings.noApiKey": "Aucune clé API Gemini n’est enregistrée.",
-  "settings.model": "Modèle",
-  "settings.modelNoLongerOffered": "{model} — n’est plus proposé",
   "settings.visionLongEdge": "Grand côté de l’image analysée",
   "settings.visionConcurrency": "Requêtes d’analyse simultanées",
   "settings.visionTimeout": "Délai d’expiration des requêtes (ms)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "Réduire",
   "nativeMenu.zoom": "Zoom",
   "nativeMenu.bringAllToFront": "Tout ramener au premier plan",
-  "nativeMenu.close": "Fermer"
+  "nativeMenu.close": "Fermer",
+  "settings.provider": "Fournisseur",
+  "settings.endpoint": "Point de terminaison",
+  "settings.descriptionModel": "Modèle de description",
+  "settings.slugModel": "Modèle de slug",
+  "settings.suggestedModels": "Modèles suggérés",
+  "settings.fetchedModels": "Modèles du fournisseur",
+  "settings.extraModels": "Identifiants de modèles supplémentaires (un par ligne)",
+  "settings.modelOutOfList": "{model} (hors liste)",
+  "settings.refreshModels": "Actualiser les modèles",
+  "visionError.providerReason": "Gemini n’a pas pu terminer cette requête. Les métadonnées actuelles et les fichiers enregistrés sont inchangés.\n{reason}"
 }

@@ -137,28 +137,20 @@ describe("normalizeGlobalSettings", () => {
   });
 });
 
-describe("Gemini model selection (closed list — the config stores the pick, never the list)", () => {
-  // NOT tested here: that DEFAULT_GEMINI_MODEL is a member of GEMINI_MODELS. It is typed as
-  // GeminiModel, so a non-member fails to compile — a runtime assertion could not fail and would
-  // be exactly the vacuous test pixelup was carrying.
-
+describe("Open Gemini role model selections", () => {
   it("preserves a selection the shipped list no longer offers — kept verbatim, not snapped", () => {
-    // The load-bearing case for closing the list: a config written when the list was editable can
-    // name any id. Snapping it to a valid one would be the store judging a selection it does not
-    // own — pixelup's clamp handed a user the crash value doing exactly that. The id survives, the
-    // Model picker shows it as no longer offered, and the vision job is what refuses it.
-    const { settings, issues } = normalizeGlobalSettings({ ...fallback, model: "gemini-2.5-pro" }, fallback);
-    expect(settings.model).toBe("gemini-2.5-pro");
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, "gemini.description": "gemini-2.5-pro" }, fallback);
+    expect(settings["gemini.description"]).toBe("gemini-2.5-pro");
     expect(issues).toEqual([]);
   });
 
   it("falls back to the shipped selection when model is blank or not a string, recording an issue", () => {
-    const blank = normalizeGlobalSettings({ ...fallback, model: "   " }, fallback);
-    expect(blank.settings.model).toBe(fallback.model);
+    const blank = normalizeGlobalSettings({ ...fallback, "gemini.description": "   " }, fallback);
+    expect(blank.settings["gemini.description"]).toBe(fallback["gemini.description"]);
     expect(blank.issues.length).toBeGreaterThanOrEqual(1);
 
-    const notString = normalizeGlobalSettings({ ...fallback, model: 7 }, fallback);
-    expect(notString.settings.model).toBe(fallback.model);
+    const notString = normalizeGlobalSettings({ ...fallback, "gemini.description": 7 }, fallback);
+    expect(notString.settings["gemini.description"]).toBe(fallback["gemini.description"]);
     expect(notString.issues.length).toBeGreaterThanOrEqual(1);
   });
 

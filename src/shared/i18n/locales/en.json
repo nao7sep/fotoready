@@ -312,8 +312,6 @@
   "settings.keepKey": "Keep key",
   "settings.apiKeyWillClear": "Gemini API key will be cleared when you save. Type a new key to replace it instead.",
   "settings.noApiKey": "No Gemini API key is saved.",
-  "settings.model": "Model",
-  "settings.modelNoLongerOffered": "{model} — no longer offered",
   "settings.visionLongEdge": "Vision image long edge",
   "settings.visionConcurrency": "Concurrent vision requests",
   "settings.visionTimeout": "Request timeout (ms)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "Minimize",
   "nativeMenu.zoom": "Zoom",
   "nativeMenu.bringAllToFront": "Bring All to Front",
-  "nativeMenu.close": "Close"
+  "nativeMenu.close": "Close",
+  "settings.provider": "Provider",
+  "settings.endpoint": "Endpoint",
+  "settings.descriptionModel": "Description model",
+  "settings.slugModel": "Slug model",
+  "settings.suggestedModels": "Suggested models",
+  "settings.fetchedModels": "Provider models",
+  "settings.extraModels": "Extra model IDs (one per line)",
+  "settings.modelOutOfList": "{model} (out of list)",
+  "settings.refreshModels": "Refresh models",
+  "visionError.providerReason": "Gemini could not complete this request. The current metadata and saved files are unchanged.\n{reason}"
 }

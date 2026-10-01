@@ -34,15 +34,29 @@ let tempDir: string;
 
 beforeEach(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-vision-"));
+  vi.stubEnv("GEMINI_API_KEY", undefined);
   mocks.writeTaskSidecarFile.mockReset();
   mocks.writeTaskSidecarFile.mockResolvedValue("/output/photo-fotoready.json");
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
 describe("VisionQueue result ownership", () => {
+  it("uses one model per role and records the actual model that produced each result", async () => {
+    const describeImage = vi.fn(async () => "A harbor");
+    const suggestSlugs = vi.fn(async () => ["a-harbor"]);
+    const { session, task } = await arrange({ describeImage, suggestSlugs });
+    await session.runVision(task.id, { mode: "description-and-slug" });
+    expect(describeImage).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ model: "gemini-3.8-flash" }));
+    expect(suggestSlugs).toHaveBeenCalledWith("A harbor", expect.objectContaining({ model: "gemini-3.5-flash-lite" }));
+    expect(task.output?.vision).toMatchObject({ model: "gemini-3.8-flash", slugModel: "gemini-3.5-flash-lite" });
+    await session.runVision(task.id, { mode: "slug" });
+    expect(task.output?.vision?.model).toBe("gemini-3.8-flash");
+  });
+
   it("keeps a slug the user typed while the run was in flight", async () => {
     const describe = deferred<string>();
     const { session, task } = await arrange({ describeImage: () => describe.promise, suggestSlugs: async () => ["ai-slug"] });

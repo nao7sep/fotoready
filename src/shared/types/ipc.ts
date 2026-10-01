@@ -226,6 +226,7 @@ export type FotoReadyApi = {
   };
   settings: {
     get(): Promise<GlobalSettings>;
+    models(request: { endpoint: string; force?: boolean; apiKey?: string; useStoredKey?: boolean }): Promise<string[]>;
     update(patch: Partial<GlobalSettings>, resetKeys?: (keyof GlobalSettings)[]): Promise<GlobalSettings>;
     hasGeminiApiKey(): Promise<boolean>;
     setGeminiApiKey(apiKey: string): Promise<void>;

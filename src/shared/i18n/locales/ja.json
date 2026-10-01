@@ -312,8 +312,6 @@
   "settings.keepKey": "キーを残す",
   "settings.apiKeyWillClear": "保存すると Gemini の API キーは消去されます。代わりに置き換えるには、新しいキーを入力してください。",
   "settings.noApiKey": "Gemini の API キーは保存されていません。",
-  "settings.model": "モデル",
-  "settings.modelNoLongerOffered": "{model}(一覧から外れたモデル)",
   "settings.visionLongEdge": "解析用画像の長辺",
   "settings.visionConcurrency": "同時に送る解析リクエスト",
   "settings.visionTimeout": "リクエストのタイムアウト(ミリ秒)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "しまう",
   "nativeMenu.zoom": "拡大/縮小",
   "nativeMenu.bringAllToFront": "すべてを手前に移動",
-  "nativeMenu.close": "閉じる"
+  "nativeMenu.close": "閉じる",
+  "settings.provider": "プロバイダー",
+  "settings.endpoint": "エンドポイント",
+  "settings.descriptionModel": "説明用モデル",
+  "settings.slugModel": "スラッグ用モデル",
+  "settings.suggestedModels": "推奨モデル",
+  "settings.fetchedModels": "プロバイダーのモデル",
+  "settings.extraModels": "追加モデルID（1行に1つ）",
+  "settings.modelOutOfList": "{model}（一覧外）",
+  "settings.refreshModels": "モデル一覧を更新",
+  "visionError.providerReason": "Geminiがこのリクエストを完了できませんでした。現在のメタデータと保存済みファイルは変更されていません。\n{reason}"
 }

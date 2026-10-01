@@ -312,8 +312,6 @@
   "settings.keepKey": "Conservar la clave",
   "settings.apiKeyWillClear": "La clave de API de Gemini se borrará al guardar. Escribe una clave nueva si prefieres reemplazarla.",
   "settings.noApiKey": "No hay ninguna clave de API de Gemini guardada.",
-  "settings.model": "Modelo",
-  "settings.modelNoLongerOffered": "{model} — ya no se ofrece",
   "settings.visionLongEdge": "Lado largo de la imagen analizada",
   "settings.visionConcurrency": "Solicitudes de análisis simultáneas",
   "settings.visionTimeout": "Tiempo de espera de la solicitud (ms)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "Minimizar",
   "nativeMenu.zoom": "Zoom",
   "nativeMenu.bringAllToFront": "Traer todo al frente",
-  "nativeMenu.close": "Cerrar"
+  "nativeMenu.close": "Cerrar",
+  "settings.provider": "Proveedor",
+  "settings.endpoint": "Punto de conexión",
+  "settings.descriptionModel": "Modelo de descripción",
+  "settings.slugModel": "Modelo de slug",
+  "settings.suggestedModels": "Modelos sugeridos",
+  "settings.fetchedModels": "Modelos del proveedor",
+  "settings.extraModels": "IDs de modelos adicionales (uno por línea)",
+  "settings.modelOutOfList": "{model} (fuera de la lista)",
+  "settings.refreshModels": "Actualizar modelos",
+  "visionError.providerReason": "Gemini no pudo completar esta solicitud. Los metadatos actuales y los archivos guardados no han cambiado.\n{reason}"
 }

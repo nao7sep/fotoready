@@ -312,8 +312,6 @@
   "settings.keepKey": "Оставить ключ",
   "settings.apiKeyWillClear": "Ключ API Gemini будет удалён при сохранении. Чтобы вместо этого заменить его, введите новый ключ.",
   "settings.noApiKey": "Ключ API Gemini не сохранён.",
-  "settings.model": "Модель",
-  "settings.modelNoLongerOffered": "{model} — больше не предлагается",
   "settings.visionLongEdge": "Длинная сторона изображения для анализа",
   "settings.visionConcurrency": "Одновременные запросы анализа",
   "settings.visionTimeout": "Тайм-аут запроса (мс)",
@@ -731,5 +729,15 @@
   "nativeMenu.minimize": "Свернуть",
   "nativeMenu.zoom": "Изменить масштаб",
   "nativeMenu.bringAllToFront": "Все окна — на передний план",
-  "nativeMenu.close": "Закрыть"
+  "nativeMenu.close": "Закрыть",
+  "settings.provider": "Провайдер",
+  "settings.endpoint": "Адрес сервиса",
+  "settings.descriptionModel": "Модель для описания",
+  "settings.slugModel": "Модель для ярлыков",
+  "settings.suggestedModels": "Рекомендуемые модели",
+  "settings.fetchedModels": "Модели провайдера",
+  "settings.extraModels": "Дополнительные ID моделей (по одному в строке)",
+  "settings.modelOutOfList": "{model} (вне списка)",
+  "settings.refreshModels": "Обновить модели",
+  "visionError.providerReason": "Gemini не удалось выполнить этот запрос. Текущие метаданные и сохранённые файлы не изменены.\n{reason}"
 }

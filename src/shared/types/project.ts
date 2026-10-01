@@ -41,7 +41,10 @@ export type VisionRunMode = "description" | "description-and-slug" | "slug";
 export type VisionResult = {
   description: string;
   slugCandidates: string[];
+  /** Model that produced the description. */
   model: string;
+  /** Present when this build generated slugs with a separate model. */
+  slugModel?: string;
   ranAt: string;
 };
 

@@ -6,7 +6,9 @@ import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
-import { GEMINI_MODELS } from "@shared/defaults";
+import { assertModelEndpoint } from "@shared/validation/settings";
+import { AI_ROLES } from "@shared/ai-models";
+import { ExtraModelIdsEditor, ModelPicker } from "../model-picker";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
 import { OperationResult } from "../operation-result";
@@ -87,6 +89,36 @@ export function AppSettingsModal({
   const [saveFailure, setSaveFailure] = useState<Message | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const [fetchedIds, setFetchedIds] = useState<string[]>([]);
+  const [refreshingModels, setRefreshingModels] = useState(false);
+  const modelRequestVersion = useRef(0);
+  const modelRequestBusy = useRef(false);
+
+  async function loadModels(force: boolean): Promise<void> {
+    if (!settingsDraft || modelRequestBusy.current) return;
+    modelRequestBusy.current = true;
+    const version = ++modelRequestVersion.current;
+    setRefreshingModels(true);
+    try {
+      const ids = await window.api.settings.models({
+        endpoint: settingsDraft["gemini.endpoint"], force,
+        ...(force && apiKeyDraft.trim() ? { apiKey: apiKeyDraft } : {}),
+        useStoredKey: !apiKeyClearRequested
+      });
+      if (version === modelRequestVersion.current) setFetchedIds(ids);
+    } catch (error) {
+      // Picker enrichment is optional; a transport failure keeps the visible list.
+      presentFailure(error, message("failure.settingsSave"), "model list request failed");
+    } finally {
+      modelRequestBusy.current = false;
+      if (version === modelRequestVersion.current) setRefreshingModels(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadModels(false);
+    return () => { modelRequestVersion.current += 1; modelRequestBusy.current = false; };
+  }, []);
 
   async function save(): Promise<void> {
     if (savingRef.current) return;
@@ -147,7 +179,7 @@ export function AppSettingsModal({
       footer={
         <>
           <button className="toolbar-button" type="button" disabled={saving} onClick={onClose}>{t("common.cancel")}</button>
-          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</button>
+          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges || !validModelSettings(settingsDraft)} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</button>
         </>
       }
     >
@@ -197,6 +229,9 @@ export function AppSettingsModal({
               onClearApiKey={() => { setSaveFailure(null); onClearApiKey(); }}
               onKeepApiKey={() => { setSaveFailure(null); onKeepApiKey(); }}
               onResetPrompt={(key) => { setSaveFailure(null); onResetPrompt(key); }}
+              fetchedIds={fetchedIds}
+              refreshingModels={refreshingModels}
+              onRefreshModels={() => void loadModels(true)}
               settings={settingsDraft}
               setSettings={updateSettingsDraft}
             />
@@ -377,9 +412,15 @@ function VisionTab({
   onClearApiKey,
   onKeepApiKey,
   onResetPrompt,
+  fetchedIds,
+  refreshingModels,
+  onRefreshModels,
   settings,
   setSettings
 }: SettingsProps & {
+  fetchedIds: string[];
+  refreshingModels: boolean;
+  onRefreshModels(): void;
   apiKeyDraft: string;
   apiKeyClearRequested: boolean;
   hasGeminiApiKey: boolean;
@@ -391,9 +432,19 @@ function VisionTab({
   const { t } = useI18n();
   return (
     <div className="settings-section-stack">
+      <label className="stacked-field">
+        {t("settings.provider")}
+        <select value={settings.provider} onChange={() => setSettings({ ...settings, provider: "gemini" })}>
+          <option value="gemini">Gemini</option>
+        </select>
+      </label>
       <section>
         <h3>Gemini</h3>
         <div className="settings-grid">
+          <label className="stacked-field span-two">
+            {t("settings.endpoint")}
+            <input type="url" value={settings["gemini.endpoint"]} onChange={(event) => setSettings({ ...settings, "gemini.endpoint": event.currentTarget.value })} />
+          </label>
           <label className="stacked-field span-two">
             {t("settings.apiKey")}
             {hasGeminiApiKey && !apiKeyClearRequested ? (
@@ -425,25 +476,20 @@ function VisionTab({
               </>
             )}
           </label>
-          <label className="stacked-field">
-            {t("settings.model")}
-            <select value={settings.model} onChange={(event) => setSettings({ ...settings, model: event.currentTarget.value })}>
-              {GEMINI_MODELS.map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-              {/*
-                Only reachable from a config written by an older build (when the list was editable) or a
-                hand-edited settings file — never from anything the user can do here now. Rendered rather
-                than dropped because a <select> whose value matches no <option> renders BLANK: the choice
-                is between naming the stale id and showing an empty picker with no explanation.
-                "No longer offered" is about THIS list, not about Gemini: such a model often still runs
-                (gemini-2.5-pro does), so the label must not imply it is broken.
-              */}
-              {settings.model && !GEMINI_MODELS.some((id) => id === settings.model) ? (
-                <option value={settings.model}>{t("settings.modelNoLongerOffered", { model: settings.model })}</option>
-              ) : null}
-            </select>
-          </label>
+          {AI_ROLES.map((role) => {
+            const key = `gemini.${role.id}` as const;
+            return <ModelPicker key={role.id}
+              label={t(role.id === "description" ? "settings.descriptionModel" : "settings.slugModel")}
+              kind={role.kind} value={settings[key]} fetchedIds={fetchedIds} extraIds={settings.extraModelIds.gemini ?? []}
+              onChange={(id) => setSettings({ ...settings, [key]: id })}
+              onAddExtra={(id) => setSettings({ ...settings, extraModelIds: { ...settings.extraModelIds, gemini: [...new Set([...(settings.extraModelIds.gemini ?? []), id])] } })}
+            />;
+          })}
+          <button className="toolbar-button" type="button" disabled={refreshingModels || !validModelEndpoint(settings) || (!apiKeyDraft.trim() && (!hasGeminiApiKey || apiKeyClearRequested))} onClick={onRefreshModels}>
+            {t("settings.refreshModels")}
+          </button>
+          <ExtraModelIdsEditor ids={settings.extraModelIds.gemini ?? []}
+            onChange={(ids) => setSettings({ ...settings, extraModelIds: { ...settings.extraModelIds, gemini: ids } })} />
           <NumberField label={t("settings.visionLongEdge")} max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
           <NumberField label={t("settings.visionConcurrency")} max={32} min={1} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
           <NumberField label={t("settings.visionTimeout")} max={600000} min={1000} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
@@ -901,4 +947,16 @@ function buildConcurrencyOptions(cpuCount: number, t: Translator["t"]): Array<{ 
     { value: "auto", label: t("settings.concurrentSavesAutomatic", { count: cpuCount }) },
     ...Array.from(values).sort((left, right) => left - right).map((value) => ({ value: String(value), label: String(value) }))
   ];
+}
+
+function validModelSettings(settings: GlobalSettings): boolean {
+  try {
+    assertModelEndpoint(settings["gemini.endpoint"], "model endpoint");
+    return AI_ROLES.every((role) => settings[`gemini.${role.id}`].trim().length > 0);
+  } catch { return false; }
+}
+
+function validModelEndpoint(settings: GlobalSettings): boolean {
+  try { assertModelEndpoint(settings["gemini.endpoint"], "model endpoint"); return true; }
+  catch { return false; }
 }

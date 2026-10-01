@@ -125,7 +125,8 @@ export async function bootstrap(): Promise<void> {
     dataDir: paths.dataDir,
     config: {
       defaultOutputFormat: settings.defaultOutputFormat,
-      model: settings.model,
+      descriptionModel: settings["gemini.description"],
+      slugModel: settings["gemini.slug"],
       workerPoolSize,
       visionConcurrency: settings.visionConcurrency,
       previewLongEdge: settings.previewLongEdge,

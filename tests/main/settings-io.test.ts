@@ -54,6 +54,14 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
   });
 
+  it("drops the retired selection key and writes only the changed role", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ model: "old-model" }));
+    const effective = await saveSettings(settingsPath(), { "gemini.slug": "typed-new-model" });
+    expect(await written()).toEqual({ "gemini.slug": "typed-new-model" });
+    expect(effective["gemini.description"]).toBe("gemini-3.8-flash");
+    expect(effective["gemini.slug"]).toBe("typed-new-model");
+  });
+
   it("writes metadata whole rather than merging its members", async () => {
     await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
     await saveSettings(settingsPath(), { injectFields: { author: "John" } });
@@ -69,7 +77,7 @@ describe("settings by set", () => {
       defaultOutputFormat: "gif",
       confirmDeleteTasks: "false",
       injectFields: { author: 42 },
-      model: "",
+      "gemini.description": "",
       writeSoftwareTag: false,
     } as unknown as Partial<GlobalSettings>;
 
@@ -81,14 +89,14 @@ describe("settings by set", () => {
       previewDebounceMs: defaults().previewDebounceMs,
       defaultOutputFormat: defaults().defaultOutputFormat,
       confirmDeleteTasks: defaults().confirmDeleteTasks,
-      model: defaults().model,
+      "gemini.description": defaults()["gemini.description"],
       writeSoftwareTag: false,
     };
     expect(await written()).toEqual(expected);
     expect(effective).toEqual({ ...defaults(), ...expected });
     expect((await loadSettings(settingsPath())).settings).toEqual(effective);
     expect(warn).toHaveBeenCalledTimes(6);
-    for (const key of ["defaultWebpQuality", "previewDebounceMs", "defaultOutputFormat", "confirmDeleteTasks", "injectFields.author", "model"]) {
+    for (const key of ["defaultWebpQuality", "previewDebounceMs", "defaultOutputFormat", "confirmDeleteTasks", "injectFields.author", "gemini.description"]) {
       expect(warn).toHaveBeenCalledWith("settings patch contained invalid data", {
         mod: "settings",
         issue: expect.stringContaining(`settings.${key}`),
@@ -104,12 +112,12 @@ describe("settings by set", () => {
   });
 
   it("preserves an untouched invalid stored set while validating a changed set", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, model: "unlisted-model" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
     const warn = vi.fn();
     const effective = await saveSettings(settingsPath(), { visionMaxRetries: -1 }, [], { warn } as unknown as AppLogger);
-    expect(await written()).toEqual({ defaultWebpQuality: 999, model: "unlisted-model", visionMaxRetries: defaults().visionMaxRetries });
+    expect(await written()).toEqual({ defaultWebpQuality: 999, "gemini.description": "unlisted-model", visionMaxRetries: defaults().visionMaxRetries });
     expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
-    expect(effective.model).toBe("unlisted-model");
+    expect(effective["gemini.description"]).toBe("unlisted-model");
     expect(warn).toHaveBeenCalledTimes(2);
   });
 

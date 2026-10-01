@@ -48,12 +48,11 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
-    // Checked for being a non-empty string, never for membership in GEMINI_MODELS. A config written by an
-    // older build can name a model this one does not offer, and snapping it to a valid id here would be
-    // the store judging a selection it does not own — the exact move that let pixelup's clamp hand a user
-    // the crash value. The id survives and the Model picker labels it; whether it still WORKS is Gemini's
-    // answer to give, not this function's (ai-model-routing-conventions).
-    model: readValue(source, "model", fallback.model, issues, assertNonEmptyString),
+    provider: readValue(source, "provider", fallback.provider, issues, (value, path) => assertOneOf(value, path, ["gemini"])),
+    "gemini.endpoint": readValue(source, "gemini.endpoint", fallback["gemini.endpoint"], issues, assertModelEndpoint),
+    "gemini.description": readValue(source, "gemini.description", fallback["gemini.description"], issues, assertNonEmptyString),
+    "gemini.slug": readValue(source, "gemini.slug", fallback["gemini.slug"], issues, assertNonEmptyString),
+    extraModelIds: readValue(source, "extraModelIds", fallback.extraModelIds, issues, validateExtraModelIds),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
@@ -112,4 +111,22 @@ function validateMetadataFields(value: unknown, path: string): MetadataFields {
 function validateWorkerPoolSize(value: unknown, path: string): number | null {
   if (value === null) return null;
   return assertFiniteNumber(value, path, { integer: true, min: 1, max: 512 });
+}
+
+export function assertModelEndpoint(value: unknown, field: string): string {
+  const endpoint = assertNonEmptyString(value, field);
+  let url: URL;
+  try { url = new URL(endpoint); }
+  catch (error) { throw new Error(`${field} must be an HTTP(S) endpoint.`, { cause: error }); }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error(`${field} must be an HTTP(S) endpoint without credentials, a query, or a fragment.`);
+  }
+  return endpoint;
+}
+
+function validateExtraModelIds(value: unknown, field: string): GlobalSettings["extraModelIds"] {
+  const record = assertRecord(value, field);
+  if (record.gemini === undefined) return {};
+  if (!Array.isArray(record.gemini)) throw new Error(`${field}.gemini must be an array.`);
+  return { gemini: record.gemini.map((id, index) => assertNonEmptyString(id, `${field}.gemini[${index}]`)) };
 }

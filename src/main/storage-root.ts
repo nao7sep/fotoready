@@ -13,7 +13,7 @@ import path from "node:path";
 // exercised directly in tests by setting FOTOREADY_DATA_DIR, which is the one
 // supported relocation seam.
 
-const HOME_ENV_VAR = "FOTOREADY_DATA_DIR";
+const DATA_DIR_ENV_VAR = "FOTOREADY_DATA_DIR";
 
 /**
  * Expand a leading `~`/`~/` against the home directory and any `$VAR` / `%VAR%`
@@ -41,9 +41,9 @@ function expandHome(value: string, homeDir: string): string {
     const env = process.env[name];
     if (env === undefined) {
       throw new Error(
-        `${HOME_ENV_VAR} is set to "${value}" but references the environment ` +
+        `${DATA_DIR_ENV_VAR} is set to "${value}" but references the environment ` +
           `variable "${name}", which is not set. Set "${name}", point ` +
-          `${HOME_ENV_VAR} at a usable directory, or unset it to use the ` +
+          `${DATA_DIR_ENV_VAR} at a usable directory, or unset it to use the ` +
           `default storage root.`
       );
     }
@@ -64,7 +64,7 @@ export function resolveStorageRoot(
   subDirs: readonly string[] = []
 ): string {
   const homeDir = os.homedir();
-  const override = process.env[HOME_ENV_VAR];
+  const override = process.env[DATA_DIR_ENV_VAR];
   const trimmed = typeof override === "string" ? override.trim() : "";
 
   let root: string;
@@ -79,7 +79,7 @@ export function resolveStorageRoot(
     // error, never a silent fallback, per the storage-path-conventions.
     if (expanded.trim().length === 0) {
       throw new Error(
-        `${HOME_ENV_VAR} is set to "${override}" but expands to an empty path ` +
+        `${DATA_DIR_ENV_VAR} is set to "${override}" but expands to an empty path ` +
           `(a $VAR/%VAR% reference set to an empty string?). Set it to a usable ` +
           `directory, or unset it to use the default storage root.`
       );
@@ -100,7 +100,7 @@ export function resolveStorageRoot(
     }
     tightenRootPermissions(root);
   } catch (error) {
-    const source = fromOverride ? `${HOME_ENV_VAR} (${override})` : "default storage root";
+    const source = fromOverride ? `${DATA_DIR_ENV_VAR} (${override})` : "default storage root";
     throw new Error(
       `Failed to create or use the FotoReady storage root from ${source} at "${root}": ${(error as Error).message}`,
       { cause: error }

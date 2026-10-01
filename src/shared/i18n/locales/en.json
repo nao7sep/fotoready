@@ -685,7 +685,7 @@
   "visionError.safetyRefusal": "Gemini refused this image because of a safety or content policy restriction.",
   "visionError.unexpectedResponse": "Gemini returned an unexpected response. Retry, or adjust the configured model if the problem persists.",
   "visionError.authentication": "Gemini authentication failed. Check the saved API key in Settings, then retry.",
-  "visionError.modelUnavailable": "This Gemini model isn’t available. Open Settings and choose one from the list.",
+  "visionError.modelUnavailable": "This Gemini model isn’t available. Open Settings and check the model name.",
   "visionError.rateLimit": "Gemini rate limit reached. Wait a moment, then retry.",
   "visionError.serviceUnavailable": "Gemini is temporarily unavailable. Retry in a moment.",
   "visionError.generic": "FotoReady could not analyze this image. The current metadata and saved files are unchanged; try again.",

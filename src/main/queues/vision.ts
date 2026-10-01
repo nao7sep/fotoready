@@ -12,6 +12,7 @@ import { ApiKeyStore } from "@adapters/api-keys";
 import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
 import { ApiError } from "@google/genai";
 import { message, type Message } from "@shared/i18n/translate";
+import { isRecord } from "@shared/validation/common";
 
 /** What a vision request was computed from: the saved output it describes and the slug the user had. */
 type VisionBasis = { outputKey: string; customSlug: string | null };
@@ -296,15 +297,33 @@ function classifyVisionFailure(error: unknown): { message: Message; retryable: b
     if (error.status === 401 || error.status === 403) {
       return { message: message("visionError.authentication"), retryable: true };
     }
-    if (error.status === 404) {
-      return { message: message("visionError.modelUnavailable"), retryable: false };
-    }
     if (error.status === 429) {
       return { message: message("visionError.rateLimit"), retryable: true };
     }
     if (error.status >= 500) {
       return { message: message("visionError.serviceUnavailable"), retryable: true };
     }
+    if (error.status === 400 || error.status === 404) {
+      // The provider answers an unknown model id with 400 or 404; its own message says why.
+      const reason = providerMessage(error);
+      if (reason) return { message: message("visionError.providerReason", { reason }), retryable: false };
+      if (error.status === 404) return { message: message("visionError.modelUnavailable"), retryable: false };
+      return { message: message("visionError.generic"), retryable: false };
+    }
   }
   return { message: message("visionError.generic"), retryable: true };
+}
+
+/**
+ * The provider's own `error.message` from the JSON body the SDK puts in `ApiError.message`.
+ * Accepted only beside a Google canonical status name, so raw response text the SDK wraps
+ * from a non-JSON body (status set to the HTTP reason phrase) is never shown.
+ */
+function providerMessage(error: ApiError): string | null {
+  let body: unknown;
+  try { body = JSON.parse(error.message); }
+  catch { return null; }
+  const detail = isRecord(body) && isRecord(body.error) ? body.error : null;
+  if (!detail || typeof detail.status !== "string" || !/^[A-Z_]+$/.test(detail.status)) return null;
+  return typeof detail.message === "string" && detail.message.trim() ? detail.message.trim() : null;
 }

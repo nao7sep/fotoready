@@ -685,7 +685,7 @@
   "visionError.safetyRefusal": "由于安全或内容政策限制，Gemini 拒绝处理此图像。",
   "visionError.unexpectedResponse": "Gemini 返回了意外的响应。请重试；如果问题持续，请调整设置中的模型。",
   "visionError.authentication": "Gemini 身份验证失败。请在设置中检查已保存的 API 密钥，然后重试。",
-  "visionError.modelUnavailable": "此 Gemini 模型不可用。请打开设置，从列表中选择一个。",
+  "visionError.modelUnavailable": "此 Gemini 模型不可用。请打开设置，检查模型名称。",
   "visionError.rateLimit": "已达到 Gemini 的请求上限。请稍等片刻后重试。",
   "visionError.serviceUnavailable": "Gemini 暂时不可用。请稍后重试。",
   "visionError.generic": "FotoReady 无法分析此图像。当前元数据和已保存的文件未改变；请重试。",

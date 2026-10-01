@@ -685,7 +685,7 @@
   "visionError.safetyRefusal": "Gemini ha rifiutato questa immagine per una restrizione di sicurezza o delle norme sui contenuti.",
   "visionError.unexpectedResponse": "Gemini ha restituito una risposta imprevista. Riprova, oppure cambia il modello configurato se il problema persiste.",
   "visionError.authentication": "Autenticazione con Gemini non riuscita. Controlla la chiave API salvata in Impostazioni, poi riprova.",
-  "visionError.modelUnavailable": "Questo modello Gemini non è disponibile. Apri Impostazioni e scegline uno dall’elenco.",
+  "visionError.modelUnavailable": "Questo modello Gemini non è disponibile. Apri Impostazioni e controlla il nome del modello.",
   "visionError.rateLimit": "È stato raggiunto il limite di richieste di Gemini. Attendi un momento, poi riprova.",
   "visionError.serviceUnavailable": "Gemini non è temporaneamente disponibile. Riprova tra poco.",
   "visionError.generic": "FotoReady non è riuscito ad analizzare questa immagine. I metadati attuali e i file salvati non sono cambiati; riprova.",

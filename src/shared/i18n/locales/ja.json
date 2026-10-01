@@ -685,7 +685,7 @@
   "visionError.safetyRefusal": "安全性またはコンテンツポリシーの制限により、Gemini はこの画像を処理しませんでした。",
   "visionError.unexpectedResponse": "Gemini から予期しない応答がありました。再試行するか、問題が続く場合は設定のモデルを変更してください。",
   "visionError.authentication": "Gemini の認証に失敗しました。設定で保存済みの API キーを確認してから、再試行してください。",
-  "visionError.modelUnavailable": "この Gemini モデルは利用できません。設定を開いて一覧から選んでください。",
+  "visionError.modelUnavailable": "この Gemini モデルは利用できません。設定を開いてモデル名を確認してください。",
   "visionError.rateLimit": "Gemini の利用制限に達しました。少し待ってから再試行してください。",
   "visionError.serviceUnavailable": "Gemini は一時的に利用できません。しばらくしてから再試行してください。",
   "visionError.generic": "FotoReady はこの画像を解析できませんでした。現在のメタデータと保存済みファイルは変わっていません。もう一度お試しください。",

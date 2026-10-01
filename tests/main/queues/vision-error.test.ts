@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 import { VisionProviderFailure } from "@adapters/gemini";
 import { visionError } from "@main/queues/vision";
 
+const providerError = (status: number, canonical: string, text: string) => new ApiError({
+  status, message: JSON.stringify({ error: { code: status, message: text, status: canonical } }),
+});
+
 describe("visionError", () => {
   it("maps a missing model from the SDK status, independent of diagnostic prose", () => {
     const result = visionError(new ApiError({
@@ -27,6 +31,30 @@ describe("visionError", () => {
     expect(visionError(new ApiError({ status: 503, message: "hostile server prose" }), "description")).toMatchObject({
       message: { key: "visionError.serviceUnavailable" }, retryable: true,
     });
+  });
+
+  it("keeps the localized message for 401, 429 and 503 when the body carries a provider message", () => {
+    for (const [status, key] of [[401, "visionError.authentication"], [429, "visionError.rateLimit"], [503, "visionError.serviceUnavailable"]] as const) {
+      expect(visionError(providerError(status, "PROVIDER_STATUS", "Provider sentence."), "description").message).toEqual({ key });
+    }
+  });
+
+  it("shows the provider's own message for an unknown model id", () => {
+    for (const status of [400, 404]) {
+      expect(visionError(providerError(status, "NOT_FOUND", "models/typed-unknown is not found."), "description")).toMatchObject({
+        message: { key: "visionError.providerReason", values: { reason: "models/typed-unknown is not found." } }, retryable: false,
+      });
+    }
+  });
+
+  it("never shows raw response text the SDK wrapped from a non-JSON body", () => {
+    // The SDK's shape for a non-JSON error body: the raw text as message, the HTTP reason phrase as status.
+    const wrapped = (status: number, statusText: string) => new ApiError({
+      status, message: JSON.stringify({ error: { message: "<html>FOTOREADY_RAW_SENTINEL</html>", code: status, status: statusText } }),
+    });
+    expect(visionError(wrapped(404, "Not Found"), "description").message).toEqual({ key: "visionError.modelUnavailable" });
+    expect(visionError(wrapped(400, "Bad Request"), "description")).toMatchObject({ message: { key: "visionError.generic" }, retryable: false });
+    expect(visionError(new ApiError({ status: 404, message: "FOTOREADY_RAW_SENTINEL" }), "description").message).toEqual({ key: "visionError.modelUnavailable" });
   });
 
   it("maps app-local provider codes without parsing their messages", () => {

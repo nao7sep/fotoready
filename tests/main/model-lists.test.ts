@@ -72,7 +72,7 @@ describe("Settings model-list facts", () => {
 });
 
 describe("Gemini model-list transport", () => {
-  it("follows pages with a bound and filters generic or non-generation entries", async () => {
+  it("follows pages with a bound and filters unsupported or non-generation entries", async () => {
     const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ models: [
         { name: "models/gemini-3.8-flash", supportedGenerationMethods: ["generateContent"] },

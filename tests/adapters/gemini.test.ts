@@ -17,9 +17,8 @@ afterEach(() => vi.unstubAllGlobals());
 describe("Gemini requests follow the id, independent of endpoint", () => {
   it.each([
     ["gemini-3.8-flash", { thinkingLevel: "MEDIUM" }],
-    ["gemini-2.5-pro", { thinkingBudget: -1 }],
     ["typed-unknown", undefined]
-  ])("builds the %s description request with its family policy", async (model, thinkingConfig) => {
+  ])("builds the %s description request from its branch", async (model, thinkingConfig) => {
     fetchMock.mockImplementation(async () => ok());
     await run({ model });
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -27,15 +26,22 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
     expect(init).toMatchObject({ method: "POST", signal: expect.any(AbortSignal) });
     expect(new Headers(init!.headers).get("x-goog-api-key")).toBe(key);
     const body = JSON.parse(String(init!.body));
-    expect(body.generationConfig).toEqual({ maxOutputTokens: 1024, ...(thinkingConfig ? { thinkingConfig } : {}) });
+    expect(body.generationConfig ?? {}).toEqual(thinkingConfig ? { thinkingConfig } : {});
     expect(body.contents[0].parts[0].inlineData).toEqual({ mimeType: "image/jpeg", data: request.imageBytes.toString("base64") });
   });
 
-  it("uses the slug ceiling and existing JSON schema, and excludes thought text", async () => {
+  it("asks for the slug JSON format and excludes thought text", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ thought: true, text: "private reasoning" }, { text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
     await expect(new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "gemini-3.5-flash-lite", slugPrompt: "Slugs" })).resolves.toEqual(["a-mug", "cup", "drink"]);
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
-    expect(body.generationConfig).toMatchObject({ maxOutputTokens: 512, responseMimeType: "application/json", responseSchema: { required: ["slugs"] }, thinkingConfig: { thinkingLevel: "MEDIUM" } });
+    expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }), thinkingConfig: { thinkingLevel: "MEDIUM" } });
+  });
+
+  it("asks for the slug JSON format for an id with no branch", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
+    await new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "typed-unknown", slugPrompt: "Slugs" });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }) });
   });
 });
 

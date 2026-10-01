@@ -1,5 +1,4 @@
-import { ApiError, GoogleGenAI, Type, type GenerateContentResponse, type Part } from "@google/genai";
-import { modelParameters } from "./gemini-model-registry";
+import { ApiError, GoogleGenAI, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentResponse, type Part } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
@@ -52,6 +51,27 @@ const SLUG_RESPONSE_SCHEMA = {
   required: ["slugs"]
 } as const;
 
+/**
+ * What each supported model needs beyond the plain request, one branch per row of
+ * SUPPORTED_MODELS. An id with no branch gets nothing model-specific; whether it works is
+ * the provider's answer.
+ */
+export function modelConfig(id: string): GenerateContentConfig {
+  switch (id.trim().toLowerCase()) {
+    case "gemini-3.1-pro-preview":
+      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
+      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+    case "gemini-3.8-flash":
+      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
+      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+    case "gemini-3.5-flash-lite":
+      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
+      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+    default:
+      return {};
+  }
+}
+
 export class GeminiVisionProvider {
   constructor(private readonly apiKey: string, private readonly endpoint: string) {}
 
@@ -59,18 +79,21 @@ export class GeminiVisionProvider {
     const response = await this.generate(opts, [
       { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
       { text: descriptionPrompt(opts.descriptionPrompt) }
-    ], 1024);
+    ]);
     assertUsableResponse(response, "image");
     return parseDescription(response.text ?? "");
   }
 
   async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
-    const response = await this.generate(opts, [{ text: slugPrompt(description, opts.slugPrompt) }], 512, SLUG_RESPONSE_SCHEMA);
+    const response = await this.generate(opts, [{ text: slugPrompt(description, opts.slugPrompt) }], {
+      responseMimeType: "application/json",
+      responseSchema: SLUG_RESPONSE_SCHEMA
+    });
     assertUsableResponse(response, "description");
     return parseSlugs(response.text ?? "");
   }
 
-  private async generate(opts: VisionCallOptions & { model: string }, parts: Part[], ceiling: number, schema?: typeof SLUG_RESPONSE_SCHEMA): Promise<GenerateContentResponse> {
+  private async generate(opts: VisionCallOptions & { model: string }, parts: Part[], featureConfig: GenerateContentConfig = {}): Promise<GenerateContentResponse> {
     // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
     // one request, the signal spans every attempt and backoff, and an unknown outcome is
     // returned to the user, never resent.
@@ -82,7 +105,7 @@ export class GeminiVisionProvider {
     return callWithRetry(opts, signal, () => ai.models.generateContent({
       model: opts.model,
       contents: parts,
-      config: { ...modelParameters(opts.model, ceiling, schema), abortSignal: signal }
+      config: { ...modelConfig(opts.model), ...featureConfig, abortSignal: signal }
     }));
   }
 }

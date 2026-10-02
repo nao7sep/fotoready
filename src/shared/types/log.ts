@@ -4,7 +4,7 @@ export type LogFields = Record<string, unknown>;
 
 /**
  * The write surface every part of the app logs through. The concrete
- * implementation — file handle, JSON-Lines serialization, redaction, the
+ * implementation — file handle, JSON-Lines serialization, the
  * debug gate, console fallback — lives in the privileged main process (see
  * `@main/logger`). Inner rings (adapters, queues, services) depend only on this
  * port, never on the implementation, so the dependency points inward.

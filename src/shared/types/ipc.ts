@@ -54,7 +54,7 @@ export type NodeProcessPlatform =
  * which owns the session file. The renderer only ever surfaces problems it
  * recovered from (captured `console.warn`/`console.error`) or last-resort global
  * hooks, so the level is restricted to `warn`/`error`. Main stamps the source
- * and runs the fields through the same redactor as its own logs.
+ * and writes the fields as it writes its own.
  */
 export type RendererLogEntry = {
   level: "warn" | "error";

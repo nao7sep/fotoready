@@ -62,29 +62,6 @@ describe("createLogger", () => {
     fs.rmSync(onDir, { recursive: true, force: true });
   });
 
-  it("redacts denied keys non-destructively by exact, case-insensitive name", () => {
-    const logger = createLogger(logsDir, { debug: false });
-    logger.warn("careful with passwords in here", {
-      apiKey: "sk-123",
-      Token: "abc",
-      tokenCount: 42,
-      keep: "ok",
-      nested: { password: "hunter2", note: "fine" }
-    });
-    logger.close();
-
-    const [line] = readLines(logsDir);
-    expect(line.apiKey).toBe("[redacted]");
-    expect(line.Token).toBe("[redacted]");
-    // exact match only — `tokenCount` is not `token`
-    expect(line.tokenCount).toBe(42);
-    expect(line.keep).toBe("ok");
-    expect((line.nested as Record<string, unknown>).password).toBe("[redacted]");
-    expect((line.nested as Record<string, unknown>).note).toBe("fine");
-    // the message is never scrubbed, even when it contains a denied word
-    expect(line.message).toBe("careful with passwords in here");
-  });
-
   it("expands an Error in the fields to type, message, and stack", () => {
     const logger = createLogger(logsDir, { debug: false });
     logger.error("boom", { mod: "test", err: new TypeError("bad thing") });
@@ -97,9 +74,9 @@ describe("createLogger", () => {
     expect(typeof err.stack).toBe("string");
   });
 
-  it("keeps an Error's own diagnostic properties and redacts denied ones", () => {
+  it("keeps an Error's own diagnostic properties", () => {
     const logger = createLogger(logsDir, { debug: false });
-    const err = Object.assign(new Error("disk gone"), { code: "ENOENT", errno: -2, token: "sk-secret" });
+    const err = Object.assign(new Error("disk gone"), { code: "ENOENT", errno: -2 });
     logger.error("io failed", { mod: "test", err });
     logger.close();
 
@@ -108,8 +85,6 @@ describe("createLogger", () => {
     expect(serialized.message).toBe("disk gone");
     expect(serialized.code).toBe("ENOENT");
     expect(serialized.errno).toBe(-2);
-    // a denied key carried on the error object is still redacted
-    expect(serialized.token).toBe("[redacted]");
   });
 
   it("expands a wrapped error's cause chain", () => {
@@ -134,20 +109,19 @@ describe("createLogger", () => {
     expect(line.set).toEqual([1, 2]);
   });
 
-  it("preserves aggregate failures, nested causes, and redaction in the log", () => {
+  it("preserves aggregate failures and nested causes in the log", () => {
     const logger = createLogger(logsDir, { debug: false });
     const original = new TypeError("query failed", { cause: new Error("query cause") });
     const fallback = Object.assign(new Error("fallback failed"), {
-      operation: "NativeQuery", nativeCode: 1400, token: "sentinel-secret",
+      operation: "NativeQuery", nativeCode: 1400,
     });
     logger.error("native operation failed", { err: new AggregateError([original, fallback], "both failed", { cause: original }) });
     logger.close();
     const [line] = readLines(logsDir);
     expect(line.err).toMatchObject({ name: "AggregateError", cause: { message: "query failed" }, errors: [
       { name: "TypeError", message: "query failed", stack: expect.any(String), cause: { message: "query cause" } },
-      { message: "fallback failed", stack: expect.any(String), operation: "NativeQuery", nativeCode: 1400, token: "[redacted]" }
+      { message: "fallback failed", stack: expect.any(String), operation: "NativeQuery", nativeCode: 1400 }
     ] });
-    expect(JSON.stringify(line)).not.toContain("sentinel-secret");
   });
 
   it("contains cycles through aggregate members without losing other failures", () => {

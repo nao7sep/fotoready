@@ -100,7 +100,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   // log a line about every forwarded log line. The renderer is sandboxed and its
   // payload is untrusted, so the level, message, and fields are all validated;
   // the `source` stamp is applied last so a renderer-supplied `source` field can
-  // never overwrite it. The fields then run through the same redactor as main's.
+  // never overwrite it.
   ipcMain.handle("system.log", async (_event, entry: RendererLogEntry) => {
     if (!entry || (entry.level !== "warn" && entry.level !== "error") || typeof entry.message !== "string") return;
     const fields = entry.fields && typeof entry.fields === "object" && !Array.isArray(entry.fields) ? entry.fields : {};

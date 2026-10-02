@@ -21,34 +21,6 @@ export type CreateLoggerOptions = {
   debug: boolean;
 };
 
-// Non-destructive redaction denied-key set: exact, case-insensitive field-name
-// matches (stored lower-cased). Seeded with the obvious secret-bearing names —
-// including the common compound token/secret forms — and the app's own Gemini
-// key field. fotoready never logs key *values* directly; this is the backstop
-// for the day a whole object carrying one gets logged.
-const REDACTED_KEYS = new Set([
-  "apikey",
-  "apikeys",
-  "geminiapikey",
-  "authorization",
-  "token",
-  "accesstoken",
-  "refreshtoken",
-  "idtoken",
-  "bearertoken",
-  "sessiontoken",
-  "password",
-  "passphrase",
-  "secret",
-  "clientsecret",
-  "apisecret",
-  "privatekey",
-  "credential",
-  "credentials"
-]);
-
-const REDACTED = "[redacted]";
-
 // Envelope fields are the only fixed contract; user fields may never overwrite them.
 const ENVELOPE_KEYS = new Set(["time", "level", "message"]);
 
@@ -56,8 +28,8 @@ function serializeError(error: Error, seen: WeakSet<object>): Record<string, unk
   // Standard fields first, then any own-enumerable diagnostic props the error
   // carries (Node's `code` / `errno` / `syscall` / `path`, an HTTP `status`,
   // etc.) — often the most useful part of a post-mortem, and otherwise lost.
-  // Routed through transformObject so denied keys on the error are redacted and
-  // the cause chain (which may itself be an Error) is expanded recursively.
+  // Routed through transformObject so the cause chain (which may itself be an
+  // Error) is expanded recursively.
   const raw: Record<string, unknown> = {
     name: error.name,
     message: error.message,
@@ -74,7 +46,7 @@ function serializeError(error: Error, seen: WeakSet<object>): Record<string, unk
 }
 
 // Pure, total, type-preserving: turns an arbitrary value into a JSON-safe,
-// redacted, error-expanded structure. Never throws, never scans string content,
+// error-expanded structure. Never throws, never scans string content,
 // and guards against cycles so a self-referential field cannot blow the stack.
 function transform(value: unknown, seen: WeakSet<object>): unknown {
   if (value === null) return null;
@@ -140,10 +112,6 @@ function transformObject(obj: Record<string, unknown>, seen: WeakSet<object>): R
   // serializes own enumerable keys regardless of prototype.
   const out: Record<string, unknown> = Object.create(null);
   for (const [key, val] of Object.entries(obj)) {
-    if (REDACTED_KEYS.has(key.toLowerCase())) {
-      out[key] = REDACTED;
-      continue;
-    }
     const transformed = transform(val, seen);
     if (transformed !== undefined) out[key] = transformed;
   }
@@ -152,7 +120,7 @@ function transformObject(obj: Record<string, unknown>, seen: WeakSet<object>): R
 
 function buildLine(level: LogLevel, message: string, fields?: LogFields): string {
   // Null-prototype envelope (see transformObject). Envelope keys are written
-  // first for readability, then the redacted user fields, with reserved envelope
+  // first for readability, then the user fields, with reserved envelope
   // names dropped so fields can never shadow the contract.
   const line: Record<string, unknown> = Object.create(null);
   line.time = nowIso();

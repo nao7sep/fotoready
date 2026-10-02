@@ -137,12 +137,12 @@ describe("settings by set", () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
-  it("removes a set's key when it is saved back to its built-in, and leaves no file when no key remains", async () => {
+  it("removes a set's key when it is saved back to its built-in, and keeps an empty file when no key remains", async () => {
     await saveSettings(settingsPath(), { defaultWebpQuality: 71, confirmDeleteTasks: false });
     await saveSettings(settingsPath(), { defaultWebpQuality: defaults().defaultWebpQuality });
     expect(await written()).toEqual({ confirmDeleteTasks: false });
     const effective = await saveSettings(settingsPath(), { confirmDeleteTasks: true });
-    await expect(fs.stat(settingsPath())).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe("{}\n");
     expect(effective).toEqual(defaults());
   });
 

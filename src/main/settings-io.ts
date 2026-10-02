@@ -82,7 +82,8 @@ function equalsBuiltIn<K extends keyof GlobalSettings>(key: K, value: GlobalSett
  * Writes the sets in `patch` and decides each one alone: a set equal to its built-in after cleanup
  * has its key removed, a set that differs is written whole, and an invalid set is reported and
  * leaves its stored copy untouched. A stored copy outside the patch that equals its built-in is
- * removed too. A result equal to the file writes nothing; a result with no keys leaves no file.
+ * removed too. A result equal to the file writes nothing, so a missing file stays missing; a file
+ * whose every set is back at its built-in holds `{}`.
  */
 export async function saveSettings(
   settingsPath: string,
@@ -111,10 +112,7 @@ export async function saveSettings(
       next[key] = patched ? parsed[key] : sets[key];
     }
   }
-  if (Object.keys(next).length === 0) {
-    // not recorded: an empty settings map is stored as no file, as on first run.
-    await fs.rm(settingsPath, { force: true });
-  } else if (JSON.stringify(next) !== JSON.stringify(sets)) {
+  if (JSON.stringify(next) !== JSON.stringify(sets)) {
     // recorded: durable config sets use the managed atomic write and backup history.
     await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
   }

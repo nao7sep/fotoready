@@ -75,32 +75,54 @@ CREATE INDEX IF NOT EXISTS idx_provider_calls_session ON provider_calls (session
 CREATE INDEX IF NOT EXISTS idx_provider_calls_task_id ON provider_calls (task_id);
 `;
 
+// Writes one record as a JSON line to this session's `yyyymmdd-hhmmss-fff-utc.log` under
+// `fallbackDir`, and when that fails, to the console, after telling `onFileFailure` why.
+function writeTextRecord(
+  fallbackDir: string,
+  sessionStart: Date,
+  line: Record<string, unknown>,
+  level: LogLevel,
+  onFileFailure: (error: unknown) => void
+): void {
+  const text = `${JSON.stringify(line)}\n`;
+  try {
+    fs.mkdirSync(fallbackDir, { recursive: true });
+    fs.appendFileSync(path.join(fallbackDir, `${utcStamp(sessionStart)}.log`), text);
+    return;
+  } catch (error) {
+    onFileFailure(error);
+  }
+  const sink = level === "error" || level === "warn" ? console.error : console.log;
+  sink(text.trimEnd());
+}
+
+/**
+ * Writes one record while no records store is open, such as a startup failure before the logger
+ * exists: to the session's text file under `fallbackDir`, then to the console. Never throws.
+ */
+export function writeFallbackRecord(fallbackDir: string, sessionStart: Date, line: Record<string, unknown>, level: LogLevel): void {
+  writeTextRecord(fallbackDir, sessionStart, line, level, (error) =>
+    console.error("[records] the fallback log file could not be written; writing to the console", error)
+  );
+}
+
 /**
  * Opens the records database at `file` for one session. A record the database cannot take is
- * written as a JSON line to this session's `yyyymmdd-hhmmss-fff-utc.log` under `fallbackDir`, and
- * when that fails too, to the console. Never throws.
+ * written as a JSON line to this session's text file under `fallbackDir`, and when that fails too,
+ * to the console. Never throws.
  */
 export function openRecordsStore(file: string, fallbackDir: string, sessionStart = new Date()): RecordsStore {
   const session = sessionStart.toISOString();
-  const fallbackFile = path.join(fallbackDir, `${utcStamp(sessionStart)}.log`);
   let db: { handle: DatabaseSync; insertLog: StatementSync; insertCall: StatementSync } | null = null;
   let dbFailureNoted = false;
   let fileFailureNoted = false;
 
   const writeFallback = (line: Record<string, unknown>, level: LogLevel): void => {
-    const text = `${JSON.stringify(line)}\n`;
-    try {
-      fs.mkdirSync(fallbackDir, { recursive: true });
-      fs.appendFileSync(fallbackFile, text);
-      return;
-    } catch (error) {
-      if (!fileFailureNoted) {
-        fileFailureNoted = true;
-        console.error("[records] the fallback log file could not be written; writing to the console", error);
-      }
-    }
-    const sink = level === "error" || level === "warn" ? console.error : console.log;
-    sink(text.trimEnd());
+    writeTextRecord(fallbackDir, sessionStart, line, level, (error) => {
+      if (fileFailureNoted) return;
+      fileFailureNoted = true;
+      console.error("[records] the fallback log file could not be written; writing to the console", error);
+    });
   };
 
   const noteDbFailure = (error: unknown): void => {

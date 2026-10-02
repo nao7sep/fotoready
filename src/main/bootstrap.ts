@@ -3,8 +3,9 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
-import { createLogger, installCrashHandlers } from "./logger";
-import { openRecordsStore } from "./records-store";
+import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
+import { openRecordsStore, writeFallbackRecord } from "./records-store";
+import { jsonSafe } from "./json-safe";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
@@ -14,6 +15,7 @@ import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
+import { nowIso } from "@shared/time";
 import { notifyStartupFailure, requireCorruptSettingsNotice } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
 import {
@@ -70,6 +72,32 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // external signal) — distinct from a deliberate user quit.
 export type ExitState = { reason: string };
 
+// This launch: the records' session, and the name of the text file a failure before the records
+// store opens falls back to.
+const sessionStart = new Date();
+let sessionLogger: AppLogger | null = null;
+
+/**
+ * Records a startup failure: through the logger once it exists, before then in a text file under
+ * `logs/`, then on the console (logging-conventions, When logging itself fails). Never throws.
+ */
+export function recordStartupFailure(message: string, error: unknown): void {
+  if (sessionLogger) {
+    sessionLogger.error(message, { mod: "main.bootstrap", err: error });
+    return;
+  }
+  const line = { time: nowIso(), level: "error", message, mod: "main.bootstrap", err: jsonSafe(error) };
+  let logsDir: string;
+  try {
+    logsDir = getAppPaths().logsDir;
+  } catch (pathError) {
+    console.error("[records] the logs folder could not be resolved; writing to the console", pathError);
+    console.error(JSON.stringify(line));
+    return;
+  }
+  writeFallbackRecord(logsDir, sessionStart, line, "error");
+}
+
 export async function bootstrap(): Promise<void> {
   await app.whenReady();
   // Before anything is drawn, so even a startup failure speaks the computer's language.
@@ -79,8 +107,9 @@ export async function bootstrap(): Promise<void> {
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
   // off (never written to disk) in packaged release builds.
   const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
-  const records = openRecordsStore(paths.recordsPath, paths.logsDir);
+  const records = openRecordsStore(paths.recordsPath, paths.logsDir, sessionStart);
   const logger = createLogger(records, { debug });
+  sessionLogger = logger;
   installCrashHandlers(logger);
   // Wire the session logger into the write-through data-backup store BEFORE any managed save, so the
   // store's one best-effort warn (a failed record, an unopenable store) reaches this launch's log instead

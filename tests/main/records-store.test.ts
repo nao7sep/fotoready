@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { openRecordsStore, type ProviderCallRecord } from "@main/records-store";
+import { openRecordsStore, writeFallbackRecord, type ProviderCallRecord } from "@main/records-store";
 
 let root: string;
 const dbFile = () => path.join(root, "records.sqlite3");
@@ -117,5 +117,19 @@ describe("openRecordsStore", () => {
       records.close();
       records.close();
     }).not.toThrow();
+  });
+});
+
+describe("writeFallbackRecord", () => {
+  it("writes the record to this session's text file", () => {
+    writeFallbackRecord(logsDir(), sessionStart, { time: "2026-10-02T03:15:43.000Z", level: "error", message: "startup failed" }, "error");
+    expect(fallbackLines()).toEqual([{ time: "2026-10-02T03:15:43.000Z", level: "error", message: "startup failed" }]);
+  });
+
+  it("writes the record to the console when the text file cannot be written, and never throws", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    fs.writeFileSync(logsDir(), "x"); // a file where the fallback folder belongs
+    expect(() => writeFallbackRecord(logsDir(), sessionStart, { level: "error", message: "startup failed" }, "error")).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"startup failed"'));
   });
 });

@@ -8,9 +8,10 @@ const electron = vi.hoisted(() => ({
   exit: vi.fn()
 }));
 const bootstrap = vi.hoisted(() => vi.fn(async () => undefined));
+const recordStartupFailure = vi.hoisted(() => vi.fn());
 
 vi.mock("electron", () => ({ app: electron }));
-vi.mock("@main/bootstrap", () => ({ bootstrap }));
+vi.mock("@main/bootstrap", () => ({ bootstrap, recordStartupFailure }));
 vi.mock("@main/startup-dialog", () => ({ notifyStartupFailure: vi.fn() }));
 
 afterEach(() => {
@@ -35,6 +36,17 @@ describe("single instance", () => {
 
     expect(bootstrap).toHaveBeenCalledTimes(1);
     expect(electron.quit).not.toHaveBeenCalled();
+  });
+
+  it("records a failed startup and exits", async () => {
+    electron.requestSingleInstanceLock.mockReturnValue(true);
+    const failure = new Error("no catalogue");
+    bootstrap.mockRejectedValueOnce(failure);
+
+    await import("@main/index");
+    await vi.waitFor(() => expect(electron.exit).toHaveBeenCalledWith(1));
+
+    expect(recordStartupFailure).toHaveBeenCalledWith("startup failed", failure);
   });
 
   it("brings a minimized, hidden window forward", () => {

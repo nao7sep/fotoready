@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { bootstrap } from "./bootstrap";
+import { bootstrap, recordStartupFailure } from "./bootstrap";
 import { notifyStartupFailure } from "./startup-dialog";
 import { windowCloseQuits } from "./window-close";
 
@@ -12,11 +12,11 @@ if (!app.requestSingleInstanceLock()) {
   // Bootstrap failures need a visible terminal surface; the crash handler logs but
   // deliberately does not terminate the process on its own.
   void bootstrap().catch(async (error: unknown) => {
-    console.error("[fotoready] Bootstrap failed:", error instanceof Error ? error.stack : String(error));
+    recordStartupFailure("startup failed", error);
     try {
       await notifyStartupFailure();
     } catch (dialogError) {
-      console.error("[fotoready] Could not show the startup recovery dialog:", dialogError);
+      recordStartupFailure("could not show the startup recovery dialog", dialogError);
     } finally {
       app.exit(1);
     }

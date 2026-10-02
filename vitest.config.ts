@@ -33,9 +33,10 @@ export default defineConfig({
     // `// @vitest-environment jsdom` docblock, so none is JSX today, but a .tsx one written
     // tomorrow would otherwise be type-checked, look fine, and never run.
     include: ["tests/**/*.test.{ts,tsx}"],
-    // Every spec that mounts the interface also fails if a catalogue key reaches the screen
-    // (localization-conventions, Gates).
-    setupFiles: ["tests/setup/rendered-keys.ts"],
+    // data-dir-isolation: every test writes under its own throwaway storage root.
+    // rendered-keys: every spec that mounts the interface also fails if a catalogue key reaches
+    // the screen (localization-conventions, Gates).
+    setupFiles: ["tests/setup/data-dir-isolation.ts", "tests/setup/rendered-keys.ts"],
     // The live lane spends money and builds the app; only npm run test:full runs it,
     // through vitest.live.config.ts.
     exclude: [...configDefaults.exclude, "tests/live/**"],

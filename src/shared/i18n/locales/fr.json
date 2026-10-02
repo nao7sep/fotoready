@@ -315,7 +315,7 @@
   "settings.apiKeyWillClear": "La clé API Gemini sera effacée à l’enregistrement. Saisissez plutôt une nouvelle clé pour la remplacer.",
   "settings.noApiKey": "Aucune clé API Gemini n’est enregistrée.",
   "settings.descriptionModel": "Modèle de description",
-  "settings.descriptionModelHelp": "Rédige la description en une phrase de chaque photo.",
+  "settings.descriptionModelHelp": "Rédige en une phrase la description de chaque photo.",
   "settings.slugModel": "Modèle de slug",
   "settings.slugModelHelp": "Suggère des noms de fichier à partir de la description.",
   "settings.thinking": "Réflexion",

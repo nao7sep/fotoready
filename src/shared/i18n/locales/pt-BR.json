@@ -315,7 +315,7 @@
   "settings.apiKeyWillClear": "A chave de API do Gemini será apagada ao salvar. Digite uma nova chave se preferir substituí-la.",
   "settings.noApiKey": "Nenhuma chave de API do Gemini está salva.",
   "settings.descriptionModel": "Modelo de descrição",
-  "settings.descriptionModelHelp": "Escreve a descrição de uma frase de cada foto.",
+  "settings.descriptionModelHelp": "Escreve em uma frase a descrição de cada foto.",
   "settings.slugModel": "Modelo de slug",
   "settings.slugModelHelp": "Sugere nomes de arquivo a partir da descrição.",
   "settings.thinking": "Raciocínio",

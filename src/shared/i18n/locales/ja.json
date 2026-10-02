@@ -314,7 +314,7 @@
   "settings.keepKey": "キーを残す",
   "settings.apiKeyWillClear": "保存すると Gemini の API キーは消去されます。代わりに置き換えるには、新しいキーを入力してください。",
   "settings.noApiKey": "Gemini の API キーは保存されていません。",
-  "settings.descriptionModel": "説明用モデル",
+  "settings.descriptionModel": "説明文用モデル",
   "settings.descriptionModelHelp": "各写真の説明文を 1 文で書きます。",
   "settings.slugModel": "スラッグ用モデル",
   "settings.slugModelHelp": "説明文からファイル名を提案します。",

@@ -44,7 +44,24 @@ describe("createTranslator", () => {
     expect(createTranslator("ko").t("nativeMenu.edit")).toBe("편집");
   });
 
-  it("shows a key the catalogue lacks instead of failing the render", async () => {
+  it("falls back to English for a key the catalogue lacks", async () => {
+    const catalogue = (await loadCatalogue("ru")) as Record<string, unknown>;
+    const { "status.tasks": tasks, "about.version": version } = catalogue;
+    delete catalogue["status.tasks"];
+    delete catalogue["about.version"];
+    try {
+      const ru = createTranslator("ru");
+      expect(ru.t("about.version", { version: "1.2.0" })).toBe("Version 1.2.0");
+      // English's own rules pick the form: Russian's would take "one" for 21.
+      expect(ru.t("status.tasks", { count: 21 })).toBe("21 tasks");
+      expect(ru.t("status.tasks", { count: 1 })).toBe("1 task");
+    } finally {
+      catalogue["status.tasks"] = tasks;
+      catalogue["about.version"] = version;
+    }
+  });
+
+  it("shows a key no catalogue carries instead of failing the render", async () => {
     // Types keep this out of the app; a stale build or a half-merged catalogue
     // could still reach it, and a window must not go down over one string.
     await loadCatalogue("ja");

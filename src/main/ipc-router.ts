@@ -164,9 +164,9 @@ export function registerIpcHandlers(ctx: RouterContext): void {
 
   handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
-  handle("settings.update", "info", async (_event, patch: Partial<GlobalSettings>) => {
+  handle("settings.update", "info", async (_event, draft: unknown) => {
     return serializeSettings(async () => {
-      const settings = await saveSettings(ctx.paths.settingsPath, isRecord(patch) ? patch : {}, ctx.logger);
+      const settings = await saveSettings(ctx.paths.settingsPath, draft, ctx.settings, ctx.logger);
       Object.assign(ctx.settings, settings);
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
       // localization-conventions). A language change rebuilds the menu bar and reaches every window.

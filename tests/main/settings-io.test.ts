@@ -30,6 +30,12 @@ afterEach(async () => {
 
 const written = async () => JSON.parse(await fs.readFile(settingsPath(), "utf8"));
 
+/** Saves as the app does: the draft is the effective settings with the user's changes. */
+async function save(changes: Record<string, unknown>, logger?: AppLogger): Promise<GlobalSettings> {
+  const { settings: previous } = await loadSettings(settingsPath());
+  return saveSettings(settingsPath(), { ...previous, ...changes }, previous, logger);
+}
+
 describe("settings by set", () => {
   it("loads built-ins on first run without writing any file", async () => {
     expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), quarantinedTo: null });
@@ -37,7 +43,7 @@ describe("settings by set", () => {
   });
 
   it("writes only the set that changes", async () => {
-    const effective = await saveSettings(settingsPath(), { defaultOutputFormat: "webp" });
+    const effective = await save({ defaultOutputFormat: "webp" });
     expect(await written()).toEqual({ defaultOutputFormat: "webp" });
     expect(effective).toEqual({ ...defaults(), defaultOutputFormat: "webp" });
   });
@@ -49,34 +55,34 @@ describe("settings by set", () => {
     expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 
-  it("replaces only requested sets and drops unknown and version keys at the next write", async () => {
+  it("writes every set that differs and drops unknown and version keys at the next save", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, version: 99, schemaVersion: 99, retired: true }));
-    await saveSettings(settingsPath(), { confirmDeleteTasks: false });
+    await save({ confirmDeleteTasks: false });
     expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
   });
 
   it("drops the retired selection key and writes only the changed role", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ model: "old-model" }));
-    const effective = await saveSettings(settingsPath(), { "gemini.slug": "typed-new-model" });
+    const effective = await save({ "gemini.slug": "typed-new-model", "gemini.thinking.slug": null });
     expect(await written()).toEqual({ "gemini.slug": "typed-new-model" });
     expect(effective["gemini.description"]).toBe("gemini-3.8-flash");
     expect(effective["gemini.slug"]).toBe("typed-new-model");
   });
 
   it("stores a role's Thinking only while it differs from its model's default", async () => {
-    await saveSettings(settingsPath(), { "gemini.thinking.slug": "minimal" });
-    expect(await fs.readdir(dir)).toEqual([]);
-    await saveSettings(settingsPath(), { "gemini.thinking.slug": "high" });
+    await save({ "gemini.thinking.slug": "minimal" });
+    expect(await written()).toEqual({});
+    await save({ "gemini.thinking.slug": "high" });
     expect(await written()).toEqual({ "gemini.thinking.slug": "high" });
-    const effective = await saveSettings(settingsPath(), { "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
+    const effective = await save({ "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
     expect(await written()).toEqual({ "gemini.slug": "gemini-3.8-flash" });
     expect(effective["gemini.thinking.slug"]).toBe("low");
   });
 
   it("checks a role's Thinking against its model's values", async () => {
     const warn = vi.fn();
-    const effective = await saveSettings(settingsPath(), { "gemini.thinking.description": "minimal" }, { warn } as unknown as AppLogger);
-    expect(await fs.readdir(dir)).toEqual([]);
+    const effective = await save({ "gemini.thinking.description": "minimal" }, { warn } as unknown as AppLogger);
+    expect(await written()).toEqual({});
     expect(effective["gemini.thinking.description"]).toBe("medium");
     expect(warn).toHaveBeenCalledOnce();
 
@@ -87,15 +93,15 @@ describe("settings by set", () => {
   });
 
   it("writes metadata whole rather than merging its members", async () => {
-    await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
-    await saveSettings(settingsPath(), { injectFields: { author: "John" } });
+    await save({ injectFields: { author: "Jane", credit: "Me" } });
+    await save({ injectFields: { author: "John" } });
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("never writes an invalid value, leaving each stored copy untouched and reporting each issue", async () => {
+  it("never writes an invalid value, keeping each previous value and reporting each issue", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
     const warn = vi.fn();
-    const patch = {
+    const effective = await save({
       defaultWebpQuality: 999,
       previewDebounceMs: 1.5,
       defaultOutputFormat: "gif",
@@ -103,97 +109,83 @@ describe("settings by set", () => {
       injectFields: { author: 42 },
       "gemini.description": "",
       writeSoftwareTag: false,
-    } as unknown as Partial<GlobalSettings>;
-
-    const effective = await saveSettings(settingsPath(), patch, { warn } as unknown as AppLogger);
+    }, { warn } as unknown as AppLogger);
     const expected = { defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark", writeSoftwareTag: false };
     expect(await written()).toEqual(expected);
     expect(effective).toEqual({ ...defaults(), ...expected });
     expect(warn).toHaveBeenCalledTimes(6);
     for (const key of ["defaultWebpQuality", "previewDebounceMs", "defaultOutputFormat", "confirmDeleteTasks", "injectFields.author", "gemini.description"]) {
-      expect(warn).toHaveBeenCalledWith("settings patch contained invalid data; its stored copy is unchanged", {
+      expect(warn).toHaveBeenCalledWith("settings contained invalid data; its previous value is kept", {
         mod: "settings",
         issue: expect.stringContaining(`settings.${key}`),
       });
     }
   });
 
-  it("normalizes metadata members without merging or writing absent sets", async () => {
-    await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
-    const injectFields = { author: "John", unknownField: "discard" };
-    await saveSettings(settingsPath(), { injectFields });
+  it("normalizes metadata members, dropping unknown ones", async () => {
+    await save({ injectFields: { author: "Jane", credit: "Me" } });
+    await save({ injectFields: { author: "John", unknownField: "discard" } });
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("preserves an untouched invalid stored set while rejecting an invalid changed set", async () => {
-    const text = JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" });
-    await fs.writeFile(settingsPath(), text);
-    const warn = vi.fn();
-    const effective = await saveSettings(settingsPath(), { visionMaxRetries: -1 }, { warn } as unknown as AppLogger);
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
+  it("heals an invalid stored set at the next save, which writes it as its built-in", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
+    const effective = await save({ confirmDeleteTasks: false });
+    expect(await written()).toEqual({ "gemini.description": "unlisted-model", confirmDeleteTasks: false });
     expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
     expect(effective["gemini.description"]).toBe("unlisted-model");
-    expect(effective.visionMaxRetries).toBe(defaults().visionMaxRetries);
-    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("writes from the settings it holds, not from the file as it now is", async () => {
+    const { settings: previous } = await loadSettings(settingsPath());
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71 }));
+    await saveSettings(settingsPath(), { ...previous, confirmDeleteTasks: false }, previous);
+    expect(await written()).toEqual({ confirmDeleteTasks: false });
   });
 
   it("removes a set's key when it is saved back to its built-in, and keeps an empty file when no key remains", async () => {
-    await saveSettings(settingsPath(), { defaultWebpQuality: 71, confirmDeleteTasks: false });
-    await saveSettings(settingsPath(), { defaultWebpQuality: defaults().defaultWebpQuality });
+    await save({ defaultWebpQuality: 71, confirmDeleteTasks: false });
+    await save({ defaultWebpQuality: defaults().defaultWebpQuality });
     expect(await written()).toEqual({ confirmDeleteTasks: false });
-    const effective = await saveSettings(settingsPath(), { confirmDeleteTasks: true });
+    const effective = await save({ confirmDeleteTasks: true });
     expect(await fs.readFile(settingsPath(), "utf8")).toBe("{}\n");
     expect(effective).toEqual(defaults());
   });
 
   it("removes reset prompts while retaining other saved sets", async () => {
-    await saveSettings(settingsPath(), { visionDescriptionPrompt: "custom description", visionSlugPrompt: "custom slug", defaultWebpQuality: 71 });
-    const effective = await saveSettings(settingsPath(), { visionDescriptionPrompt: defaults().visionDescriptionPrompt, visionSlugPrompt: defaults().visionSlugPrompt });
+    await save({ visionDescriptionPrompt: "custom description", visionSlugPrompt: "custom slug", defaultWebpQuality: 71 });
+    const effective = await save({ visionDescriptionPrompt: defaults().visionDescriptionPrompt, visionSlugPrompt: defaults().visionSlugPrompt });
     expect(await written()).toEqual({ defaultWebpQuality: 71 });
     expect(effective.visionDescriptionPrompt).toBe(defaults().visionDescriptionPrompt);
     expect(effective.visionSlugPrompt).toBe(defaults().visionSlugPrompt);
   });
 
   it("compares after cleanup: a prompt differing by line endings or trailing spaces and a model id differing by case are not stored", async () => {
-    await saveSettings(settingsPath(), {
+    await save({
       visionDescriptionPrompt: `\r\n${defaults().visionDescriptionPrompt}  \r\n`,
       visionSlugPrompt: `${defaults().visionSlugPrompt}   `,
       "gemini.description": ` ${defaults()["gemini.description"].toUpperCase()} `,
       "gemini.endpoint": `${defaults()["gemini.endpoint"]} `
     });
-    expect(await fs.readdir(dir)).toEqual([]);
+    expect(await written()).toEqual({});
   });
 
   it("stores a differing set in its cleaned form", async () => {
-    await saveSettings(settingsPath(), { visionSlugPrompt: "  Line one  \r\n\r\n  Line two  \n", "gemini.slug": " typed-model ", uiFontFamily: " Inter\n Display " });
+    await save({ visionSlugPrompt: "  Line one  \r\n\r\n  Line two  \n", "gemini.slug": " typed-model ", "gemini.thinking.slug": null, uiFontFamily: " Inter\n Display " });
     expect(await written()).toEqual({ visionSlugPrompt: "  Line one\n\n  Line two", "gemini.slug": "typed-model", uiFontFamily: "Inter Display" });
   });
 
-  it("removes an untouched stored copy equal to its built-in at the next save of another set", async () => {
+  it("removes a stored copy equal to its built-in at the next save of another set", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 }));
-    await saveSettings(settingsPath(), { confirmDeleteTasks: false });
+    await save({ confirmDeleteTasks: false });
     expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
   });
 
   it("treats an empty metadata member as absent, since it injects nothing", async () => {
-    await saveSettings(settingsPath(), { injectFields: { author: "  ", credit: "" } });
-    expect(await fs.readdir(dir)).toEqual([]);
-    await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: " " } });
+    await save({ injectFields: { author: "  ", credit: "" } });
+    expect(await written()).toEqual({});
+    await save({ injectFields: { author: "Jane", credit: " " } });
     expect(await written()).toEqual({ injectFields: { author: "Jane" } });
-  });
-
-  it("writes nothing when the result equals the file", async () => {
-    await saveSettings(settingsPath(), { defaultWebpQuality: 71 });
-    const before = await fs.stat(settingsPath());
-    await saveSettings(settingsPath(), { defaultWebpQuality: 71, confirmDeleteTasks: true });
-    const after = await fs.stat(settingsPath());
-    expect(after.ino).toBe(before.ino);
-    expect(after.mtimeMs).toBe(before.mtimeMs);
-  });
-
-  it("writes nothing when a built-in is saved with no file present", async () => {
-    await saveSettings(settingsPath(), { defaultWebpQuality: defaults().defaultWebpQuality, workerPoolSize: null });
-    expect(await fs.readdir(dir)).toEqual([]);
   });
 
   it("logs a bad set and reads only that set as absent without quarantining or rewriting", async () => {

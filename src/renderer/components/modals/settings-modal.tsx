@@ -1,12 +1,11 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemInfo } from "@shared/types/ipc";
-import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields, type ThemePreference } from "@shared/types/settings";
 import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
-import { assertModelEndpoint } from "@shared/validation/settings";
+import { assertModelEndpoint, SETTING_BOUNDS } from "@shared/validation/settings";
 import { AI_ROLES, defaultThinkingFor, supportedModel } from "@shared/ai-models";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
@@ -280,7 +279,7 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
               <option value="fixed">{t("settings.useFixedQuality")}</option>
             </select>
           </label>
-          <NumberField label={t("settings.fixedQuality")} max={100} min={1} value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
+          <NumberField label={t("settings.fixedQuality")} {...SETTING_BOUNDS.jpegFixedQuality} value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
           <SelectField
             className="span-two"
             label={t("settings.chromaSubsampling")}
@@ -312,16 +311,16 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
       <section>
         <h3>WebP</h3>
         <div className="settings-grid">
-          <NumberField label={t("settings.quality")} max={100} min={1} value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
-          <NumberField label={t("settings.webpMethod")} max={6} min={0} value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
+          <NumberField label={t("settings.quality")} {...SETTING_BOUNDS.defaultWebpQuality} value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
+          <NumberField label={t("settings.webpMethod")} {...SETTING_BOUNDS.webpMethod} value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
         </div>
       </section>
 
       <section>
         <h3>AVIF</h3>
         <div className="settings-grid">
-          <NumberField label={t("settings.quality")} max={100} min={1} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
-          <NumberField label={t("settings.avifEffort")} max={9} min={0} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
+          <NumberField label={t("settings.quality")} {...SETTING_BOUNDS.defaultAvifQuality} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
+          <NumberField label={t("settings.avifEffort")} {...SETTING_BOUNDS.avifEffort} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
         </div>
       </section>
     </div>
@@ -462,11 +461,11 @@ function VisionTab({
 
       <section>
         <div className="settings-grid">
-          <NumberField label={t("settings.visionLongEdge")} max={MAX_VISION_IMAGE_LONG_EDGE} min={128} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
-          <NumberField label={t("settings.visionConcurrency")} max={32} min={1} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
-          <NumberField label={t("settings.visionTimeout")} max={600000} min={1000} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
-          <NumberField label={t("settings.visionMaxRetries")} max={10} min={0} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
-          <NumberField label={t("settings.visionBackoff")} max={30000} min={0} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
+          <NumberField label={t("settings.visionLongEdge")} {...SETTING_BOUNDS.preResizeLongEdge} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
+          <NumberField label={t("settings.visionConcurrency")} {...SETTING_BOUNDS.visionConcurrency} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
+          <NumberField label={t("settings.visionTimeout")} {...SETTING_BOUNDS.visionTimeoutMs} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
+          <NumberField label={t("settings.visionMaxRetries")} {...SETTING_BOUNDS.visionMaxRetries} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
+          <NumberField label={t("settings.visionBackoff")} {...SETTING_BOUNDS.visionInitialBackoffMs} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"
@@ -669,8 +668,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           <NumberField
             className="span-two"
             label={t("settings.previewLongEdge")}
-            max={MAX_PREVIEW_LONG_EDGE}
-            min={320}
+            {...SETTING_BOUNDS.previewLongEdge}
             value={settings.previewLongEdge}
             onChange={(value) => setSettings({ ...settings, previewLongEdge: value })}
           />
@@ -678,8 +676,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           <NumberField
             className="span-two"
             label={t("settings.assetPreviewSize")}
-            max={MAX_ASSET_PICKER_PREVIEW_LONG_EDGE}
-            min={MIN_ASSET_PICKER_PREVIEW_LONG_EDGE}
+            {...SETTING_BOUNDS.assetPickerPreviewLongEdge}
             value={settings.assetPickerPreviewLongEdge}
             onChange={(value) => setSettings({ ...settings, assetPickerPreviewLongEdge: value })}
           />
@@ -687,8 +684,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
           <NumberField
             className="span-two"
             label={t("settings.previewDebounce")}
-            max={2000}
-            min={0}
+            {...SETTING_BOUNDS.previewDebounceMs}
             value={settings.previewDebounceMs}
             onChange={(value) => setSettings({ ...settings, previewDebounceMs: value })}
           />

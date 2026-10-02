@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { AI_ROLES, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
@@ -78,43 +79,33 @@ function equalsBuiltIn<K extends keyof GlobalSettings>(key: K, value: GlobalSett
   return JSON.stringify(value) === JSON.stringify(builtIn);
 }
 
+/** The built-ins `settings` is compared with; a role's Thinking built-in follows the role's model. */
+function builtInsFor(settings: GlobalSettings): GlobalSettings {
+  const builtIns = defaults();
+  for (const role of AI_ROLES) builtIns[`gemini.thinking.${role.id}`] = defaultThinkingFor("gemini", role.kind, settings[`gemini.${role.id}`]);
+  return builtIns;
+}
+
 /**
- * Writes the sets in `patch` and decides each one alone: a set equal to its built-in after cleanup
- * has its key removed, a set that differs is written whole, and an invalid set is reported and
- * leaves its stored copy untouched. A stored copy outside the patch that equals its built-in is
- * removed too. A result equal to the file writes nothing, so a missing file stays missing; a file
- * whose every set is back at its built-in holds `{}`.
+ * Writes the file from the whole of `settings` (config-sets-conventions). An invalid set is
+ * reported and keeps its value from `previous`.
  */
 export async function saveSettings(
   settingsPath: string,
-  patch: Partial<GlobalSettings>,
+  settings: unknown,
+  previous: GlobalSettings,
   logger?: AppLogger
 ): Promise<GlobalSettings> {
-  const { sets } = await readSettingsMap(settingsPath, logger);
-  const builtIns = defaults();
-  const next: Record<string, unknown> = {};
-  // The valid sets decided so far, in key order, so a set whose check or built-in follows another
-  // set (a role's Thinking follows its model) is decided against that set's outcome.
-  const decided: Record<string, unknown> = {};
-  for (const key of SETTINGS_KEYS) {
-    const stored = Object.hasOwn(sets, key);
-    const patched = Object.hasOwn(patch, key);
-    if (!stored && !patched) continue;
-    const { settings: parsed, issues } = normalizeGlobalSettings({ ...decided, [key]: cleanSet(key, patched ? patch[key] : sets[key]) }, builtIns);
-    if (issues.length) {
-      if (patched) for (const issue of issues) logger?.warn("settings patch contained invalid data; its stored copy is unchanged", { mod: "settings", issue });
-      if (stored) next[key] = sets[key];
-      continue;
-    }
-    const builtIn = normalizeGlobalSettings(decided, builtIns).settings[key];
-    decided[key] = parsed[key];
-    if (!equalsBuiltIn(key, parsed[key], builtIn)) {
-      next[key] = patched ? parsed[key] : sets[key];
-    }
-  }
-  if (JSON.stringify(next) !== JSON.stringify(sets)) {
-    // recorded: durable config sets use the managed atomic write and backup history.
-    await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
-  }
-  return effectiveSettings(next, logger);
+  const cleaned = isRecord(settings)
+    ? Object.fromEntries(SETTINGS_KEYS.map((key) => [key, cleanSet(key, settings[key])]))
+    : settings;
+  const { settings: effective, issues } = normalizeGlobalSettings(cleaned, previous);
+  for (const issue of issues) logger?.warn("settings contained invalid data; its previous value is kept", { mod: "settings", issue });
+  const builtIns = builtInsFor(effective);
+  const next = Object.fromEntries(SETTINGS_KEYS
+    .filter((key) => !equalsBuiltIn(key, effective[key], builtIns[key]))
+    .map((key) => [key, effective[key]]));
+  // recorded: durable config sets use the managed atomic write and backup history.
+  await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
+  return effective;
 }

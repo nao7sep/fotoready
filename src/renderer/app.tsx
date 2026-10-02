@@ -655,7 +655,6 @@ function App(): React.JSX.Element {
         setSettings(stored);
         setSettingsDraft(stored);
       },
-      settings,
       settingsDraft,
       setApiKey: api.settings.setGeminiApiKey,
       updateSettings: api.settings.update

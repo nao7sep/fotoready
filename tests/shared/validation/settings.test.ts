@@ -12,6 +12,14 @@ describe("normalizeGlobalSettings", () => {
     expect(settings).not.toBe(fallback);
   });
 
+  it("holds the settings form's bounds: preview long edge from 320, debounce up to 2000 ms", () => {
+    const below = normalizeGlobalSettings({ ...fallback, previewLongEdge: 319, previewDebounceMs: 2001 }, fallback);
+    expect(below.issues).toHaveLength(2);
+    const at = normalizeGlobalSettings({ ...fallback, previewLongEdge: 320, previewDebounceMs: 2000 }, fallback);
+    expect(at.issues).toEqual([]);
+    expect(at.settings).toMatchObject({ previewLongEdge: 320, previewDebounceMs: 2000 });
+  });
+
   it("treats a non-object input as one issue and uses the fallback", () => {
     const { settings, issues } = normalizeGlobalSettings(null, fallback);
     expect(issues).toContain("settings must be a JSON object.");

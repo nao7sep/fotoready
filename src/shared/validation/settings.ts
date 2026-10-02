@@ -8,6 +8,23 @@ const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
 
+/** The range of each whole-number set; the settings form reads its field bounds from here. */
+export const SETTING_BOUNDS = {
+  defaultWebpQuality: { min: 1, max: 100 },
+  defaultAvifQuality: { min: 1, max: 100 },
+  jpegFixedQuality: { min: 1, max: 100 },
+  webpMethod: { min: 0, max: 6 },
+  avifEffort: { min: 0, max: 9 },
+  preResizeLongEdge: { min: 128, max: MAX_VISION_IMAGE_LONG_EDGE },
+  visionConcurrency: { min: 1, max: 32 },
+  visionTimeoutMs: { min: 1000, max: 600000 },
+  visionMaxRetries: { min: 0, max: 10 },
+  visionInitialBackoffMs: { min: 0, max: 30000 },
+  previewLongEdge: { min: 320, max: MAX_PREVIEW_LONG_EDGE },
+  assetPickerPreviewLongEdge: { min: MIN_ASSET_PICKER_PREVIEW_LONG_EDGE, max: MAX_ASSET_PICKER_PREVIEW_LONG_EDGE },
+  previewDebounceMs: { min: 0, max: 2000 }
+} as const satisfies Partial<Record<keyof GlobalSettings, { min: number; max: number }>>;
+
 export type SettingsNormalizationResult = {
   settings: GlobalSettings;
   issues: string[];
@@ -32,8 +49,8 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     confirmDeleteTasks: readValue(source, "confirmDeleteTasks", fallback.confirmDeleteTasks, issues, assertBoolean),
     confirmDeleteOutputFiles: readValue(source, "confirmDeleteOutputFiles", fallback.confirmDeleteOutputFiles, issues, assertBoolean),
     defaultOutputFormat: readValue(source, "defaultOutputFormat", fallback.defaultOutputFormat, issues, (value, path) => assertOneOf(value, path, outputFormats)),
-    defaultWebpQuality: readValue(source, "defaultWebpQuality", fallback.defaultWebpQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
-    defaultAvifQuality: readValue(source, "defaultAvifQuality", fallback.defaultAvifQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
+    defaultWebpQuality: readValue(source, "defaultWebpQuality", fallback.defaultWebpQuality, issues, wholeNumber("defaultWebpQuality")),
+    defaultAvifQuality: readValue(source, "defaultAvifQuality", fallback.defaultAvifQuality, issues, wholeNumber("defaultAvifQuality")),
     defaultPngPalette: readValue(source, "defaultPngPalette", fallback.defaultPngPalette, issues, assertBoolean),
     defaultGenerateDescription: readValue(source, "defaultGenerateDescription", fallback.defaultGenerateDescription, issues, assertBoolean),
     defaultGenerateSlug: readValue(source, "defaultGenerateSlug", fallback.defaultGenerateSlug, issues, assertBoolean),
@@ -47,32 +64,36 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     defaultWatermarkImage: readValue(source, "defaultWatermarkImage", fallback.defaultWatermarkImage, issues, assertString),
     defaultWatermarkTextFontFamily: readValue(source, "defaultWatermarkTextFontFamily", fallback.defaultWatermarkTextFontFamily, issues, assertNonEmptyString),
     jpegQualityMode: readValue(source, "jpegQualityMode", fallback.jpegQualityMode, issues, (value, path) => assertOneOf(value, path, jpegQualityModes)),
-    jpegFixedQuality: readValue(source, "jpegFixedQuality", fallback.jpegFixedQuality, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 })),
+    jpegFixedQuality: readValue(source, "jpegFixedQuality", fallback.jpegFixedQuality, issues, wholeNumber("jpegFixedQuality")),
     jpegChromaSubsampling: readValue(source, "jpegChromaSubsampling", fallback.jpegChromaSubsampling, issues, (value, path) => assertOneOf(value, path, chromaSubsamplingModes)),
     jpegProgressive: readValue(source, "jpegProgressive", fallback.jpegProgressive, issues, assertBoolean),
-    webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
-    avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
+    webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, wholeNumber("webpMethod")),
+    avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, wholeNumber("avifEffort")),
     "gemini.endpoint": readValue(source, "gemini.endpoint", fallback["gemini.endpoint"], issues, assertModelEndpoint),
     "gemini.description": descriptionModel,
     "gemini.slug": slugModel,
     "gemini.thinking.description": readThinking(source, "gemini.thinking.description", "vision", descriptionModel, issues),
     "gemini.thinking.slug": readThinking(source, "gemini.thinking.slug", "text-fast", slugModel, issues),
-    preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
+    preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, wholeNumber("preResizeLongEdge")),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
-    visionConcurrency: readValue(source, "visionConcurrency", fallback.visionConcurrency, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1, max: 32 })),
-    visionTimeoutMs: readValue(source, "visionTimeoutMs", fallback.visionTimeoutMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 1000, max: 600000 })),
-    visionMaxRetries: readValue(source, "visionMaxRetries", fallback.visionMaxRetries, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 10 })),
-    visionInitialBackoffMs: readValue(source, "visionInitialBackoffMs", fallback.visionInitialBackoffMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 30000 })),
+    visionConcurrency: readValue(source, "visionConcurrency", fallback.visionConcurrency, issues, wholeNumber("visionConcurrency")),
+    visionTimeoutMs: readValue(source, "visionTimeoutMs", fallback.visionTimeoutMs, issues, wholeNumber("visionTimeoutMs")),
+    visionMaxRetries: readValue(source, "visionMaxRetries", fallback.visionMaxRetries, issues, wholeNumber("visionMaxRetries")),
+    visionInitialBackoffMs: readValue(source, "visionInitialBackoffMs", fallback.visionInitialBackoffMs, issues, wholeNumber("visionInitialBackoffMs")),
     writeSoftwareTag: readValue(source, "writeSoftwareTag", fallback.writeSoftwareTag, issues, assertBoolean),
     writeModifyDate: readValue(source, "writeModifyDate", fallback.writeModifyDate, issues, assertBoolean),
     workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
-    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 64, max: MAX_PREVIEW_LONG_EDGE })),
-    assetPickerPreviewLongEdge: readValue(source, "assetPickerPreviewLongEdge", fallback.assetPickerPreviewLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: MIN_ASSET_PICKER_PREVIEW_LONG_EDGE, max: MAX_ASSET_PICKER_PREVIEW_LONG_EDGE })),
-    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 5000 }))
+    previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, wholeNumber("previewLongEdge")),
+    assetPickerPreviewLongEdge: readValue(source, "assetPickerPreviewLongEdge", fallback.assetPickerPreviewLongEdge, issues, wholeNumber("assetPickerPreviewLongEdge")),
+    previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, wholeNumber("previewDebounceMs"))
   };
 
   return { settings, issues };
+}
+
+function wholeNumber(key: keyof typeof SETTING_BOUNDS): (value: unknown, path: string) => number {
+  return (value, path) => assertFiniteNumber(value, path, { integer: true, ...SETTING_BOUNDS[key] });
 }
 
 function readValue<T>(

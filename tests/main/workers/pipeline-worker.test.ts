@@ -133,12 +133,9 @@ describe("the pipeline worker", () => {
   });
 
   it("applies levels and a text watermark to the pixels they own", async () => {
-    // A watermark's font-fit search renders candidate font sizes up to the box size, and render
-    // cost grows with the square of that size: at the file's default 600x400 photo the default
-    // watermark box (22% of the 600px long edge) drove that search into large, slow rasterizations
-    // and made this test flaky under load. A smaller photo shrinks the box (and so the search) by
-    // the same factor without changing what the test proves, so this test uses its own quadrant
-    // photo instead of the shared WIDTH/HEIGHT one the other tests use.
+    // A watermark's text render cost grows with the square of its box, which is sized from the
+    // photo's long edge. A smaller photo keeps that cost low without changing what the test
+    // proves, so this test uses its own quadrant photo instead of the shared WIDTH/HEIGHT one.
     const smallWidth = 180;
     const smallHeight = 120;
     const photo = await quadrantPhoto(await workspace(), smallWidth, smallHeight);

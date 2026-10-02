@@ -156,25 +156,46 @@ async function fitTextBitmap(params: WatermarkTextParams, maxWidth: number, maxH
     return cached;
   }
 
-  let low = 1;
-  let high = Math.max(1, Math.ceil(Math.max(maxWidth, maxHeight) * 1.5));
-  let best: TrimmedTextBitmap | null = null;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const candidate = await renderTrimmedTextBitmap(params, mid);
-    if (candidate.width <= maxWidth && candidate.height <= maxHeight) {
-      best = candidate;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-  const bitmap = best ?? await renderTrimmedTextBitmap(params, 1);
+  const { bitmap } = await fitLargestFontSize((fontSize) => renderTrimmedTextBitmap(params, fontSize), maxWidth, maxHeight);
   setCachedBitmap(fittedTextBitmapCache, cacheKey, bitmap, MAX_FITTED_TEXT_BITMAP_CACHE_ENTRIES);
   return cloneTrimmedTextBitmap(bitmap);
 }
 
-async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: number): Promise<TrimmedTextBitmap> {
+// The first size the fit renders: small enough to rasterize cheaply, large enough that scaling its
+// measured ink size lands within a few sizes of the fit.
+const FIT_PROBE_FONT_SIZE = 128;
+
+/**
+ * Finds the largest font size, up to 1.5 times the box's longer side, whose rendering fits the
+ * box, or size 1 when none does. Each rendering's ink size is scaled to the box to pick the next
+ * size, inside the range still open between the largest size known to fit and the smallest known
+ * not to, so the search ends after a few renderings near the answer: the largest fitting size,
+ * confirmed by the next size up not fitting.
+ */
+export async function fitLargestFontSize<T extends { width: number; height: number }>(
+  render: (fontSize: number) => Promise<T>,
+  maxWidth: number,
+  maxHeight: number
+): Promise<{ fontSize: number; bitmap: T }> {
+  const limit = Math.max(1, Math.ceil(Math.max(maxWidth, maxHeight) * 1.5));
+  let fitting: { fontSize: number; bitmap: T } | null = null;
+  let tooLarge = limit + 1;
+  let fontSize = Math.min(FIT_PROBE_FONT_SIZE, limit);
+  while (tooLarge - (fitting?.fontSize ?? 0) > 1) {
+    const bitmap = await render(fontSize);
+    if (bitmap.width <= maxWidth && bitmap.height <= maxHeight) {
+      fitting = { fontSize, bitmap };
+    } else {
+      tooLarge = fontSize;
+    }
+    // An ink extent measured as n whole pixels covers between n - 1 and n pixels, so scale from n - 0.5.
+    const scaled = Math.floor(fontSize * Math.min(maxWidth / (bitmap.width - 0.5), maxHeight / (bitmap.height - 0.5)));
+    fontSize = Math.min(tooLarge - 1, Math.max((fitting?.fontSize ?? 0) + 1, scaled));
+  }
+  return fitting ?? { fontSize: 1, bitmap: await render(1) };
+}
+
+export async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: number): Promise<TrimmedTextBitmap> {
   const cacheKey = `${textBitmapStyleKey(params)}|render|${fontSize}`;
   const cached = getCachedBitmap(renderedTextBitmapCache, cacheKey);
   if (cached) {

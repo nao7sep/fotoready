@@ -28,6 +28,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   // Close the store singleton so it releases this root's file handle and re-opens against the next test's
   // throwaway root.
   closeBackupStore();
@@ -60,6 +61,14 @@ describe("loadState", () => {
     expect(state).toEqual(defaultUiState());
     const files = withoutStoreFiles(await fs.readdir(dir));
     expect(files).toEqual(["state.json"]);
+  });
+});
+
+describe("saveState", () => {
+  it("leaves no state temp file behind when the write fails", async () => {
+    vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("rename refused"));
+    await expect(saveState(statePath(), defaultUiState())).rejects.toThrow("rename refused");
+    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual([]);
   });
 });
 

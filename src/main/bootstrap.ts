@@ -140,7 +140,8 @@ export async function bootstrap(): Promise<void> {
   // One launch = one log file. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
   // Quitting holds the exit until in-flight saves are cancelled and have removed their
-  // unfinished files, for at most SHUTDOWN_WAIT_MS, then quits for real.
+  // unfinished files and the last state write has landed, for at most SHUTDOWN_WAIT_MS, then
+  // quits for real.
   let shutdown: "running" | "stopping" | "done" = "running";
   app.on("will-quit", (event) => {
     if (shutdown === "done") return;
@@ -149,7 +150,7 @@ export async function bootstrap(): Promise<void> {
     shutdown = "stopping";
     logger.info("app stopping", { mod: "main", reason: exitState.reason });
     void (async () => {
-      const finished = await settleWithin(projectSession.shutdown(), SHUTDOWN_WAIT_MS);
+      const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateCoordinator.flush()]), SHUTDOWN_WAIT_MS);
       if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
       await settleWithin(pipelineWorkerPool.destroy(), SHUTDOWN_WAIT_MS);
       shutdown = "done";

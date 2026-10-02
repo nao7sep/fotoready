@@ -68,7 +68,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // app is shutting down; the single will-quit handler reads it. "unknown" means
 // the app went down without passing through a recognized close path (e.g. an
 // external signal) — distinct from a deliberate user quit.
-type ExitState = { reason: string };
+export type ExitState = { reason: string };
 
 export async function bootstrap(): Promise<void> {
   await app.whenReady();
@@ -253,17 +253,23 @@ function sameOrigin(a: string, b: string): boolean {
   }
 }
 
-function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClose: () => Promise<void>): void {
+/** Exported for tests: the system-shutdown hold is the part worth checking without a real window. */
+export function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClose: () => Promise<void>): void {
   let closeAllowed = false;
   let closeRequestPending = false;
   let closeRequestMode: "window" | "quit" = "window";
   let systemShutdown = false;
 
-  const markSystemShutdown = () => {
+  // Holds the shutdown, where the event allows it, until the last state write has landed, for at
+  // most SHUTDOWN_WAIT_MS as quitting does, then quits. Electron passes powerMonitor's shutdown
+  // an event its typings omit.
+  const markSystemShutdown = (event?: { preventDefault(): void }) => {
+    if (systemShutdown) return;
     systemShutdown = true;
     closeAllowed = true;
     exitState.reason = "system-shutdown";
-    void prepareClose();
+    event?.preventDefault();
+    void settleWithin(prepareClose(), SHUTDOWN_WAIT_MS).then(() => app.quit());
   };
 
   powerMonitor.once("shutdown", markSystemShutdown);

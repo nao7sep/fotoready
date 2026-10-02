@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "Writes the one-sentence description of each photo.",
   "settings.slugModel": "Slug model",
   "settings.slugModelHelp": "Suggests file names from the description.",
+  "settings.thinking": "Thinking",
   "settings.unsupportedModel": "Not a supported model. It may not work as expected.",
   "settings.visionLongEdge": "Vision image long edge",
   "settings.visionConcurrency": "Concurrent vision requests",

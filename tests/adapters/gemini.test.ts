@@ -5,7 +5,7 @@ import { visionError } from "@main/queues/vision";
 
 const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
-const opts = { model: "gemini-3.8-flash", descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
+const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
 const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const };
 const ok = () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A mug." }] } }] }));
 const fail = (status: number) => new Response(JSON.stringify({ error: { message: "Please try later." } }), { status, headers: { "Content-Type": "application/json" } });
@@ -19,11 +19,11 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("Gemini requests follow the id, independent of endpoint", () => {
   it.each([
-    ["gemini-3.8-flash", { thinkingLevel: "MEDIUM" }],
-    ["typed-unknown", undefined]
-  ])("builds the %s description request from its branch", async (model, thinkingConfig) => {
+    ["gemini-3.8-flash", "high", { thinkingLevel: "HIGH" }],
+    ["typed-unknown", null, undefined]
+  ])("builds the %s description request from its branch", async (model, thinking, thinkingConfig) => {
     fetchMock.mockImplementation(async () => ok());
-    await run({ model });
+    await run({ model, thinking });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe(`https://proxy.example/gemini/v1beta/models/${model}:generateContent`);
     expect(init).toMatchObject({ method: "POST", signal: expect.any(AbortSignal) });
@@ -35,14 +35,14 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
 
   it("asks for the slug JSON format and excludes thought text", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ thought: true, text: "private reasoning" }, { text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
-    await expect(new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "gemini-3.5-flash-lite", slugPrompt: "Slugs" })).resolves.toEqual(["a-mug", "cup", "drink"]);
+    await expect(new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "gemini-3.5-flash-lite", thinking: "minimal", slugPrompt: "Slugs" })).resolves.toEqual(["a-mug", "cup", "drink"]);
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
-    expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }), thinkingConfig: { thinkingLevel: "MEDIUM" } });
+    expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }), thinkingConfig: { thinkingLevel: "MINIMAL" } });
   });
 
   it("asks for the slug JSON format for an id with no branch", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
-    await new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "typed-unknown", slugPrompt: "Slugs" });
+    await new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "typed-unknown", thinking: null, slugPrompt: "Slugs" });
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
     expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }) });
   });

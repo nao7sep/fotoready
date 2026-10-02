@@ -1,4 +1,4 @@
-import { defaultModelFor } from "./ai-models";
+import { defaultModelFor, defaultThinkingFor } from "./ai-models";
 import type { GlobalSettings } from "./types/settings";
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { Project } from "./types/project";
@@ -56,6 +56,8 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     "gemini.endpoint": "https://generativelanguage.googleapis.com",
     "gemini.description": defaultModelFor("gemini", "vision"),
     "gemini.slug": defaultModelFor("gemini", "text-fast"),
+    "gemini.thinking.description": defaultThinkingFor("gemini", "vision", defaultModelFor("gemini", "vision")),
+    "gemini.thinking.slug": defaultThinkingFor("gemini", "text-fast", defaultModelFor("gemini", "text-fast")),
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,

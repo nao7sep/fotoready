@@ -7,7 +7,7 @@ import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { assertModelEndpoint } from "@shared/validation/settings";
-import { AI_ROLES, SUPPORTED_MODELS } from "@shared/ai-models";
+import { AI_ROLES, defaultThinkingFor, supportedModel } from "@shared/ai-models";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
@@ -429,14 +429,32 @@ function VisionTab({
           </label>
           {AI_ROLES.map((role) => {
             const key = `gemini.${role.id}` as const;
-            const supported = SUPPORTED_MODELS.some((row) => row.id === settings[key].trim().toLowerCase());
+            const thinkingKey = `gemini.thinking.${role.id}` as const;
+            const row = supportedModel("gemini", settings[key]);
             return (
-              <label className="stacked-field span-two" key={role.id}>
-                {t(role.id === "description" ? "settings.descriptionModel" : "settings.slugModel")}
-                <input type="text" value={settings[key]} onChange={(event) => setSettings({ ...settings, [key]: event.currentTarget.value })} />
-                <span className="field-help">{t(role.id === "description" ? "settings.descriptionModelHelp" : "settings.slugModelHelp")}</span>
-                {supported ? null : <span className="field-warning">{t("settings.unsupportedModel")}</span>}
-              </label>
+              <React.Fragment key={role.id}>
+                <label className="stacked-field span-two">
+                  {t(role.id === "description" ? "settings.descriptionModel" : "settings.slugModel")}
+                  <input
+                    type="text"
+                    value={settings[key]}
+                    onChange={(event) => {
+                      const model = event.currentTarget.value;
+                      setSettings({ ...settings, [key]: model, [thinkingKey]: defaultThinkingFor("gemini", role.kind, model) });
+                    }}
+                  />
+                  <span className="field-help">{t(role.id === "description" ? "settings.descriptionModelHelp" : "settings.slugModelHelp")}</span>
+                  {row ? null : <span className="field-warning">{t("settings.unsupportedModel")}</span>}
+                </label>
+                {row && row.thinking.length > 1 ? (
+                  <SelectField
+                    label={t("settings.thinking")}
+                    options={row.thinking.map((value) => ({ value, label: value }))}
+                    value={settings[thinkingKey] ?? ""}
+                    onChange={(value) => setSettings({ ...settings, [thinkingKey]: value })}
+                  />
+                ) : null}
+              </React.Fragment>
             );
           })}
         </div>

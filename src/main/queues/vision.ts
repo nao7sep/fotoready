@@ -196,6 +196,7 @@ export class VisionQueue {
           { imageBytes, mimeType: "image/jpeg" },
           {
             model: settings["gemini.description"],
+            thinking: settings["gemini.thinking.description"],
             descriptionPrompt: settings.visionDescriptionPrompt,
             ...callOptions
           }
@@ -217,6 +218,7 @@ export class VisionQueue {
       const slugCandidates = includesSlugGeneration(mode)
         ? await provider.suggestSlugs(description, {
           model: settings["gemini.slug"],
+          thinking: settings["gemini.thinking.slug"],
           slugPrompt: settings.visionSlugPrompt,
           ...callOptions
         })

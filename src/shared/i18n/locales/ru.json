@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "Пишет описание каждой фотографии в одно предложение.",
   "settings.slugModel": "Модель для ярлыков",
   "settings.slugModelHelp": "Предлагает имена файлов по описанию.",
+  "settings.thinking": "Размышление",
   "settings.unsupportedModel": "Эта модель не поддерживается. Она может работать не так, как ожидается.",
   "settings.visionLongEdge": "Длинная сторона изображения для анализа",
   "settings.visionConcurrency": "Одновременные запросы анализа",

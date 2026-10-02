@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "各写真の説明文を 1 文で書きます。",
   "settings.slugModel": "スラッグ用モデル",
   "settings.slugModelHelp": "説明文からファイル名を提案します。",
+  "settings.thinking": "思考",
   "settings.unsupportedModel": "対応していないモデルです。期待どおりに動作しない可能性があります。",
   "settings.visionLongEdge": "解析用画像の長辺",
   "settings.visionConcurrency": "同時に送る解析リクエスト",

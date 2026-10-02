@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "Schreibt die Beschreibung jedes Fotos in einem Satz.",
   "settings.slugModel": "Modell für Slugs",
   "settings.slugModelHelp": "Schlägt Dateinamen aus der Beschreibung vor.",
+  "settings.thinking": "Nachdenken",
   "settings.unsupportedModel": "Kein unterstütztes Modell. Es funktioniert möglicherweise nicht wie erwartet.",
   "settings.visionLongEdge": "Lange Kante des Analysebilds",
   "settings.visionConcurrency": "Gleichzeitige Analyseanfragen",

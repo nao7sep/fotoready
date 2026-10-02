@@ -9,7 +9,7 @@ const text = (value: string, finishReason?: string) => response({ candidates: [{
 const CALL = { timeoutMs: 1000, maxRetries: 0, initialBackoffMs: 1 };
 const describeImage = () => new GeminiVisionProvider("fake-provider-key", "https://models.example").describeImage(
   { imageBytes: Buffer.from("x"), mimeType: "image/jpeg" },
-  { ...CALL, model: "gemini-3.8-flash", descriptionPrompt: "p" });
+  { ...CALL, model: "gemini-3.8-flash", thinking: "medium", descriptionPrompt: "p" });
 
 beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => vi.unstubAllGlobals());

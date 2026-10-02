@@ -63,6 +63,29 @@ describe("settings by set", () => {
     expect(effective["gemini.slug"]).toBe("typed-new-model");
   });
 
+  it("stores a role's Thinking only while it differs from its model's default", async () => {
+    await saveSettings(settingsPath(), { "gemini.thinking.slug": "minimal" });
+    expect(await fs.readdir(dir)).toEqual([]);
+    await saveSettings(settingsPath(), { "gemini.thinking.slug": "high" });
+    expect(await written()).toEqual({ "gemini.thinking.slug": "high" });
+    const effective = await saveSettings(settingsPath(), { "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
+    expect(await written()).toEqual({ "gemini.slug": "gemini-3.8-flash" });
+    expect(effective["gemini.thinking.slug"]).toBe("low");
+  });
+
+  it("checks a role's Thinking against its model's values", async () => {
+    const warn = vi.fn();
+    const effective = await saveSettings(settingsPath(), { "gemini.thinking.description": "minimal" }, { warn } as unknown as AppLogger);
+    expect(await fs.readdir(dir)).toEqual([]);
+    expect(effective["gemini.thinking.description"]).toBe("medium");
+    expect(warn).toHaveBeenCalledOnce();
+
+    await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": "high" }));
+    const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
+    expect(loaded.settings["gemini.thinking.description"]).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
   it("writes metadata whole rather than merging its members", async () => {
     await saveSettings(settingsPath(), { injectFields: { author: "Jane", credit: "Me" } });
     await saveSettings(settingsPath(), { injectFields: { author: "John" } });

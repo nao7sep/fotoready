@@ -62,7 +62,7 @@ describe("AppSettingsModal Gemini section", () => {
     expect(sections[0]?.querySelector("h3")?.textContent).toBe("Gemini");
     expect(sections[0]?.querySelector(":scope > .field-help")?.textContent).toBe("Gemini is the only provider supported.");
     const fields = [...sections[0]!.querySelectorAll(".stacked-field")].map((field) => field.firstChild?.textContent);
-    expect(fields).toEqual(["Endpoint", "API key", "Description model", "Slug model"]);
+    expect(fields).toEqual(["Endpoint", "API key", "Description model", "Thinking", "Slug model", "Thinking"]);
     expect(fieldOf("Endpoint").input.value).toBe(defaultGlobalSettings()["gemini.endpoint"]);
     expect(fieldOf("Endpoint").help).toContain("The address FotoReady sends Gemini requests to.");
     expect(fieldOf("Description model").input.value).toBe("gemini-3.8-flash");
@@ -71,7 +71,9 @@ describe("AppSettingsModal Gemini section", () => {
     expect(sections[1]?.querySelector("h3")).toBeNull();
     expect(sections[1]?.querySelector(".stacked-field")?.textContent).toContain("Vision image long edge");
     expect(sections[2]?.querySelector("h3")?.textContent).toBe("Prompts");
-    expect(document.querySelectorAll(".settings-page select")).toHaveLength(0);
+    const thinking = [...document.querySelectorAll<HTMLSelectElement>(".settings-page select")];
+    expect(thinking.map((select) => [...select.options].map((option) => option.value))).toEqual([["low", "medium", "high"], ["minimal", "low", "medium", "high"]]);
+    expect(thinking.map((select) => select.value)).toEqual(["medium", "minimal"]);
     expect(button("Refresh models")).toBeUndefined();
     expect(document.querySelector(".field-warning")).toBeNull();
   });
@@ -91,6 +93,38 @@ describe("AppSettingsModal Gemini section", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ "gemini.description": "typed-any-model", "gemini.slug": "gemini-3.5-flash-lite" }));
+  });
+
+  it("resets Thinking to the new model's default when the model changes, and shows none for an id with no row", async () => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high" };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    const input = fieldOf("Description model").input;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "gemini-3.5-flash-lite");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "medium" });
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "typed-unknown");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "typed-unknown", "gemini.thinking.description": null });
+
+    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null } });
+    const fields = [...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field");
+    expect([...fields].map((field) => field.firstChild?.textContent)).toEqual(["Endpoint", "API key", "Description model", "Slug model", "Thinking"]);
+  });
+
+  it("changes only the role's Thinking in the draft", async () => {
+    const setSettingsDraft = vi.fn();
+    await renderSettings({ initialTab: "vision", setSettingsDraft });
+    const select = document.querySelectorAll<HTMLSelectElement>(".settings-page select")[1]!;
+    await act(async () => {
+      select.value = "high";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenCalledExactlyOnceWith({ ...defaultGlobalSettings(), "gemini.thinking.slug": "high" });
   });
 
   it("disables Save for an empty role id or an invalid endpoint, not for an unsupported id", async () => {

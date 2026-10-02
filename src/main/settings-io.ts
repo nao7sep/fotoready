@@ -92,15 +92,22 @@ export async function saveSettings(
   const { sets } = await readSettingsMap(settingsPath, logger);
   const builtIns = defaults();
   const next: Record<string, unknown> = {};
+  // The valid sets decided so far, in key order, so a set whose check or built-in follows another
+  // set (a role's Thinking follows its model) is decided against that set's outcome.
+  const decided: Record<string, unknown> = {};
   for (const key of SETTINGS_KEYS) {
     const stored = Object.hasOwn(sets, key);
     const patched = Object.hasOwn(patch, key);
     if (!stored && !patched) continue;
-    const { settings: parsed, issues } = normalizeGlobalSettings({ [key]: cleanSet(key, patched ? patch[key] : sets[key]) }, builtIns);
+    const { settings: parsed, issues } = normalizeGlobalSettings({ ...decided, [key]: cleanSet(key, patched ? patch[key] : sets[key]) }, builtIns);
     if (issues.length) {
       if (patched) for (const issue of issues) logger?.warn("settings patch contained invalid data; its stored copy is unchanged", { mod: "settings", issue });
       if (stored) next[key] = sets[key];
-    } else if (!equalsBuiltIn(key, parsed[key], builtIns[key])) {
+      continue;
+    }
+    const builtIn = normalizeGlobalSettings(decided, builtIns).settings[key];
+    decided[key] = parsed[key];
+    if (!equalsBuiltIn(key, parsed[key], builtIn)) {
       next[key] = patched ? parsed[key] : sets[key];
     }
   }

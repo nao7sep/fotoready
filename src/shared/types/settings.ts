@@ -74,6 +74,9 @@ export type GlobalSettings = {
   // Selected ids remain open; only the provider decides whether they work.
   "gemini.description": string;
   "gemini.slug": string;
+  // Null while the role's model has no row, which leaves the request without a thinking parameter.
+  "gemini.thinking.description": string | null;
+  "gemini.thinking.slug": string | null;
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;
   visionSlugPrompt: string;

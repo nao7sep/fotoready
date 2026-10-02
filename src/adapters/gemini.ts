@@ -16,11 +16,13 @@ export type VisionCallOptions = {
 
 export type VisionDescribeOptions = VisionCallOptions & {
   model: string;
+  thinking: string | null;
   descriptionPrompt: string;
 };
 
 export type VisionSlugOptions = VisionCallOptions & {
   model: string;
+  thinking: string | null;
   slugPrompt: string;
 };
 
@@ -53,23 +55,35 @@ const SLUG_RESPONSE_SCHEMA = {
 
 /**
  * What each supported model needs beyond the plain request, one branch per row of
- * SUPPORTED_MODELS. An id with no branch gets nothing model-specific; whether it works is
- * the provider's answer.
+ * SUPPORTED_MODELS; each branch translates the row's Thinking values. An id with no branch gets
+ * nothing model-specific; whether it works is the provider's answer.
  */
-export function modelConfig(id: string): GenerateContentConfig {
+export function modelConfig(id: string, thinking: string | null): GenerateContentConfig {
   switch (id.trim().toLowerCase()) {
     case "gemini-3.1-pro-preview":
-      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
-      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+      // Gemini 3.x takes thinkingLevel.
+      return thinkingLevelConfig(thinking);
     case "gemini-3.8-flash":
-      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
-      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+      // Gemini 3.x takes thinkingLevel.
+      return thinkingLevelConfig(thinking);
     case "gemini-3.5-flash-lite":
-      // Gemini 3.x takes thinkingLevel; medium is stated rather than left to the provider's default.
-      return { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } };
+      // Gemini 3.x takes thinkingLevel.
+      return thinkingLevelConfig(thinking);
     default:
       return {};
   }
+}
+
+const THINKING_LEVELS: Readonly<Record<string, ThinkingLevel>> = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH
+};
+
+function thinkingLevelConfig(thinking: string | null): GenerateContentConfig {
+  const thinkingLevel = thinking === null ? undefined : THINKING_LEVELS[thinking];
+  return thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {};
 }
 
 export class GeminiVisionProvider {
@@ -93,7 +107,7 @@ export class GeminiVisionProvider {
     return parseSlugs(response.text ?? "");
   }
 
-  private async generate(opts: VisionCallOptions & { model: string }, parts: Part[], featureConfig: GenerateContentConfig = {}): Promise<GenerateContentResponse> {
+  private async generate(opts: VisionCallOptions & { model: string; thinking: string | null }, parts: Part[], featureConfig: GenerateContentConfig = {}): Promise<GenerateContentResponse> {
     // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
     // each request, and a timed-out or otherwise unknown outcome is returned to the user, never resent.
     const ai = new GoogleGenAI({
@@ -103,7 +117,7 @@ export class GeminiVisionProvider {
     return callWithRetry(opts, () => ai.models.generateContent({
       model: opts.model,
       contents: parts,
-      config: { ...modelConfig(opts.model), ...featureConfig }
+      config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
     }));
   }
 }

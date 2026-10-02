@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "为每张照片撰写一句话描述。",
   "settings.slugModel": "别名模型",
   "settings.slugModelHelp": "根据描述建议文件名。",
+  "settings.thinking": "思考",
   "settings.unsupportedModel": "不受支持的模型，可能无法按预期工作。",
   "settings.visionLongEdge": "分析图像的长边",
   "settings.visionConcurrency": "同时进行的分析请求",

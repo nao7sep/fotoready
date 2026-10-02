@@ -319,6 +319,7 @@
   "settings.descriptionModelHelp": "Rédige la description en une phrase de chaque photo.",
   "settings.slugModel": "Modèle de slug",
   "settings.slugModelHelp": "Suggère des noms de fichier à partir de la description.",
+  "settings.thinking": "Réflexion",
   "settings.unsupportedModel": "Ce modèle n’est pas pris en charge. Il risque de ne pas fonctionner comme prévu.",
   "settings.visionLongEdge": "Grand côté de l’image analysée",
   "settings.visionConcurrency": "Requêtes d’analyse simultanées",

@@ -1,6 +1,7 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type MetadataFields } from "../types/settings";
 import { LANGUAGES } from "../i18n/languages";
+import { defaultThinkingFor, supportedModel, type AiKind } from "../ai-models";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
@@ -17,6 +18,9 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
   const source = isRecord(input)
     ? input
     : (issues.push("settings must be a JSON object."), {});
+
+  const descriptionModel = readValue(source, "gemini.description", fallback["gemini.description"], issues, assertNonEmptyString);
+  const slugModel = readValue(source, "gemini.slug", fallback["gemini.slug"], issues, assertNonEmptyString);
 
   const settings: GlobalSettings = {
     // An invalid language affects only this set.
@@ -49,8 +53,10 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     webpMethod: readValue(source, "webpMethod", fallback.webpMethod, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 6 })),
     avifEffort: readValue(source, "avifEffort", fallback.avifEffort, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 0, max: 9 })),
     "gemini.endpoint": readValue(source, "gemini.endpoint", fallback["gemini.endpoint"], issues, assertModelEndpoint),
-    "gemini.description": readValue(source, "gemini.description", fallback["gemini.description"], issues, assertNonEmptyString),
-    "gemini.slug": readValue(source, "gemini.slug", fallback["gemini.slug"], issues, assertNonEmptyString),
+    "gemini.description": descriptionModel,
+    "gemini.slug": slugModel,
+    "gemini.thinking.description": readThinking(source, "gemini.thinking.description", "vision", descriptionModel, issues),
+    "gemini.thinking.slug": readThinking(source, "gemini.thinking.slug", "text-fast", slugModel, issues),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, (value, path) => assertFiniteNumber(value, path, { integer: true, min: 128, max: MAX_VISION_IMAGE_LONG_EDGE })),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
@@ -87,6 +93,15 @@ function readValue<T>(
     issues.push(error instanceof Error ? error.message : String(error));
     return cloneValue(fallback);
   }
+}
+
+/** A role's Thinking is one of its model's listed values, and null for an id with no row; its built-in follows the model. */
+function readThinking(source: Record<string, unknown>, key: string, kind: AiKind, model: string, issues: string[]): string | null {
+  const values = supportedModel("gemini", model)?.thinking ?? [];
+  return readValue(source, key, defaultThinkingFor("gemini", kind, model), issues, (value, path) => {
+    if (values.length === 0 ? value === null : typeof value === "string" && values.includes(value)) return value as string | null;
+    throw new Error(`${path} must be one of the thinking values of ${model}.`);
+  });
 }
 
 function cloneValue<T>(value: T): T {

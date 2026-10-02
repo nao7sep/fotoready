@@ -11,7 +11,7 @@ import type { Project, Task } from "@shared/types/project";
 import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
 import type { InterfaceLanguage } from "@shared/i18n/languages";
 import { message, type Message } from "@shared/i18n/translate";
-import type { MessageKey } from "@shared/i18n/catalogues";
+import { loadCatalogue, type MessageKey } from "@shared/i18n/catalogues";
 import { APP_NAME } from "@shared/constants";
 import { resolveOutputFormat } from "@shared/output-format";
 import { outputFormatName } from "./output-format-name";
@@ -1256,18 +1256,30 @@ installWindowActivityState(api.lifecycle.onWindowActivityChanged, document.docum
 /**
  * The interface language comes from the main process, which resolves the saved choice against the
  * computer's language, so the menu bar and the window always agree. Nothing is drawn until it is
- * known, so the first words on screen are already in that language; a failed read speaks English.
+ * known and its catalogue is loaded, so the first words on screen are already in that language; a
+ * failed read or load speaks English.
  */
 function LocalizedRoot(): React.JSX.Element | null {
   const [language, setLanguage] = useState<InterfaceLanguage | null>(null);
 
   useEffect(() => {
     let current = true;
-    const off = api.language.onChanged((next) => setLanguage(next));
+    // Only the newest language is shown, whichever catalogue finishes loading first.
+    let latest = 0;
+    const show = (next: InterfaceLanguage): void => {
+      const ticket = ++latest;
+      void loadCatalogue(next.language)
+        .then(() => {
+          if (current && ticket === latest) setLanguage(next);
+        })
+        .catch((error: unknown) => {
+          console.error("Failed to load the interface language", error);
+          if (current && ticket === latest) setLanguage({ language: "en", locale: "en" });
+        });
+    };
+    const off = api.language.onChanged(show);
     void api.language.current()
-      .then((next) => {
-        if (current) setLanguage(next);
-      })
+      .then(show)
       .catch((error: unknown) => {
         console.error("Failed to read the interface language", error);
         if (current) setLanguage({ language: "en", locale: "en" });

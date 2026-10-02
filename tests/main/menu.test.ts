@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { MenuItemConstructorOptions } from "electron";
 
 vi.mock("electron", () => ({ Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() } }));
 
 import { buildApplicationMenuTemplate } from "@main/menu";
+import { loadCatalogue } from "@shared/i18n/catalogues";
 import { createTranslator } from "@shared/i18n/translate";
+
+beforeAll(async () => {
+  await Promise.all([loadCatalogue("de"), loadCatalogue("ja")]);
+});
 
 function titles(template: MenuItemConstructorOptions[]): string[] {
   return template.map((item) => item.label ?? "");

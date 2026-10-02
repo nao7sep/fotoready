@@ -19,6 +19,7 @@ import {
   type Language,
   type LanguagePreference
 } from "@shared/i18n/languages";
+import { loadCatalogue } from "@shared/i18n/catalogues";
 import { createTranslator, type Translator } from "@shared/i18n/translate";
 
 // macOS draws some Edit menu items itself (Emoji & Symbols, Start Dictation, AutoFill, Writing
@@ -70,9 +71,10 @@ let preference: LanguagePreference = "system";
 let current: InterfaceLanguage = { language: "en", locale: "en" };
 let translator: Translator = createTranslator("en");
 
-function settle(next: LanguagePreference): boolean {
-  preference = next;
+async function settle(next: LanguagePreference): Promise<boolean> {
   const language = effectiveLanguage(next, computerLanguage);
+  await loadCatalogue(language);
+  preference = next;
   const locale = formattingLocale(language, computerLocale);
   const changed = language !== current.language || locale !== current.locale;
   current = { language, locale };
@@ -84,15 +86,15 @@ function settle(next: LanguagePreference): boolean {
  * Reads the computer's languages and regional format. Runs once, when the app is ready and before
  * anything is drawn, so even a startup failure speaks the computer's language.
  */
-export function detectComputerLanguage(): void {
+export async function detectComputerLanguage(): Promise<void> {
   computerLanguage = systemLanguage(computerLanguages());
   computerLocale = app.getSystemLocale() || null;
-  settle("system");
+  await settle("system");
 }
 
 /** Applies the saved choice at launch; nothing is drawn yet. */
-export function applyLanguagePreference(next: LanguagePreference): void {
-  settle(next);
+export async function applyLanguagePreference(next: LanguagePreference): Promise<void> {
+  await settle(next);
   alignAppKit(next);
 }
 
@@ -101,7 +103,7 @@ export function applyLanguagePreference(next: LanguagePreference): void {
  * caller redraws what the main process draws and tells every window. macOS's own menu items
  * follow at the next launch, even when the choice leaves this session's language as it is.
  */
-export function changeLanguagePreference(next: LanguagePreference): boolean {
+export async function changeLanguagePreference(next: LanguagePreference): Promise<boolean> {
   if (next === preference) return false;
   alignAppKit(next);
   return settle(next);

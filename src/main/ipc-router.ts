@@ -171,7 +171,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
       // localization-conventions). A language change rebuilds the menu bar and reaches every window.
       applyThemePreference(settings.theme);
-      if (changeLanguagePreference(settings.language)) {
+      if (await changeLanguagePreference(settings.language)) {
         installApplicationMenu(mainTranslator());
         const language = interfaceLanguage();
         for (const win of BrowserWindow.getAllWindows()) win.webContents.send(LANGUAGE_CHANGED_CHANNEL, language);

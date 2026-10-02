@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement } from "react";
 import { describe, expect, it } from "vitest";
-import type { MessageKey } from "@shared/i18n/catalogues";
+import { loadCatalogue, type MessageKey } from "@shared/i18n/catalogues";
 import { createTranslator, message } from "@shared/i18n/translate";
 
 describe("createTranslator", () => {
@@ -38,9 +38,16 @@ describe("createTranslator", () => {
     expect(createTranslator("en").list(["a.png", "b.png", "c.png"])).toBe("a.png, b.png, c.png");
   });
 
-  it("shows a key the catalogue lacks instead of failing the render", () => {
+  it("speaks a language only once its catalogue is loaded", async () => {
+    expect(() => createTranslator("ko")).toThrow("The ko catalogue is not loaded");
+    await loadCatalogue("ko");
+    expect(createTranslator("ko").t("nativeMenu.edit")).toBe("편집");
+  });
+
+  it("shows a key the catalogue lacks instead of failing the render", async () => {
     // Types keep this out of the app; a stale build or a half-merged catalogue
     // could still reach it, and a window must not go down over one string.
+    await loadCatalogue("ja");
     const missing = "gone.missing" as unknown as MessageKey;
     expect(createTranslator("ja").t(missing)).toBe("gone.missing");
   });

@@ -62,7 +62,7 @@ describe("startup recovery dialog", () => {
   });
 
   it("speaks the interface language, in its words and its document language", async () => {
-    applyLanguagePreference("de");
+    await applyLanguagePreference("de");
     await notifyStartupFailure();
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({

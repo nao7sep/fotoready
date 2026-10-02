@@ -13,8 +13,8 @@ import { ModalShell } from "./modal-shell";
 import { OperationResult } from "../operation-result";
 import { presentFailure } from "../../present-failure";
 import { useI18n } from "@renderer/i18n/I18nContext";
-import { CATALOGUES, type MessageKey } from "@shared/i18n/catalogues";
-import { LANGUAGES, normalizeLanguagePreference } from "@shared/i18n/languages";
+import type { MessageKey } from "@shared/i18n/catalogues";
+import { LANGUAGE_NAMES, LANGUAGES, normalizeLanguagePreference } from "@shared/i18n/languages";
 import { message, type Message, type Translator } from "@shared/i18n/translate";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
@@ -617,7 +617,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
               <option value="system">{t("settings.languageSystem")}</option>
               {LANGUAGES.map((language) => (
                 <option key={language} value={language} lang={language}>
-                  {CATALOGUES[language]["language.name"] as string}
+                  {LANGUAGE_NAMES[language]}
                 </option>
               ))}
             </select>

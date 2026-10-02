@@ -29,33 +29,33 @@ import {
 
 const onMac = process.platform === "darwin";
 
-beforeEach(() => {
+beforeEach(async () => {
   electron.preferred = ["pl-PL", "de-AT", "en-US"];
   electron.defaults.clear();
-  detectComputerLanguage();
-  applyLanguagePreference("system");
+  await detectComputerLanguage();
+  await applyLanguagePreference("system");
 });
 
 describe("main-process interface language", () => {
-  it("follows the computer's first supported language under System, in its regional format", () => {
+  it("follows the computer's first supported language under System, in its regional format", async () => {
     expect(interfaceLanguage()).toEqual({ language: "de", locale: "de-AT" });
     expect(mainTranslator().t("nativeMenu.edit")).toBe("Bearbeiten");
   });
 
-  it("keeps a chosen language and reports whether a new choice changes the interface", () => {
-    expect(changeLanguagePreference("ja")).toBe(true);
+  it("keeps a chosen language and reports whether a new choice changes the interface", async () => {
+    expect(await changeLanguagePreference("ja")).toBe(true);
     expect(interfaceLanguage()).toEqual({ language: "ja", locale: "ja" });
     expect(mainTranslator().t("nativeMenu.edit")).toBe("編集");
-    expect(changeLanguagePreference("ja")).toBe(false);
-    expect(changeLanguagePreference("de")).toBe(true);
+    expect(await changeLanguagePreference("ja")).toBe(false);
+    expect(await changeLanguagePreference("de")).toBe(true);
     // Choosing System when it speaks the same language changes nothing on screen.
-    expect(changeLanguagePreference("system")).toBe(false);
+    expect(await changeLanguagePreference("system")).toBe(false);
   });
 
-  it("reads the computer's languages at launch, not in the middle of a session", () => {
+  it("reads the computer's languages at launch, not in the middle of a session", async () => {
     electron.preferred = ["fr-FR"];
-    changeLanguagePreference("ja");
-    changeLanguagePreference("system");
+    await changeLanguagePreference("ja");
+    await changeLanguagePreference("system");
     expect(interfaceLanguage().language).toBe("de");
   });
 });
@@ -66,18 +66,18 @@ describe("macOS's own menu items", () => {
     expect(appKitLanguages("zh-Hans")).toEqual(["zh-Hans"]);
   });
 
-  it.runIf(onMac)("writes the entry for a chosen language and removes it for System", () => {
-    changeLanguagePreference("ko");
+  it.runIf(onMac)("writes the entry for a chosen language and removes it for System", async () => {
+    await changeLanguagePreference("ko");
     expect(electron.defaults.get("AppleLanguages")).toEqual(["ko"]);
-    changeLanguagePreference("system");
+    await changeLanguagePreference("system");
     expect(electron.defaults.has("AppleLanguages")).toBe(false);
   });
 
-  it.runIf(onMac)("reads the computer's own list, not the entry an earlier launch wrote", () => {
+  it.runIf(onMac)("reads the computer's own list, not the entry an earlier launch wrote", async () => {
     electron.defaults.set("AppleLanguages", ["ko"]);
-    detectComputerLanguage();
+    await detectComputerLanguage();
     expect(electron.defaults.has("AppleLanguages")).toBe(false);
-    applyLanguagePreference("ko");
+    await applyLanguagePreference("ko");
     expect(electron.defaults.get("AppleLanguages")).toEqual(["ko"]);
   });
 });

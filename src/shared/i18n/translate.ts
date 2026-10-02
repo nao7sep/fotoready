@@ -1,5 +1,5 @@
 import { Fragment, createElement, type ReactNode } from "react";
-import { CATALOGUES, type Catalogue, type MessageKey } from "./catalogues";
+import { loadedCatalogue, type Catalogue, type MessageKey } from "./catalogues";
 import type { Language } from "./languages";
 
 // Text held in state (failures, import results, task errors, anything the main
@@ -42,8 +42,9 @@ export type Translator = {
   compare: (left: string, right: string) => number;
 };
 
+// The language's catalogue is loaded first (loadCatalogue); English always is.
 export function createTranslator(language: Language, locale: string = language): Translator {
-  const catalogue: Catalogue = CATALOGUES[language];
+  const catalogue: Catalogue = loadedCatalogue(language);
   const numberFormat = new Intl.NumberFormat(locale);
   const percentFormats = new Map<number, Intl.NumberFormat>();
   const dateTimeFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });

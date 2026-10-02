@@ -73,7 +73,7 @@ type ExitState = { reason: string };
 export async function bootstrap(): Promise<void> {
   await app.whenReady();
   // Before anything is drawn, so even a startup failure speaks the computer's language.
-  detectComputerLanguage();
+  await detectComputerLanguage();
 
   const paths = getAppPaths();
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
@@ -95,7 +95,7 @@ export async function bootstrap(): Promise<void> {
   // The saved language settles before anything is drawn: the menu bar, the recovery notice below,
   // and the renderer, which asks for it before showing any text.
   setLanguageFailureReporter((message, error) => logger.warn(message, { mod: "main.i18n", err: error }));
-  applyLanguagePreference(settings.language);
+  await applyLanguagePreference(settings.language);
   installApplicationMenu(mainTranslator());
   const uiState = await loadState(paths.statePath, logger);
   const stateCoordinator = createStateCoordinator(paths.statePath, uiState);

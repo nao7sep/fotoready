@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, documentTranslator } from "@renderer/i18n/I18nContext";
 import { OwnedFailureList } from "@renderer/components/owned-failure-list";
+import { loadCatalogue } from "@shared/i18n/catalogues";
 import { message } from "@shared/i18n/translate";
 import type { Language } from "@shared/i18n/languages";
 
@@ -23,6 +24,7 @@ afterEach(async () => {
 });
 
 async function render(language: Language): Promise<void> {
+  await loadCatalogue(language);
   await act(async () => {
     const list = createElement(OwnedFailureList, { failures: { save: message("failure.saveAll") }, onDismiss: () => undefined });
     root.render(createElement(I18nProvider, { language, locale: language, children: list }));

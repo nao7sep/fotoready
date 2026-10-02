@@ -2,9 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   effectiveLanguage,
   formattingLocale,
+  LANGUAGE_NAMES,
+  LANGUAGES,
   normalizeLanguagePreference,
   systemLanguage
 } from "@shared/i18n/languages";
+
+describe("LANGUAGE_NAMES", () => {
+  it("names every language differently, in its own words", () => {
+    const names = LANGUAGES.map((language) => LANGUAGE_NAMES[language]);
+    expect(new Set(names).size).toBe(LANGUAGES.length);
+  });
+});
 
 describe("normalizeLanguagePreference", () => {
   it("keeps System and every supported tag", () => {

@@ -41,10 +41,6 @@ export default defineConfig({
     define: { __APP_VERSION__: JSON.stringify(version) },
     resolve: { alias },
     build: {
-      // Loaded from disk, not over a network: the default 500 kB warning measures
-      // transfer cost. 2000 keeps a runaway bundle loud without flagging the
-      // ten-language catalogues on every build.
-      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         input: {
           index: resolve("src/main/index.ts"),
@@ -80,7 +76,9 @@ export default defineConfig({
     build: {
       modulePreload: { polyfill: false },
       minify: true,
-      chunkSizeWarningLimit: 2000 // see the main build block
+      // Loaded from disk, not over a network: the default 500 kB warning measures
+      // transfer cost. 2000 keeps a runaway bundle loud.
+      chunkSizeWarningLimit: 2000
     },
     plugins: [react(), contentSecurityPolicy]
   }

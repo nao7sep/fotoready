@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@google/genai";
-import { GeminiVisionProvider } from "@adapters/gemini";
+import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
 import { visionError } from "@main/queues/vision";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -12,9 +12,10 @@ const fail = (status: number) => new Response(JSON.stringify({ error: { message:
 const stall = (_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
   init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true });
 });
-const run = (overrides = {}) => new GeminiVisionProvider(key, "https://proxy.example/gemini").describeImage(request, { ...opts, ...overrides });
+const recordCall = vi.fn<(call: GeminiCall) => void>();
+const run = (overrides = {}) => new GeminiVisionProvider(key, "https://proxy.example/gemini", recordCall).describeImage(request, { ...opts, ...overrides });
 
-beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); });
+beforeEach(() => { fetchMock.mockReset(); recordCall.mockReset(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("Gemini requests follow the id, independent of endpoint", () => {
@@ -35,16 +36,39 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
 
   it("asks for the slug JSON format and excludes thought text", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ thought: true, text: "private reasoning" }, { text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
-    await expect(new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "gemini-3.5-flash-lite", thinking: "minimal", slugPrompt: "Slugs" })).resolves.toEqual(["a-mug", "cup", "drink"]);
+    await expect(new GeminiVisionProvider(key, "https://models.example", recordCall).suggestSlugs("A mug", { ...opts, model: "gemini-3.5-flash-lite", thinking: "minimal", slugPrompt: "Slugs" })).resolves.toEqual(["a-mug", "cup", "drink"]);
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
     expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }), thinkingConfig: { thinkingLevel: "MINIMAL" } });
   });
 
   it("asks for the slug JSON format for an id with no branch", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"slugs":["a-mug","cup","drink"]}' }] } }] })));
-    await new GeminiVisionProvider(key, "https://models.example").suggestSlugs("A mug", { ...opts, model: "typed-unknown", thinking: null, slugPrompt: "Slugs" });
+    await new GeminiVisionProvider(key, "https://models.example", recordCall).suggestSlugs("A mug", { ...opts, model: "typed-unknown", thinking: null, slugPrompt: "Slugs" });
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
     expect(body.generationConfig).toEqual({ responseMimeType: "application/json", responseSchema: expect.objectContaining({ required: ["slugs"] }) });
+  });
+});
+
+describe("Gemini calls are handed over for recording", () => {
+  it("hands over every attempt whole: the request as sent and the response or failure", async () => {
+    fetchMock.mockImplementationOnce(async () => fail(503)).mockImplementation(async () => ok());
+    await expect(run({ maxRetries: 1 })).resolves.toBe("A mug.");
+    expect(recordCall).toHaveBeenCalledTimes(2);
+    const [first, second] = recordCall.mock.calls.map(([call]) => call);
+    const sent = {
+      model: opts.model,
+      contents: [
+        { inlineData: { mimeType: "image/jpeg", data: request.imageBytes.toString("base64") } },
+        { text: expect.stringContaining("Describe") }
+      ],
+      config: { thinkingConfig: { thinkingLevel: "MEDIUM" } }
+    };
+    expect(first).toMatchObject({ endpoint: "https://proxy.example/gemini", role: "description", model: opts.model, attempt: 1, request: sent, response: null });
+    expect(first!.error).toMatchObject({ status: 503 });
+    expect(second).toMatchObject({ attempt: 2, request: sent, error: null });
+    expect(second!.response?.candidates?.[0]?.finishReason).toBe("STOP");
+    expect(second!.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(second!.durationMs).toBeGreaterThanOrEqual(0);
   });
 });
 

@@ -17,6 +17,8 @@ vi.mock("@main/task-sidecar", async (importOriginal) => {
 
 import { ProjectSession } from "@main/session";
 import { VisionQueue, type VisionProvider } from "@main/queues/vision";
+import type { GeminiCall } from "@adapters/gemini";
+import type { ProviderCallRecord } from "@main/records-store";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
 
@@ -42,6 +44,21 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllEnvs();
   await fs.rm(tempDir, { recursive: true, force: true });
+});
+
+describe("VisionQueue provider records", () => {
+  it("records each provider call with the task it ran for", async () => {
+    const writeProviderCall = vi.fn<(record: ProviderCallRecord) => void>();
+    let recordCall: ((call: GeminiCall) => void) | undefined;
+    const call = { time: "2026-10-02T03:16:00.000Z", endpoint: "https://models.example", role: "description", model: "gemini-3.8-flash", attempt: 1, durationMs: 5, request: { model: "gemini-3.8-flash", contents: [] }, response: null, error: null } satisfies GeminiCall;
+    const describeImage = vi.fn(async () => {
+      recordCall!(call);
+      return "A harbor";
+    });
+    const { session, task } = await arrange({ describeImage, suggestSlugs: vi.fn(async () => ["a-harbor"]) }, { writeProviderCall }, (fn) => { recordCall = fn; });
+    await session.runVision(task.id, { mode: "description" });
+    expect(writeProviderCall).toHaveBeenCalledWith({ ...call, taskId: task.id, provider: "gemini" });
+  });
 });
 
 describe("VisionQueue result ownership", () => {
@@ -172,10 +189,17 @@ describe("VisionQueue retry after a failed step", () => {
   });
 });
 
-async function arrange(provider: VisionProvider): Promise<{ session: ProjectSession; task: Task }> {
+async function arrange(
+  provider: VisionProvider,
+  records?: { writeProviderCall(record: ProviderCallRecord): void },
+  onProvider?: (recordCall: (call: GeminiCall) => void) => void
+): Promise<{ session: ProjectSession; task: Task }> {
   const settings = defaultGlobalSettings();
-  const queue = new VisionQueue({ apiKeysPath: path.join(tempDir, "api-keys.json") } as AppPaths, settings, undefined, {
-    createProvider: () => provider,
+  const queue = new VisionQueue({ apiKeysPath: path.join(tempDir, "api-keys.json") } as AppPaths, settings, undefined, records, {
+    createProvider: (_apiKey, _endpoint, recordCall) => {
+      onProvider?.(recordCall);
+      return provider;
+    },
     prepareInput: async () => Buffer.from("image")
   });
   await queue.setGeminiApiKey("test-key");

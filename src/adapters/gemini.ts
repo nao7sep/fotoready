@@ -1,7 +1,8 @@
-import { ApiError, GoogleGenAI, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentResponse, type Part } from "@google/genai";
+import { ApiError, GoogleGenAI, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
+import { nowIso } from "@shared/time";
 
 export type VisionDescribeRequest = {
   imageBytes: Buffer;
@@ -24,6 +25,21 @@ export type VisionSlugOptions = VisionCallOptions & {
   model: string;
   thinking: string | null;
   slugPrompt: string;
+};
+
+/** One request as sent to the SDK and what came back, for the caller to record. */
+export type GeminiCall = {
+  /** When the request was sent. */
+  time: string;
+  endpoint: string;
+  role: "description" | "slug";
+  model: string;
+  /** 1 for the first send, counting each resend. */
+  attempt: number;
+  durationMs: number;
+  request: GenerateContentParameters;
+  response: GenerateContentResponse | null;
+  error: unknown;
 };
 
 export type VisionProviderFailureCode =
@@ -87,10 +103,14 @@ function thinkingLevelConfig(thinking: string | null): GenerateContentConfig {
 }
 
 export class GeminiVisionProvider {
-  constructor(private readonly apiKey: string, private readonly endpoint: string) {}
+  constructor(
+    private readonly apiKey: string,
+    private readonly endpoint: string,
+    private readonly recordCall: (call: GeminiCall) => void
+  ) {}
 
   async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
-    const response = await this.generate(opts, [
+    const response = await this.generate("description", opts, [
       { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
       { text: descriptionPrompt(opts.descriptionPrompt) }
     ]);
@@ -99,7 +119,7 @@ export class GeminiVisionProvider {
   }
 
   async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
-    const response = await this.generate(opts, [{ text: slugPrompt(description, opts.slugPrompt) }], {
+    const response = await this.generate("slug", opts, [{ text: slugPrompt(description, opts.slugPrompt) }], {
       responseMimeType: "application/json",
       responseSchema: SLUG_RESPONSE_SCHEMA
     });
@@ -107,27 +127,48 @@ export class GeminiVisionProvider {
     return parseSlugs(response.text ?? "");
   }
 
-  private async generate(opts: VisionCallOptions & { model: string; thinking: string | null }, parts: Part[], featureConfig: GenerateContentConfig = {}): Promise<GenerateContentResponse> {
+  private async generate(
+    role: GeminiCall["role"],
+    opts: VisionCallOptions & { model: string; thinking: string | null },
+    parts: Part[],
+    featureConfig: GenerateContentConfig = {}
+  ): Promise<GenerateContentResponse> {
     // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
     // each request, and a timed-out or otherwise unknown outcome is returned to the user, never resent.
     const ai = new GoogleGenAI({
       apiKey: this.apiKey,
       httpOptions: { baseUrl: this.endpoint, timeout: opts.timeoutMs, retryOptions: { attempts: 1 } }
     });
-    return callWithRetry(opts, () => ai.models.generateContent({
+    const request: GenerateContentParameters = {
       model: opts.model,
       contents: parts,
       config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
-    }));
+    };
+    return callWithRetry(opts, async (attempt) => {
+      const time = nowIso();
+      const startedAt = performance.now();
+      const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall({
+        time, endpoint: this.endpoint, role, model: opts.model, attempt,
+        durationMs: performance.now() - startedAt, request, response, error
+      });
+      try {
+        const response = await ai.models.generateContent(request);
+        record(response, null);
+        return response;
+      } catch (error) {
+        record(null, error);
+        throw error;
+      }
+    });
   }
 }
 
-async function callWithRetry<T>(opts: VisionCallOptions, fn: () => Promise<T>): Promise<T> {
+async function callWithRetry<T>(opts: VisionCallOptions, fn: (attempt: number) => Promise<T>): Promise<T> {
   const attempts = Math.max(1, opts.maxRetries + 1);
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      return await fn();
+      return await fn(attempt + 1);
     } catch (error) {
       lastError = error;
       if (attempt === attempts - 1 || !isRetryable(error)) {

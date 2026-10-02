@@ -74,6 +74,7 @@ async function startApp(home: string) {
   handlers.clear();
   const { getAppPaths } = await import("@main/paths");
   const { createLogger } = await import("@main/logger");
+  const { openRecordsStore } = await import("@main/records-store");
   const { loadSettings, resolveWorkerPoolSize } = await import("@main/settings-io");
   const { createStateCoordinator, loadState } = await import("@main/state-io");
   const { registerIpcHandlers } = await import("@main/ipc-router");
@@ -84,12 +85,13 @@ async function startApp(home: string) {
   const { PipelineWorkerPool } = await import("@main/workers/pipeline-pool");
 
   const paths = getAppPaths();
-  const logger = createLogger(paths.logsDir, { debug: false });
+  const records = openRecordsStore(paths.recordsPath, paths.logsDir);
+  const logger = createLogger(records, { debug: false });
   setBackupLogger(logger);
   const { settings } = await loadSettings(paths.settingsPath, logger);
   const uiState = await loadState(paths.statePath, logger);
   const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
-  const visionQueue = new VisionQueue(paths, settings, logger);
+  const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);

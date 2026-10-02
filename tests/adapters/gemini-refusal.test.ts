@@ -7,7 +7,7 @@ const response = (data: unknown) => new Response(JSON.stringify(data), { status:
 const text = (value: string, finishReason?: string) => response({ candidates: [{ ...(finishReason ? { finishReason } : {}), content: { parts: [{ text: value }] } }] });
 
 const CALL = { timeoutMs: 1000, maxRetries: 0, initialBackoffMs: 1 };
-const describeImage = () => new GeminiVisionProvider("fake-provider-key", "https://models.example").describeImage(
+const describeImage = () => new GeminiVisionProvider("fake-provider-key", "https://models.example", () => {}).describeImage(
   { imageBytes: Buffer.from("x"), mimeType: "image/jpeg" },
   { ...CALL, model: "gemini-3.8-flash", thinking: "medium", descriptionPrompt: "p" });
 

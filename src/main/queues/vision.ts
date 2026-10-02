@@ -8,8 +8,9 @@ import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRun
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppPaths } from "@main/paths";
 import type { AppLogger } from "@main/logger";
+import type { RecordsStore } from "@main/records-store";
 import { ApiKeyStore } from "@adapters/api-keys";
-import { GeminiVisionProvider, VisionProviderFailure } from "@adapters/gemini";
+import { GeminiVisionProvider, VisionProviderFailure, type GeminiCall } from "@adapters/gemini";
 import { ApiError } from "@google/genai";
 import { message, type Message } from "@shared/i18n/translate";
 import { isRecord } from "@shared/validation/common";
@@ -27,7 +28,7 @@ type VisionJob = { mode: VisionRunMode; basis: VisionBasis; cancelled: boolean; 
 export type VisionProvider = Pick<GeminiVisionProvider, "describeImage" | "suggestSlugs">;
 
 export type VisionQueueDeps = {
-  createProvider(apiKey: string, endpoint: string): VisionProvider;
+  createProvider(apiKey: string, endpoint: string, recordCall: (call: GeminiCall) => void): VisionProvider;
   prepareInput(stagedPath: string, longEdge: number): Promise<Buffer>;
 };
 
@@ -38,7 +39,7 @@ export type VisionQueueDeps = {
 export type VisionCommit = (task: Task, apply: () => boolean) => Promise<boolean>;
 
 const defaultDeps: VisionQueueDeps = {
-  createProvider: (apiKey, endpoint) => new GeminiVisionProvider(apiKey, endpoint),
+  createProvider: (apiKey, endpoint, recordCall) => new GeminiVisionProvider(apiKey, endpoint, recordCall),
   prepareInput: prepareVisionInput
 };
 
@@ -67,6 +68,7 @@ export class VisionQueue {
     paths: AppPaths,
     private readonly settings: GlobalSettings,
     private readonly logger?: AppLogger,
+    private readonly records?: Pick<RecordsStore, "writeProviderCall">,
     deps: VisionQueueDeps = defaultDeps
   ) {
     this.#apiKeys = new ApiKeyStore(paths.apiKeysPath, logger);
@@ -188,7 +190,8 @@ export class VisionQueue {
         maxRetries: settings.visionMaxRetries,
         initialBackoffMs: settings.visionInitialBackoffMs
       };
-      const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"]);
+      const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"], (call) =>
+        this.records?.writeProviderCall({ ...call, taskId: task.id, provider: "gemini" }));
       let description = task.output.vision?.description ?? "";
       if (includesDescriptionGeneration(mode)) {
         const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, settings.preResizeLongEdge);

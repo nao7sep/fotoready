@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers } from "./logger";
+import { openRecordsStore } from "./records-store";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
@@ -78,7 +79,8 @@ export async function bootstrap(): Promise<void> {
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
   // off (never written to disk) in packaged release builds.
   const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
-  const logger = createLogger(paths.logsDir, { debug });
+  const records = openRecordsStore(paths.recordsPath, paths.logsDir);
+  const logger = createLogger(records, { debug });
   installCrashHandlers(logger);
   // Wire the session logger into the write-through data-backup store BEFORE any managed save, so the
   // store's one best-effort warn (a failed record, an unopenable store) reaches this launch's log instead
@@ -100,7 +102,7 @@ export async function bootstrap(): Promise<void> {
   if (settingsQuarantinedTo) {
     await requireCorruptSettingsNotice(logger);
   }
-  const visionQueue = new VisionQueue(paths, settings, logger);
+  const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
@@ -137,7 +139,7 @@ export async function bootstrap(): Promise<void> {
 
   const exitState: ExitState = { reason: "unknown" };
 
-  // One launch = one log file. The work above is one-time process init; only the
+  // One launch = one session. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
   // Quitting holds the exit until in-flight saves are cancelled and have removed their
   // unfinished files and the last state write has landed, for at most SHUTDOWN_WAIT_MS, then

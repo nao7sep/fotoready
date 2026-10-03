@@ -111,6 +111,44 @@ describe("openRecordsStore", () => {
     records.close();
   });
 
+  it("names this launch's session, and signals after each record the database stored", () => {
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    const stored = vi.fn();
+    records.onStored(stored);
+    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "one", fields: {} });
+    records.writeProviderCall(call);
+    records.close();
+
+    expect(records.session).toBe(sessionStart.toISOString());
+    expect(stored).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not signal a record that went to the text file instead", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fs.mkdirSync(dbFile());
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    const stored = vi.fn();
+    records.onStored(stored);
+    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "fallback", fields: {} });
+    records.close();
+
+    expect(stored).not.toHaveBeenCalled();
+    expect(fallbackLines().at(-1)).toMatchObject({ message: "fallback" });
+  });
+
+  it("keeps a record stored once when the signal throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    records.onStored(() => {
+      throw new Error("window gone");
+    });
+    expect(() => records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "kept", fields: {} })).not.toThrow();
+    records.close();
+
+    expect(query("SELECT message FROM log_records")).toEqual([{ message: "kept" }]);
+    expect(fs.existsSync(logsDir()) ? fs.readdirSync(logsDir()) : []).toEqual([]);
+  });
+
   it("has an idempotent close", () => {
     const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
     expect(() => {

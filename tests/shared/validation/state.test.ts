@@ -1,17 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { defaultUiState, normalizeUiState } from "@shared/validation/state";
 import { PANE_DEFAULTS } from "@shared/layout/workspace-metrics";
+import { RECORDS_LIST_WIDTH } from "@shared/layout/records-metrics";
 
 describe("normalizeUiState", () => {
   it("round-trips a valid state with no issues", () => {
     const input = {
       showHistogram: true,
       histogramPosition: { x: 10, y: 20 },
-      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 }
+      workspaceWidths: { originals: 180, tasks: 220, ops: 280, addOps: 240 },
+      recordsListWidth: 450
     };
     const { state, issues } = normalizeUiState(input, defaultUiState());
     expect(issues).toEqual([]);
     expect(state).toEqual(input);
+  });
+
+  it("holds the Records list width to the pane's bounds, and keeps the fallback for a bad one", () => {
+    expect(normalizeUiState({ recordsListWidth: 2000 }, defaultUiState()).state.recordsListWidth).toBe(RECORDS_LIST_WIDTH.max);
+    expect(normalizeUiState({ recordsListWidth: 10 }, defaultUiState()).state.recordsListWidth).toBe(RECORDS_LIST_WIDTH.min);
+    expect(normalizeUiState({}, defaultUiState()).state.recordsListWidth).toBe(RECORDS_LIST_WIDTH.default);
+    const { state, issues } = normalizeUiState({ recordsListWidth: "wide" }, { ...defaultUiState(), recordsListWidth: 500 });
+    expect(state.recordsListWidth).toBe(500);
+    expect(issues).toContain("state.recordsListWidth must be a finite number.");
   });
 
   it("returns the fallback for a non-object input", () => {

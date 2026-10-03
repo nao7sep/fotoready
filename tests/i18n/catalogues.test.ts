@@ -31,10 +31,12 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "settings.themeSystem", "metadataField.copyright", "rename.original", "about.version", "about.issues",
     "about.copyright", "shortcuts.section.app", "geometry.radius", "conceal.ellipse", "crop.original",
     "curves.preset.neutral", "hsl.range.orange", "hsl.range.magenta", "hsl.global", "levels.gamma", "strip.group.gps",
+    "records.levelInfo", "records.levelDebug", "records.details",
   ],
   es: [
     "privacy.editorial", "privacy.gps", "opName.hsl", "opName.lut", "output.slug", "rename.original", "cover.color",
     "crop.original", "hsl.range.magenta", "levels.gamma", "strip.group.editorial", "strip.group.gps", "nativeMenu.zoom",
+    "records.levelError", "records.error",
   ],
   fr: [
     "common.ok", "topBar.menu", "privacy.gps", "opName.lut", "opPicker.watermarkImage", "output.format",
@@ -47,7 +49,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
   it: [
     "common.ok", "topBar.menu", "privacy.gps", "opName.hsl", "opName.lut", "output.slug", "settings.tab.app",
     "metadataField.copyright", "about.copyright", "shortcuts.section.app", "hsl.range.magenta", "levels.gamma",
-    "strip.group.gps", "nativeMenu.file", "nativeMenu.zoom",
+    "strip.group.gps", "nativeMenu.file", "nativeMenu.zoom", "records.levelInfo", "records.levelDebug",
   ],
   "pt-BR": [
     "common.ok", "topBar.menu", "privacy.gps", "opName.hsl", "opName.lut", "output.slug", "settings.prompts",

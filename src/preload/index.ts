@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { FotoReadyApi } from "@shared/types/ipc";
 import { WINDOW_ACTIVITY_CHANNEL } from "@shared/window-activity";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
+import { RECORDS_CHANGED_CHANNEL } from "@shared/records";
 
 const api: FotoReadyApi = {
   language: {
@@ -97,6 +98,17 @@ const api: FotoReadyApi = {
   },
   queues: {
     snapshot: () => ipcRenderer.invoke("queues.snapshot")
+  },
+  records: {
+    open: () => ipcRenderer.invoke("records.open"),
+    page: (query) => ipcRenderer.invoke("records.page", query),
+    detail: (kind, id) => ipcRenderer.invoke("records.detail", kind, id),
+    sources: () => ipcRenderer.invoke("records.sources"),
+    onChanged: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on(RECORDS_CHANGED_CHANNEL, listener);
+      return () => ipcRenderer.off(RECORDS_CHANGED_CHANNEL, listener);
+    }
   },
   lifecycle: {
     approveClose: (allow) => ipcRenderer.invoke("lifecycle.approveClose", allow),

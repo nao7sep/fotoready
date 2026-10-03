@@ -38,8 +38,15 @@ export type ProviderCallRecord = {
 };
 
 export interface RecordsStore {
+  /** This launch's session, as every record of it carries: its start time. */
+  readonly session: string;
   writeLog(record: LogRecord): void;
   writeProviderCall(record: ProviderCallRecord): void;
+  /**
+   * Called after each record the database stored; a record that went to the fallback file is not in
+   * the database, so it calls nothing. The Records window follows the database through it.
+   */
+  onStored(listener: () => void): void;
   /** Idempotent and best-effort; safe to call from exit hooks. */
   close(): void;
 }
@@ -116,6 +123,7 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
   let db: { handle: DatabaseSync; insertLog: StatementSync; insertCall: StatementSync } | null = null;
   let dbFailureNoted = false;
   let fileFailureNoted = false;
+  let storedListener: (() => void) | null = null;
 
   const writeFallback = (line: Record<string, unknown>, level: LogLevel): void => {
     writeTextRecord(fallbackDir, sessionStart, line, level, (error) => {
@@ -166,17 +174,28 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
     level: LogLevel
   ): void => {
     if (db) {
+      let stored = false;
       try {
         insert(db);
-        return;
+        stored = true;
       } catch (error) {
         noteDbFailure(error);
+      }
+      if (stored) {
+        // Outside the write's own catch: a listener that throws did not fail the write.
+        try {
+          storedListener?.();
+        } catch (error) {
+          console.error("[records] the stored-record listener failed", error);
+        }
+        return;
       }
     }
     writeFallback(fallback(), level);
   };
 
   return {
+    session,
     writeLog(record) {
       const taskId = typeof record.fields.taskId === "string" ? record.fields.taskId : null;
       write(
@@ -204,6 +223,9 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
         }),
         level
       );
+    },
+    onStored(listener) {
+      storedListener = listener;
     },
     close() {
       const open = db;

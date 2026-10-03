@@ -20,6 +20,9 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // The records worker loads its modules under Node's own TypeScript stripping in the tests,
+    // so those imports carry their extension.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "paths": {
       "@shared/*": ["./src/shared/*"],

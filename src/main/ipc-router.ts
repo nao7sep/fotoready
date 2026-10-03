@@ -23,6 +23,9 @@ import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
 import { message } from "@shared/i18n/translate";
+import type { RecordsReader } from "@main/records-reader";
+import { recordSources } from "@main/records-sources";
+import { assertRecordId, assertRecordKind, parseRecordsQuery } from "@shared/validation/records";
 
 export type RouterContext = {
   paths: AppPaths;
@@ -32,6 +35,12 @@ export type RouterContext = {
   projectSession: ProjectSession;
   logger: AppLogger;
   version: string;
+  records: {
+    reader: RecordsReader;
+    /** This launch's session, as its records carry it. */
+    session: string;
+    openWindow(): Promise<void>;
+  };
 };
 
 export function registerIpcHandlers(ctx: RouterContext): void {
@@ -43,17 +52,19 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   // from high-frequency / pure-query channels (`debug`), so editing-driven
   // traffic (preview, thumbnails, slider drags) stays in the developer-only
   // firehose. Channel name and timing only — never the arguments, per
-  // "summarize, don't dump".
+  // "summarize, don't dump". A `null` level logs failures only: the Records
+  // window's reads, whose success line would itself be a new record that starts
+  // the window's next read, so an open window would read once a second forever.
   const handle = (
     channel: string,
-    level: "info" | "debug",
+    level: "info" | "debug" | null,
     handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
   ): void => {
     ipcMain.handle(channel, async (event, ...args) => {
       const startedAt = performance.now();
       try {
         const result = await handler(event, ...args);
-        ctx.logger[level](`ipc ${channel}`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt) });
+        if (level !== null) ctx.logger[level](`ipc ${channel}`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt) });
         return result;
       } catch (error) {
         ctx.logger.error(`ipc ${channel} failed`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt), err: error });
@@ -316,6 +327,17 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("stamps.import", "info", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger));
   handle("stamps.delete", "info", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir));
   handle("queues.snapshot", "debug", async () => ctx.projectSession.queueSnapshot());
+
+  handle("records.open", "info", async () => ctx.records.openWindow());
+  handle("records.page", null, async (_event, query: unknown) =>
+    ctx.records.reader.read({ op: "page", query: parseRecordsQuery(query) })
+  );
+  handle("records.detail", null, async (_event, kind: unknown, id: unknown) =>
+    ctx.records.reader.read({ op: "detail", kind: assertRecordKind(kind), id: assertRecordId(id) })
+  );
+  handle("records.sources", null, async () =>
+    recordSources(await ctx.records.reader.read({ op: "sources" }), ctx.records.session, ctx.projectSession.snapshot().project)
+  );
 }
 
 function normalizeAddOriginalsPaths(

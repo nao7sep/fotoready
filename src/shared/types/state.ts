@@ -17,4 +17,6 @@ export type UiState = {
    * and reappears when the window grows.
    */
   workspaceWidths: Record<WorkspacePaneKey, number>;
+  /** The Records window's dragged list-pane width (the intent, in px), saved when a drag ends. */
+  recordsListWidth: number;
 };

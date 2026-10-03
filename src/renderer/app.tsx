@@ -803,6 +803,13 @@ function App(): React.JSX.Element {
           )}
         >
           <MenuItem onSelect={() => openSettings()}>{t("menu.settings")}</MenuItem>
+          <MenuItem onSelect={() => void runOwnedAction({
+            action: () => api.records.open(),
+            key: "records-open",
+            operation: "records window open failed",
+            setFailures: setShellFailures,
+            userMessage: message("failure.openRecords")
+          })}>{t("menu.records")}</MenuItem>
           <MenuItem onSelect={() => setShortcutsOpen(true)}>{t("menu.shortcuts")}</MenuItem>
           <MenuItem onSelect={() => setAboutOpen(true)}>{t("menu.about")}</MenuItem>
         </Menu>

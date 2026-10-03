@@ -83,6 +83,7 @@ async function startApp(home: string) {
   const { VisionQueue } = await import("@main/queues/vision");
   const { ProcessingQueue } = await import("@main/queues/processing-queue");
   const { PipelineWorkerPool } = await import("@main/workers/pipeline-pool");
+  const { createRecordsReader } = await import("@main/records-reader");
 
   const paths = getAppPaths();
   const records = openRecordsStore(paths.recordsPath, paths.logsDir);
@@ -98,7 +99,15 @@ async function startApp(home: string) {
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, logger);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
-  registerIpcHandlers({ paths, settings, uiState, stateCoordinator, projectSession, logger, version: "0.0.0-live" });
+  const recordsReader = createRecordsReader(paths.recordsPath);
+  registerIpcHandlers({
+    paths, settings, uiState, stateCoordinator, projectSession, logger, version: "0.0.0-live",
+    records: {
+      reader: recordsReader,
+      session: records.session,
+      openWindow: () => Promise.reject(new Error("No windows in this test."))
+    }
+  });
 
   const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => {
     const handler = handlers.get(channel);
@@ -115,6 +124,7 @@ async function startApp(home: string) {
     shutdown: async () => {
       await stateCoordinator.flush();
       await pipelineWorkerPool.destroy();
+      await recordsReader.close();
       closeBackupStore();
       logger.close();
     },

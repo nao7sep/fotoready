@@ -146,8 +146,10 @@ describe("theme token contrast", () => {
   });
 
   it("references only defined tokens", () => {
-    // The asset picker sets its preview size inline from Settings at runtime.
-    const defined = new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1]).concat("--asset-picker-preview-size"));
+    // The asset picker sets its preview size inline from Settings at runtime, and the Records window
+    // its list pane's displayed width.
+    const defined = new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1])
+      .concat("--asset-picker-preview-size", "--records-list-width"));
     for (const [, token] of css.matchAll(/var\((--[a-z0-9-]+)/g)) {
       expect(defined.has(token), `${token} is defined`).toBe(true);
     }

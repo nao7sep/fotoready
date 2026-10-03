@@ -2979,6 +2979,200 @@ kbd {
   font: 11px var(--font-mono);
 }
 
+/* ── Records window ───────────────────────────────────────
+   The list pane (filters above the record list), the splitter and the detail pane, edge to edge
+   like the main workspace. Sizes mirror src/shared/layout/records-metrics.ts; the list's width is
+   set inline from its displayed width. */
+.records-shell {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: var(--records-list-width) 6px minmax(0, 1fr);
+}
+
+.records-detail-pane {
+  border-right: 0;
+}
+
+.records-filters {
+  flex: 0 0 auto;
+  display: grid;
+  gap: var(--control-gap);
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.records-filters-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--control-gap);
+}
+
+.records-list {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.records-row {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color var(--motion) ease;
+}
+
+.records-row:hover:not(.active) {
+  background: var(--button-hover-bg);
+}
+
+.records-row.active {
+  color: var(--brand-secondary-soft-text);
+  background: var(--brand-secondary-soft-bg);
+}
+
+/* Inside the row, so the next row's hover fill cannot cover it. */
+.records-row:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: -2px;
+}
+
+.records-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-muted-color);
+  font-size: 12px;
+}
+
+.records-row-title {
+  color: var(--text-strong-color);
+  font: 600 12px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.records-row.active .records-row-title {
+  color: inherit;
+}
+
+.records-row-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text-muted-color);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.records-note {
+  margin: 0;
+  padding: 12px;
+  color: var(--text-muted-color);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.records-note-error {
+  color: var(--danger-text);
+}
+
+/* The header holds the record's whole message, so it grows with it. */
+.records-detail-header {
+  height: auto;
+  min-height: 36px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.records-detail-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.records-detail-chips {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.records-detail-body {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 12px 10px;
+}
+
+.records-meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 16px;
+}
+
+.records-meta > div {
+  min-width: 0;
+}
+
+.records-meta dt {
+  color: var(--text-muted-color);
+  font-size: 12px;
+}
+
+.records-meta dd {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 0;
+  color: var(--text-strong-color);
+  overflow-wrap: anywhere;
+}
+
+.records-meta code,
+.records-block-text {
+  font-family: var(--font-mono);
+}
+
+.records-block {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.records-block-label {
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.records-block-text {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft-color);
+  border-radius: var(--radius-md);
+  color: var(--text-color);
+  background: var(--surface-bg);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Native application inactivity is distinct from DOM focus on macOS. Keep the
    keyboard target legible, but mute the active-window accent while another app
    owns the menu bar. */

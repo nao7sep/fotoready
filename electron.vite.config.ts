@@ -44,7 +44,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve("src/main/index.ts"),
-          "workers/pipeline-worker": resolve("src/main/workers/pipeline-worker.ts")
+          "workers/pipeline-worker": resolve("src/main/workers/pipeline-worker.ts"),
+          "workers/records-worker": resolve("src/main/workers/records-worker.ts")
         }
       }
     }
@@ -74,6 +75,13 @@ export default defineConfig({
     // unnecessary — dropping it keeps the built HTML free of inline scripts, so the CSP can hold
     // script-src to 'self' without 'unsafe-inline'.
     build: {
+      // The main window and the Records window, each its own page.
+      rollupOptions: {
+        input: {
+          index: resolve("src/renderer/index.html"),
+          records: resolve("src/renderer/records.html")
+        }
+      },
       modulePreload: { polyfill: false },
       minify: true,
       // Loaded from disk, not over a network: the default 500 kB warning measures

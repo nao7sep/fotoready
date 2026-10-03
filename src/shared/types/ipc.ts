@@ -6,6 +6,7 @@ import type { OpDefinition } from "./op";
 import type { RenameTemplateId } from "../rename-template";
 import type { InterfaceLanguage } from "../i18n/languages";
 import type { Message } from "../i18n/translate";
+import type { RecordDetail, RecordKind, RecordSources, RecordsPage, RecordsQuery } from "../records";
 
 export type { VisionRunMode } from "./project";
 
@@ -299,6 +300,15 @@ export type FotoReadyApi = {
   };
   queues: {
     snapshot(): Promise<QueueSnapshot>;
+  };
+  records: {
+    /** Opens the Records window, or brings it forward. */
+    open(): Promise<void>;
+    page(query: RecordsQuery): Promise<RecordsPage>;
+    detail(kind: RecordKind, id: number): Promise<RecordDetail | null>;
+    sources(): Promise<RecordSources>;
+    /** Called after each record the database stored. */
+    onChanged(callback: () => void): () => void;
   };
   lifecycle: {
     approveClose(allow: boolean): Promise<void>;

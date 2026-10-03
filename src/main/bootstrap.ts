@@ -32,6 +32,8 @@ import { installApplicationMenu } from "./menu";
 import { revealWindow } from "./reveal-window";
 import { windowCloseQuits } from "./window-close";
 import type { CloseRequest } from "@shared/types/ipc";
+import { createRecordsReader } from "./records-reader";
+import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
 // minimum both come from the shared layout metrics — never hand-typed literals (see
@@ -108,6 +110,8 @@ export async function bootstrap(): Promise<void> {
   // off (never written to disk) in packaged release builds.
   const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
   const records = openRecordsStore(paths.recordsPath, paths.logsDir, sessionStart);
+  records.onStored(notifyRecordsChanged);
+  const recordsReader = createRecordsReader(paths.recordsPath);
   const logger = createLogger(records, { debug });
   sessionLogger = logger;
   installCrashHandlers(logger);
@@ -146,7 +150,12 @@ export async function bootstrap(): Promise<void> {
     stateCoordinator,
     projectSession,
     logger,
-    version: __APP_VERSION__
+    version: __APP_VERSION__,
+    records: {
+      reader: recordsReader,
+      session: records.session,
+      openWindow: () => openRecordsWindow({ title: mainTranslator().t("records.title"), logger })
+    }
   });
 
   logger.info("app started", {
@@ -183,15 +192,25 @@ export async function bootstrap(): Promise<void> {
     void (async () => {
       const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateCoordinator.flush()]), SHUTDOWN_WAIT_MS);
       if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
-      await settleWithin(pipelineWorkerPool.destroy(), SHUTDOWN_WAIT_MS);
+      await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), SHUTDOWN_WAIT_MS);
       shutdown = "done";
       app.quit();
     })();
   });
 
+  // The main window, apart from the Records window beside it.
+  let mainWindow: BrowserWindow | null = null;
+
   const createWindow = async (): Promise<void> => {
     const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));
     const win = createWindowWithUsablePersistedBounds("main", () => new BrowserWindow(options));
+    mainWindow = win;
+    // The Records window belongs to this window's workspace and closes with it, so the app's own
+    // window-all-closed and re-activate paths see no window left behind.
+    win.once("closed", () => {
+      if (mainWindow === win) mainWindow = null;
+      closeRecordsWindow();
+    });
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
@@ -251,8 +270,7 @@ export async function bootstrap(): Promise<void> {
 
   // A second launch exits at once (see index.ts); this instance answers by coming forward.
   app.on("second-instance", () => {
-    const [win] = BrowserWindow.getAllWindows();
-    if (win) revealWindow(win);
+    if (mainWindow && !mainWindow.isDestroyed()) revealWindow(mainWindow);
     else recreateWindow();
   });
 }

@@ -9,8 +9,8 @@ import { windowCloseQuits } from "./window-close";
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  // Bootstrap failures need a visible terminal surface; the crash handler logs but
-  // deliberately does not terminate the process on its own.
+  // A bootstrap failure is recorded (see recordStartupFailure), shown in the startup dialog, and
+  // ends the process here; the crash handler logs but deliberately does not terminate it.
   void bootstrap().catch(async (error: unknown) => {
     recordStartupFailure("startup failed", error);
     try {

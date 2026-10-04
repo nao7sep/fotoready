@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cursorAfter, mergeNewestPage, prettyJson, recordKey, roleLabel } from "@renderer/records/record-format";
+import { blockText, cursorAfter, logDetailsText, mergeNewestPage, recordKey, roleLabel } from "@renderer/records/record-format";
 import type { RecordSummary } from "@shared/records";
 
 const row = (id: number, time: string, title = `row ${id}`): RecordSummary => ({
@@ -42,8 +42,28 @@ describe("mergeNewestPage", () => {
 
 describe("record formatting", () => {
   it("indents stored JSON and shows other text as it is", () => {
-    expect(prettyJson('{"a":1}')).toBe('{\n  "a": 1\n}');
-    expect(prettyJson("not json")).toBe("not json");
+    expect(blockText('{"a":1}')).toBe('{\n  "a": 1\n}');
+    expect(blockText("not json")).toBe("not json");
+  });
+
+  it.each(["{}", "null", "[]", '""', '" \\n "', "", "  \n ", null])("has no block for %j", (text) => {
+    expect(blockText(text)).toBeNull();
+  });
+
+  it("leaves the task the Task field shows out of a log line's details", () => {
+    expect(logDetailsText(JSON.stringify({ taskId: "task-1" }), "task-1")).toBeNull();
+    expect(logDetailsText(JSON.stringify({ mod: "vision", taskId: "task-1" }), "task-1")).toBe(
+      JSON.stringify({ mod: "vision" }, null, 2)
+    );
+  });
+
+  it("keeps a task id no field shows in a log line's details", () => {
+    expect(logDetailsText(JSON.stringify({ taskId: 7 }), null)).toBe(JSON.stringify({ taskId: 7 }, null, 2));
+    expect(logDetailsText(JSON.stringify({ taskId: "task-2" }), "task-1")).toBe(
+      JSON.stringify({ taskId: "task-2" }, null, 2)
+    );
+    expect(logDetailsText("{}", null)).toBeNull();
+    expect(logDetailsText("not json", "task-1")).toBe("not json");
   });
 
   it("starts the next page after the last row shown", () => {

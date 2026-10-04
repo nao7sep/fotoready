@@ -12,13 +12,47 @@ export function recordKey(record: { kind: RecordKind; id: number }): string {
   return `${record.kind}:${record.id}`;
 }
 
-/** Stored JSON, indented for reading; text that is not JSON is shown as it is. */
-export function prettyJson(text: string): string {
+function parseJson(text: string): { value: unknown } | null {
   try {
-    return JSON.stringify(JSON.parse(text), null, 2);
+    return { value: JSON.parse(text) };
   } catch {
-    return text;
+    return null;
   }
+}
+
+function isEmpty(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (Array.isArray(value)) return value.length === 0;
+  return typeof value === "object" && Object.keys(value).length === 0;
+}
+
+function shownJson(value: unknown): string | null {
+  return isEmpty(value) ? null : JSON.stringify(value, null, 2);
+}
+
+/**
+ * A stored value as its block shows it: JSON indented for reading, other text as it is, and null when
+ * there is nothing in it, so the block is left out.
+ */
+export function blockText(text: string | null): string | null {
+  if (text === null) return null;
+  const json = parseJson(text);
+  if (json === null) return text.trim() === "" ? null : text;
+  return shownJson(json.value);
+}
+
+/** A log line's stored fields as Details shows them: without the task the Task field already shows. */
+export function logDetailsText(fields: string, taskId: string | null): string | null {
+  const json = parseJson(fields);
+  if (json === null) return blockText(fields);
+  const value = json.value;
+  if (taskId !== null && typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const rest: Record<string, unknown> = { ...value };
+    if (rest.taskId === taskId) delete rest.taskId;
+    return shownJson(rest);
+  }
+  return shownJson(value);
 }
 
 export const KIND_LABELS: Record<RecordKind, MessageKey> = {

@@ -31,9 +31,10 @@ import {
   LEVEL_CHIPS,
   LEVEL_FILTER_LABELS,
   LEVEL_LABELS,
+  blockText,
   cursorAfter,
+  logDetailsText,
   mergeNewestPage,
-  prettyJson,
   recordKey,
   roleLabel
 } from "./record-format";
@@ -626,12 +627,15 @@ function RecordDetailView({
   add(t("records.launch"), launchLabel(record.session));
 
   const blocks: { label: string; text: string }[] = [];
+  const addBlock = (label: string, text: string | null): void => {
+    if (text !== null) blocks.push({ label, text });
+  };
   if (record.kind === "log") {
-    blocks.push({ label: t("records.details"), text: prettyJson(record.fields) });
+    addBlock(t("records.details"), logDetailsText(record.fields, record.taskId));
   } else {
-    blocks.push({ label: t("records.request"), text: prettyJson(record.request) });
-    if (record.response !== null) blocks.push({ label: t("records.response"), text: prettyJson(record.response) });
-    if (record.error !== null) blocks.push({ label: t("records.error"), text: prettyJson(record.error) });
+    addBlock(t("records.request"), blockText(record.request));
+    addBlock(t("records.response"), blockText(record.response));
+    addBlock(t("records.error"), blockText(record.error));
   }
 
   return (

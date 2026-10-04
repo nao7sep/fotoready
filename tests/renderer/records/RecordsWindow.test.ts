@@ -199,7 +199,6 @@ describe("RecordsWindow", () => {
     ]);
     expect(blocks).toEqual([
       ["Request", JSON.stringify({ contents: "Describe", apiKey: "sk-test" }, null, 2)],
-      ["Response", "null"],
       ["Error", JSON.stringify({ name: "Error", message: "quota" }, null, 2)]
     ]);
     const body = document.querySelector(".records-detail-body")!.textContent!;
@@ -213,7 +212,7 @@ describe("RecordsWindow", () => {
     expect(document.querySelector(".records-detail-header")?.textContent).toContain("Error");
   });
 
-  it("shows a log line's fields as stored", async () => {
+  it("shows a log line's fields, leaving out the task the Task field shows", async () => {
     detail.mockResolvedValue({
       kind: "log", id: 9, session: SESSION, time: line.time, level: "warn", message: "vision retry", taskId: "task-1",
       fields: JSON.stringify({ mod: "vision", taskId: "task-1", attempt: 2 })
@@ -223,8 +222,20 @@ describe("RecordsWindow", () => {
 
     expect(document.querySelector(".records-detail-title")?.textContent).toBe("vision retry");
     expect(document.querySelector(".records-block pre")?.textContent).toBe(
-      JSON.stringify({ mod: "vision", taskId: "task-1", attempt: 2 }, null, 2)
+      JSON.stringify({ mod: "vision", attempt: 2 }, null, 2)
     );
+  });
+
+  it("leaves out the Details block when no field is left to show", async () => {
+    detail.mockResolvedValue({
+      kind: "log", id: 9, session: SESSION, time: line.time, level: "warn", message: "vision retry", taskId: "task-1",
+      fields: JSON.stringify({ taskId: "task-1" })
+    });
+    await mount();
+    await act(async () => options()[1]!.click());
+
+    expect(document.querySelector(".records-detail-title")?.textContent).toBe("vision retry");
+    expect(document.querySelectorAll(".records-block")).toHaveLength(0);
   });
 
   it("moves the selection with the arrow keys", async () => {

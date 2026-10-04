@@ -577,6 +577,12 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
+/* Items touch, so a ring outside one would sit under the next item's hover
+   fill; inside the item it stays whole. */
+.app-menu button:focus-visible {
+  outline-offset: -2px;
+}
+
 .app-menu button:hover {
   color: var(--text-strong-color);
   background: var(--menu-hover-bg);

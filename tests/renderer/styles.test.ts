@@ -80,3 +80,16 @@ describe("operation-result dismiss alignment", () => {
     expect(compact).not.toMatch(/\.operation-result-content\{[^}]*line-height/);
   });
 });
+
+// Menu items touch, so a focus ring drawn outside one sits under the next
+// item's hover fill. The menu draws it inside the item; every other button keeps
+// the ring just outside its edge.
+describe("menu focus ring", () => {
+  it("draws a menu item's ring inside the item", () => {
+    expect(compact).toMatch(/\.app-menubutton:focus-visible\{[^}]*outline-offset:-2px/);
+  });
+
+  it("keeps the ring just outside every other button", () => {
+    expect(compact).toMatch(/(^|[}/])button:focus-visible\{[^}]*outline:2pxsolidvar\(--accent-border\);outline-offset:1px/);
+  });
+});

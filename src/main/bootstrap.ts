@@ -318,6 +318,9 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, prep
   let closeAllowed = false;
   let closeRequestPending = false;
   let closeRequestMode: "window" | "quit" = "window";
+  // Set when the user approves a close, and never cleared: the close is then only landing the last
+  // state write, so a further close or quit waits for it instead of asking again.
+  let closeApproved = false;
   let systemShutdown = false;
 
   // Holds the shutdown, where the event allows it, until the last state write has landed, for at
@@ -349,21 +352,25 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, prep
   win.on("close", (event) => {
     if (closeAllowed || systemShutdown) return;
     event.preventDefault();
-    requestClose("window");
+    if (!closeApproved) requestClose("window");
   });
 
+  // A quit during an approved window close turns that close into the quit, so it still ends the app
+  // once the write lands.
   const beforeQuitHandler = (event: Electron.Event) => {
     if (closeAllowed || systemShutdown) return;
     event.preventDefault();
-    requestClose("quit");
+    if (closeApproved) closeRequestMode = "quit";
+    else requestClose("quit");
   };
   app.on("before-quit", beforeQuitHandler);
 
   ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean) => {
     if (BrowserWindow.fromWebContents(event.sender) !== win) return;
     closeRequestPending = false;
-    if (!allow) return;
-    await prepareClose();
+    if (!allow || closeApproved) return;
+    closeApproved = true;
+    await settleWithin(prepareClose(), SHUTDOWN_WAIT_MS);
     closeAllowed = true;
     exitState.reason = closeRequestMode === "quit" ? "user-quit" : "window-close";
     if (closeRequestMode === "quit") {

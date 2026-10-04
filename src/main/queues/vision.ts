@@ -200,6 +200,7 @@ export class VisionQueue {
           {
             model: settings["gemini.description"],
             thinking: settings["gemini.thinking.description"],
+            mediaResolution: settings["gemini.mediaResolution.description"],
             descriptionPrompt: settings.visionDescriptionPrompt,
             ...callOptions
           }

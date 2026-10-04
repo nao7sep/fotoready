@@ -1,4 +1,4 @@
-import { ApiError, GoogleGenAI, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part } from "@google/genai";
+import { ApiError, GoogleGenAI, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
@@ -18,6 +18,7 @@ export type VisionCallOptions = {
 export type VisionDescribeOptions = VisionCallOptions & {
   model: string;
   thinking: string | null;
+  mediaResolution: string | null;
   descriptionPrompt: string;
 };
 
@@ -102,6 +103,31 @@ function thinkingLevelConfig(thinking: string | null): GenerateContentConfig {
   return thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {};
 }
 
+/**
+ * How each supported model reads an image part, one branch per row of SUPPORTED_MODELS; each
+ * branch translates the row's mediaResolution levels. An id with no branch, or no level, sets none.
+ */
+export function imageMediaResolution(id: string, level: string | null): PartMediaResolution | undefined {
+  switch (id.trim().toLowerCase()) {
+    case "gemini-3.1-pro-preview":
+    case "gemini-3.8-flash":
+    case "gemini-3.5-flash-lite": {
+      // Gemini 3 takes a level on the image part.
+      const value = level === null ? undefined : MEDIA_RESOLUTION_LEVELS[level];
+      return value ? { level: value } : undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+const MEDIA_RESOLUTION_LEVELS: Readonly<Record<string, PartMediaResolutionLevel>> = {
+  low: PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW,
+  medium: PartMediaResolutionLevel.MEDIA_RESOLUTION_MEDIUM,
+  high: PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH,
+  ultra_high: PartMediaResolutionLevel.MEDIA_RESOLUTION_ULTRA_HIGH
+};
+
 export class GeminiVisionProvider {
   constructor(
     private readonly apiKey: string,
@@ -110,8 +136,9 @@ export class GeminiVisionProvider {
   ) {}
 
   async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
+    const mediaResolution = imageMediaResolution(opts.model, opts.mediaResolution);
     const response = await this.generate("description", opts, [
-      { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") } },
+      { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") }, ...(mediaResolution ? { mediaResolution } : {}) },
       { text: descriptionPrompt(opts.descriptionPrompt) }
     ]);
     assertUsableResponse(response, "image");

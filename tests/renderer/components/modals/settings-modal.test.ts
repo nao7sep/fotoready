@@ -62,7 +62,7 @@ describe("AppSettingsModal Gemini section", () => {
     expect(sections[0]?.querySelector("h3")?.textContent).toBe("Gemini");
     expect(sections[0]?.querySelector(":scope > .field-help")?.textContent).toBe("Gemini is the only provider supported.");
     const fields = [...sections[0]!.querySelectorAll(".stacked-field")].map((field) => field.firstChild?.textContent);
-    expect(fields).toEqual(["Endpoint", "API key", "Description model", "Thinking", "Slug model", "Thinking"]);
+    expect(fields).toEqual(["Endpoint", "API key", "Description model", "Thinking", "Image resolution", "Slug model", "Thinking"]);
     expect(fieldOf("Endpoint").input.value).toBe(defaultGlobalSettings()["gemini.endpoint"]);
     expect(fieldOf("Endpoint").help).toContain("The address FotoReady sends Gemini requests to.");
     expect(fieldOf("Description model").input.value).toBe("gemini-3.8-flash");
@@ -71,7 +71,9 @@ describe("AppSettingsModal Gemini section", () => {
     expect(sections[1]?.querySelector("h3")).toBeNull();
     expect(sections[1]?.querySelector(".stacked-field")?.textContent).toContain("Vision image long edge");
     expect(sections[2]?.querySelector("h3")?.textContent).toBe("Prompts");
-    const thinking = [...document.querySelectorAll<HTMLSelectElement>(".settings-page select")];
+    const thinking = [...sections[0]!.querySelectorAll(".stacked-field")]
+      .filter((field) => field.firstChild?.textContent === "Thinking")
+      .map((field) => field.querySelector("select")!);
     expect(thinking.map((select) => [...select.options].map((option) => option.value))).toEqual([["low", "medium", "high"], ["minimal", "low", "medium", "high"]]);
     expect(thinking.map((select) => select.value)).toEqual(["medium", "minimal"]);
     expect(button("Refresh models")).toBeUndefined();
@@ -109,9 +111,9 @@ describe("AppSettingsModal Gemini section", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "typed-unknown");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "typed-unknown", "gemini.thinking.description": null });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null });
 
-    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null } });
+    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null } });
     const fields = [...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field");
     expect([...fields].map((field) => field.firstChild?.textContent)).toEqual(["Endpoint", "API key", "Description model", "Slug model", "Thinking"]);
   });
@@ -119,12 +121,49 @@ describe("AppSettingsModal Gemini section", () => {
   it("changes only the role's Thinking in the draft", async () => {
     const setSettingsDraft = vi.fn();
     await renderSettings({ initialTab: "vision", setSettingsDraft });
-    const select = document.querySelectorAll<HTMLSelectElement>(".settings-page select")[1]!;
+    const thinking = [...document.querySelectorAll(".settings-page .stacked-field")].filter((field) => field.firstChild?.textContent === "Thinking");
+    const select = thinking[1]!.querySelector("select")!;
     await act(async () => {
       select.value = "high";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(setSettingsDraft).toHaveBeenCalledExactlyOnceWith({ ...defaultGlobalSettings(), "gemini.thinking.slug": "high" });
+  });
+
+  it("offers the description model's image resolutions at High, and changes only that level in the draft", async () => {
+    const setSettingsDraft = vi.fn();
+    await renderSettings({ initialTab: "vision", setSettingsDraft });
+    const fields = [...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field");
+    const field = [...fields].find((candidate) => candidate.firstChild?.textContent === "Image resolution")!;
+    const select = field.querySelector("select")!;
+    expect([...select.options].map((option) => [option.value, option.text])).toEqual([["low", "Low"], ["medium", "Medium"], ["high", "High"], ["ultra_high", "Ultra high"]]);
+    expect(select.value).toBe("high");
+    expect(field.querySelector(".field-help")?.textContent).toContain("High is what Gemini uses when no level is sent");
+    await act(async () => {
+      select.value = "low";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenCalledExactlyOnceWith({ ...defaultGlobalSettings(), "gemini.mediaResolution.description": "low" });
+  });
+
+  it("resets the image resolution to the new model's built-in when the description model changes", async () => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.mediaResolution.description": "low" };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    const input = fieldOf("Description model").input;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "gemini-3.1-pro-preview");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith(expect.objectContaining({ "gemini.description": "gemini-3.1-pro-preview", "gemini.mediaResolution.description": "high" }));
+
+    setSettingsDraft.mockClear();
+    const slug = fieldOf("Slug model").input;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(slug, "gemini-3.8-flash");
+      slug.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith(expect.objectContaining({ "gemini.slug": "gemini-3.8-flash", "gemini.mediaResolution.description": "low" }));
   });
 
   it("disables Save for an empty role id or an invalid endpoint, not for an unsupported id", async () => {

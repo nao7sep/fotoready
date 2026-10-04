@@ -5,7 +5,7 @@ import { visionError } from "@main/queues/vision";
 
 const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
-const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
+const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, mediaResolution: "high" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
 const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const };
 const ok = () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A mug." }] } }] }));
 const fail = (status: number) => new Response(JSON.stringify({ error: { message: "Please try later." } }), { status, headers: { "Content-Type": "application/json" } });
@@ -32,6 +32,26 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
     const body = JSON.parse(String(init!.body));
     expect(body.generationConfig ?? {}).toEqual(thinkingConfig ? { thinkingConfig } : {});
     expect(body.contents[0].parts[0].inlineData).toEqual({ mimeType: "image/jpeg", data: request.imageBytes.toString("base64") });
+  });
+
+  // Every request says which level the image is read at, High included, though Gemini reads a part
+  // that sets none at High too.
+  it.each([
+    ["high", "MEDIA_RESOLUTION_HIGH"],
+    ["low", "MEDIA_RESOLUTION_LOW"]
+  ])("sets the %s image resolution on the image part", async (mediaResolution, level) => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ mediaResolution });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(body.contents[0].parts[0].mediaResolution).toEqual({ level });
+    expect(body.contents[0].parts[1].mediaResolution).toBeUndefined();
+  });
+
+  it("sets no image resolution for an id with no branch", async () => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ model: "typed-unknown", thinking: null, mediaResolution: null });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(body.contents[0].parts[0]).not.toHaveProperty("mediaResolution");
   });
 
   it("asks for the slug JSON format and excludes thought text", async () => {

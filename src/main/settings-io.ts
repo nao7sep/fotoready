@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { AI_ROLES, defaultThinkingFor } from "@shared/ai-models";
+import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
@@ -79,10 +79,11 @@ function equalsBuiltIn<K extends keyof GlobalSettings>(key: K, value: GlobalSett
   return JSON.stringify(value) === JSON.stringify(builtIn);
 }
 
-/** The built-ins `settings` is compared with; a role's Thinking built-in follows the role's model. */
+/** The built-ins `settings` is compared with; a role's Thinking and image resolution built-ins follow the role's model. */
 function builtInsFor(settings: GlobalSettings): GlobalSettings {
   const builtIns = defaults();
   for (const role of AI_ROLES) builtIns[`gemini.thinking.${role.id}`] = defaultThinkingFor("gemini", role.kind, settings[`gemini.${role.id}`]);
+  builtIns["gemini.mediaResolution.description"] = defaultMediaResolutionFor("gemini", settings["gemini.description"]);
   return builtIns;
 }
 

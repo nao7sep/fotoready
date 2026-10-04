@@ -77,6 +77,8 @@ export type GlobalSettings = {
   // Null while the role's model has no row, which leaves the request without a thinking parameter.
   "gemini.thinking.description": string | null;
   "gemini.thinking.slug": string | null;
+  // The description role's image resolution; null while its model offers no choice, which sends none.
+  "gemini.mediaResolution.description": string | null;
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;
   visionSlugPrompt: string;

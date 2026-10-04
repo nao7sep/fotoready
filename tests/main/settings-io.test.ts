@@ -79,6 +79,29 @@ describe("settings by set", () => {
     expect(effective["gemini.thinking.slug"]).toBe("low");
   });
 
+  it("stores the description's image resolution only while it is not High", async () => {
+    await save({ "gemini.mediaResolution.description": "high" });
+    expect(await written()).toEqual({});
+    const effective = await save({ "gemini.mediaResolution.description": "low" });
+    expect(await written()).toEqual({ "gemini.mediaResolution.description": "low" });
+    expect(effective["gemini.mediaResolution.description"]).toBe("low");
+    await save({ "gemini.mediaResolution.description": "high" });
+    expect(await written()).toEqual({});
+  });
+
+  it("checks the image resolution against the description model's levels", async () => {
+    const warn = vi.fn();
+    const effective = await save({ "gemini.mediaResolution.description": "extreme" }, { warn } as unknown as AppLogger);
+    expect(await written()).toEqual({});
+    expect(effective["gemini.mediaResolution.description"]).toBe("high");
+    expect(warn).toHaveBeenCalledOnce();
+
+    await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": "low" }));
+    const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
+    expect(loaded.settings["gemini.mediaResolution.description"]).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
   it("checks a role's Thinking against its model's values", async () => {
     const warn = vi.fn();
     const effective = await save({ "gemini.thinking.description": "minimal" }, { warn } as unknown as AppLogger);

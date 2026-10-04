@@ -7,12 +7,16 @@ export type SupportedModel = {
   kinds: readonly AiKind[];
   defaultFor: readonly AiKind[];
   thinking: readonly string[];
+  /** The levels an image part may be read at, in the order the field lists them. */
+  mediaResolution: readonly string[];
 };
 
+const GEMINI_3_MEDIA_RESOLUTION = ["low", "medium", "high", "ultra_high"] as const;
+
 export const SUPPORTED_MODELS: readonly SupportedModel[] = [
-  { provider: "gemini", id: "gemini-3.1-pro-preview", kinds: ["text-smart"], defaultFor: ["text-smart"], thinking: ["low", "medium", "high"] },
-  { provider: "gemini", id: "gemini-3.8-flash", kinds: ["text-balanced", "vision"], defaultFor: ["text-balanced", "vision"], thinking: ["low", "medium", "high"] },
-  { provider: "gemini", id: "gemini-3.5-flash-lite", kinds: ["text-fast"], defaultFor: ["text-fast"], thinking: ["minimal", "low", "medium", "high"] }
+  { provider: "gemini", id: "gemini-3.1-pro-preview", kinds: ["text-smart"], defaultFor: ["text-smart"], thinking: ["low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
+  { provider: "gemini", id: "gemini-3.8-flash", kinds: ["text-balanced", "vision"], defaultFor: ["text-balanced", "vision"], thinking: ["low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
+  { provider: "gemini", id: "gemini-3.5-flash-lite", kinds: ["text-fast"], defaultFor: ["text-fast"], thinking: ["minimal", "low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION }
 ];
 
 export const AI_ROLES = [
@@ -45,4 +49,13 @@ export function defaultThinkingFor(provider: AiProvider, kind: AiKind, id: strin
   if (values.length === 0) return null;
   const preferred = kind === "text-fast" ? ["off", "none"] : ["adaptive", "medium"];
   return preferred.find((value) => values.includes(value)) ?? values[0]!;
+}
+
+/**
+ * The image resolution a model starts at: High, which Gemini also uses for a part that sets none;
+ * null when the id has no row or its row offers no choice, which leaves the image part without one.
+ */
+export function defaultMediaResolutionFor(provider: AiProvider, id: string): string | null {
+  const values = supportedModel(provider, id)?.mediaResolution ?? [];
+  return values.length > 1 ? "high" : null;
 }

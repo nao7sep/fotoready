@@ -1,7 +1,7 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type MetadataFields } from "../types/settings";
 import { LANGUAGES } from "../i18n/languages";
-import { defaultThinkingFor, supportedModel, type AiKind } from "../ai-models";
+import { defaultMediaResolutionFor, defaultThinkingFor, supportedModel, type AiKind } from "../ai-models";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
@@ -74,6 +74,7 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     "gemini.slug": slugModel,
     "gemini.thinking.description": readThinking(source, "gemini.thinking.description", "vision", descriptionModel, issues),
     "gemini.thinking.slug": readThinking(source, "gemini.thinking.slug", "text-fast", slugModel, issues),
+    "gemini.mediaResolution.description": readMediaResolution(source, "gemini.mediaResolution.description", descriptionModel, issues),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, wholeNumber("preResizeLongEdge")),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
@@ -122,6 +123,15 @@ function readThinking(source: Record<string, unknown>, key: string, kind: AiKind
   return readValue(source, key, defaultThinkingFor("gemini", kind, model), issues, (value, path) => {
     if (values.length === 0 ? value === null : typeof value === "string" && values.includes(value)) return value as string | null;
     throw new Error(`${path} must be one of the thinking values of ${model}.`);
+  });
+}
+
+/** A role's image resolution is one of its model's listed levels, and null while the model offers no choice; its built-in follows the model. */
+function readMediaResolution(source: Record<string, unknown>, key: string, model: string, issues: string[]): string | null {
+  const values = supportedModel("gemini", model)?.mediaResolution ?? [];
+  return readValue(source, key, defaultMediaResolutionFor("gemini", model), issues, (value, path) => {
+    if (values.length > 1 ? typeof value === "string" && values.includes(value) : value === null) return value as string | null;
+    throw new Error(`${path} must be one of the image resolutions of ${model}.`);
   });
 }
 

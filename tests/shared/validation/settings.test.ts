@@ -147,7 +147,7 @@ describe("normalizeGlobalSettings", () => {
 
 describe("Open Gemini role model selections", () => {
   it("preserves a selection the shipped list no longer offers — kept verbatim, not snapped", () => {
-    const { settings, issues } = normalizeGlobalSettings({ ...fallback, "gemini.description": "gemini-2.5-pro", "gemini.thinking.description": null }, fallback);
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, "gemini.description": "gemini-2.5-pro", "gemini.thinking.description": null, "gemini.mediaResolution.description": null }, fallback);
     expect(settings["gemini.description"]).toBe("gemini-2.5-pro");
     expect(issues).toEqual([]);
   });

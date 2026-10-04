@@ -6,7 +6,7 @@ import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { assertModelEndpoint, SETTING_BOUNDS } from "@shared/validation/settings";
-import { AI_ROLES, defaultThinkingFor, supportedModel } from "@shared/ai-models";
+import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor, supportedModel } from "@shared/ai-models";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
@@ -50,6 +50,14 @@ const fontOptionLabels: Record<(typeof TEXT_WATERMARK_FONT_OPTIONS)[number]["id"
   serif: "settings.fontOption.serif",
   monospace: "settings.fontOption.monospace",
   rounded: "settings.fontOption.rounded"
+};
+
+// The image resolution levels a model row lists, in the app's words.
+const MEDIA_RESOLUTION_LABELS: Readonly<Record<string, MessageKey>> = {
+  low: "settings.mediaResolutionLevel.low",
+  medium: "settings.mediaResolutionLevel.medium",
+  high: "settings.mediaResolutionLevel.high",
+  ultra_high: "settings.mediaResolutionLevel.ultraHigh"
 };
 
 export function AppSettingsModal({
@@ -439,7 +447,12 @@ function VisionTab({
                     value={settings[key]}
                     onChange={(event) => {
                       const model = event.currentTarget.value;
-                      setSettings({ ...settings, [key]: model, [thinkingKey]: defaultThinkingFor("gemini", role.kind, model) });
+                      setSettings({
+                        ...settings,
+                        [key]: model,
+                        [thinkingKey]: defaultThinkingFor("gemini", role.kind, model),
+                        ...(role.id === "description" ? { "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", model) } : {})
+                      });
                     }}
                   />
                   <span className="field-help">{t(role.id === "description" ? "settings.descriptionModelHelp" : "settings.slugModelHelp")}</span>
@@ -451,6 +464,15 @@ function VisionTab({
                     options={row.thinking.map((value) => ({ value, label: value }))}
                     value={settings[thinkingKey] ?? ""}
                     onChange={(value) => setSettings({ ...settings, [thinkingKey]: value })}
+                  />
+                ) : null}
+                {role.id === "description" && row && row.mediaResolution.length > 1 ? (
+                  <SelectField
+                    help={t("settings.mediaResolutionHelp")}
+                    label={t("settings.mediaResolution")}
+                    options={row.mediaResolution.map((value) => ({ value, label: MEDIA_RESOLUTION_LABELS[value] ? t(MEDIA_RESOLUTION_LABELS[value]) : value }))}
+                    value={settings["gemini.mediaResolution.description"] ?? ""}
+                    onChange={(value) => setSettings({ ...settings, "gemini.mediaResolution.description": value })}
                   />
                 ) : null}
               </React.Fragment>
@@ -780,12 +802,14 @@ function NumberField({
 
 function SelectField({
   className,
+  help,
   label,
   onChange,
   options,
   value
 }: {
   className?: string;
+  help?: string;
   label: string;
   onChange(value: string): void;
   options: Array<{ value: string; label: string }>;
@@ -797,6 +821,7 @@ function SelectField({
       <select value={value} onChange={(event) => onChange(event.currentTarget.value)}>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+      {help ? <span className="field-help">{help}</span> : null}
     </label>
   );
 }

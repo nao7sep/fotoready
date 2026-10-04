@@ -69,7 +69,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Shared across the app's lifetime (and across windows, since macOS keeps the
 // process alive after the last window closes). The close guard records why the
-// app is shutting down; the single will-quit handler reads it. "unknown" means
+// app is shutting down; the quit shutdown reads it. "unknown" means
 // the app went down without passing through a recognized close path (e.g. an
 // external signal) — distinct from a deliberate user quit.
 export type ExitState = { reason: string };
@@ -179,23 +179,14 @@ export async function bootstrap(): Promise<void> {
 
   // One launch = one session. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
-  // Quitting holds the exit until in-flight saves are cancelled and have removed their
-  // unfinished files and the last state write has landed, for at most SHUTDOWN_WAIT_MS, then
-  // quits for real.
-  let shutdown: "running" | "stopping" | "done" = "running";
-  app.on("will-quit", (event) => {
-    if (shutdown === "done") return;
-    event.preventDefault();
-    if (shutdown === "stopping") return;
-    shutdown = "stopping";
+  // Quitting cancels in-flight saves, which remove their unfinished files, and lands the last
+  // state write, then closes the workers and the records reader, each stage for at most
+  // SHUTDOWN_WAIT_MS.
+  installQuitShutdown(async () => {
     logger.info("app stopping", { mod: "main", reason: exitState.reason });
-    void (async () => {
-      const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateCoordinator.flush()]), SHUTDOWN_WAIT_MS);
-      if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
-      await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), SHUTDOWN_WAIT_MS);
-      shutdown = "done";
-      app.quit();
-    })();
+    const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateCoordinator.flush()]), SHUTDOWN_WAIT_MS);
+    if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
+    await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), SHUTDOWN_WAIT_MS);
   });
 
   // The main window, apart from the Records window beside it.
@@ -277,6 +268,28 @@ export async function bootstrap(): Promise<void> {
 
 /** How long quitting waits for in-flight saves to stop and clean up before exiting anyway. */
 const SHUTDOWN_WAIT_MS = 10_000;
+
+/**
+ * Exported for tests. Holds the exit once the windows have closed until `stop` settles, then quits
+ * for real. A quit arriving while `stop` runs, such as a second Quit or window-all-closed, is held
+ * at before-quit, so only the quit after `stop` ends the process.
+ */
+export function installQuitShutdown(stop: () => Promise<void>): void {
+  let shutdown: "running" | "stopping" | "done" = "running";
+  app.on("before-quit", (event) => {
+    if (shutdown === "stopping") event.preventDefault();
+  });
+  app.on("will-quit", (event) => {
+    if (shutdown === "done") return;
+    event.preventDefault();
+    if (shutdown === "stopping") return;
+    shutdown = "stopping";
+    void stop().finally(() => {
+      shutdown = "done";
+      app.quit();
+    });
+  });
+}
 
 /** Resolves true when `work` settles within `ms`, false when the wait runs out first. Never rejects. */
 async function settleWithin(work: Promise<unknown>, ms: number): Promise<boolean> {

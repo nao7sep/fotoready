@@ -47,7 +47,8 @@ function arrange(status: TaskStatus): { session: ProjectSession; task: Task } {
     defaultGlobalSettings(),
     null as never,
     null as never,
-    null as never
+    null as never,
+    "resources/stamps"
   );
   const task = taskWithOneOp(status);
   const project = session.snapshot().project;

@@ -203,7 +203,7 @@ async function arrange(
     prepareInput: async () => Buffer.from("image")
   });
   await queue.setGeminiApiKey("test-key");
-  const session = new ProjectSession(settings, queue, null as never, null as never);
+  const session = new ProjectSession(settings, queue, null as never, null as never, "resources/stamps");
   const project = session.snapshot().project;
   const task = savedTask();
   project.originals.push(original());

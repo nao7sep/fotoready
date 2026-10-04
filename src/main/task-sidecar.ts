@@ -12,6 +12,7 @@ import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
+import { relinkMissingBuiltinStamps } from "./builtin-stamp-catalog";
 
 export type LoadedTaskSidecar = {
   path: string;
@@ -51,6 +52,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
 
 export async function loadTaskSidecars(
   filePaths: string[],
+  bundledStampsDir: string,
   logger?: Logger
 ): Promise<TaskSidecarLoadResult> {
   const loaded: LoadedTaskSidecar[] = [];
@@ -94,8 +96,9 @@ export async function loadTaskSidecars(
       });
       continue;
     }
+    let sidecar: TaskSidecar;
     try {
-      loaded.push({ path: filePath, sidecar: normalizeTaskSidecar(parsed) });
+      sidecar = normalizeTaskSidecar(parsed);
     } catch (error) {
       logger?.warn("task sidecar values were invalid", { mod: "main.task-sidecar", filePath, err: error });
       rejected.push({
@@ -104,7 +107,15 @@ export async function loadTaskSidecars(
         severity: "warning",
         reason: message("importReason.sidecarInvalid")
       });
+      continue;
     }
+    try {
+      sidecar.task.pipeline = await relinkMissingBuiltinStamps(sidecar.task.pipeline, bundledStampsDir);
+    } catch (error) {
+      // The task still opens; a stamp whose file is gone then fails where it is drawn, as any missing asset does.
+      logger?.error("built-in stamps could not be read to relink a saved task", { mod: "main.task-sidecar", filePath, err: error });
+    }
+    loaded.push({ path: filePath, sidecar });
   }
   return { loaded, rejected };
 }

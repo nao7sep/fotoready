@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTaskSidecar } from "@shared/task-sidecar";
 import { defaultPipeline } from "@shared/defaults";
 import { loadTaskSidecars, matchingTaskSidecar } from "@main/task-sidecar";
+import { getOpModule } from "@core/ops/catalog";
 
 const roots: string[] = [];
 
@@ -19,7 +20,7 @@ describe("task sidecar import", () => {
     const invalidPath = path.join(root, "broken.json");
     await fs.writeFile(invalidPath, "not json", "utf8");
 
-    const result = await loadTaskSidecars([invalidPath]);
+    const result = await loadTaskSidecars([invalidPath], "resources/stamps");
 
     expect(result.loaded).toEqual([]);
     expect(result.rejected).toEqual([{
@@ -41,7 +42,7 @@ describe("task sidecar import", () => {
       error: vi.fn(),
     };
 
-    const result = await loadTaskSidecars([missingPath], logger);
+    const result = await loadTaskSidecars([missingPath], "resources/stamps", logger);
 
     expect(result.loaded).toEqual([]);
     expect(result.rejected).toEqual([{
@@ -77,7 +78,7 @@ describe("task sidecar import", () => {
     });
     await fs.writeFile(sidecarPath, JSON.stringify(sidecar), "utf8");
 
-    const result = await loadTaskSidecars([sidecarPath]);
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
 
     expect(result.rejected).toEqual([]);
     expect(result.loaded).toHaveLength(1);
@@ -93,5 +94,36 @@ describe("task sidecar import", () => {
       jpegQualityEstimate: null,
       addedAt: "2026-08-28T00:00:00.000Z",
     }, result.loaded)?.path).toBe(sidecarPath);
+  });
+
+  it("loads a stamp saved under another install as the current built-in and leaves a missing imported stamp as saved", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
+    roots.push(root);
+    const sidecarPath = path.join(root, "photo.json");
+    const stamp = (id: string, assetPath: string) => ({
+      id, type: "stamp", enabled: true, params: { ...structuredClone(getOpModule("stamp")!.defaultParams), assetPath }
+    });
+    const pipeline = {
+      ...defaultPipeline(),
+      ops: [stamp("built-in", path.join(root, "other-install", "stamps", "heart.png")), stamp("imported", path.join(root, "gone", "my-own.png"))]
+    };
+    const sidecar = createTaskSidecar({
+      original: { fileName: "photo.jpg", sourceHash: "source-hash", size: 100, format: "jpeg", width: 20, height: 10 },
+      generateDescription: false,
+      generateSlug: false,
+      customSlug: null,
+      pipeline,
+      vision: null,
+    });
+    await fs.writeFile(sidecarPath, JSON.stringify(sidecar), "utf8");
+    const bundledStampsDir = path.resolve("resources/stamps");
+
+    const result = await loadTaskSidecars([sidecarPath], bundledStampsDir);
+
+    expect(result.rejected).toEqual([]);
+    expect(result.loaded[0]!.sidecar.task.pipeline.ops.map((op) => op.params.assetPath)).toEqual([
+      path.join(bundledStampsDir, "heart.png"),
+      path.join(root, "gone", "my-own.png"),
+    ]);
   });
 });

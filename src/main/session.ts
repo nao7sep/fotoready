@@ -58,6 +58,7 @@ export class ProjectSession {
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
     workerPool: PipelineWorkerPool,
+    private readonly bundledStampsDir: string,
     private readonly logger?: AppLogger
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
@@ -114,7 +115,7 @@ export class ProjectSession {
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[]
   ): Promise<OriginalImportResult> {
-    const sidecarResult = await loadTaskSidecars(sourcePaths, this.logger);
+    const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger);
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
     const sidecars = [...sidecarResult.loaded];
     const usedSidecarPaths = new Set<string>();

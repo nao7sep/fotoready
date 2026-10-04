@@ -1,11 +1,22 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   assertBuiltinStampCatalogCompleteness,
+  builtinStampPathFor,
   parseBuiltinStampCatalog,
-  readBuiltinStampCatalog
+  readBuiltinStampCatalog,
+  relinkMissingBuiltinStamps
 } from "@main/builtin-stamp-catalog";
+import { defaultOutputSettings } from "@shared/defaults";
+import type { Pipeline } from "@shared/types/pipeline";
+
+const roots: string[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
 
 describe("built-in stamp catalog", () => {
   it("accepts an alphabetized, complete catalog", () => {
@@ -87,5 +98,61 @@ describe("built-in stamp catalog", () => {
       "exclamation-comic",
       "heart"
     ]));
+  });
+});
+
+describe("saved stamp paths", () => {
+  const entries = parseBuiltinStampCatalog({
+    version: 1,
+    stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
+  });
+
+  it("names the current built-in for a catalogued slug in any stamp format", () => {
+    for (const fileName of ["heart.png", "heart.svg", "heart.webp"]) {
+      expect(builtinStampPathFor(fileName, entries, "/app/stamps"), fileName).toBe(path.join("/app/stamps", "heart.webp"));
+    }
+    expect(builtinStampPathFor("heart.gif", entries, "/app/stamps")).toBeNull();
+    expect(builtinStampPathFor("HEART.PNG", entries, "/app/stamps")).toBeNull();
+    expect(builtinStampPathFor("my-heart.png", entries, "/app/stamps")).toBeNull();
+  });
+
+  it("relinks a missing built-in path to the current built-in and leaves every other path as saved", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-relink-"));
+    roots.push(root);
+    const bundled = path.join(root, "bundled");
+    fs.mkdirSync(bundled);
+    fs.writeFileSync(path.join(bundled, "heart.webp"), "webp");
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
+      version: 1,
+      stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
+    }));
+    const kept = path.join(root, "heart.png");
+    fs.writeFileSync(kept, "a user's own file that still exists");
+
+    const op = (id: string, type: string, assetPath: string) => ({ id, type, enabled: true, params: { assetPath, x: 0.5, y: 0.5 } });
+    const pipeline: Pipeline = {
+      ops: [
+        op("moved", "stamp", "/Applications/Old.app/Contents/Resources/stamps/heart.png"),
+        op("windows", "stamp", "C:\\Program Files\\FotoReady\\resources\\stamps\\heart.png"),
+        op("existing", "stamp", kept),
+        op("imported", "stamp", "/gone/stamps/my-own.png"),
+        op("watermark", "watermark-image", "/gone/stamps/heart.png"),
+        op("empty", "stamp", "")
+      ],
+      output: defaultOutputSettings()
+    };
+
+    const relinked = await relinkMissingBuiltinStamps(pipeline, bundled);
+
+    expect(relinked.ops.map((entry) => entry.params.assetPath)).toEqual([
+      path.join(bundled, "heart.webp"),
+      path.join(bundled, "heart.webp"),
+      kept,
+      "/gone/stamps/my-own.png",
+      "/gone/stamps/heart.png",
+      ""
+    ]);
+    expect(relinked.ops[0]!.params).toEqual({ ...pipeline.ops[0]!.params, assetPath: path.join(bundled, "heart.webp") });
+    expect(pipeline.ops[0]!.params.assetPath).toBe("/Applications/Old.app/Contents/Resources/stamps/heart.png");
   });
 });

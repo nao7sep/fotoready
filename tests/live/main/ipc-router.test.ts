@@ -96,7 +96,7 @@ async function startApp(home: string) {
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
-  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, logger);
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
   const recordsReader = createRecordsReader(paths.recordsPath);

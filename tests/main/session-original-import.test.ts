@@ -27,7 +27,7 @@ function session() {
   };
   return {
     logger,
-    value: new ProjectSession(defaultGlobalSettings(), null as never, null as never, null as never, logger as never),
+    value: new ProjectSession(defaultGlobalSettings(), null as never, null as never, null as never, "resources/stamps", logger as never),
   };
 }
 

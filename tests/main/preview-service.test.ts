@@ -37,7 +37,7 @@ function fakePool(options: { holdStages?: boolean } = {}) {
 describe("PreviewService stage cache", () => {
   it("never serves a stage rendered for an edit that was superseded while it rendered", async () => {
     const { pool, stageCalls } = fakePool({ holdStages: true });
-    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool);
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
     const opId = task.pipeline.ops[0].id;
 
@@ -61,7 +61,7 @@ describe("PreviewService stage cache", () => {
   it("renders each stage from the enabled state it was keyed by, even if the op is toggled mid-render", async () => {
     const options = { holdStages: true };
     const { pool, stageCalls } = fakePool(options);
-    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool);
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
     task.pipeline.ops.push({ id: "lut-late", type: "lut", enabled: false, params: { cubePath: "/luts/film.cube", strength: 0.5 } });
 

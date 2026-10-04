@@ -70,7 +70,8 @@ function arrangeSession(task: Task): { session: ProjectSession; task: Task } {
     defaultGlobalSettings(),
     null as never,
     null as never,
-    null as never
+    null as never,
+    "resources/stamps"
   );
   const project = session.snapshot().project;
   project.originals.push(original());

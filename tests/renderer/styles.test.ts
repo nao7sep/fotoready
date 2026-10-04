@@ -93,3 +93,21 @@ describe("menu focus ring", () => {
     expect(compact).toMatch(/(^|[}/])button:focus-visible\{[^}]*outline:2pxsolidvar\(--accent-border\);outline-offset:1px/);
   });
 });
+
+// The app's lines come in one separator strength: a fainter line token beside
+// it made the Settings section lines, among others, weaker than the rest.
+describe("line tokens", () => {
+  it("draws every separator with the one separator token", () => {
+    expect(css).not.toContain("--border-soft-color");
+  });
+
+  it("re-scopes the separator on an op card's contents, keeping the card's own edge plain", () => {
+    expect(compact).toMatch(/\.pipeline-op-card>\*\{--border-color:var\(--border-on-raised\);\}/);
+    expect(compact).not.toMatch(/\.pipeline-op-card\{[^}]*--border-color:/);
+    expect(compact).toMatch(/\.hsl-band\{--border-color:var\(--border-on-muted\);[^}]*border:1pxsolidvar\(--border-color\)/);
+  });
+
+  it("separates the Settings sections with the separator token", () => {
+    expect(compact).toMatch(/\.settings-section-stack>section\{[^}]*border-bottom:1pxsolidvar\(--border-color\)/);
+  });
+});

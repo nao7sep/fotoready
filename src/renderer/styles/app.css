@@ -41,13 +41,12 @@
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2357534e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --border-color: #d6d3d1;
   --border-strong-color: #a8a29e;
-  --border-soft-color: #e7e5e4;
-  /* The soft line re-scoped onto the raised op cards and the muted HSL bands,
-     where one value would sit almost on the fill; each keeps a visible step
-     from its own surface. .pipeline-op-card and .hsl-band set
-     --border-soft-color to them. */
-  --border-soft-on-raised: #dcdbda;
-  --border-soft-on-muted: #cecccb;
+  /* The separator line re-scoped onto the raised op cards and the muted HSL
+     bands, where one value would sit weaker on the fill; each keeps the line's
+     strength on its own surface. The op card's contents and .hsl-band set
+     --border-color to them. */
+  --border-on-raised: #cdcac8;
+  --border-on-muted: #bfbdbb;
   /* A text field or select sits on a fill of nearly its surrounding surface's color, so its outline
      alone identifies it and stays at 3:1 against both. */
   --field-border-color: #817a75;
@@ -145,9 +144,8 @@
     --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     --border-color: #383838;
     --border-strong-color: #555555;
-    --border-soft-color: #333333;
-    --border-soft-on-raised: #333333;
-    --border-soft-on-muted: #333333;
+    --border-on-raised: #3e3e3e;
+    --border-on-muted: #383838;
     --field-border-color: #818181;
     --selection-border-color: #fbbf24;
     --text-color: #e5e5e5;
@@ -690,7 +688,7 @@ select:disabled {
   justify-content: center;
   padding: 0 10px;
   border: 0;
-  border-left: 1px solid var(--border-soft-color);
+  border-left: 1px solid var(--border-color);
   background: transparent;
   color: var(--text-strong-color);
   font: inherit;
@@ -1181,7 +1179,7 @@ select:disabled {
   display: grid;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-soft-color);
+  border-top: 1px solid var(--border-color);
 }
 
 .metadata-summary-list {
@@ -1517,7 +1515,6 @@ select:disabled {
 }
 
 .pipeline-op-card {
-  --border-soft-color: var(--border-soft-on-raised);
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -1531,6 +1528,12 @@ select:disabled {
 .pipeline-op-card.active {
   border-color: var(--accent-border);
   box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+/* Re-scoped on the card's contents, not the card, so the card's own edge
+   against the panel keeps the plain separator. */
+.pipeline-op-card > * {
+  --border-color: var(--border-on-raised);
 }
 
 .pipeline-op-card .row-detail,
@@ -1699,7 +1702,7 @@ select:disabled {
   gap: 8px;
   align-items: baseline;
   padding: 6px 10px;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--surface-bg);
 }
@@ -1991,7 +1994,7 @@ select:disabled {
 .rename-complete-table th,
 .rename-complete-table td {
   padding: 5px 6px;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   text-align: left;
   vertical-align: top;
 }
@@ -2079,7 +2082,7 @@ select:disabled {
   flex-direction: column;
   gap: 10px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-soft-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .settings-section-stack > section:last-child {
@@ -2205,7 +2208,7 @@ select:disabled {
   grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
   gap: 14px;
   padding: 12px;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--surface-raised-bg);
   font-size: 12px;
@@ -2550,7 +2553,7 @@ select:disabled {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   color: var(--text-soft-color);
   background:
@@ -2831,11 +2834,11 @@ select:disabled {
 }
 
 .hsl-band {
-  --border-soft-color: var(--border-soft-on-muted);
+  --border-color: var(--border-on-muted);
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background: var(--surface-muted-bg);
 }
@@ -3173,7 +3176,7 @@ kbd {
 .records-block-text {
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--border-soft-color);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-color);
   background: var(--surface-bg);

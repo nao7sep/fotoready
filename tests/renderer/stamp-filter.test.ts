@@ -7,15 +7,16 @@ const stamps: StampEntry[] = [
   { slug: "heart", name: "Heart", path: "/heart.png", format: "png", builtin: true, groupId: "marks" },
   { slug: "laughing-face", name: "Laughing face", path: "/laughing-face.png", format: "png", builtin: true, groupId: "reactions" },
   { slug: "googly-eyes", name: "Googly eyes", path: "/googly-eyes.png", format: "png", builtin: true, groupId: "funny" },
-  { slug: "mine", name: "mine.svg", path: "/mine.svg", format: "svg", builtin: false, groupId: "imported" }
+  { slug: "mine", name: "mine.svg", path: "/mine.svg", format: "svg", builtin: false, groupId: "imported" },
+  { slug: "sticker", name: "sticker.webp", path: "/sticker.webp", format: "webp", builtin: false, groupId: "imported" }
 ];
 
 describe("filterStampsByGroup", () => {
   it("keeps the complete order for All and isolates each stored group", () => {
-    expect(filterStampsByGroup(stamps, "all").map((stamp) => stamp.slug)).toEqual(["cover-blob", "heart", "laughing-face", "googly-eyes", "mine"]);
+    expect(filterStampsByGroup(stamps, "all").map((stamp) => stamp.slug)).toEqual(["cover-blob", "heart", "laughing-face", "googly-eyes", "mine", "sticker"]);
     expect(filterStampsByGroup(stamps, "cover").map((stamp) => stamp.slug)).toEqual(["cover-blob"]);
     expect(filterStampsByGroup(stamps, "funny").map((stamp) => stamp.slug)).toEqual(["googly-eyes"]);
-    expect(filterStampsByGroup(stamps, "imported").map((stamp) => stamp.slug)).toEqual(["mine"]);
+    expect(filterStampsByGroup(stamps, "imported").map((stamp) => stamp.slug)).toEqual(["mine", "sticker"]);
   });
 
   it("returns an empty visible collection for an unfilled group", () => {

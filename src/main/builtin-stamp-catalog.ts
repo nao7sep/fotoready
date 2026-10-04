@@ -3,7 +3,7 @@ import path from "node:path";
 import { isBuiltinStampGroupId, type BuiltinStampGroupId } from "@shared/stamp-groups";
 
 const CATALOG_FILE_NAME = "catalog.json";
-const STAMP_FILE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:png|svg)$/;
+const STAMP_FILE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:png|svg|webp)$/;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export type BuiltinStampCatalogEntry = {
@@ -77,7 +77,7 @@ function parseEntry(value: unknown, index: number): BuiltinStampCatalogEntry {
     throw new Error(`catalog.stamps[${index}].slug must be an ASCII kebab-case slug.`);
   }
   if (!STAMP_FILE_PATTERN.test(file) || path.parse(file).name !== slug) {
-    throw new Error(`catalog.stamps[${index}].file must be the slug plus .png or .svg.`);
+    throw new Error(`catalog.stamps[${index}].file must be the slug plus .png, .svg or .webp.`);
   }
   if (!isBuiltinStampGroupId(group)) {
     throw new Error(`catalog.stamps[${index}].group is not a built-in stamp group.`);

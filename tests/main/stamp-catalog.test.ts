@@ -70,6 +70,31 @@ describe("listStamps", () => {
     await expect(listStamps("", imported, bundled)).rejects.toThrow(/uncatalogued assets: orphan\.png/i);
   });
 
+  it("lists WebP built-ins and imports, and imports a WebP stamp", async () => {
+    const root = tempRoot();
+    const bundled = path.join(root, "bundled");
+    const imported = path.join(root, "imported");
+    const source = path.join(root, "source");
+    fs.mkdirSync(bundled);
+    fs.mkdirSync(source);
+    fs.writeFileSync(path.join(bundled, "heart.webp"), "webp");
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
+      version: 1,
+      stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
+    }));
+    fs.writeFileSync(path.join(source, "sticker.webp"), "webp");
+
+    await expect(importStamps([path.join(source, "sticker.webp")], "", imported, bundled)).resolves.toEqual([{
+      fileName: "sticker.webp",
+      path: path.join(imported, "sticker.webp"),
+      status: "imported"
+    }]);
+    await expect(listStamps("", imported, bundled)).resolves.toEqual([
+      { slug: "heart", builtin: true, format: "webp", groupId: "marks", name: "Heart", path: path.join(bundled, "heart.webp") },
+      { slug: "sticker", builtin: false, format: "webp", groupId: "imported", name: "sticker.webp", path: path.join(imported, "sticker.webp") }
+    ]);
+  });
+
   it("keeps built-in filenames reserved for imports", async () => {
     const root = tempRoot();
     const bundled = path.join(root, "bundled");

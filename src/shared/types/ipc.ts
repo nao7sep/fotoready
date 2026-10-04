@@ -182,7 +182,7 @@ export type StampEntry = {
   slug: string;
   name: string;
   path: string;
-  format: "png" | "svg";
+  format: "png" | "svg" | "webp";
   builtin: boolean;
   groupId: import("@shared/stamp-groups").StampGroupId;
 };

@@ -21,6 +21,20 @@ describe("built-in stamp catalog", () => {
     expect(() => assertBuiltinStampCatalogCompleteness(entries, ["cover-blob.png", "heart.png"])).not.toThrow();
   });
 
+  it("accepts a WebP built-in", () => {
+    const entries = parseBuiltinStampCatalog({
+      version: 1,
+      stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
+    });
+
+    expect(entries.map((entry) => entry.file)).toEqual(["heart.webp"]);
+    expect(() => assertBuiltinStampCatalogCompleteness(entries, ["heart.webp"])).not.toThrow();
+    expect(() => parseBuiltinStampCatalog({
+      version: 1,
+      stamps: [{ slug: "heart", file: "heart.gif", group: "marks", label: "Heart" }]
+    })).toThrow(/slug plus \.png, \.svg or \.webp/i);
+  });
+
   it("rejects duplicate identities and invalid groups", () => {
     expect(() => parseBuiltinStampCatalog({
       version: 1,
@@ -63,7 +77,7 @@ describe("built-in stamp catalog", () => {
 
   it("matches the repository's packaged stamp resources", async () => {
     const stampsDir = path.resolve("resources/stamps");
-    const assetFiles = fs.readdirSync(stampsDir).filter((fileName) => /\.(?:png|svg)$/i.test(fileName));
+    const assetFiles = fs.readdirSync(stampsDir).filter((fileName) => /\.(?:png|svg|webp)$/i.test(fileName));
     const entries = await readBuiltinStampCatalog(stampsDir, assetFiles);
 
     expect(entries.map((entry) => entry.slug)).toEqual(expect.arrayContaining([

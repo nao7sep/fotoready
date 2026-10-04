@@ -726,7 +726,7 @@ export function StampPickerModal({
       )}
       emptyMessage={emptyMessage}
       entries={entries}
-      extensions={["png", "svg"]}
+      extensions={["png", "svg", "webp"]}
       importTitle={t("stamps.importTitle")}
       loading={loading}
       previewLongEdge={previewLongEdge}

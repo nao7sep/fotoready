@@ -8,7 +8,7 @@ import { WatermarkSourceAction } from "@renderer/ops/watermark-image";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const mocks = vi.hoisted(() => ({ pickFile: vi.fn<() => Promise<string | null>>() }));
+const mocks = vi.hoisted(() => ({ pickFile: vi.fn<(options: { title: string; extensions: string[] }) => Promise<string | null>>() }));
 vi.mock("@renderer/ipc/client", () => ({ api: { system: { pickFile: mocks.pickFile } } }));
 
 let root: Root;
@@ -28,6 +28,41 @@ afterEach(async () => {
 });
 
 describe("WatermarkSourceAction", () => {
+  it("offers PNG, SVG and WebP files", async () => {
+    mocks.pickFile.mockResolvedValue(null);
+    await act(async () => {
+      root.render(createElement(WatermarkSourceAction, {
+        ctx: {
+          activeTaskId: "task-1",
+          assetPickerPreviewLongEdge: 128,
+          luts: [],
+          opId: "op-1",
+          stamps: [],
+          originalMetadataSummary: null,
+          originalSize: { width: 1000, height: 800 }
+        },
+        disabled: false,
+        onParamsChange: vi.fn(),
+        params: {
+          assetPath: "",
+          x: 0,
+          y: 0,
+          width: 0.2,
+          height: 0.2,
+          lockAspectRatio: true,
+          flipHorizontal: false,
+          flipVertical: false,
+          opacity: 1,
+          rotation: 0
+        }
+      }));
+    });
+
+    await act(async () => document.querySelector<HTMLButtonElement>("button")!.click());
+
+    expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({ extensions: ["png", "svg", "webp"] }));
+  });
+
   it("owns picker rejection without exposing bridge diagnostics or changing params", async () => {
     mocks.pickFile.mockRejectedValue(new Error(
       "Error invoking remote method: EACCES /private/tmp/FOTOREADY_WATERMARK_SENTINEL"

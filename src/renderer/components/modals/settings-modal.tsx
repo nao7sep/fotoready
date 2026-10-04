@@ -589,7 +589,7 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
             buttonLabel={t("settings.chooseFile")}
             emptyLabel={t("settings.noDefaultWatermark")}
             label={t("settings.defaultWatermark")}
-            pick={async () => window.api.system.pickFile({ title: t("dialog.chooseDefaultWatermark"), extensions: ["png", "svg"] })}
+            pick={async () => window.api.system.pickFile({ title: t("dialog.chooseDefaultWatermark"), extensions: ["png", "svg", "webp"] })}
             value={settings.defaultWatermarkImage}
             onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
           />

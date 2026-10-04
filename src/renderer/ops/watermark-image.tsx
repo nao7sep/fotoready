@@ -46,7 +46,7 @@ export function WatermarkSourceAction({
 
   async function choose(): Promise<void> {
     try {
-      const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg"] });
+      const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg", "webp"] });
       if (!picked) return;
       onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
       setFailure(null);

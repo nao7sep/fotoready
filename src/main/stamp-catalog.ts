@@ -13,7 +13,7 @@ import {
 } from "./file-asset-catalog";
 import { readBuiltinStampCatalog } from "./builtin-stamp-catalog";
 
-const STAMP_EXTENSIONS = [".png", ".svg"] as const;
+const STAMP_EXTENSIONS = [".png", ".svg", ".webp"] as const;
 
 export async function listStamps(stampFolder: string, defaultStampDir: string, bundledStampsDir: string, logger?: Logger): Promise<StampEntry[]> {
   const dir = resolveStampDir(stampFolder, defaultStampDir);

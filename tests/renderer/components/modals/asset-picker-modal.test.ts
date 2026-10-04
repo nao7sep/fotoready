@@ -121,6 +121,13 @@ describe("StampPickerModal groups", () => {
     await act(async () => resolveThumbnail?.({ dataUrl: "data:done", width: 64, height: 64 }));
   });
 
+  it("imports PNG, SVG and WebP stamps", async () => {
+    await renderStampPicker();
+    await clickButton("Import…");
+
+    expect(mocks.pickFiles).toHaveBeenCalledWith(expect.objectContaining({ extensions: ["png", "svg", "webp"] }));
+  });
+
   it("announces partial import results without redundant severity chrome", async () => {
     mocks.pickFiles.mockResolvedValue(["/mine.svg"]);
     mocks.importStamps.mockResolvedValue([{

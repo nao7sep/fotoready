@@ -11,13 +11,15 @@ import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
 let root: Root;
 const log = vi.fn(async () => undefined);
 const pickDirectory = vi.fn<() => Promise<string | null>>();
+const pickFile = vi.fn<(options: { title: string; extensions: string[] }) => Promise<string | null>>();
 const hostile = new Error("Error invoking remote method: EACCES /private/tmp/FOTOREADY_SETTINGS_SENTINEL");
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>';
   log.mockClear();
   pickDirectory.mockReset();
-  vi.stubGlobal("api", { system: { log, pickDirectory } });
+  pickFile.mockReset();
+  vi.stubGlobal("api", { system: { log, pickDirectory, pickFile } });
   root = createRoot(document.querySelector("#root")!);
 });
 
@@ -210,6 +212,16 @@ describe("AppSettingsModal failure ownership", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("The current path is unchanged");
   });
 
+  it("lets the default image watermark be a PNG, SVG or WebP", async () => {
+    pickFile.mockResolvedValue("/Users/example/mark.webp");
+    const setSettingsDraft = vi.fn();
+    await renderSettings({ initialTab: "assets", setSettingsDraft });
+    await clickButton("Choose file");
+
+    expect(pickFile).toHaveBeenCalledWith(expect.objectContaining({ extensions: ["png", "svg", "webp"] }));
+    expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ defaultWatermarkImage: "/Users/example/mark.webp" }));
+  });
+
   it("settles only one save while the first request is in flight", async () => {
     let resolveSave: (() => void) | undefined;
     const onSaveSettings = vi.fn(() => new Promise<void>((resolve) => { resolveSave = resolve; }));
@@ -256,7 +268,7 @@ async function renderSettings({
   settings = defaultGlobalSettings(),
   setSettingsDraft = vi.fn()
 }: {
-  initialTab?: "save" | "app" | "vision";
+  initialTab?: "save" | "app" | "vision" | "assets";
   hasGeminiApiKey?: boolean;
   onSaveSettings?: () => Promise<void>;
   onClose?: () => void;

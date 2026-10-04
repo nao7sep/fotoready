@@ -773,7 +773,7 @@
   "records.detailFailed": "この項目を読み込めませんでした。",
   "records.resizeList": "リストの幅を変更",
   "records.time": "時刻",
-  "records.started": "開始",
+  "records.started": "開始時刻",
   "records.duration": "所要時間",
   "records.provider": "プロバイダ",
   "records.role": "用途",

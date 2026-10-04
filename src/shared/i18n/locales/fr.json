@@ -776,7 +776,7 @@
   "records.started": "Début",
   "records.duration": "Durée",
   "records.provider": "Fournisseur",
-  "records.role": "Usage",
+  "records.role": "Objet",
   "records.model": "Modèle",
   "records.endpoint": "Adresse du service",
   "records.attempt": "Tentative",

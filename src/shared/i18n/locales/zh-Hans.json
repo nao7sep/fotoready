@@ -773,7 +773,7 @@
   "records.detailFailed": "无法读取此条目。",
   "records.resizeList": "调整列表宽度",
   "records.time": "时间",
-  "records.started": "开始",
+  "records.started": "开始时间",
   "records.duration": "耗时",
   "records.provider": "服务商",
   "records.role": "用途",

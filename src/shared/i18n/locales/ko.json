@@ -773,7 +773,7 @@
   "records.detailFailed": "이 항목을 읽을 수 없습니다.",
   "records.resizeList": "목록 너비 조절",
   "records.time": "시각",
-  "records.started": "시작",
+  "records.started": "시작 시각",
   "records.duration": "소요 시간",
   "records.provider": "제공자",
   "records.role": "용도",

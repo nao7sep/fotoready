@@ -17,7 +17,9 @@ vi.mock("@main/task-sidecar", async (importOriginal) => {
 
 import { ProjectSession } from "@main/session";
 import { VisionQueue, type VisionProvider } from "@main/queues/vision";
-import type { GeminiCall } from "@adapters/gemini";
+import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
+import { defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
+import type { GlobalSettings } from "@shared/types/settings";
 import type { ProviderCallRecord } from "@main/records-store";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
@@ -43,6 +45,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
@@ -58,6 +61,29 @@ describe("VisionQueue provider records", () => {
     const { session, task } = await arrange({ describeImage, suggestSlugs: vi.fn(async () => ["a-harbor"]) }, { writeProviderCall }, (fn) => { recordCall = fn; });
     await session.runVision(task.id, { mode: "description" });
     expect(writeProviderCall).toHaveBeenCalledWith({ ...call, taskId: task.id, provider: "gemini" });
+  });
+});
+
+describe("VisionQueue description request", () => {
+  it("sends the description role's chosen Thinking and image resolution to Gemini", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A harbor." }] } }] })));
+    vi.stubGlobal("fetch", fetchMock);
+    const settings = defaultGlobalSettings();
+    settings["gemini.description"] = "gemini-3.8-flash";
+    settings["gemini.thinking.description"] = "high";
+    settings["gemini.mediaResolution.description"] = "low";
+    expect(defaultThinkingFor("gemini", "gemini-3.8-flash")).not.toBe("high");
+    expect(defaultMediaResolutionFor("gemini", "gemini-3.8-flash")).not.toBe("low");
+    const provider = new GeminiVisionProvider("test-key", "https://models.example", () => {});
+    const { session, task } = await arrange({ describeImage: (request, opts) => provider.describeImage(request, opts), suggestSlugs: vi.fn() }, undefined, undefined, settings);
+
+    await session.runVision(task.id, { mode: "description" });
+
+    expect(task.error).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
+    expect(body.contents[0].parts[0].mediaResolution).toEqual({ level: "MEDIA_RESOLUTION_LOW" });
   });
 });
 
@@ -192,9 +218,9 @@ describe("VisionQueue retry after a failed step", () => {
 async function arrange(
   provider: VisionProvider,
   records?: { writeProviderCall(record: ProviderCallRecord): void },
-  onProvider?: (recordCall: (call: GeminiCall) => void) => void
+  onProvider?: (recordCall: (call: GeminiCall) => void) => void,
+  settings: GlobalSettings = defaultGlobalSettings()
 ): Promise<{ session: ProjectSession; task: Task }> {
-  const settings = defaultGlobalSettings();
   const queue = new VisionQueue({ apiKeysPath: path.join(tempDir, "api-keys.json") } as AppPaths, settings, undefined, records, {
     createProvider: (_apiKey, _endpoint, recordCall) => {
       onProvider?.(recordCall);

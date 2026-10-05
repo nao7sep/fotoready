@@ -20,6 +20,8 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { ProjectSessionSnapshot } from "@main/session";
+import { SUPPORTED_MODELS, defaultMediaResolutionFor, defaultModelFor, defaultThinkingFor } from "@shared/ai-models";
+import type { GlobalSettings } from "@shared/types/settings";
 import type { TaskSidecar } from "@shared/task-sidecar";
 import type { OriginalImportResult } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
@@ -30,6 +32,9 @@ const BUILD = join(CACHE, "out");
 const CORPUS = join(REPO, "..", "company", "assets", "test-fixtures");
 const RICH_METADATA = "metadata/image/jpeg-metadata-rich.jpg";
 const CAT_PHOTO = "photos/similarity/apartment-cat/reference.jpg";
+// The vision calls read the photo at this long edge, the smallest that still shows a cat, so
+// each call spends as little as the product allows (tests-folder-conventions, live tests).
+const TINY_LONG_EDGE = 192;
 const SAVE_TIMEOUT_MS = 2 * 60_000;
 const VISION_TIMEOUT_MS = 5 * 60_000;
 
@@ -210,6 +215,12 @@ afterAll(async () => {
   expect(alive, "no ExifTool process outlives the lane").toEqual([]);
 });
 
+function requireGeminiKey(): void {
+  if (!process.env.GEMINI_API_KEY?.trim()) {
+    throw new Error("GEMINI_API_KEY is not set. The full run calls the real Gemini API; export GEMINI_API_KEY and run it again.");
+  }
+}
+
 function isRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -269,16 +280,15 @@ describe("the live save and vision paths", () => {
     }
   });
 
-  it("describes and names a saved photo through the real Gemini API", async () => {
-    if (!process.env.GEMINI_API_KEY?.trim()) {
-      throw new Error("GEMINI_API_KEY is not set. The full run calls the real Gemini API; export GEMINI_API_KEY and run it again.");
-    }
+  it("describes and names a saved photo through the real Gemini API on the default models", async () => {
+    requireGeminiKey();
     const { normalizeSlugCandidate } = await import("@core/slug/rules");
     const home = await freshHome("vision");
     try {
       await withApp(home, async (app) => {
         const task = await addCorpusPhoto(app, home, CAT_PHOTO);
         expect(task.generateDescription && task.generateSlug, "new tasks generate both by default").toBe(true);
+        await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
 
         await app.invoke("task.save", task.id);
         await waitForTask(app, task.id, SAVE_TIMEOUT_MS, (current) => current.status === "saved");
@@ -291,6 +301,8 @@ describe("the live save and vision paths", () => {
         );
 
         const vision = described.output!.vision!;
+        expect(vision.model).toBe(defaultModelFor("gemini", "vision"));
+        expect(vision.slugModel).toBe(defaultModelFor("gemini", "text-fast"));
         expect(vision.description, "the photo's subject is a cat").toMatch(/\bcats?\b/i);
         for (const slug of vision.slugCandidates) {
           expect(slug.length).toBeGreaterThan(0);
@@ -304,4 +316,45 @@ describe("the live save and vision paths", () => {
       await rm(home, { recursive: true, force: true });
     }
   });
+
+  // The default model's description is proved above; each other row the description offers gets
+  // one call at its own default Thinking and the default image resolution, as Settings would set them.
+  it.each(SUPPORTED_MODELS.map((row) => row.id).filter((id) => id !== defaultModelFor("gemini", "vision")))(
+    "describes a saved photo through the real Gemini API on %s",
+    async (model) => {
+      requireGeminiKey();
+      const home = await freshHome("vision-row");
+      try {
+        await withApp(home, async (app) => {
+          const current = await app.invoke<GlobalSettings>("settings.get");
+          await app.invoke("settings.update", {
+            ...current,
+            "gemini.description": model,
+            "gemini.thinking.description": defaultThinkingFor("gemini", model),
+            "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", model),
+          });
+          const task = await addCorpusPhoto(app, home, CAT_PHOTO);
+          await app.invoke("task.setGenerateSlug", task.id, false);
+          await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
+
+          await app.invoke("task.save", task.id);
+          await waitForTask(app, task.id, SAVE_TIMEOUT_MS, (current) => current.status === "saved");
+          for (const pid of exiftool.pids) exiftoolPids.add(pid);
+          const described = await waitForTask(
+            app,
+            task.id,
+            VISION_TIMEOUT_MS,
+            (current) => !current.visionRunning && Boolean(current.output?.vision?.description),
+          );
+
+          const vision = described.output!.vision!;
+          expect(vision.model).toBe(model);
+          expect(vision.description.length).toBeGreaterThan(0);
+          expect(vision.slugCandidates).toEqual([]);
+        });
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
 });

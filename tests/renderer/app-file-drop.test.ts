@@ -8,99 +8,101 @@ import { defaultUiState } from "@shared/validation/state";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// The app mounts itself when its module loads, so the bridge it reads is in place first, and the
+// module graph loads here, in the file's import phase, like every other test's imports.
+document.body.innerHTML = '<div id="root"></div>';
+Object.defineProperty(globalThis, "ResizeObserver", {
+  configurable: true,
+  value: class {
+    observe(): void {}
+    disconnect(): void {}
+  }
+});
+
+const accessible = new File(["image"], "photo.jpg", { type: "image/jpeg" });
+const inaccessible = new File(["sidecar"], "private.fotoready.json", {
+  type: "application/json"
+});
+const filePathForFile = vi.fn((file: File) => {
+  if (file === accessible) return "/fixtures/photo.jpg";
+  throw new Error("No local path is available");
+});
+const snapshot = {
+  project: { outputDir: null, originals: [], tasks: [] },
+  activeTaskId: null,
+  privacyWarnings: {}
+};
+const importResult: OriginalImportResult = {
+  snapshot,
+  canceled: false,
+  acceptedImages: 1,
+  addedOriginals: 1,
+  restoredTasks: 0,
+  succeededPaths: ["/fixtures/photo.jpg"],
+  issues: []
+};
+const queue: QueueSnapshot = {
+  saved: 0,
+  total: 0,
+  notSaved: 0,
+  queued: 0,
+  processing: 0,
+  errors: 0,
+  activeTaskId: null,
+  activeTaskLabel: null
+};
+const addOriginals = vi.fn().mockResolvedValue(importResult);
+const queueSnapshot = vi.fn().mockResolvedValue(queue);
+Object.defineProperty(window, "api", {
+  configurable: true,
+  value: {
+    language: {
+      current: () => Promise.resolve({ language: "en", locale: "en-US" }),
+      onChanged: () => vi.fn()
+    },
+    system: {
+      getInfo: () => Promise.resolve({
+        appName: "FotoReady",
+        version: "0.1.0",
+        dataDir: "/fixtures/data",
+        lutsDir: "/fixtures/luts",
+        stampsDir: "/fixtures/stamps",
+        cpuCount: 8,
+        platform: "darwin"
+      }),
+      filePathForFile,
+      log: vi.fn().mockResolvedValue(undefined)
+    },
+    settings: {
+      get: () => Promise.resolve(defaultGlobalSettings()),
+      hasGeminiApiKey: () => Promise.resolve(false)
+    },
+    state: { get: () => Promise.resolve(defaultUiState()) },
+    project: {
+      current: () => Promise.resolve(snapshot),
+      addOriginals
+    },
+    ops: { list: () => Promise.resolve([]) },
+    queues: { snapshot: queueSnapshot },
+    luts: { list: () => Promise.resolve([]) },
+    stamps: { list: () => Promise.resolve([]) },
+    events: {
+      onProjectSnapshot: () => vi.fn(),
+      onQueueSnapshot: () => vi.fn()
+    },
+    lifecycle: {
+      onCloseRequest: () => vi.fn(),
+      onWindowActivityChanged: () => vi.fn()
+    }
+  }
+});
+
+await act(async () => {
+  await import("@renderer/app");
+});
+
 describe("FotoReady app file receiver", () => {
   it("routes the shipped Originals receiver through the project import authority", async () => {
-    document.body.innerHTML = '<div id="root"></div>';
-    Object.defineProperty(globalThis, "ResizeObserver", {
-      configurable: true,
-      value: class {
-        observe(): void {}
-        disconnect(): void {}
-      }
-    });
-
-    const accessible = new File(["image"], "photo.jpg", { type: "image/jpeg" });
-    const inaccessible = new File(["sidecar"], "private.fotoready.json", {
-      type: "application/json"
-    });
-    const filePathForFile = vi.fn((file: File) => {
-      if (file === accessible) return "/fixtures/photo.jpg";
-      throw new Error("No local path is available");
-    });
-    const snapshot = {
-      project: { outputDir: null, originals: [], tasks: [] },
-      activeTaskId: null,
-      privacyWarnings: {}
-    };
-    const importResult: OriginalImportResult = {
-      snapshot,
-      canceled: false,
-      acceptedImages: 1,
-      addedOriginals: 1,
-      restoredTasks: 0,
-      succeededPaths: ["/fixtures/photo.jpg"],
-      issues: []
-    };
-    const queue: QueueSnapshot = {
-      saved: 0,
-      total: 0,
-      notSaved: 0,
-      queued: 0,
-      processing: 0,
-      errors: 0,
-      activeTaskId: null,
-      activeTaskLabel: null
-    };
-    const addOriginals = vi.fn().mockResolvedValue(importResult);
-    const queueSnapshot = vi.fn().mockResolvedValue(queue);
-    Object.defineProperty(window, "api", {
-      configurable: true,
-      value: {
-        language: {
-          current: () => Promise.resolve({ language: "en", locale: "en-US" }),
-          onChanged: () => vi.fn()
-        },
-        system: {
-          getInfo: () => Promise.resolve({
-            appName: "FotoReady",
-            version: "0.1.0",
-            dataDir: "/fixtures/data",
-            lutsDir: "/fixtures/luts",
-            stampsDir: "/fixtures/stamps",
-            cpuCount: 8,
-            platform: "darwin"
-          }),
-          filePathForFile,
-          log: vi.fn().mockResolvedValue(undefined)
-        },
-        settings: {
-          get: () => Promise.resolve(defaultGlobalSettings()),
-          hasGeminiApiKey: () => Promise.resolve(false)
-        },
-        state: { get: () => Promise.resolve(defaultUiState()) },
-        project: {
-          current: () => Promise.resolve(snapshot),
-          addOriginals
-        },
-        ops: { list: () => Promise.resolve([]) },
-        queues: { snapshot: queueSnapshot },
-        luts: { list: () => Promise.resolve([]) },
-        stamps: { list: () => Promise.resolve([]) },
-        events: {
-          onProjectSnapshot: () => vi.fn(),
-          onQueueSnapshot: () => vi.fn()
-        },
-        lifecycle: {
-          onCloseRequest: () => vi.fn(),
-          onWindowActivityChanged: () => vi.fn()
-        }
-      }
-    });
-
-    await act(async () => {
-      await import("@renderer/app");
-    });
-
     const receiver = document.querySelector<HTMLElement>(".originals-receiver");
     expect(receiver).not.toBeNull();
     const delivery = {

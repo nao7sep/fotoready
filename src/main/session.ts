@@ -212,10 +212,13 @@ export class ProjectSession {
       throw new Error(`Original not found: ${originalId}`);
     }
 
-    const activeTask = this.#activeTaskId ? this.#project.tasks.find((task) => task.id === this.#activeTaskId) : null;
+    const activeIndex = this.#project.tasks.findIndex((task) => task.id === this.#activeTaskId);
+    const activeTask = activeIndex >= 0 ? this.#project.tasks[activeIndex] : null;
     if (activeTask && activeTask.status === "not-saved" && !activeTask.everEdited) {
-      activeTask.originalId = original.id;
-      activeTask.updatedAt = nowIso();
+      // An untouched task only holds the slot: it becomes a new task for this image, keeping its id and place.
+      this.#project.tasks[activeIndex] = createTaskForOriginal(original, this.settings, activeTask.id);
+      this.#taskUndoHistory.delete(activeTask.id);
+      this.#lastTaskUndoHistoryGroup.delete(activeTask.id);
       this.#previewService.invalidateTask(activeTask.id);
       return this.snapshot();
     }
@@ -781,13 +784,13 @@ async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: bool
   };
 }
 
-function createTaskForOriginal(original: Original, settings: GlobalSettings): Task {
+function createTaskForOriginal(original: Original, settings: GlobalSettings, id: string = nanoid()): Task {
   const now = nowIso();
   const pipeline = defaultPipeline();
   pipeline.output = defaultTaskOutput(settings, original.format, pipeline.output);
 
   return {
-    id: nanoid(),
+    id,
     originalId: original.id,
     generateDescription: settings.defaultGenerateDescription || settings.defaultGenerateSlug,
     generateSlug: settings.defaultGenerateSlug,

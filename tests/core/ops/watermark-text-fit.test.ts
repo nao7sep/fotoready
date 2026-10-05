@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { fitLargestFontSize, renderTrimmedTextBitmap } from "@core/ops/watermark-text";
 import { requireOpModule } from "@core/ops/registry";
+import { warmTextRendering } from "../../setup/warm-text-rendering";
 
 type Params = Parameters<typeof renderTrimmedTextBitmap>[0];
 type Size = { width: number; height: number };
@@ -35,6 +36,8 @@ function counted<T>(render: (fontSize: number) => Promise<T>): { render: (fontSi
 }
 
 describe("watermark text fit", () => {
+  beforeAll(warmTextRendering);
+
   // Small boxes keep the reference search's renders cheap.
   it("picks the size a full binary search picks for real text, in a few renders", async () => {
     const defaults = requireOpModule("watermark-text").defaultParams as Params;

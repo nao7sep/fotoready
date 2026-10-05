@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { exiftool } from "exiftool-vendored";
 import { applyMetadataToOutput, metadataCopyArgs, readSourceMetadataSummary } from "@adapters/exiftool";
 
@@ -77,6 +77,20 @@ describe("metadataCopyArgs save time", () => {
 
 describe("applyMetadataToOutput with ExifTool", () => {
   let dir: string;
+
+  // Starts the ExifTool process, and the parts of it the first write and read load, once, so no
+  // test pays that start-up inside its own time limit.
+  beforeAll(async () => {
+    const warmDir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-exiftool-warm-"));
+    try {
+      const warmPath = path.join(warmDir, "warm.jpg");
+      await sharp({ create: { width: 16, height: 16, channels: 3, background: "#808080" } }).jpeg().toFile(warmPath);
+      await exiftool.write(warmPath, { Make: "Warm" } as never, ["-overwrite_original"]);
+      await exiftool.read(warmPath, ["-G1", "-a"]);
+    } finally {
+      await fs.rm(warmDir, { recursive: true, force: true });
+    }
+  });
 
   beforeEach(async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-exiftool-"));

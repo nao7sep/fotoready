@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import pipelineWorker from "@main/workers/pipeline-worker";
 import { getOpDefinition } from "@core/ops/catalog";
@@ -10,6 +10,7 @@ import { defaultOutputSettings } from "@shared/defaults";
 import type { OpInstance } from "@shared/types/op";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import type { WorkerResult } from "@runtime/image";
+import { warmTextRendering } from "../../setup/warm-text-rendering";
 
 // The worker entry the pool runs, called in process: decode, the ops, encode,
 // and the result contract the main process reads. The photo is four solid
@@ -92,6 +93,8 @@ function near(actual: { r: number; g: number; b: number }, expected: typeof RED,
 }
 
 describe("the pipeline worker", () => {
+  beforeAll(warmTextRendering);
+
   it("renders the editor's preview of a photo at the preview size", async () => {
     const photo = await quadrantPhoto(await workspace());
     const frame = await preview(photo, [], 300);

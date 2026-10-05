@@ -68,6 +68,14 @@ describe("createRecordsReader", () => {
     expect(fs.readFileSync(dbFile()).equals(before)).toBe(true);
   });
 
+  it("refuses a database with tables but no recorded version", async () => {
+    const db = new DatabaseSync(dbFile());
+    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY)");
+    db.close();
+
+    await expect(reader().read({ op: "sources" })).rejects.toThrow(/no format version/);
+  });
+
   it("gives up on a read that does not answer in time", async () => {
     store().writeLog({ time: "2026-10-02T08:00:01.000Z", level: "info", message: "kept", fields: {} });
     // A worker cannot even start within a millisecond.

@@ -11,6 +11,7 @@ vi.mock("@adapters/exiftool", () => ({
 import { ProjectSession } from "@main/session";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { createTaskSidecar } from "@shared/task-sidecar";
+import { FORMAT_VERSIONS, versionedJson } from "@shared/format-versions";
 
 const roots: string[] = [];
 
@@ -66,7 +67,7 @@ describe("ProjectSession original import results", () => {
     const imported = await project.addOriginals([imagePath]);
     const original = imported.snapshot.project.originals[0];
     if (!original) throw new Error("original not imported");
-    await fs.writeFile(sidecarPath, JSON.stringify(createTaskSidecar({
+    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, createTaskSidecar({
       original: {
         fileName: path.basename(imagePath),
         sourceHash: original.sourceHash,

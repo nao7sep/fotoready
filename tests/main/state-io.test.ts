@@ -56,9 +56,10 @@ describe("loadState", () => {
     expect(await loadState(statePath())).toEqual({ state: saved, writable: true });
   });
 
-  it("reads a file with no format version as version 1", async () => {
+  it("replaces a file with no format version with defaults", async () => {
     await fs.writeFile(statePath(), JSON.stringify({ showHistogram: true }), "utf8");
-    expect(await loadState(statePath())).toEqual({ state: { ...defaultUiState(), showHistogram: true }, writable: true });
+    expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: false });
   });
 
   it("uses defaults for a newer file, never writes it, and leaves it byte-identical", async () => {

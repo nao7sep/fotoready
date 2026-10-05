@@ -42,9 +42,13 @@ async function save(changes: Record<string, unknown>, logger?: AppLogger): Promi
 }
 
 describe("the settings format version", () => {
-  it("reads a file with no format version as version 1", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71 }));
-    expect(await loadSettings(settingsPath())).toEqual({ settings: { ...defaults(), defaultWebpQuality: 71 }, quarantinedTo: null });
+  it("quarantines a file with no format version, keeping its bytes", async () => {
+    const text = JSON.stringify({ defaultWebpQuality: 71 });
+    await fs.writeFile(settingsPath(), text);
+    const { settings, quarantinedTo } = await loadSettings(settingsPath());
+    expect(settings).toEqual(defaults());
+    expect(quarantinedTo).toMatch(/config-.*\.invalid$/);
+    expect(await fs.readFile(quarantinedTo!, "utf8")).toBe(text);
   });
 
   it("writes the current version first and reads it back", async () => {
@@ -90,20 +94,20 @@ describe("settings by set", () => {
   });
 
   it("reads every absent set as its built-in without rewriting the file", async () => {
-    const text = '{"defaultWebpQuality":71}\n';
+    const text = '{"formatVersion":1,"defaultWebpQuality":71}\n';
     await fs.writeFile(settingsPath(), text);
     expect((await loadSettings(settingsPath())).settings).toEqual({ ...defaults(), defaultWebpQuality: 71 });
     expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 
   it("writes every set that differs and drops unknown and version keys at the next save", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, version: 99, schemaVersion: 99, retired: true }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71, version: 99, schemaVersion: 99, retired: true }));
     await save({ confirmDeleteTasks: false });
     expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
   });
 
   it("drops the retired selection key and writes only the changed role", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ model: "old-model" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, model: "old-model" }));
     const effective = await save({ "gemini.slug": "typed-new-model", "gemini.thinking.slug": null });
     expect(await written()).toEqual({ "gemini.slug": "typed-new-model" });
     expect(effective["gemini.description"]).toBe("gemini-3.8-flash");
@@ -140,7 +144,7 @@ describe("settings by set", () => {
     expect(effective["gemini.mediaResolution.description"]).toBe("high");
     expect(warn).toHaveBeenCalledOnce();
 
-    await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": "low" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": "low" }));
     const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
     expect(loaded.settings["gemini.mediaResolution.description"]).toBe("low");
     expect(warn).toHaveBeenCalledOnce();
@@ -153,7 +157,7 @@ describe("settings by set", () => {
     expect(effective["gemini.thinking.description"]).toBe("medium");
     expect(warn).toHaveBeenCalledOnce();
 
-    await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": "high" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, "gemini.description": "typed-unknown", "gemini.thinking.description": "high" }));
     const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
     expect(loaded.settings["gemini.thinking.description"]).toBe("high");
     expect(warn).toHaveBeenCalledOnce();
@@ -173,7 +177,7 @@ describe("settings by set", () => {
   });
 
   it("never writes an invalid value, keeping each previous value and reporting each issue", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
     const warn = vi.fn();
     const effective = await save({
       defaultWebpQuality: 999,
@@ -203,7 +207,7 @@ describe("settings by set", () => {
   });
 
   it("heals an invalid stored set at the next save, which writes it as its built-in", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
     const effective = await save({ confirmDeleteTasks: false });
     expect(await written()).toEqual({ "gemini.description": "unlisted-model", confirmDeleteTasks: false });
     expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
@@ -212,7 +216,7 @@ describe("settings by set", () => {
 
   it("writes from the settings it holds, not from the file as it now is", async () => {
     const { settings: previous } = await loadSettings(settingsPath());
-    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71 }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71 }));
     await saveSettings(settingsPath(), { ...previous, confirmDeleteTasks: false }, previous);
     expect(await written()).toEqual({ confirmDeleteTasks: false });
   });
@@ -250,7 +254,7 @@ describe("settings by set", () => {
   });
 
   it("removes a stored copy equal to its built-in at the next save of another set", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 }));
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 }));
     await save({ confirmDeleteTasks: false });
     expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
   });
@@ -263,7 +267,7 @@ describe("settings by set", () => {
   });
 
   it("logs a bad set and reads only that set as absent without quarantining or rewriting", async () => {
-    const original = '{"defaultWebpQuality":999,"confirmDeleteTasks":false}\n';
+    const original = '{"formatVersion":1,"defaultWebpQuality":999,"confirmDeleteTasks":false}\n';
     await fs.writeFile(settingsPath(), original);
     const warn = vi.fn();
     const result = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);

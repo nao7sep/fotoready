@@ -174,13 +174,19 @@ describe("the records format version", () => {
     expect(userVersion()).toBe(1);
   });
 
-  it("reads a database with no recorded version as version 1, records 1, and keeps writing to it", () => {
+  it("leaves a database with tables but no recorded version byte-identical and writes to the text file", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     databaseWithVersion(0);
+    const before = fs.readFileSync(dbFile());
+
     const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
-    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "kept", fields: {} });
+    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "still recorded", fields: {} });
     records.close();
-    expect(userVersion()).toBe(1);
-    expect(query("SELECT message FROM log_records")).toEqual([{ message: "kept" }]);
+
+    expect(fs.readFileSync(dbFile()).equals(before)).toBe(true);
+    const [notice, log] = fallbackLines();
+    expect(notice).toMatchObject({ message: "records database unavailable", err: { message: expect.stringMatching(/no format version/) } });
+    expect(log).toMatchObject({ message: "still recorded" });
   });
 
   it("leaves a newer database byte-identical and writes this session's records to the text file", () => {

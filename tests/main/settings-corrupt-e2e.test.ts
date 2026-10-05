@@ -29,7 +29,7 @@ describe("a corrupt settings file on disk", () => {
 
   it("reports nothing for a sound file and leaves it untouched", async () => {
     const path = join(dir, "config.json");
-    const before = JSON.stringify({ workerPoolSize: 2 }, null, 2) + "\n";
+    const before = JSON.stringify({ formatVersion: 1, workerPoolSize: 2 }, null, 2) + "\n";
     writeFileSync(path, before);
     const { quarantinedTo } = await loadSettings(path);
     expect(quarantinedTo).toBeNull();

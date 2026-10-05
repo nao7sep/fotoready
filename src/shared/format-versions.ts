@@ -42,9 +42,9 @@ export type VersionedJsonRead =
   | { kind: "invalid"; error: unknown };
 
 /**
- * Parses a JSON store's text against the format version this build writes. A missing marker reads
- * as 1; a marker that is not a positive integer, or text that is not a JSON object, is invalid.
- * `body` is the object without its marker. Never throws.
+ * Parses a JSON store's text against the format version this build writes. Text that is not a JSON
+ * object, or whose marker is missing or not a positive integer, is invalid. `body` is the object
+ * without its marker. Never throws.
  */
 export function parseVersionedJson(text: string, supported: number): VersionedJsonRead {
   let root: unknown;
@@ -56,7 +56,7 @@ export function parseVersionedJson(text: string, supported: number): VersionedJs
   if (typeof root !== "object" || root === null || Array.isArray(root)) {
     return { kind: "invalid", error: new Error("The file is not a JSON object.") };
   }
-  const { [FORMAT_VERSION_KEY]: marker = 1, ...body } = root as Record<string, unknown>;
+  const { [FORMAT_VERSION_KEY]: marker, ...body } = root as Record<string, unknown>;
   if (typeof marker !== "number" || !Number.isInteger(marker) || marker < 1) {
     return { kind: "invalid", error: new Error(`${FORMAT_VERSION_KEY} is not a positive integer.`) };
   }

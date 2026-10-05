@@ -293,12 +293,20 @@ describe("format version", () => {
     expect(userVersion(path.join(root, "backups.sqlite3"))).toBe(1);
   });
 
-  it("reads a store with no recorded version as version 1, records 1, and keeps recording", async () => {
-    databaseWithVersion(path.join(root, "backups.sqlite3"), 0);
-    const { record } = await import("@main/backup-store");
+  it("leaves a store with tables but no recorded version byte-identical, warns once, and records nothing", async () => {
+    const file = path.join(root, "backups.sqlite3");
+    databaseWithVersion(file, 0);
+    const before = readFileSync(file);
+
+    const { record, closeBackupStore } = await import("@main/backup-store");
     record(path.join(root, "config.json"), Buffer.from("a", "utf8"));
-    expect(userVersion(path.join(root, "backups.sqlite3"))).toBe(1);
-    expect(readRows(root)).toHaveLength(1);
+    record(path.join(root, "config.json"), Buffer.from("b", "utf8"));
+    closeBackupStore();
+
+    expect(readFileSync(file).equals(before)).toBe(true);
+    expect(userVersion(file)).toBe(0);
+    expect(logCalls.warn).toHaveLength(1);
+    expect(logCalls.warn[0]!.fields).toMatchObject({ err: expect.objectContaining({ message: expect.stringMatching(/no format version/) }) });
   });
 
   it("leaves a newer store byte-identical, warns once, and records nothing for the session", async () => {

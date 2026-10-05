@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTaskSidecar } from "@shared/task-sidecar";
+import { FORMAT_VERSIONS, versionedJson } from "@shared/format-versions";
 import { defaultPipeline } from "@shared/defaults";
 import { loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
 import type { Original, Task } from "@shared/types/project";
@@ -77,7 +78,7 @@ describe("task sidecar import", () => {
       pipeline: defaultPipeline(),
       vision: null,
     });
-    await fs.writeFile(sidecarPath, JSON.stringify(sidecar), "utf8");
+    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, sidecar), "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
 
@@ -116,7 +117,7 @@ describe("task sidecar import", () => {
       pipeline,
       vision: null,
     });
-    await fs.writeFile(sidecarPath, JSON.stringify(sidecar), "utf8");
+    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, sidecar), "utf8");
     const bundledStampsDir = path.resolve("resources/stamps");
 
     const result = await loadTaskSidecars([sidecarPath], bundledStampsDir);
@@ -146,14 +147,21 @@ describe("the task sidecar format version", () => {
     return root;
   }
 
-  it("reads a sidecar saved before the marker, with its old `version` key, as version 1", async () => {
+  it("rejects a sidecar with no format version, its old `version` key included, as invalid", async () => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
-    await fs.writeFile(sidecarPath, JSON.stringify({ version: 1, ...sidecarBody() }), "utf8");
+    const text = JSON.stringify({ version: 1, ...sidecarBody() });
+    await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
 
-    expect(result.rejected).toEqual([]);
-    expect(result.loaded[0]!.sidecar).toEqual(sidecarBody());
+    expect(result.loaded).toEqual([]);
+    expect(result.rejected).toEqual([{
+      filePath: sidecarPath,
+      kind: "invalid",
+      severity: "warning",
+      reason: { key: "importReason.sidecarInvalid" },
+    }]);
+    expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
   });
 
   it("writes the current version first and reads the sidecar back", async () => {

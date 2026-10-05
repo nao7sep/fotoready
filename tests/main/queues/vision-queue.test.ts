@@ -226,6 +226,61 @@ describe("VisionQueue result ownership", () => {
   });
 });
 
+describe("VisionQueue run times", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("records when each step finished, and a step a run skips keeps its own time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const at = (iso: string) => vi.setSystemTime(new Date(iso));
+    let describedAt = "2026-10-05T01:00:00.000Z";
+    let sluggedAt = "2026-10-05T01:00:05.000Z";
+    const { session, task } = await arrange({
+      describeImage: async () => {
+        at(describedAt);
+        return "A harbor";
+      },
+      suggestSlugs: async () => {
+        at(sluggedAt);
+        return ["a-harbor"];
+      }
+    });
+
+    await session.runVision(task.id, { mode: "description-and-slug" });
+    expect(task.output?.vision).toMatchObject({ ranAt: "2026-10-05T01:00:00.000Z", slugRanAt: "2026-10-05T01:00:05.000Z" });
+
+    sluggedAt = "2026-10-05T02:00:00.000Z";
+    await session.runVision(task.id, { mode: "slug" });
+    expect(task.output?.vision).toMatchObject({
+      description: "A harbor",
+      model: "gemini-3.8-flash",
+      ranAt: "2026-10-05T01:00:00.000Z",
+      slugModel: "gemini-3.5-flash-lite",
+      slugRanAt: "2026-10-05T02:00:00.000Z"
+    });
+
+    describedAt = "2026-10-05T03:00:00.000Z";
+    await session.runVision(task.id, { mode: "description" });
+    expect(task.output?.vision).toMatchObject({
+      ranAt: "2026-10-05T03:00:00.000Z",
+      slugCandidates: ["a-harbor"],
+      slugModel: "gemini-3.5-flash-lite",
+      slugRanAt: "2026-10-05T02:00:00.000Z"
+    });
+  });
+
+  it("records no slug time for a description-only run", async () => {
+    const { session, task } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => ["unused"] });
+
+    await session.runVision(task.id, { mode: "description" });
+
+    expect(task.output?.vision?.slugCandidates).toEqual([]);
+    expect(task.output?.vision).not.toHaveProperty("slugModel");
+    expect(task.output?.vision).not.toHaveProperty("slugRanAt");
+  });
+});
+
 describe("VisionQueue status times", () => {
   it("leaves the task's modified time while a run starts, settles or fails", async () => {
     const { session, task } = await arrange({

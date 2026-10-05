@@ -2,7 +2,7 @@ import sharp from "sharp";
 import PQueue from "p-queue";
 import { nowIso } from "@shared/time";
 import { MAX_INPUT_PIXELS } from "@runtime/decode";
-import type { Project, Task, TaskError } from "@shared/types/project";
+import type { Project, Task, TaskError, VisionResult } from "@shared/types/project";
 import type { VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import { includesDescriptionGeneration, includesSlugGeneration, resolveVisionRunMode } from "@shared/vision-run-mode";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -190,10 +190,11 @@ export class VisionQueue {
       };
       const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"], (call) =>
         this.records?.writeProviderCall({ ...call, taskId: task.id, provider: "gemini" }));
-      let description = task.output.vision?.description ?? "";
+      // Each step records its own result, model and finish time; a step this run skips keeps the last one's.
+      let described: Pick<VisionResult, "description" | "model" | "ranAt"> | null = null;
       if (includesDescriptionGeneration(mode)) {
         const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, settings.preResizeLongEdge);
-        description = await provider.describeImage(
+        const description = await provider.describeImage(
           { imageBytes, mimeType: "image/jpeg" },
           {
             model: settings["gemini.description"],
@@ -203,10 +204,12 @@ export class VisionQueue {
             ...callOptions
           }
         );
+        described = { description, model: settings["gemini.description"], ranAt: nowIso() };
         if (includesSlugGeneration(mode)) {
+          const descriptionOnly = described;
           const committed = await commit(task, () => {
             if (!task.output || !isCurrent()) return false;
-            task.output.vision = { description, slugCandidates: [], model: settings["gemini.description"], ranAt: nowIso() };
+            task.output.vision = { ...descriptionOnly, slugCandidates: [] };
             task.error = null;
             task.updatedAt = nowIso();
             return true;
@@ -214,29 +217,29 @@ export class VisionQueue {
           if (!committed) return;
           remaining = "slug";
         }
-      } else if (!description.trim()) {
-        throw new Error("Generate description first, then regenerate the slug.");
       }
-      const slugCandidates = includesSlugGeneration(mode)
-        ? await provider.suggestSlugs(description, {
+      const description = described?.description ?? task.output.vision?.description ?? "";
+      let slugged: Pick<VisionResult, "slugCandidates" | "slugModel" | "slugRanAt"> | null = null;
+      if (includesSlugGeneration(mode)) {
+        if (!described && !description.trim()) throw new Error("Generate description first, then regenerate the slug.");
+        const slugCandidates = await provider.suggestSlugs(description, {
           model: settings["gemini.slug"],
           thinking: settings["gemini.thinking.slug"],
           slugPrompt: settings.visionSlugPrompt,
           ...callOptions
-        })
-        : null;
+        });
+        slugged = { slugCandidates, slugModel: settings["gemini.slug"], slugRanAt: nowIso() };
+      }
       const committed = await commit(task, () => {
         if (!task.output || !isCurrent()) return false;
-        task.output.vision = {
-          description,
-          slugCandidates: slugCandidates ?? task.output.vision?.slugCandidates ?? [],
-          model: includesDescriptionGeneration(mode) ? settings["gemini.description"] : task.output.vision!.model,
-          ...(slugCandidates ? { slugModel: settings["gemini.slug"] } : task.output.vision?.slugModel ? { slugModel: task.output.vision.slugModel } : {}),
-          ranAt: nowIso()
-        };
+        const previous = task.output.vision;
+        const descriptionStep = described ?? previous;
+        if (!descriptionStep) return false;
+        task.output.vision = { slugCandidates: [], ...previous, ...descriptionStep, ...slugged };
         // A slug the user typed while the run was in flight is theirs; only an untouched one is replaced.
-        if (slugCandidates?.[0] && task.customSlug === basis.customSlug) {
-          task.customSlug = slugCandidates[0];
+        const generatedSlug = slugged?.slugCandidates[0];
+        if (generatedSlug && task.customSlug === basis.customSlug) {
+          task.customSlug = generatedSlug;
         }
         task.error = null;
         task.updatedAt = nowIso();

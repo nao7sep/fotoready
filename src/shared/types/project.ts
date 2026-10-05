@@ -43,9 +43,12 @@ export type VisionResult = {
   slugCandidates: string[];
   /** The model id that produced `description`. */
   model: string;
+  /** When the run that produced `description` finished. */
+  ranAt: string;
   /** The model id that produced `slugCandidates`; absent when no slug run recorded one. */
   slugModel?: string;
-  ranAt: string;
+  /** When the run that produced `slugCandidates` finished; present exactly when `slugModel` is. */
+  slugRanAt?: string;
 };
 
 export type TaskOutput = {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@google/genai";
 import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
+import { SUPPORTED_MODELS } from "@shared/ai-models";
 import { visionError } from "@main/queues/vision";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -69,6 +70,49 @@ describe("Gemini requests follow the id, independent of endpoint", () => {
   });
 });
 
+const SAFETY_OFF = ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT", "HARM_CATEGORY_JAILBREAK"]
+  .map((category) => ({ category, threshold: "OFF" }));
+const slugOk = () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: '{"slugs":["a-mug","cup","drink"]}' }] } }] }));
+const slug = (model: string, thinking: string | null) => new GeminiVisionProvider(key, "https://models.example", recordCall).suggestSlugs("A mug", { ...opts, model, thinking, slugPrompt: "Slugs" });
+const sentBody = () => JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+
+describe("Gemini requests send every choice as chosen", () => {
+  const thinkingCases = SUPPORTED_MODELS.flatMap((row) => row.thinking.map((value) => [row.id, value] as const));
+  const resolutionCases = SUPPORTED_MODELS.flatMap((row) => row.mediaResolution.map((value) => [row.id, value] as const));
+
+  it.each(thinkingCases)("sends %s's description Thinking %s as its level, the model's default included", async (model, thinking) => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ model, thinking });
+    expect(sentBody().generationConfig).toEqual({ thinkingConfig: { thinkingLevel: thinking.toUpperCase() } });
+  });
+
+  it.each(thinkingCases)("sends %s's slug Thinking %s as its level beside the strict slug schema", async (model, thinking) => {
+    fetchMock.mockImplementation(async () => slugOk());
+    await slug(model, thinking);
+    expect(sentBody().generationConfig).toEqual({
+      responseMimeType: "application/json",
+      responseSchema: { type: "OBJECT", properties: { slugs: { type: "ARRAY", minItems: "3", maxItems: "5", items: { type: "STRING" } } }, required: ["slugs"] },
+      thinkingConfig: { thinkingLevel: thinking.toUpperCase() }
+    });
+  });
+
+  it.each(resolutionCases)("sends %s's image resolution %s on the image part, High included", async (model, mediaResolution) => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ model, mediaResolution });
+    expect(sentBody().contents[0].parts[0].mediaResolution).toEqual({ level: `MEDIA_RESOLUTION_${mediaResolution.toUpperCase()}` });
+  });
+
+  it.each([...SUPPORTED_MODELS.map((row) => row.id), "typed-unknown"])("turns every current safety category off on the %s description and slug requests", async (model) => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ model });
+    expect(sentBody().safetySettings).toEqual(SAFETY_OFF);
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async () => slugOk());
+    await slug(model, null);
+    expect(sentBody().safetySettings).toEqual(SAFETY_OFF);
+  });
+});
+
 describe("Gemini calls are handed over for recording", () => {
   it("hands over every attempt whole: the request as sent and the response or failure", async () => {
     fetchMock.mockImplementationOnce(async () => fail(503)).mockImplementation(async () => ok());
@@ -81,7 +125,7 @@ describe("Gemini calls are handed over for recording", () => {
         { inlineData: { mimeType: "image/jpeg", data: request.imageBytes.toString("base64") } },
         { text: expect.stringContaining("Describe") }
       ],
-      config: { thinkingConfig: { thinkingLevel: "MEDIUM" } }
+      config: { thinkingConfig: { thinkingLevel: "MEDIUM" }, safetySettings: SAFETY_OFF }
     };
     expect(first).toMatchObject({ endpoint: "https://proxy.example/gemini", role: "description", model: opts.model, attempt: 1, request: sent, response: null });
     expect(first!.error).toMatchObject({ status: 503 });

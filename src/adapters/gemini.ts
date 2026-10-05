@@ -1,4 +1,4 @@
-import { ApiError, GoogleGenAI, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution } from "@google/genai";
+import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution, type SafetySetting } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
 import { singleLine } from "@shared/text-cleanup";
@@ -69,6 +69,18 @@ const SLUG_RESPONSE_SCHEMA = {
   },
   required: ["slugs"]
 } as const;
+
+/**
+ * Every request turns off each current safety category, the most permissive value Gemini takes,
+ * and is never exposed (ai-model-lineup-20261004, Safety). Civic integrity is deprecated and not sent.
+ */
+export const SAFETY_SETTINGS: readonly SafetySetting[] = [
+  HarmCategory.HARM_CATEGORY_HARASSMENT,
+  HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+  HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+  HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+  HarmCategory.HARM_CATEGORY_JAILBREAK
+].map((category) => ({ category, threshold: HarmBlockThreshold.OFF }));
 
 /**
  * What each supported model needs beyond the plain request, one branch per row of
@@ -169,7 +181,7 @@ export class GeminiVisionProvider {
     const request: GenerateContentParameters = {
       model: opts.model,
       contents: parts,
-      config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
+      config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig, safetySettings: [...SAFETY_SETTINGS] }
     };
     return callWithRetry(opts, async (attempt) => {
       const time = nowIso();

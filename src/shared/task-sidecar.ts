@@ -5,7 +5,7 @@ import type { VisionResult } from "./types/project";
 export type TaskSidecar = {
   original: {
     fileName: string;
-    sourceHash?: string;
+    sourceHash: string;
     size: number;
     format: string;
     width: number;

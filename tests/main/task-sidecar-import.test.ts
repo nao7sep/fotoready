@@ -98,6 +98,45 @@ describe("task sidecar import", () => {
     }, result.loaded)?.path).toBe(sidecarPath);
   });
 
+  it("rejects a sidecar without its original's source hash as invalid", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
+    roots.push(root);
+    const sidecarPath = path.join(root, "photo.json");
+    const { sourceHash: _omitted, ...original } = { fileName: "photo.jpg", sourceHash: "source-hash", size: 100, format: "jpeg", width: 20, height: 10 };
+    const body = createTaskSidecar({
+      original: original as never, generateDescription: false, generateSlug: false, customSlug: null, pipeline: defaultPipeline(), vision: null,
+    });
+    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, body), "utf8");
+
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
+
+    expect(result.loaded).toEqual([]);
+    expect(result.rejected).toEqual([{
+      filePath: sidecarPath,
+      kind: "invalid",
+      severity: "warning",
+      reason: { key: "importReason.sidecarInvalid" },
+    }]);
+  });
+
+  it("matches a sidecar to an original by its source hash alone", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
+    roots.push(root);
+    const sidecarPath = path.join(root, "photo.json");
+    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, createTaskSidecar({
+      original: { fileName: "photo.jpg", sourceHash: "source-hash", size: 100, format: "jpeg", width: 20, height: 10 },
+      generateDescription: false, generateSlug: false, customSlug: null, pipeline: defaultPipeline(), vision: null,
+    })), "utf8");
+    const { loaded } = await loadTaskSidecars([sidecarPath], "resources/stamps");
+    const original = {
+      id: "original-id", sourcePath: path.join(root, "photo.jpg"), size: 100, format: "jpeg", width: 20, height: 10,
+      metadataSummary: { editorial: {}, dates: {}, gps: {} }, jpegQualityEstimate: null, addedAt: "2026-08-28T00:00:00.000Z",
+    };
+
+    expect(matchingTaskSidecar({ ...original, sourceHash: "other-hash" }, loaded)).toBeNull();
+    expect(matchingTaskSidecar({ ...original, sourceHash: "source-hash", sourcePath: path.join(root, "renamed.png") }, loaded)?.path).toBe(sidecarPath);
+  });
+
   it("loads a stamp saved under another install as the current built-in and leaves a missing imported stamp as saved", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
     roots.push(root);

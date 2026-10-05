@@ -7,7 +7,7 @@ import type { Original, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
-import { assertBoolean, assertString } from "@shared/validation/common";
+import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
@@ -134,17 +134,7 @@ export function isTaskSidecarPath(filePath: string): boolean {
 }
 
 export function matchingTaskSidecar(original: Original, sidecars: LoadedTaskSidecar[]): LoadedTaskSidecar | null {
-  const fileName = path.basename(original.sourcePath).toLowerCase();
-  return sidecars.find(({ sidecar }) => {
-    if (sidecar.original.sourceHash) {
-      return sidecar.original.sourceHash === original.sourceHash;
-    }
-    return sidecar.original.fileName.toLowerCase() === fileName
-      && sidecar.original.size === original.size
-      && sidecar.original.format.toLowerCase() === original.format.toLowerCase()
-      && sidecar.original.width === original.width
-      && sidecar.original.height === original.height;
-  }) ?? null;
+  return sidecars.find(({ sidecar }) => sidecar.original.sourceHash === original.sourceHash) ?? null;
 }
 
 function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
@@ -155,7 +145,7 @@ function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
   return {
     original: {
       fileName: String(sidecar.original.fileName),
-      sourceHash: typeof sidecar.original.sourceHash === "string" && sidecar.original.sourceHash.trim() ? sidecar.original.sourceHash : undefined,
+      sourceHash: assertNonEmptyString(sidecar.original.sourceHash, "original.sourceHash"),
       size: Number(sidecar.original.size),
       format: String(sidecar.original.format),
       width: Number(sidecar.original.width),

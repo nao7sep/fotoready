@@ -92,7 +92,7 @@ describe("settings by set", () => {
     expect(await written()).toEqual({});
   });
 
-  it("checks the image resolution against the description model's levels", async () => {
+  it("checks the image resolution against the description model's levels, and keeps a stored one for an id with no row", async () => {
     const warn = vi.fn();
     const effective = await save({ "gemini.mediaResolution.description": "extreme" }, { warn } as unknown as AppLogger);
     expect(await written()).toEqual({});
@@ -101,11 +101,11 @@ describe("settings by set", () => {
 
     await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": "low" }));
     const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
-    expect(loaded.settings["gemini.mediaResolution.description"]).toBeNull();
-    expect(warn).toHaveBeenCalledTimes(2);
+    expect(loaded.settings["gemini.mediaResolution.description"]).toBe("low");
+    expect(warn).toHaveBeenCalledOnce();
   });
 
-  it("checks a role's Thinking against its model's values", async () => {
+  it("checks a role's Thinking against its model's values, and keeps a stored one for an id with no row", async () => {
     const warn = vi.fn();
     const effective = await save({ "gemini.thinking.description": "minimal" }, { warn } as unknown as AppLogger);
     expect(await written()).toEqual({});
@@ -114,8 +114,8 @@ describe("settings by set", () => {
 
     await fs.writeFile(settingsPath(), JSON.stringify({ "gemini.description": "typed-unknown", "gemini.thinking.description": "high" }));
     const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
-    expect(loaded.settings["gemini.thinking.description"]).toBeNull();
-    expect(warn).toHaveBeenCalledTimes(2);
+    expect(loaded.settings["gemini.thinking.description"]).toBe("high");
+    expect(warn).toHaveBeenCalledOnce();
   });
 
   it("writes metadata whole rather than merging its members", async () => {

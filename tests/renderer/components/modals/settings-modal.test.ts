@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultGlobalSettings } from "@shared/defaults";
+import type { GlobalSettings } from "@shared/types/settings";
 import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -99,25 +100,53 @@ describe("AppSettingsModal Gemini section", () => {
     expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ "gemini.description": "typed-any-model", "gemini.slug": "gemini-3.5-flash-lite" }));
   });
 
-  it("resets Thinking to the new model's default when the model changes, and shows none for an id with no row", async () => {
+  it("resets Thinking to the new model's default when the model changes to another listed row", async () => {
     const setSettingsDraft = vi.fn();
     const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high" };
     await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
-    const input = fieldOf("Description model").input;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "gemini-3.5-flash-lite");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await typeInto(fieldOf("Description model").input, "gemini-3.5-flash-lite");
     expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "minimal" });
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "typed-unknown");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null });
+  });
 
-    await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null } });
+  it("keeps a chosen Thinking and image resolution, hidden, when the model edit lands on an id with no row", async () => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low" };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    await typeInto(fieldOf("Description model").input, "typed-unknown");
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "typed-unknown" });
+
+    await renderSettings({ initialTab: "vision", settings: { ...settings, "gemini.description": "typed-unknown" } });
     const fields = [...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field");
     expect([...fields].map((field) => field.firstChild?.textContent)).toEqual(["Endpoint", "API key", "Description model", "Slug model", "Thinking"]);
+  });
+
+  it("keeps a chosen Thinking and image resolution when one letter of the model is deleted and retyped", async () => {
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low", "gemini.thinking.slug": "high" };
+    const draft = await renderEditableSettings(settings);
+    await typeInto(fieldOf("Description model").input, "gemini-3.8-flas");
+    await typeInto(fieldOf("Description model").input, "gemini-3.8-flash");
+    await typeInto(fieldOf("Slug model").input, "gemini-3.5-flash-lit");
+    await typeInto(fieldOf("Slug model").input, "gemini-3.5-flash-lite");
+    expect(draft()).toEqual(settings);
+  });
+
+  it("keeps a chosen Thinking and image resolution when the field returns to its listed row after a tab switch", async () => {
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low" };
+    const draft = await renderEditableSettings(settings);
+    await typeInto(fieldOf("Description model").input, "gemini-3.8-flas");
+    await clickTab("Save");
+    await clickTab("Vision");
+    await typeInto(fieldOf("Description model").input, "gemini-3.8-flash");
+    expect(draft()).toEqual(settings);
+  });
+
+  it("resets Thinking and image resolution to the new row's defaults when the edit passes through ids with no row to a different listed row", async () => {
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low" };
+    const draft = await renderEditableSettings(settings);
+    await typeInto(fieldOf("Description model").input, "gemini-3.");
+    expect(draft()).toEqual({ ...settings, "gemini.description": "gemini-3." });
+    await typeInto(fieldOf("Description model").input, "gemini-3.5-flash-lite");
+    expect(draft()).toEqual({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "high" });
   });
 
   it.each([
@@ -354,6 +383,37 @@ async function renderSettings({
       systemInfo: null
     }));
   });
+}
+
+/** Renders Settings over a draft that each edit replaces, as the app does; returns the latest draft. */
+async function renderEditableSettings(settings: GlobalSettings): Promise<() => GlobalSettings> {
+  let latest = settings;
+  function Editable(): React.JSX.Element {
+    const [draft, setDraft] = useState(settings);
+    return createElement(AppSettingsModal, {
+      apiKeyClearRequested: false,
+      apiKeyDraft: "",
+      hasChanges: true,
+      hasGeminiApiKey: false,
+      initialTab: "vision",
+      onApiKeyDraftChange: () => undefined,
+      onClearApiKey: () => undefined,
+      onKeepApiKey: () => undefined,
+      onClose: () => undefined,
+      onSaveSettings: async () => undefined,
+      settingsDraft: draft,
+      setSettingsDraft: (next: GlobalSettings) => { latest = next; setDraft(next); },
+      systemInfo: null
+    });
+  }
+  await act(async () => root.render(createElement(Editable)));
+  return () => latest;
+}
+
+async function clickTab(label: string): Promise<void> {
+  const target = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((tab) => tab.textContent === label);
+  expect(target).toBeDefined();
+  await act(async () => target!.click());
 }
 
 async function clickButton(label: string): Promise<void> {

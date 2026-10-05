@@ -74,10 +74,10 @@ export type GlobalSettings = {
   // Selected ids remain open; only the provider decides whether they work.
   "gemini.description": string;
   "gemini.slug": string;
-  // Null while the role's model has no row, which leaves the request without a thinking parameter.
+  // Sent only while the role's model has a row; an id with no row keeps the stored value unsent.
   "gemini.thinking.description": string | null;
   "gemini.thinking.slug": string | null;
-  // The description role's image resolution; null while its model offers no choice, which sends none.
+  // The description role's image resolution; null while its row offers no choice, and unsent while its model has no row.
   "gemini.mediaResolution.description": string | null;
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;

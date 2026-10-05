@@ -117,20 +117,32 @@ function readValue<T>(
   }
 }
 
-/** A role's Thinking is one of its model's listed values, and null for an id with no row; its built-in follows the model. */
+/**
+ * A role's Thinking is one of its model's listed values; an id with no row keeps whatever was
+ * stored, which is not sent. Its built-in follows the model.
+ */
 function readThinking(source: Record<string, unknown>, key: string, model: string, issues: string[]): string | null {
-  const values = supportedModel("gemini", model)?.thinking ?? [];
+  const row = supportedModel("gemini", model);
   return readValue(source, key, defaultThinkingFor("gemini", model), issues, (value, path) => {
-    if (values.length === 0 ? value === null : typeof value === "string" && values.includes(value)) return value as string | null;
+    const valid = row
+      ? row.thinking.length === 0 ? value === null : typeof value === "string" && row.thinking.includes(value)
+      : value === null || typeof value === "string";
+    if (valid) return value as string | null;
     throw new Error(`${path} must be one of the thinking values of ${model}.`);
   });
 }
 
-/** A role's image resolution is one of its model's listed levels, and null while the model offers no choice; its built-in follows the model. */
+/**
+ * A role's image resolution is one of its model's listed levels, and null while the model offers
+ * no choice; an id with no row keeps whatever was stored, which is not sent. Its built-in follows the model.
+ */
 function readMediaResolution(source: Record<string, unknown>, key: string, model: string, issues: string[]): string | null {
-  const values = supportedModel("gemini", model)?.mediaResolution ?? [];
+  const row = supportedModel("gemini", model);
   return readValue(source, key, defaultMediaResolutionFor("gemini", model), issues, (value, path) => {
-    if (values.length > 1 ? typeof value === "string" && values.includes(value) : value === null) return value as string | null;
+    const valid = row
+      ? row.mediaResolution.length > 1 ? typeof value === "string" && row.mediaResolution.includes(value) : value === null
+      : value === null || typeof value === "string";
+    if (valid) return value as string | null;
     throw new Error(`${path} must be one of the image resolutions of ${model}.`);
   });
 }

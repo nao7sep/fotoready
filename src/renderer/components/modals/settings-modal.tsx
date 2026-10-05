@@ -6,7 +6,7 @@ import { availableOutputFormats } from "@shared/output-format";
 import { outputFormatName } from "@renderer/output-format-name";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY, TEXT_WATERMARK_FONT_OPTIONS } from "@shared/watermark-text-layout";
 import { assertModelEndpoint, SETTING_BOUNDS } from "@shared/validation/settings";
-import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor, supportedModel } from "@shared/ai-models";
+import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor, supportedModel, type SupportedModel } from "@shared/ai-models";
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
@@ -94,6 +94,8 @@ export function AppSettingsModal({
   const [saveFailure, setSaveFailure] = useState<Message | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  // The last listed row each model field held while Settings is open, kept across tab switches.
+  const lastListedRows = useRef<LastListedRows>({});
   async function save(): Promise<void> {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -202,6 +204,7 @@ export function AppSettingsModal({
               onApiKeyDraftChange={updateApiKeyDraft}
               onClearApiKey={() => { setSaveFailure(null); onClearApiKey(); }}
               onKeepApiKey={() => { setSaveFailure(null); onKeepApiKey(); }}
+              lastListedRows={lastListedRows.current}
               settings={settingsDraft}
               setSettings={updateSettingsDraft}
             />
@@ -378,6 +381,7 @@ function VisionTab({
   apiKeyDraft,
   apiKeyClearRequested,
   hasGeminiApiKey,
+  lastListedRows,
   onApiKeyDraftChange,
   onClearApiKey,
   onKeepApiKey,
@@ -387,6 +391,7 @@ function VisionTab({
   apiKeyDraft: string;
   apiKeyClearRequested: boolean;
   hasGeminiApiKey: boolean;
+  lastListedRows: LastListedRows;
   onApiKeyDraftChange(value: string): void;
   onClearApiKey(): void;
   onKeepApiKey(): void;
@@ -438,6 +443,7 @@ function VisionTab({
             const key = `gemini.${role.id}` as const;
             const thinkingKey = `gemini.thinking.${role.id}` as const;
             const row = supportedModel("gemini", settings[key]);
+            if (row) lastListedRows[role.id] = row;
             return (
               <React.Fragment key={role.id}>
                 <label className="stacked-field span-two">
@@ -447,8 +453,10 @@ function VisionTab({
                     value={settings[key]}
                     onChange={(event) => {
                       const model = event.currentTarget.value;
-                      // Thinking and image resolution reset only when the edit resolves to a different row, or between a row and none.
-                      if (supportedModel("gemini", model) === row) {
+                      // Thinking and image resolution reset only when the edit reaches a listed row other than the last
+                      // listed row the field held; an id with no row keeps them, hidden and not sent.
+                      const reached = supportedModel("gemini", model);
+                      if (!reached || reached === lastListedRows[role.id]) {
                         setSettings({ ...settings, [key]: model });
                         return;
                       }
@@ -747,6 +755,8 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
     </div>
   );
 }
+
+type LastListedRows = Partial<Record<(typeof AI_ROLES)[number]["id"], SupportedModel>>;
 
 type SettingsProps = {
   settings: GlobalSettings;

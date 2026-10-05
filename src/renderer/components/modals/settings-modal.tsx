@@ -454,17 +454,27 @@ function VisionTab({
                     onChange={(event) => {
                       const model = event.currentTarget.value;
                       // Thinking and image resolution reset only when the edit reaches a listed row other than the last
-                      // listed row the field held; an id with no row keeps them, hidden and not sent.
+                      // listed row the field held; an id with no row keeps them, hidden and not sent. A field that opened
+                      // on an id with no row has held no row, so the first row it reaches keeps each value it offers.
                       const reached = supportedModel("gemini", model);
-                      if (!reached || reached === lastListedRows[role.id]) {
+                      const held = lastListedRows[role.id];
+                      if (!reached || reached === held) {
                         setSettings({ ...settings, [key]: model });
                         return;
                       }
+                      const thinking = settings[thinkingKey];
+                      const mediaResolution = settings["gemini.mediaResolution.description"];
                       setSettings({
                         ...settings,
                         [key]: model,
-                        [thinkingKey]: defaultThinkingFor("gemini", model),
-                        ...(role.id === "description" ? { "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", model) } : {})
+                        [thinkingKey]: !held && thinking !== null && reached.thinking.includes(thinking)
+                          ? thinking
+                          : defaultThinkingFor("gemini", model),
+                        ...(role.id === "description" ? {
+                          "gemini.mediaResolution.description": !held && mediaResolution !== null && reached.mediaResolution.length > 1 && reached.mediaResolution.includes(mediaResolution)
+                            ? mediaResolution
+                            : defaultMediaResolutionFor("gemini", model)
+                        } : {})
                       });
                     }}
                   />

@@ -149,6 +149,30 @@ describe("AppSettingsModal Gemini section", () => {
     expect(draft()).toEqual({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "high" });
   });
 
+  describe("after a relaunch on an id with no row", () => {
+    const relaunched = { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "low" };
+
+    it("keeps the stored Thinking and image resolution when the first listed row reached offers them", async () => {
+      const draft = await renderEditableSettings(relaunched);
+      await typeInto(fieldOf("Description model").input, "gemini-3.5-flash-lite");
+      expect(draft()).toEqual({ ...relaunched, "gemini.description": "gemini-3.5-flash-lite" });
+    });
+
+    it("takes the reached row's default for each stored value that row does not offer", async () => {
+      const draft = await renderEditableSettings({ ...relaunched, "gemini.mediaResolution.description": "extreme" });
+      await typeInto(fieldOf("Description model").input, "gemini-3.8-flash");
+      expect(draft()).toEqual({ ...relaunched, "gemini.description": "gemini-3.8-flash", "gemini.thinking.description": "medium", "gemini.mediaResolution.description": "high" });
+    });
+
+    it("keeps an offered value at the first listed row, then resets on reaching a different one", async () => {
+      const draft = await renderEditableSettings({ ...relaunched, "gemini.thinking.description": "high" });
+      await typeInto(fieldOf("Description model").input, "gemini-3.8-flash");
+      expect(draft()["gemini.thinking.description"]).toBe("high");
+      await typeInto(fieldOf("Description model").input, "gemini-3.5-flash-lite");
+      expect(draft()).toEqual({ ...relaunched, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "high" });
+    });
+  });
+
   it.each([
     ["a trailing space", "gemini-3.8-flash ", "gemini-3.5-flash-lite "],
     ["a different case", "Gemini-3.8-FLASH", "GEMINI-3.5-Flash-Lite"]

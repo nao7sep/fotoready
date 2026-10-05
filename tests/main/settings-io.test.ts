@@ -118,6 +118,13 @@ describe("settings by set", () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
+  it("keeps a Thinking and image resolution saved under an id with no row through a relaunch", async () => {
+    const kept = { "gemini.description": "typed-unknown", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "low" };
+    await save(kept);
+    expect(await written()).toEqual(kept);
+    expect((await loadSettings(settingsPath())).settings).toEqual({ ...defaults(), ...kept });
+  });
+
   it("writes metadata whole rather than merging its members", async () => {
     await save({ injectFields: { author: "Jane", credit: "Me" } });
     await save({ injectFields: { author: "John" } });

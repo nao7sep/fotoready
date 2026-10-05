@@ -21,6 +21,8 @@ import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
 import { defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { ProviderCallRecord } from "@main/records-store";
+import { loadSettings, saveSettings } from "@main/settings-io";
+import { closeBackupStore } from "@main/backup-store";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
 
@@ -84,6 +86,51 @@ describe("VisionQueue description request", () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
     expect(body.contents[0].parts[0].mediaResolution).toEqual({ level: "MEDIA_RESOLUTION_LOW" });
+  });
+});
+
+describe("VisionQueue requests after a relaunch", () => {
+  it("sends each role's selected model's own default Thinking and image resolution when the file holds none", async () => {
+    vi.stubEnv("FOTOREADY_DATA_DIR", tempDir);
+    const settingsPath = path.join(tempDir, "config.json");
+    // Each role selects the other tier, so the selected model's default differs from the role's built-in.
+    const chosen = {
+      "gemini.description": "gemini-3.5-flash-lite",
+      "gemini.thinking.description": defaultThinkingFor("gemini", "gemini-3.5-flash-lite"),
+      "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", "gemini-3.5-flash-lite"),
+      "gemini.slug": "gemini-3.8-flash",
+      "gemini.thinking.slug": defaultThinkingFor("gemini", "gemini-3.8-flash")
+    };
+    expect(chosen["gemini.thinking.description"]).not.toBe(defaultGlobalSettings()["gemini.thinking.description"]);
+    expect(chosen["gemini.thinking.slug"]).not.toBe(defaultGlobalSettings()["gemini.thinking.slug"]);
+    try {
+      const previous = (await loadSettings(settingsPath)).settings;
+      await saveSettings(settingsPath, { ...previous, ...chosen }, previous);
+      expect(JSON.parse(await fs.readFile(settingsPath, "utf8"))).toEqual({ "gemini.description": "gemini-3.5-flash-lite", "gemini.slug": "gemini-3.8-flash" });
+
+      const settings = (await loadSettings(settingsPath)).settings;
+      expect(settings).toMatchObject(chosen);
+
+      const replies = [{ text: "A harbor." }, { text: JSON.stringify({ slugs: ["a-harbor"] }) }];
+      const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [replies.shift()!] } }] })));
+      vi.stubGlobal("fetch", fetchMock);
+      const provider = new GeminiVisionProvider("test-key", "https://models.example", () => {});
+      const { session, task } = await arrange({
+        describeImage: (request, opts) => provider.describeImage(request, opts),
+        suggestSlugs: (description, opts) => provider.suggestSlugs(description, opts)
+      }, undefined, undefined, settings);
+
+      await session.runVision(task.id, { mode: "description-and-slug" });
+
+      expect(task.error).toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [description, slug] = fetchMock.mock.calls.map((call) => JSON.parse(String(call[1]!.body)));
+      expect(description.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "MINIMAL" });
+      expect(description.contents[0].parts[0].mediaResolution).toEqual({ level: "MEDIA_RESOLUTION_HIGH" });
+      expect(slug.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "MEDIUM" });
+    } finally {
+      closeBackupStore();
+    }
   });
 });
 

@@ -71,8 +71,9 @@ const SLUG_RESPONSE_SCHEMA = {
 } as const;
 
 /**
- * Every request turns off each current safety category, the most permissive value Gemini takes,
- * and is never exposed (ai-model-lineup-20261004, Safety). Civic integrity is deprecated and not sent.
+ * Every request to a supported model turns off each current safety category, the most permissive
+ * value Gemini takes, and is never exposed (ai-model-lineup-20261004, Safety). Civic integrity is
+ * deprecated and not sent.
  */
 export const SAFETY_SETTINGS: readonly SafetySetting[] = [
   HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -84,20 +85,20 @@ export const SAFETY_SETTINGS: readonly SafetySetting[] = [
 
 /**
  * What each supported model needs beyond the plain request, one branch per row of
- * SUPPORTED_MODELS; each branch translates the row's Thinking values. An id with no branch gets
- * nothing model-specific; whether it works is the provider's answer.
+ * SUPPORTED_MODELS: its safety settings and its Thinking values translated. An id with no branch
+ * gets nothing model-specific, safety settings included; whether it works is the provider's answer.
  */
 export function modelConfig(id: string, thinking: string | null): GenerateContentConfig {
   switch (id.trim().toLowerCase()) {
     case "gemini-3.1-pro-preview":
       // Gemini 3.x takes thinkingLevel.
-      return thinkingLevelConfig(thinking);
+      return { ...thinkingLevelConfig(thinking), safetySettings: [...SAFETY_SETTINGS] };
     case "gemini-3.8-flash":
       // Gemini 3.x takes thinkingLevel.
-      return thinkingLevelConfig(thinking);
+      return { ...thinkingLevelConfig(thinking), safetySettings: [...SAFETY_SETTINGS] };
     case "gemini-3.5-flash-lite":
       // Gemini 3.x takes thinkingLevel.
-      return thinkingLevelConfig(thinking);
+      return { ...thinkingLevelConfig(thinking), safetySettings: [...SAFETY_SETTINGS] };
     default:
       return {};
   }
@@ -181,7 +182,7 @@ export class GeminiVisionProvider {
     const request: GenerateContentParameters = {
       model: opts.model,
       contents: parts,
-      config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig, safetySettings: [...SAFETY_SETTINGS] }
+      config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
     };
     return callWithRetry(opts, async (attempt) => {
       const time = nowIso();

@@ -102,7 +102,7 @@ describe("Gemini requests send every choice as chosen", () => {
     expect(sentBody().contents[0].parts[0].mediaResolution).toEqual({ level: `MEDIA_RESOLUTION_${mediaResolution.toUpperCase()}` });
   });
 
-  it.each([...SUPPORTED_MODELS.map((row) => row.id), "typed-unknown"])("turns every current safety category off on the %s description and slug requests", async (model) => {
+  it.each(SUPPORTED_MODELS.map((row) => row.id))("turns every current safety category off on the %s description and slug requests", async (model) => {
     fetchMock.mockImplementation(async () => ok());
     await run({ model });
     expect(sentBody().safetySettings).toEqual(SAFETY_OFF);
@@ -110,6 +110,38 @@ describe("Gemini requests send every choice as chosen", () => {
     fetchMock.mockImplementation(async () => slugOk());
     await slug(model, null);
     expect(sentBody().safetySettings).toEqual(SAFETY_OFF);
+  });
+});
+
+describe("Gemini requests for an id with no row are plain", () => {
+  // A stored Thinking or image resolution kept while the id has no row is not sent.
+  it("sends the description request with only the model, the image and the prompt", async () => {
+    fetchMock.mockImplementation(async () => ok());
+    await run({ model: "typed-unknown", thinking: "high", mediaResolution: "low" });
+    expect(recordCall.mock.calls[0]![0].request).toEqual({
+      model: "typed-unknown",
+      contents: [
+        { inlineData: { mimeType: "image/jpeg", data: request.imageBytes.toString("base64") } },
+        { text: "Describe\n\nReturn one sentence only. Do not use bullet points or JSON." }
+      ],
+      config: {}
+    });
+    expect(sentBody()).not.toHaveProperty("safetySettings");
+    expect(sentBody().generationConfig ?? {}).toEqual({});
+  });
+
+  it("sends the slug request with only the model, the prompt and the strict slug schema", async () => {
+    fetchMock.mockImplementation(async () => slugOk());
+    await slug("typed-unknown", "high");
+    expect(recordCall.mock.calls[0]![0].request).toEqual({
+      model: "typed-unknown",
+      contents: [{ text: "Slugs\n\nDescription: A mug" }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: { type: "OBJECT", properties: { slugs: { type: "ARRAY", minItems: "3", maxItems: "5", items: { type: "STRING" } } }, required: ["slugs"] }
+      }
+    });
+    expect(sentBody()).not.toHaveProperty("safetySettings");
   });
 });
 

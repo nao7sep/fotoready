@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AI_ROLES, MODEL_LINEUP, SUPPORTED_MODELS, defaultMediaResolutionFor, defaultModelFor, defaultThinkingFor, modelsFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
-import { imageMediaResolution, modelConfig } from "@adapters/gemini";
+import { SAFETY_SETTINGS, imageMediaResolution, modelConfig } from "@adapters/gemini";
 
 describe("AI routing table guard", () => {
   it("pins the lineup, every row in order, its lists and its defaults", () => {
@@ -60,16 +60,16 @@ describe("AI routing table guard", () => {
     expect(defaultMediaResolutionFor("gemini", "typed-unknown")).toBeNull();
   });
 
-  it("gives every supported row its own branch, which translates every Thinking value the row lists", () => {
+  it("gives every supported row its own branch, which sends its safety settings and translates every Thinking value the row lists", () => {
     for (const row of SUPPORTED_MODELS) {
       expect(row.thinking.length, row.id).toBeGreaterThan(0);
       for (const value of row.thinking) {
-        expect(modelConfig(row.id, value), `${row.id} ${value}`).toEqual({ thinkingConfig: { thinkingLevel: value.toUpperCase() } });
+        expect(modelConfig(row.id, value), `${row.id} ${value}`).toEqual({ thinkingConfig: { thinkingLevel: value.toUpperCase() }, safetySettings: SAFETY_SETTINGS });
       }
     }
   });
 
-  it("gives an unknown id nothing model-specific and matches a row trimmed and case-insensitive", () => {
+  it("gives an unknown id nothing model-specific, safety settings included, and matches a row trimmed and case-insensitive", () => {
     expect(modelConfig("gemini-3.99-new", "medium")).toEqual({});
     expect(modelConfig("unrelated-model", null)).toEqual({});
     expect(modelConfig(" GEMINI-3.8-FLASH ", "low")).toEqual(modelConfig("gemini-3.8-flash", "low"));

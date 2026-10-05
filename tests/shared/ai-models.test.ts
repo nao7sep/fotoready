@@ -1,9 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { AI_ROLES, SUPPORTED_MODELS, defaultMediaResolutionFor, defaultModelFor, defaultThinkingFor, modelsFor } from "@shared/ai-models";
+import { AI_ROLES, MODEL_LINEUP, SUPPORTED_MODELS, defaultMediaResolutionFor, defaultModelFor, defaultThinkingFor, modelsFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
 import { imageMediaResolution, modelConfig } from "@adapters/gemini";
 
 describe("AI routing table guard", () => {
+  it("pins the lineup, every row in order, its lists and its defaults", () => {
+    expect(MODEL_LINEUP).toBe("ai-model-lineup-20261004");
+    const mediaResolution = ["low", "medium", "high", "ultra_high"];
+    expect(SUPPORTED_MODELS).toEqual([
+      { provider: "gemini", id: "gemini-3.1-pro-preview", kinds: ["text-smart", "vision"], defaultFor: ["text-smart"], thinking: ["low", "medium", "high"], defaultThinking: "medium", mediaResolution },
+      { provider: "gemini", id: "gemini-3.8-flash", kinds: ["text-balanced", "vision"], defaultFor: ["text-balanced", "vision"], thinking: ["low", "medium", "high"], defaultThinking: "medium", mediaResolution },
+      { provider: "gemini", id: "gemini-3.5-flash-lite", kinds: ["text-fast", "vision"], defaultFor: ["text-fast"], thinking: ["minimal", "low", "medium", "high"], defaultThinking: "minimal", mediaResolution }
+    ]);
+    // The description offers every tier, in table order.
+    expect(modelsFor("gemini", "vision").map((row) => row.id)).toEqual(["gemini-3.1-pro-preview", "gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+    for (const row of SUPPORTED_MODELS) expect(row.thinking, row.id).toContain(row.defaultThinking);
+  });
+
   it("pins the role kinds and defaults", () => {
     expect(AI_ROLES).toEqual([{ id: "description", kind: "vision" }, { id: "slug", kind: "text-fast" }]);
     expect(defaultModelFor("gemini", "vision")).toBe("gemini-3.8-flash");
@@ -20,7 +33,7 @@ describe("AI routing table guard", () => {
         expect(SETTINGS_KEYS).toContain(key);
         expect(SETTINGS_KEYS).toContain(thinkingKey);
         expect(defaultGlobalSettings()[key]).toBe(defaultModelFor(provider, role.kind));
-        expect(defaultGlobalSettings()[thinkingKey]).toBe(defaultThinkingFor(provider, role.kind, defaultModelFor(provider, role.kind)));
+        expect(defaultGlobalSettings()[thinkingKey]).toBe(defaultThinkingFor(provider, defaultModelFor(provider, role.kind)));
       }
     }
     expect(SETTINGS_KEYS).not.toContain("model");
@@ -62,10 +75,13 @@ describe("AI routing table guard", () => {
     expect(modelConfig(" GEMINI-3.8-FLASH ", "low")).toEqual(modelConfig("gemini-3.8-flash", "low"));
   });
 
-  it("starts each role at its tier's Thinking default and an id with no row at none", () => {
-    expect(defaultThinkingFor("gemini", "vision", "gemini-3.8-flash")).toBe("medium");
-    expect(defaultThinkingFor("gemini", "text-smart", "gemini-3.1-pro-preview")).toBe("medium");
-    expect(defaultThinkingFor("gemini", "text-fast", "gemini-3.5-flash-lite")).toBe("minimal");
-    expect(defaultThinkingFor("gemini", "vision", "typed-unknown")).toBeNull();
+  it("starts Thinking at the chosen model's own default, whatever the role, and an id with no row at none", () => {
+    expect(defaultThinkingFor("gemini", "gemini-3.1-pro-preview")).toBe("medium");
+    expect(defaultThinkingFor("gemini", "gemini-3.8-flash")).toBe("medium");
+    expect(defaultThinkingFor("gemini", "gemini-3.5-flash-lite")).toBe("minimal");
+    expect(defaultThinkingFor("gemini", " GEMINI-3.5-FLASH-LITE ")).toBe("minimal");
+    expect(defaultThinkingFor("gemini", "typed-unknown")).toBeNull();
+    expect(defaultGlobalSettings()["gemini.thinking.description"]).toBe("medium");
+    expect(defaultGlobalSettings()["gemini.thinking.slug"]).toBe("minimal");
   });
 });

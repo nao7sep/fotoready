@@ -108,7 +108,7 @@ describe("AppSettingsModal Gemini section", () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "gemini-3.5-flash-lite");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "medium" });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "gemini-3.5-flash-lite", "gemini.thinking.description": "minimal" });
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "typed-unknown");
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -118,6 +118,37 @@ describe("AppSettingsModal Gemini section", () => {
     await renderSettings({ initialTab: "vision", settings: { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null } });
     const fields = [...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field");
     expect([...fields].map((field) => field.firstChild?.textContent)).toEqual(["Endpoint", "API key", "Description model", "Slug model", "Thinking"]);
+  });
+
+  it.each([
+    ["gemini-3.1-pro-preview", ["low", "medium", "high"], "medium"],
+    ["gemini-3.8-flash", ["low", "medium", "high"], "medium"],
+    ["gemini-3.5-flash-lite", ["minimal", "low", "medium", "high"], "minimal"]
+  ])("shows %s's own Thinking list and default for either role", async (model, values, value) => {
+    const settings = { ...defaultGlobalSettings(), "gemini.description": model, "gemini.thinking.description": value, "gemini.slug": model, "gemini.thinking.slug": value };
+    await renderSettings({ initialTab: "vision", settings });
+    const fields = [...[...document.querySelectorAll(".settings-page section")][0]!.querySelectorAll(".stacked-field")];
+    expect(fields.map((field) => field.firstChild?.textContent)).toEqual(["Endpoint", "API key", "Description model", "Thinking", "Image resolution", "Slug model", "Thinking"]);
+    const thinking = fields.filter((field) => field.firstChild?.textContent === "Thinking").map((field) => field.querySelector("select")!);
+    expect(thinking.map((select) => [...select.options].map((option) => option.value))).toEqual([values, values]);
+    expect(thinking.map((select) => select.value)).toEqual([value, value]);
+  });
+
+  it("starts a role's Thinking at the chosen model's tier default, not the role's", async () => {
+    const setSettingsDraft = vi.fn();
+    await renderSettings({ initialTab: "vision", setSettingsDraft });
+    const slug = fieldOf("Slug model").input;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(slug, "gemini-3.8-flash");
+      slug.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...defaultGlobalSettings(), "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "medium" });
+    const description = fieldOf("Description model").input;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(description, "gemini-3.1-pro-preview");
+      description.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...defaultGlobalSettings(), "gemini.description": "gemini-3.1-pro-preview", "gemini.thinking.description": "medium" });
   });
 
   it("changes only the role's Thinking in the draft", async () => {

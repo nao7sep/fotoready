@@ -1,7 +1,7 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type MetadataFields } from "../types/settings";
 import { LANGUAGES } from "../i18n/languages";
-import { defaultMediaResolutionFor, defaultThinkingFor, supportedModel, type AiKind } from "../ai-models";
+import { defaultMediaResolutionFor, defaultThinkingFor, supportedModel } from "../ai-models";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
 const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
@@ -72,8 +72,8 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     "gemini.endpoint": readValue(source, "gemini.endpoint", fallback["gemini.endpoint"], issues, assertModelEndpoint),
     "gemini.description": descriptionModel,
     "gemini.slug": slugModel,
-    "gemini.thinking.description": readThinking(source, "gemini.thinking.description", "vision", descriptionModel, issues),
-    "gemini.thinking.slug": readThinking(source, "gemini.thinking.slug", "text-fast", slugModel, issues),
+    "gemini.thinking.description": readThinking(source, "gemini.thinking.description", descriptionModel, issues),
+    "gemini.thinking.slug": readThinking(source, "gemini.thinking.slug", slugModel, issues),
     "gemini.mediaResolution.description": readMediaResolution(source, "gemini.mediaResolution.description", descriptionModel, issues),
     preResizeLongEdge: readValue(source, "preResizeLongEdge", fallback.preResizeLongEdge, issues, wholeNumber("preResizeLongEdge")),
     visionDescriptionPrompt: readValue(source, "visionDescriptionPrompt", fallback.visionDescriptionPrompt, issues, assertNonEmptyString),
@@ -118,9 +118,9 @@ function readValue<T>(
 }
 
 /** A role's Thinking is one of its model's listed values, and null for an id with no row; its built-in follows the model. */
-function readThinking(source: Record<string, unknown>, key: string, kind: AiKind, model: string, issues: string[]): string | null {
+function readThinking(source: Record<string, unknown>, key: string, model: string, issues: string[]): string | null {
   const values = supportedModel("gemini", model)?.thinking ?? [];
-  return readValue(source, key, defaultThinkingFor("gemini", kind, model), issues, (value, path) => {
+  return readValue(source, key, defaultThinkingFor("gemini", model), issues, (value, path) => {
     if (values.length === 0 ? value === null : typeof value === "string" && values.includes(value)) return value as string | null;
     throw new Error(`${path} must be one of the thinking values of ${model}.`);
   });

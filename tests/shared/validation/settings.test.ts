@@ -152,6 +152,16 @@ describe("Open Gemini role model selections", () => {
     expect(issues).toEqual([]);
   });
 
+  it("starts an unset Thinking at the chosen model's own default, whatever the role", () => {
+    const source: Record<string, unknown> = { ...fallback, "gemini.description": "gemini-3.5-flash-lite", "gemini.slug": "gemini-3.8-flash" };
+    delete source["gemini.thinking.description"];
+    delete source["gemini.thinking.slug"];
+    const { settings, issues } = normalizeGlobalSettings(source, fallback);
+    expect(settings["gemini.thinking.description"]).toBe("minimal");
+    expect(settings["gemini.thinking.slug"]).toBe("medium");
+    expect(issues).toEqual([]);
+  });
+
   it("falls back to the shipped selection when model is blank or not a string, recording an issue", () => {
     const blank = normalizeGlobalSettings({ ...fallback, "gemini.description": "   " }, fallback);
     expect(blank.settings["gemini.description"]).toBe(fallback["gemini.description"]);

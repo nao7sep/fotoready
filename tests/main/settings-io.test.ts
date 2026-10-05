@@ -74,9 +74,12 @@ describe("settings by set", () => {
     expect(await written()).toEqual({});
     await save({ "gemini.thinking.slug": "high" });
     expect(await written()).toEqual({ "gemini.thinking.slug": "high" });
-    const effective = await save({ "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
+    // Flash on the fast role starts at Flash's own default, medium.
+    const effective = await save({ "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "medium" });
     expect(await written()).toEqual({ "gemini.slug": "gemini-3.8-flash" });
-    expect(effective["gemini.thinking.slug"]).toBe("low");
+    expect(effective["gemini.thinking.slug"]).toBe("medium");
+    await save({ "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
+    expect(await written()).toEqual({ "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "low" });
   });
 
   it("stores the description's image resolution only while it is not High", async () => {

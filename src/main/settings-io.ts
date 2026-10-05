@@ -82,7 +82,7 @@ function equalsBuiltIn<K extends keyof GlobalSettings>(key: K, value: GlobalSett
 /** The built-ins `settings` is compared with; a role's Thinking and image resolution built-ins follow the role's model. */
 function builtInsFor(settings: GlobalSettings): GlobalSettings {
   const builtIns = defaults();
-  for (const role of AI_ROLES) builtIns[`gemini.thinking.${role.id}`] = defaultThinkingFor("gemini", role.kind, settings[`gemini.${role.id}`]);
+  for (const role of AI_ROLES) builtIns[`gemini.thinking.${role.id}`] = defaultThinkingFor("gemini", settings[`gemini.${role.id}`]);
   builtIns["gemini.mediaResolution.description"] = defaultMediaResolutionFor("gemini", settings["gemini.description"]);
   return builtIns;
 }

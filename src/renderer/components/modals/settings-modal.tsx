@@ -450,7 +450,7 @@ function VisionTab({
                       setSettings({
                         ...settings,
                         [key]: model,
-                        [thinkingKey]: defaultThinkingFor("gemini", role.kind, model),
+                        [thinkingKey]: defaultThinkingFor("gemini", model),
                         ...(role.id === "description" ? { "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", model) } : {})
                       });
                     }}

@@ -7,16 +7,21 @@ export type SupportedModel = {
   kinds: readonly AiKind[];
   defaultFor: readonly AiKind[];
   thinking: readonly string[];
+  /** The Thinking value a role starts at with this model, set by the model's own tier (ai-model-routing-conventions, Thinking). */
+  defaultThinking: string;
   /** The levels an image part may be read at, in the order the field lists them. */
   mediaResolution: readonly string[];
 };
 
+/** The lineup research document these rows and defaults come from. */
+export const MODEL_LINEUP = "ai-model-lineup-20261004";
+
 const GEMINI_3_MEDIA_RESOLUTION = ["low", "medium", "high", "ultra_high"] as const;
 
 export const SUPPORTED_MODELS: readonly SupportedModel[] = [
-  { provider: "gemini", id: "gemini-3.1-pro-preview", kinds: ["text-smart"], defaultFor: ["text-smart"], thinking: ["low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
-  { provider: "gemini", id: "gemini-3.8-flash", kinds: ["text-balanced", "vision"], defaultFor: ["text-balanced", "vision"], thinking: ["low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
-  { provider: "gemini", id: "gemini-3.5-flash-lite", kinds: ["text-fast"], defaultFor: ["text-fast"], thinking: ["minimal", "low", "medium", "high"], mediaResolution: GEMINI_3_MEDIA_RESOLUTION }
+  { provider: "gemini", id: "gemini-3.1-pro-preview", kinds: ["text-smart", "vision"], defaultFor: ["text-smart"], thinking: ["low", "medium", "high"], defaultThinking: "medium", mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
+  { provider: "gemini", id: "gemini-3.8-flash", kinds: ["text-balanced", "vision"], defaultFor: ["text-balanced", "vision"], thinking: ["low", "medium", "high"], defaultThinking: "medium", mediaResolution: GEMINI_3_MEDIA_RESOLUTION },
+  { provider: "gemini", id: "gemini-3.5-flash-lite", kinds: ["text-fast", "vision"], defaultFor: ["text-fast"], thinking: ["minimal", "low", "medium", "high"], defaultThinking: "minimal", mediaResolution: GEMINI_3_MEDIA_RESOLUTION }
 ];
 
 export const AI_ROLES = [
@@ -43,12 +48,9 @@ export function supportedModel(provider: AiProvider, id: string): SupportedModel
   return SUPPORTED_MODELS.find((row) => row.provider === provider && row.id === key);
 }
 
-/** The Thinking value a role starts at for a model (ai-model-routing-conventions, Thinking); null when the id has no row. */
-export function defaultThinkingFor(provider: AiProvider, kind: AiKind, id: string): string | null {
-  const values = supportedModel(provider, id)?.thinking ?? [];
-  if (values.length === 0) return null;
-  const preferred = kind === "text-fast" ? ["off", "none"] : ["adaptive", "medium"];
-  return preferred.find((value) => values.includes(value)) ?? values[0]!;
+/** The Thinking value a role starts at with a model, its row's own default whatever the role; null when the id has no row. */
+export function defaultThinkingFor(provider: AiProvider, id: string): string | null {
+  return supportedModel(provider, id)?.defaultThinking ?? null;
 }
 
 /**

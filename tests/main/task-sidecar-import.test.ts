@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTaskSidecar } from "@shared/task-sidecar";
 import { defaultPipeline } from "@shared/defaults";
-import { loadTaskSidecars, matchingTaskSidecar } from "@main/task-sidecar";
+import { loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
+import type { Original, Task } from "@shared/types/project";
 import { getOpModule } from "@core/ops/catalog";
 
 const roots: string[] = [];
@@ -125,5 +126,67 @@ describe("task sidecar import", () => {
       path.join(bundledStampsDir, "heart.png"),
       path.join(root, "gone", "my-own.png"),
     ]);
+  });
+});
+
+describe("the task sidecar format version", () => {
+  const sidecarOriginal = { fileName: "photo.jpg", sourceHash: "source-hash", size: 100, format: "jpeg", width: 20, height: 10 };
+  const sidecarBody = () => createTaskSidecar({
+    original: sidecarOriginal,
+    generateDescription: false,
+    generateSlug: true,
+    customSlug: "pier",
+    pipeline: defaultPipeline(),
+    vision: null,
+  });
+
+  async function tempRoot(): Promise<string> {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
+    roots.push(root);
+    return root;
+  }
+
+  it("reads a sidecar saved before the marker, with its old `version` key, as version 1", async () => {
+    const sidecarPath = path.join(await tempRoot(), "photo.json");
+    await fs.writeFile(sidecarPath, JSON.stringify({ version: 1, ...sidecarBody() }), "utf8");
+
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
+
+    expect(result.rejected).toEqual([]);
+    expect(result.loaded[0]!.sidecar).toEqual(sidecarBody());
+  });
+
+  it("writes the current version first and reads the sidecar back", async () => {
+    const root = await tempRoot();
+    const original = {
+      id: "original-id", sourcePath: path.join(root, "photo.jpg"), ...sidecarOriginal,
+      metadataSummary: { editorial: {}, dates: {}, gps: {} }, jpegQualityEstimate: null, addedAt: "2026-08-28T00:00:00.000Z",
+    } as unknown as Original;
+    const task = { generateDescription: false, generateSlug: true, customSlug: "pier", output: null } as unknown as Task;
+
+    const sidecarPath = await writeTaskSidecarFile(path.join(root, "photo-out.jpg"), original, task, defaultPipeline());
+
+    expect(Object.keys(JSON.parse(await fs.readFile(sidecarPath, "utf8")))[0]).toBe("formatVersion");
+    expect(JSON.parse(await fs.readFile(sidecarPath, "utf8")).formatVersion).toBe(1);
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
+    expect(result.rejected).toEqual([]);
+    expect(result.loaded[0]!.sidecar).toEqual(sidecarBody());
+  });
+
+  it("refuses a sidecar a newer FotoReady saved and leaves it byte-identical", async () => {
+    const sidecarPath = path.join(await tempRoot(), "photo.json");
+    const text = `${JSON.stringify({ formatVersion: 2, ...sidecarBody() }, null, 2)}\n`;
+    await fs.writeFile(sidecarPath, text, "utf8");
+
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
+
+    expect(result.loaded).toEqual([]);
+    expect(result.rejected).toEqual([{
+      filePath: sidecarPath,
+      kind: "unsupported",
+      severity: "warning",
+      reason: { key: "importReason.sidecarNewer" },
+    }]);
+    expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
   });
 });

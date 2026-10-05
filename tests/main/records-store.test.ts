@@ -158,6 +158,48 @@ describe("openRecordsStore", () => {
   });
 });
 
+describe("the records format version", () => {
+  function userVersion(): number {
+    return query("PRAGMA user_version")[0]!.user_version as number;
+  }
+
+  function databaseWithVersion(version: number): void {
+    const db = new DatabaseSync(dbFile());
+    db.exec(`CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = ${version}`);
+    db.close();
+  }
+
+  it("records version 1 in a new database", () => {
+    openRecordsStore(dbFile(), logsDir(), sessionStart).close();
+    expect(userVersion()).toBe(1);
+  });
+
+  it("reads a database with no recorded version as version 1, records 1, and keeps writing to it", () => {
+    databaseWithVersion(0);
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "kept", fields: {} });
+    records.close();
+    expect(userVersion()).toBe(1);
+    expect(query("SELECT message FROM log_records")).toEqual([{ message: "kept" }]);
+  });
+
+  it("leaves a newer database byte-identical and writes this session's records to the text file", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    databaseWithVersion(2);
+    const before = fs.readFileSync(dbFile());
+
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    records.writeLog({ time: "2026-10-02T03:15:43.000Z", level: "info", message: "still recorded", fields: {} });
+    records.close();
+
+    expect(fs.readFileSync(dbFile()).equals(before)).toBe(true);
+    expect(fs.readdirSync(root).sort()).toEqual(["logs", "records.sqlite3"]);
+    const [notice, log] = fallbackLines();
+    expect(notice).toMatchObject({ message: "records database unavailable", err: { name: "NewerFormatError" } });
+    expect(log).toMatchObject({ message: "still recorded" });
+  });
+});
+
 describe("writeFallbackRecord", () => {
   it("writes the record to this session's text file", () => {
     writeFallbackRecord(logsDir(), sessionStart, { time: "2026-10-02T03:15:43.000Z", level: "error", message: "startup failed" }, "error");

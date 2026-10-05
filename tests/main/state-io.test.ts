@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStateCoordinator, loadState, saveState } from "@main/state-io";
 import { closeBackupStore } from "@main/backup-store";
 import { defaultUiState } from "@shared/validation/state";
+import type { AppLogger } from "@main/logger";
 
 // Real filesystem (a temp dir) so loadState's read → parse → (materialize?) path is exercised end
 // to end. state.json is volatile UI state: it must NOT be created on a first run, only once there
@@ -39,28 +40,61 @@ afterEach(async () => {
 
 describe("loadState", () => {
   it("returns defaults on first run WITHOUT creating state.json", async () => {
-    const state = await loadState(statePath());
+    const loaded = await loadState(statePath());
 
-    expect(state).toEqual(defaultUiState());
+    expect(loaded).toEqual({ state: defaultUiState(), writable: true });
     // The volatile state file is not materialized on first run.
     await expect(fs.access(statePath())).rejects.toThrow();
     // No state.json, and no store file either — loadState performs no managed save, so nothing records.
     expect(withoutStoreFiles(await fs.readdir(dir))).toEqual([]);
   });
 
-  it("reads back state once it has actually been written", async () => {
-    await saveState(statePath(), defaultUiState());
-    expect(await loadState(statePath())).toEqual(defaultUiState());
+  it("reads back state once it has actually been written, with its format version", async () => {
+    const saved = { ...defaultUiState(), showHistogram: true };
+    await saveState(statePath(), saved);
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: true });
+    expect(await loadState(statePath())).toEqual({ state: saved, writable: true });
+  });
+
+  it("reads a file with no format version as version 1", async () => {
+    await fs.writeFile(statePath(), JSON.stringify({ showHistogram: true }), "utf8");
+    expect(await loadState(statePath())).toEqual({ state: { ...defaultUiState(), showHistogram: true }, writable: true });
+  });
+
+  it("uses defaults for a newer file, never writes it, and leaves it byte-identical", async () => {
+    const text = `${JSON.stringify({ formatVersion: 2, showHistogram: true, futureField: [1] })}\n`;
+    await fs.writeFile(statePath(), text, "utf8");
+    const warn = vi.fn();
+
+    const loaded = await loadState(statePath(), { warn } as unknown as AppLogger);
+    expect(loaded).toEqual({ state: defaultUiState(), writable: false });
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/newer/), expect.objectContaining({ statePath: statePath(), formatVersion: 2 }));
+
+    const writer = vi.fn(async () => undefined);
+    const coordinator = createStateCoordinator(statePath(), loaded, writer);
+    await coordinator.update({ showHistogram: true });
+    await coordinator.flush();
+    expect(writer).not.toHaveBeenCalled();
+    expect(loaded.state.showHistogram).toBe(true);
+    expect(await fs.readFile(statePath(), "utf8")).toBe(text);
+    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual(["state.json"]);
   });
 
   it("replaces unreadable disposable state with defaults", async () => {
     await fs.writeFile(statePath(), "{ not valid json", "utf8");
 
-    const state = await loadState(statePath());
+    const loaded = await loadState(statePath());
 
-    expect(state).toEqual(defaultUiState());
+    expect(loaded).toEqual({ state: defaultUiState(), writable: true });
     const files = withoutStoreFiles(await fs.readdir(dir));
     expect(files).toEqual(["state.json"]);
+  });
+
+  it("treats a format version that is not a positive integer as unreadable", async () => {
+    await fs.writeFile(statePath(), JSON.stringify({ formatVersion: "2", showHistogram: true }), "utf8");
+
+    expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: false });
   });
 });
 
@@ -84,7 +118,7 @@ describe("createStateCoordinator", () => {
       writes.push(structuredClone(next));
       if (writes.length === 1) await firstBlocked;
     });
-    const coordinator = createStateCoordinator(statePath(), state, writer);
+    const coordinator = createStateCoordinator(statePath(), { state, writable: true }, writer);
 
     const first = coordinator.update({ showHistogram: true });
     const second = coordinator.update({ histogramPosition: { x: 30, y: 40 } });
@@ -104,7 +138,7 @@ describe("createStateCoordinator", () => {
     const writer = vi.fn()
       .mockRejectedValueOnce(new Error("disk full"))
       .mockResolvedValueOnce(undefined);
-    const coordinator = createStateCoordinator(statePath(), state, writer);
+    const coordinator = createStateCoordinator(statePath(), { state, writable: true }, writer);
 
     await expect(coordinator.update({ showHistogram: true })).rejects.toThrow("disk full");
     await coordinator.update({ histogramPosition: { x: 5, y: 6 } });

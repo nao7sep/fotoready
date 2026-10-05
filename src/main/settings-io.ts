@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
+import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
@@ -25,24 +26,25 @@ export type SettingsLoadResult = {
   quarantinedTo: string | null;
 };
 
-// Classify read/parse failures first; quarantine outside the catch so its failure propagates.
+// Classify read/parse failures first; quarantine outside the catch so its failure propagates. A file
+// a newer build wrote halts startup and is left exactly as it is (store-recovery-conventions).
 async function readSettingsMap(settingsPath: string, logger?: AppLogger): Promise<{
   sets: Record<string, unknown>;
   quarantinedTo: string | null;
 }> {
-  let failure: unknown;
+  let read: VersionedJsonRead;
   try {
-    const parsed: unknown = JSON.parse(await fs.readFile(settingsPath, "utf8"));
-    if (!isRecord(parsed)) throw new Error("settings must be a JSON object.");
-    return { sets: parsed, quarantinedTo: null };
+    read = parseVersionedJson(await fs.readFile(settingsPath, "utf8"), FORMAT_VERSIONS.config);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { sets: {}, quarantinedTo: null };
-    failure = error;
+    read = { kind: "invalid", error };
   }
+  if (read.kind === "current") return { sets: read.body, quarantinedTo: null };
+  if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FORMAT_VERSIONS.config);
   const quarantinedTo = path.join(path.dirname(settingsPath), `${path.parse(settingsPath).name}-${utcStamp()}.invalid`);
   // not recorded: preserve the unreadable bytes; no replacement config is seeded.
   await fs.rename(settingsPath, quarantinedTo);
-  logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, quarantinedTo, err: failure });
+  logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, quarantinedTo, err: read.error });
   return { sets: {}, quarantinedTo };
 }
 
@@ -52,6 +54,7 @@ function effectiveSettings(sets: Record<string, unknown>, logger?: AppLogger): G
   return settings;
 }
 
+/** Throws {@link NewerFormatError} when a newer build wrote the file. */
 export async function loadSettings(settingsPath: string, logger?: AppLogger): Promise<SettingsLoadResult> {
   const { sets, quarantinedTo } = await readSettingsMap(settingsPath, logger);
   return { settings: effectiveSettings(sets, logger), quarantinedTo };
@@ -107,6 +110,6 @@ export async function saveSettings(
     .filter((key) => !equalsBuiltIn(key, effective[key], builtIns[key]))
     .map((key) => [key, effective[key]]));
   // recorded: durable config sets use the managed atomic write and backup history.
-  await writeManagedFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`);
+  await writeManagedFile(settingsPath, versionedJson(FORMAT_VERSIONS.config, next));
   return effective;
 }

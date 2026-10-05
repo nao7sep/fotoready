@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { utcStamp } from "@shared/time";
+import { FORMAT_VERSIONS } from "@shared/format-versions";
 import type { LogLevel } from "@shared/types/log";
 import { jsonSafe } from "./json-safe";
+import { claimSqliteFormatVersion } from "./sqlite-format-version";
 
 // The app's records database (data-lifecycle-conventions, Records; logging-conventions). The main
 // process is its only writer; the renderer forwards its entries over IPC. Every row carries its
@@ -147,6 +149,8 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const opened = new DatabaseSync(file);
     try {
+      // First, so a database a newer build wrote is left exactly as it is and records go to the text file.
+      claimSqliteFormatVersion(opened, FORMAT_VERSIONS.records, file);
       opened.exec("PRAGMA journal_mode = WAL");
       opened.exec("PRAGMA synchronous = NORMAL");
       opened.exec(SCHEMA);

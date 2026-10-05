@@ -30,7 +30,9 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DATA_DIR_NAME } from "@shared/constants";
+import { FORMAT_VERSIONS } from "@shared/format-versions";
 import type { Logger } from "@shared/types/log";
+import { claimSqliteFormatVersion } from "./sqlite-format-version";
 import { resolveStorageRoot } from "./storage-root";
 
 /** The store file under the resolved storage root. Computed lazily (not frozen into a module constant at
@@ -99,11 +101,18 @@ function ensureOpen(): DatabaseSync | null {
     // first thing written on a fresh root.
     mkdirSync(path.dirname(file), { recursive: true });
     const opened = new DatabaseSync(file);
-    opened.exec("PRAGMA journal_mode = WAL");
-    // busy_timeout: under the tolerated two-instance case, a contended write waits up to this long for
-    // SQLite's write lock instead of immediately failing with SQLITE_BUSY and dropping that record.
-    opened.exec("PRAGMA busy_timeout = 5000");
-    opened.exec(SCHEMA);
+    try {
+      // First, so a store a newer build wrote is left exactly as it is and recording stays off.
+      claimSqliteFormatVersion(opened, FORMAT_VERSIONS.backups, file);
+      opened.exec("PRAGMA journal_mode = WAL");
+      // busy_timeout: under the tolerated two-instance case, a contended write waits up to this long for
+      // SQLite's write lock instead of immediately failing with SQLITE_BUSY and dropping that record.
+      opened.exec("PRAGMA busy_timeout = 5000");
+      opened.exec(SCHEMA);
+    } catch (error) {
+      opened.close();
+      throw error;
+    }
     db = opened;
   } catch (err) {
     logger.warn("backup store: could not open; recording disabled for this session", {

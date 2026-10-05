@@ -187,6 +187,7 @@
   "importReason.unsupported": "Use JPEG, PNG, WebP, AVIF, TIFF, or a FotoReady task sidecar (JSON).",
   "importReason.sidecarUnreadable": "FotoReady could not read this task sidecar. Check that it still exists and is accessible.",
   "importReason.sidecarInvalid": "This JSON file is not a valid FotoReady task sidecar.",
+  "importReason.sidecarNewer": "This task sidecar was saved by a newer version of FotoReady, so this version cannot read it. It was left as it is.",
   "importReason.imageUnreadable": "FotoReady could not read this image. Check that it still exists and is accessible.",
   "importReason.imageInvalid": "This file could not be opened as a supported image.",
   "importReason.duplicate": "This original is already in the project.",
@@ -696,6 +697,9 @@
   "startup.failedTitle": "FotoReady could not start",
   "startup.failedMessage": "FotoReady could not finish opening its settings and workspace.",
   "startup.failedDetail": "No photos or project files were changed. Check the session log, then start FotoReady again.",
+  "startup.newerFileTitle": "A file is from a newer FotoReady",
+  "startup.newerFileMessage": "One of FotoReady’s files was saved by a newer version, so this version cannot read it. The file was left as it is.",
+  "startup.newerFileDetail": "Open the newer version of FotoReady, or move this file elsewhere to start this version without it: {path}",
 
   "visionError.missingApiKey": "Gemini API key is missing. Open Settings and save a key, then retry.",
   "visionError.safetyRefusal": "Gemini refused this image because of a safety or content policy restriction.",

@@ -8,6 +8,7 @@ vi.mock("electron", () => ({ app: { isPackaged: false }, systemPreferences: {} }
 import { applyLanguagePreference } from "@main/i18n";
 import {
   notifyCorruptSettings,
+  notifyNewerFormat,
   notifyStartupFailure,
   requireCorruptSettingsNotice,
 } from "@main/startup-dialog";
@@ -59,6 +60,17 @@ describe("startup recovery dialog", () => {
       detailsLabel: "Message details",
       lang: "en",
     });
+  });
+
+  it("names the file a newer FotoReady wrote, which was left as it is", async () => {
+    await notifyNewerFormat("/Users/someone/.fotoready/config.json");
+
+    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: "A file is from a newer FotoReady",
+      message: expect.stringContaining("left as it is"),
+      detail: expect.stringContaining("/Users/someone/.fotoready/config.json"),
+      lang: "en",
+    }));
   });
 
   it("speaks the interface language, in its words and its document language", async () => {

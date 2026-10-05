@@ -264,4 +264,37 @@ describe("ApiKeyStore", () => {
     await expect(store.resolve("gemini")).resolves.toBe("sk-a-real-key");
     expect(logger.warn).not.toHaveBeenCalled();
   });
+
+  describe("format version", () => {
+    it("reads a file with no format version as version 1", async () => {
+      fs.writeFileSync(filePath, `${JSON.stringify({ keys: { gemini: "stored-key" } })}\n`);
+      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
+    });
+
+    it("writes the current version first and reads it back", async () => {
+      const store = new ApiKeyStore(filePath);
+      await store.set("gemini", "stored-key");
+      const onDisk = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
+      expect(Object.keys(onDisk)).toEqual(["formatVersion", "keys"]);
+      expect(onDisk.formatVersion).toBe(1);
+      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
+    });
+
+    it("reads a newer file as no key, refuses to store over it, and leaves it byte-identical", async () => {
+      const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+      const text = `${JSON.stringify({ formatVersion: 2, keys: { gemini: "stored-key" } })}\n`;
+      fs.writeFileSync(filePath, text, { mode: 0o600 });
+      const store = new ApiKeyStore(filePath, logger);
+
+      await expect(store.resolve("gemini")).resolves.toBeNull();
+      await expect(store.has("gemini")).resolves.toBe(false);
+      await expect(store.set("gemini", "new-key")).rejects.toMatchObject({ name: "NewerFormatError", filePath, found: 2, supported: 1 });
+      await store.clear("gemini");
+
+      expect(fs.readFileSync(filePath, "utf8")).toBe(text);
+      expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
+      expect(logger.warn).toHaveBeenCalledOnce();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/newer/), expect.objectContaining({ apiKeysPath: filePath, formatVersion: 2 }));
+    });
+  });
 });

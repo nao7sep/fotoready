@@ -22,7 +22,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -267,6 +267,54 @@ describe("best-effort: a record failure never throws, logs one warn, and does no
     expect(logCalls.warn).toHaveLength(1);
     expect(logCalls.warn[0]!.message).toMatch(/could not open/i);
     expect(logCalls.error).toHaveLength(0);
+  });
+});
+
+/** A database at `file` recording `version` in `PRAGMA user_version`, with one table, closed again. */
+function databaseWithVersion(file: string, version: number): void {
+  const db = new DatabaseSync(file);
+  db.exec(`CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = ${version}`);
+  db.close();
+}
+
+function userVersion(file: string): number {
+  const db = new DatabaseSync(file);
+  try {
+    return (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
+  } finally {
+    db.close();
+  }
+}
+
+describe("format version", () => {
+  it("records version 1 in a new store", async () => {
+    const { record } = await import("@main/backup-store");
+    record(path.join(root, "config.json"), Buffer.from("a", "utf8"));
+    expect(userVersion(path.join(root, "backups.sqlite3"))).toBe(1);
+  });
+
+  it("reads a store with no recorded version as version 1, records 1, and keeps recording", async () => {
+    databaseWithVersion(path.join(root, "backups.sqlite3"), 0);
+    const { record } = await import("@main/backup-store");
+    record(path.join(root, "config.json"), Buffer.from("a", "utf8"));
+    expect(userVersion(path.join(root, "backups.sqlite3"))).toBe(1);
+    expect(readRows(root)).toHaveLength(1);
+  });
+
+  it("leaves a newer store byte-identical, warns once, and records nothing for the session", async () => {
+    const file = path.join(root, "backups.sqlite3");
+    databaseWithVersion(file, 2);
+    const before = readFileSync(file);
+
+    const { record, closeBackupStore } = await import("@main/backup-store");
+    record(path.join(root, "config.json"), Buffer.from("a", "utf8"));
+    record(path.join(root, "config.json"), Buffer.from("b", "utf8"));
+    closeBackupStore();
+
+    expect(readFileSync(file).equals(before)).toBe(true);
+    expect(readdirSync(root)).toEqual(["backups.sqlite3"]);
+    expect(logCalls.warn).toHaveLength(1);
+    expect(logCalls.warn[0]!.fields).toMatchObject({ err: expect.objectContaining({ name: "NewerFormatError" }) });
   });
 });
 

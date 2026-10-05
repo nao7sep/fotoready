@@ -20,7 +20,7 @@ const vision: VisionResult = {
 };
 
 describe("createTaskSidecar", () => {
-  it("produces a version-1 sidecar carrying the task fields", () => {
+  it("produces a sidecar carrying the task fields", () => {
     const sidecar = createTaskSidecar({
       original,
       generateDescription: true,
@@ -30,7 +30,6 @@ describe("createTaskSidecar", () => {
       vision
     });
 
-    expect(sidecar.version).toBe(1);
     expect(sidecar.original).toEqual(original);
     expect(sidecar.task.generateDescription).toBe(true);
     expect(sidecar.task.generateSlug).toBe(false);
@@ -88,10 +87,9 @@ describe("isTaskSidecar", () => {
     expect(isTaskSidecar(sidecar)).toBe(true);
   });
 
-  it("rejects wrong-version or shapeless values", () => {
+  it("rejects shapeless values", () => {
     expect(isTaskSidecar(null)).toBe(false);
     expect(isTaskSidecar({})).toBe(false);
-    expect(isTaskSidecar({ version: 2, original: {}, task: {} })).toBe(false);
-    expect(isTaskSidecar({ version: 1, original: {} })).toBe(false);
+    expect(isTaskSidecar({ original: {} })).toBe(false);
   });
 });

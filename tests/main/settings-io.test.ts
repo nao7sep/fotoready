@@ -28,13 +28,54 @@ afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-const written = async () => JSON.parse(await fs.readFile(settingsPath(), "utf8"));
+/** The sets the file holds; every save records the format version first. */
+const written = async () => {
+  const { formatVersion, ...sets } = JSON.parse(await fs.readFile(settingsPath(), "utf8")) as Record<string, unknown>;
+  expect(formatVersion).toBe(1);
+  return sets;
+};
 
 /** Saves as the app does: the draft is the effective settings with the user's changes. */
 async function save(changes: Record<string, unknown>, logger?: AppLogger): Promise<GlobalSettings> {
   const { settings: previous } = await loadSettings(settingsPath());
   return saveSettings(settingsPath(), { ...previous, ...changes }, previous, logger);
 }
+
+describe("the settings format version", () => {
+  it("reads a file with no format version as version 1", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ defaultWebpQuality: 71 }));
+    expect(await loadSettings(settingsPath())).toEqual({ settings: { ...defaults(), defaultWebpQuality: 71 }, quarantinedTo: null });
+  });
+
+  it("writes the current version first and reads it back", async () => {
+    await save({ defaultWebpQuality: 71 });
+    const text = await fs.readFile(settingsPath(), "utf8");
+    expect(text.startsWith('{\n  "formatVersion": 1,')).toBe(true);
+    expect((await loadSettings(settingsPath())).settings).toEqual({ ...defaults(), defaultWebpQuality: 71 });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
+  });
+
+  it("refuses a newer file, naming it, and leaves it byte-identical", async () => {
+    const text = `${JSON.stringify({ formatVersion: 2, defaultWebpQuality: 71 })}\n`;
+    await fs.writeFile(settingsPath(), text);
+
+    await expect(loadSettings(settingsPath())).rejects.toEqual(expect.objectContaining({
+      name: "NewerFormatError",
+      filePath: settingsPath(),
+      found: 2,
+      supported: 1
+    }));
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
+    expect(await fs.readdir(dir)).toEqual(["config.json"]);
+  });
+
+  it("quarantines a file whose format version is not a positive integer", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 0, defaultWebpQuality: 71 }));
+    const { settings, quarantinedTo } = await loadSettings(settingsPath());
+    expect(settings).toEqual(defaults());
+    expect(quarantinedTo).toMatch(/config-.*\.invalid$/);
+  });
+});
 
 describe("settings by set", () => {
   it("loads built-ins on first run without writing any file", async () => {
@@ -176,12 +217,12 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ confirmDeleteTasks: false });
   });
 
-  it("removes a set's key when it is saved back to its built-in, and keeps an empty file when no key remains", async () => {
+  it("removes a set's key when it is saved back to its built-in, and keeps a file with no set when no key remains", async () => {
     await save({ defaultWebpQuality: 71, confirmDeleteTasks: false });
     await save({ defaultWebpQuality: defaults().defaultWebpQuality });
     expect(await written()).toEqual({ confirmDeleteTasks: false });
     const effective = await save({ confirmDeleteTasks: true });
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe("{}\n");
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe('{\n  "formatVersion": 1\n}\n');
     expect(effective).toEqual(defaults());
   });
 

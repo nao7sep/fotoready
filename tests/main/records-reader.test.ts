@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRecordsReader, type RecordsReader } from "@main/records-reader";
 import { openRecordsStore, type RecordsStore } from "@main/records-store";
@@ -55,6 +56,16 @@ describe("createRecordsReader", () => {
 
     store().writeLog({ time: "2026-10-02T08:00:01.000Z", level: "info", message: "later", fields: {} });
     expect((await read.read({ op: "page", query: ALL })).records).toHaveLength(1);
+  });
+
+  it("refuses a database a newer build wrote, and leaves it byte-identical", async () => {
+    const db = new DatabaseSync(dbFile());
+    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = 2");
+    db.close();
+    const before = fs.readFileSync(dbFile());
+
+    await expect(reader().read({ op: "sources" })).rejects.toThrow(/NewerFormatError/);
+    expect(fs.readFileSync(dbFile()).equals(before)).toBe(true);
   });
 
   it("gives up on a read that does not answer in time", async () => {

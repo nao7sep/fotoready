@@ -1,6 +1,7 @@
 import { app } from "electron";
 import { bootstrap, recordStartupFailure } from "./bootstrap";
-import { notifyStartupFailure } from "./startup-dialog";
+import { notifyNewerFormat, notifyStartupFailure } from "./startup-dialog";
+import { NewerFormatError } from "@shared/format-versions";
 import { windowCloseQuits } from "./window-close";
 
 // One instance only: the project lives in memory per process, so a second instance has nothing to
@@ -14,7 +15,8 @@ if (!app.requestSingleInstanceLock()) {
   void bootstrap().catch(async (error: unknown) => {
     recordStartupFailure("startup failed", error);
     try {
-      await notifyStartupFailure();
+      // A store a newer build wrote halts startup with its own notice (store-recovery-conventions).
+      await (error instanceof NewerFormatError ? notifyNewerFormat(error.filePath) : notifyStartupFailure());
     } catch (dialogError) {
       recordStartupFailure("could not show the startup recovery dialog", dialogError);
     } finally {

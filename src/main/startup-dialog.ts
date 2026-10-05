@@ -2,15 +2,16 @@ import { showPlainMessageDialog } from "./plain-message-dialog";
 import { mainTranslator } from "./i18n";
 import type { Logger } from "@shared/types/log";
 import type { MessageKey } from "@shared/i18n/catalogues";
+import type { MessageValues } from "@shared/i18n/translate";
 
-// Both notices speak the interface language: the corrupt-settings notice shows after the settings
+// Every notice speaks the interface language: the corrupt-settings notice shows after the settings
 // were read, and a startup failure before then speaks the computer's language (System).
-async function showNotice(title: MessageKey, message: MessageKey, detail: MessageKey): Promise<void> {
+async function showNotice(title: MessageKey, message: MessageKey, detail: MessageKey, detailValues?: MessageValues): Promise<void> {
   const { language, t } = mainTranslator();
   await showPlainMessageDialog({
     title: t(title),
     message: t(message),
-    detail: t(detail),
+    detail: t(detail, detailValues),
     closeLabel: t("common.ok"),
     detailsLabel: t("dialog.messageDetails"),
     lang: language,
@@ -40,4 +41,9 @@ export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">
 
 export async function notifyStartupFailure(): Promise<void> {
   await showNotice("startup.failedTitle", "startup.failedMessage", "startup.failedDetail");
+}
+
+/** The halt for a store a newer FotoReady wrote: it names the file, which is left as it is. */
+export async function notifyNewerFormat(filePath: string): Promise<void> {
+  await showNotice("startup.newerFileTitle", "startup.newerFileMessage", "startup.newerFileDetail", { path: filePath });
 }

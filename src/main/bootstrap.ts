@@ -130,8 +130,9 @@ export async function bootstrap(): Promise<void> {
   setLanguageFailureReporter((message, error) => logger.warn(message, { mod: "main.i18n", err: error }));
   await applyLanguagePreference(settings.language);
   installApplicationMenu(mainTranslator());
-  const uiState = await loadState(paths.statePath, logger);
-  const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
+  const loadedState = await loadState(paths.statePath, logger);
+  const uiState = loadedState.state;
+  const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   if (settingsQuarantinedTo) {
     await requireCorruptSettingsNotice(logger);
   }

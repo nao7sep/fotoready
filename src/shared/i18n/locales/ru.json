@@ -187,6 +187,7 @@
   "importReason.unsupported": "Используйте JPEG, PNG, WebP, AVIF, TIFF или файл задачи FotoReady (JSON).",
   "importReason.sidecarUnreadable": "FotoReady не удалось прочитать этот файл задачи. Проверьте, что он существует и доступен.",
   "importReason.sidecarInvalid": "Этот файл JSON не является правильным файлом задачи FotoReady.",
+  "importReason.sidecarNewer": "Этот файл задачи сохранён более новой версией FotoReady, поэтому эта версия не может его прочитать. Файл оставлен без изменений.",
   "importReason.imageUnreadable": "FotoReady не удалось прочитать это изображение. Проверьте, что оно существует и доступно.",
   "importReason.imageInvalid": "Этот файл не удалось открыть как поддерживаемое изображение.",
   "importReason.duplicate": "Этот оригинал уже есть в проекте.",
@@ -696,6 +697,9 @@
   "startup.failedTitle": "Не удалось запустить FotoReady",
   "startup.failedMessage": "FotoReady не удалось до конца открыть настройки и рабочее пространство.",
   "startup.failedDetail": "Фотографии и файлы проектов не изменены. Проверьте журнал сеанса и снова запустите FotoReady.",
+  "startup.newerFileTitle": "Файл сохранён более новой версией FotoReady",
+  "startup.newerFileMessage": "Один из файлов FotoReady сохранён более новой версией, поэтому эта версия не может его прочитать. Файл оставлен без изменений.",
+  "startup.newerFileDetail": "Откройте более новую версию FotoReady или переместите этот файл в другое место, чтобы запустить эту версию без него: {path}",
 
   "visionError.missingApiKey": "Нет ключа API Gemini. Откройте настройки, сохраните ключ и повторите попытку.",
   "visionError.safetyRefusal": "Gemini отказался обрабатывать это изображение из-за ограничений безопасности или политики содержимого.",

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { utcStamp } from "@shared/time";
+import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson } from "@shared/format-versions";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { Logger } from "@shared/types/log";
 
@@ -28,6 +29,8 @@ import type { Logger } from "@shared/types/log";
  *   - On read: a group/world-readable file is warned about once and tightened to
  *     0600 (POSIX only); a corrupt/unreadable file is moved aside to a timestamped
  *     neighbour, warned, and treated as empty rather than throwing.
+ *   - A file a newer build wrote (store-recovery-conventions) reads as empty, is
+ *     warned about once, and is left exactly as it is: storing a key over it throws.
  */
 
 const MARKER = "obf:";
@@ -38,6 +41,11 @@ const KEY_ID_RE = /^[a-z0-9]+(\.[a-z0-9]+)*$/;
 
 interface ApiKeysFile {
   keys: Record<string, string>;
+}
+
+/** What a read found: the usable keys, and the error a write must throw when a newer build owns the file. */
+interface StoredKeys extends ApiKeysFile {
+  newer: NewerFormatError | null;
 }
 
 function assertKeyId(id: string): void {
@@ -99,6 +107,7 @@ export class ApiKeyStore {
   #modeInspectionWarned = false;
   #modeRepairWarned = false;
   #modeWarned = false;
+  #newerWarned = false;
 
   constructor(
     private readonly filePath: string,
@@ -147,6 +156,7 @@ export class ApiKeyStore {
     const trimmed = value.trim();
     return this.serialize(async () => {
       const all = await this.readFile();
+      if (all.newer) throw all.newer;
       if (trimmed.length === 0) delete all.keys[id];
       else all.keys[id] = encodeApiKey(trimmed);
       await this.write(all);
@@ -177,7 +187,7 @@ export class ApiKeyStore {
     // sensitive-at-rest in its entirety. Keeping secrets out is what keeps backups.sqlite3 no more sensitive
     // than ordinary user text; the 0600 mode below is where this file's protection lives (data-backup
     // conventions: "Secrets are never recorded").
-    await atomicWriteFile(this.filePath, `${JSON.stringify(data, null, 2)}\n`, { mode: SECRETS_FILE_MODE });
+    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -225,13 +235,13 @@ export class ApiKeyStore {
     }
   }
 
-  private async readFile(): Promise<ApiKeysFile> {
+  private async readFile(): Promise<StoredKeys> {
     await this.warnIfInsecureMode();
     let text: string;
     try {
       text = await fs.readFile(this.filePath, "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { keys: {} };
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { keys: {}, newer: null };
       const movedTo = await this.moveAsideInvalid();
       this.logger?.warn("api key file was unreadable; set aside and treating as empty", {
         mod: "api-keys",
@@ -239,30 +249,30 @@ export class ApiKeyStore {
         movedTo,
         err: error,
       });
-      return { keys: {} };
+      return { keys: {}, newer: null };
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (error) {
-      const movedTo = await this.moveAsideInvalid();
-      this.logger?.warn("api key file was not valid JSON; set aside and treating as empty", {
-        mod: "api-keys",
-        apiKeysPath: this.filePath,
-        movedTo,
-        err: error,
-      });
-      return { keys: {} };
+    const read = parseVersionedJson(text, FORMAT_VERSIONS.apiKeys);
+    if (read.kind === "newer") {
+      if (!this.#newerWarned) {
+        this.#newerWarned = true;
+        this.logger?.warn("api key file was written by a newer FotoReady; treating as empty and leaving it as it is", {
+          mod: "api-keys",
+          apiKeysPath: this.filePath,
+          formatVersion: read.found,
+        });
+      }
+      return { keys: {}, newer: new NewerFormatError(this.filePath, read.found, FORMAT_VERSIONS.apiKeys) };
     }
-    const normalized = normalize(parsed);
-    if (normalized) return normalized;
+    const normalized = read.kind === "current" ? normalize(read.body) : null;
+    if (normalized) return { ...normalized, newer: null };
     const movedTo = await this.moveAsideInvalid();
-    this.logger?.warn("api key file had an unexpected shape; set aside and treating as empty", {
+    this.logger?.warn("api key file was not valid JSON or had an unexpected shape; set aside and treating as empty", {
       mod: "api-keys",
       apiKeysPath: this.filePath,
       movedTo,
+      ...(read.kind === "invalid" ? { err: read.error } : {}),
     });
-    return { keys: {} };
+    return { keys: {}, newer: null };
   }
 
   // Move the unreadable file aside to a timestamped neighbour (handled once, not

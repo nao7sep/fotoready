@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { createTaskSidecar, isTaskSidecar, type TaskSidecar } from "@shared/task-sidecar";
+import { FORMAT_VERSIONS, parseVersionedJson, versionedJson } from "@shared/format-versions";
 import type { Original, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
@@ -46,7 +47,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
   // a path to reopen the task, but the output file itself is not managed internal state). It rides into
   // exclusion with the images it describes (data-backup conventions: "Anything colocated in a
   // binary-bearing directory"), so no `afterWrite` hook is supplied.
-  await atomicWriteFile(sidecarPath, `${JSON.stringify(payload, null, 2)}\n`);
+  await atomicWriteFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, payload));
   return sidecarPath;
 }
 
@@ -73,21 +74,24 @@ export async function loadTaskSidecars(
       continue;
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(source);
-    } catch (error) {
-      logger?.warn("task sidecar JSON was invalid", { mod: "main.task-sidecar", filePath, err: error });
+    const read = parseVersionedJson(source, FORMAT_VERSIONS.taskSidecar);
+    if (read.kind === "newer") {
+      // Left exactly as it is, so the newer FotoReady that wrote it can still read it.
+      logger?.warn("task sidecar was written by a newer FotoReady", { mod: "main.task-sidecar", filePath, formatVersion: read.found });
       rejected.push({
         filePath,
-        kind: "invalid",
+        kind: "unsupported",
         severity: "warning",
-        reason: message("importReason.sidecarInvalid")
+        reason: message("importReason.sidecarNewer")
       });
       continue;
     }
-    if (!isTaskSidecar(parsed)) {
-      logger?.warn("task sidecar shape was invalid", { mod: "main.task-sidecar", filePath });
+    if (read.kind === "invalid" || !isTaskSidecar(read.body)) {
+      logger?.warn("task sidecar was not valid JSON of a sidecar's shape", {
+        mod: "main.task-sidecar",
+        filePath,
+        ...(read.kind === "invalid" ? { err: read.error } : {})
+      });
       rejected.push({
         filePath,
         kind: "invalid",
@@ -98,7 +102,7 @@ export async function loadTaskSidecars(
     }
     let sidecar: TaskSidecar;
     try {
-      sidecar = normalizeTaskSidecar(parsed);
+      sidecar = normalizeTaskSidecar(read.body);
     } catch (error) {
       logger?.warn("task sidecar values were invalid", { mod: "main.task-sidecar", filePath, err: error });
       rejected.push({
@@ -149,7 +153,6 @@ function normalizeTaskSidecar(sidecar: TaskSidecar): TaskSidecar {
     output: validateOutputSettings(sidecar.task.pipeline.output, "task.pipeline.output")
   };
   return {
-    version: 1,
     original: {
       fileName: String(sidecar.original.fileName),
       sourceHash: typeof sidecar.original.sourceHash === "string" && sidecar.original.sourceHash.trim() ? sidecar.original.sourceHash : undefined,

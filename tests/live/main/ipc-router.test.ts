@@ -95,8 +95,9 @@ async function startApp(home: string) {
   const logger = createLogger(records, { debug: false });
   setBackupLogger(logger);
   const { settings } = await loadSettings(paths.settingsPath, logger);
-  const uiState = await loadState(paths.statePath, logger);
-  const stateCoordinator = createStateCoordinator(paths.statePath, uiState);
+  const loadedState = await loadState(paths.statePath, logger);
+  const uiState = loadedState.state;
+  const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);

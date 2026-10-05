@@ -187,6 +187,7 @@
   "importReason.unsupported": "JPEG, PNG, WebP, AVIF, TIFF 또는 FotoReady 작업 사이드카 파일(JSON)을 사용하십시오.",
   "importReason.sidecarUnreadable": "FotoReady가 이 작업 사이드카 파일을 읽지 못했습니다. 파일이 아직 있고 접근할 수 있는지 확인하십시오.",
   "importReason.sidecarInvalid": "이 JSON 파일은 올바른 FotoReady 작업 사이드카 파일이 아닙니다.",
+  "importReason.sidecarNewer": "이 작업 사이드카 파일은 더 새로운 버전의 FotoReady에서 저장되어 이 버전에서는 읽을 수 없습니다. 파일은 그대로 두었습니다.",
   "importReason.imageUnreadable": "FotoReady가 이 이미지를 읽지 못했습니다. 파일이 아직 있고 접근할 수 있는지 확인하십시오.",
   "importReason.imageInvalid": "이 파일을 지원되는 이미지로 열 수 없습니다.",
   "importReason.duplicate": "이 원본은 이미 프로젝트에 있습니다.",
@@ -696,6 +697,9 @@
   "startup.failedTitle": "FotoReady를 시작하지 못했습니다",
   "startup.failedMessage": "FotoReady가 설정과 작업 공간을 끝까지 열지 못했습니다.",
   "startup.failedDetail": "사진이나 프로젝트 파일은 바뀌지 않았습니다. 세션 로그를 확인한 뒤 FotoReady를 다시 시작하십시오.",
+  "startup.newerFileTitle": "더 새로운 버전의 FotoReady에서 저장된 파일이 있습니다",
+  "startup.newerFileMessage": "FotoReady 파일 중 하나가 더 새로운 버전에서 저장되어 이 버전에서는 읽을 수 없습니다. 파일은 그대로 두었습니다.",
+  "startup.newerFileDetail": "더 새로운 버전의 FotoReady를 사용하거나, 이 파일을 다른 곳으로 옮겨 이 버전을 이 파일 없이 시작하십시오: {path}",
 
   "visionError.missingApiKey": "Gemini API 키가 없습니다. 설정을 열어 키를 저장한 뒤 다시 시도하십시오.",
   "visionError.safetyRefusal": "안전 또는 콘텐츠 정책 제한으로 Gemini가 이 이미지를 처리하지 않았습니다.",

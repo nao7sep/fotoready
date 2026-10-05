@@ -187,6 +187,7 @@
   "importReason.unsupported": "请使用 JPEG、PNG、WebP、AVIF、TIFF，或 FotoReady 任务附属文件（JSON）。",
   "importReason.sidecarUnreadable": "FotoReady 无法读取此任务附属文件。请确认它仍然存在且可以访问。",
   "importReason.sidecarInvalid": "此 JSON 文件不是有效的 FotoReady 任务附属文件。",
+  "importReason.sidecarNewer": "此任务附属文件由较新版本的 FotoReady 保存，因此此版本无法读取。该文件保持原样。",
   "importReason.imageUnreadable": "FotoReady 无法读取此图像。请确认它仍然存在且可以访问。",
   "importReason.imageInvalid": "无法将此文件作为受支持的图像打开。",
   "importReason.duplicate": "此原图已在项目中。",
@@ -696,6 +697,9 @@
   "startup.failedTitle": "FotoReady 无法启动",
   "startup.failedMessage": "FotoReady 无法完成打开设置和工作区。",
   "startup.failedDetail": "没有更改任何照片或项目文件。请查看会话日志，然后重新启动 FotoReady。",
+  "startup.newerFileTitle": "有文件来自较新版本的 FotoReady",
+  "startup.newerFileMessage": "FotoReady 的一个文件由较新版本保存，因此此版本无法读取。该文件保持原样。",
+  "startup.newerFileDetail": "请打开较新版本的 FotoReady，或将此文件移到别处，以便在没有它的情况下启动此版本：{path}",
 
   "visionError.missingApiKey": "缺少 Gemini API 密钥。请打开设置并保存密钥，然后重试。",
   "visionError.safetyRefusal": "由于安全或内容政策限制，Gemini 拒绝处理此图像。",

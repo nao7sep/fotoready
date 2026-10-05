@@ -1,8 +1,8 @@
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { VisionResult } from "./types/project";
 
+/** A task sidecar's contents; its file also records the format version (`FORMAT_VERSIONS.taskSidecar`). */
 export type TaskSidecar = {
-  version: 1;
   original: {
     fileName: string;
     sourceHash?: string;
@@ -29,7 +29,6 @@ export function createTaskSidecar(input: {
   vision: VisionResult | null;
 }): TaskSidecar {
   return {
-    version: 1,
     original: { ...input.original },
     task: {
       generateDescription: input.generateDescription,
@@ -44,8 +43,6 @@ export function createTaskSidecar(input: {
 export function isTaskSidecar(value: unknown): value is TaskSidecar {
   return typeof value === "object"
     && value !== null
-    && "version" in value
-    && (value as { version?: unknown }).version === 1
     && "original" in value
     && "task" in value;
 }

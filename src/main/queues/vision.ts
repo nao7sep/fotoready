@@ -104,7 +104,6 @@ export class VisionQueue {
     if (task.error?.stage === "vision") task.error = null;
     task.visionRunning = true;
     task.visionRunMode = mode;
-    task.updatedAt = nowIso();
 
     const existing = this.#pending.get(taskId);
     if (existing) {
@@ -156,7 +155,6 @@ export class VisionQueue {
       task.visionRunning = false;
       task.visionRunMode = null;
     }
-    task.updatedAt = nowIso();
   }
 
   #syncConcurrency(): void {
@@ -252,7 +250,6 @@ export class VisionQueue {
         return;
       }
       task.error = visionError(error, remaining);
-      task.updatedAt = nowIso();
       this.logger?.error("vision task failed", { mod: "vision", taskId: task.id, mode, err: error });
     }
   }

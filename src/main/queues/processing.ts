@@ -40,7 +40,6 @@ export async function processTask(
 
   task.status = "processing";
   task.error = null;
-  task.updatedAt = nowIso();
   await onUpdate?.();
 
   // The image is rendered and given its metadata under a temporary name in the output folder, and
@@ -86,7 +85,6 @@ export async function processTask(
       renamedAt: null
     };
     task.status = "saved";
-    task.updatedAt = nowIso();
     logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
     await onUpdate?.();
   } catch (error) {
@@ -106,7 +104,6 @@ export async function processTask(
     }
     task.status = "error";
     task.error = taskError(error);
-    task.updatedAt = nowIso();
     logger?.error("task processing failed", {
       mod: "processing",
       taskId: task.id,

@@ -317,7 +317,6 @@ export class ProjectSession {
       task.status = "not-saved";
       task.output = null;
       task.error = null;
-      task.updatedAt = nowIso();
     });
     return this.snapshot();
   }
@@ -332,7 +331,6 @@ export class ProjectSession {
     if (task.status === "error") {
       task.status = "not-saved";
     }
-    task.updatedAt = nowIso();
     return this.snapshot();
   }
 
@@ -351,7 +349,6 @@ export class ProjectSession {
     task.status = "not-saved";
     task.error = null;
     task.output = null;
-    task.updatedAt = nowIso();
     this.enqueueSave(taskId);
     return this.snapshot();
   }
@@ -366,7 +363,6 @@ export class ProjectSession {
     }
     task.status = "queued";
     task.error = null;
-    task.updatedAt = nowIso();
 
     void this.processingQueue.enqueueTask(this.#project, taskId).catch((error) => {
       this.logger?.error("failed to enqueue or process save task", { mod: "session", taskId, err: error });
@@ -391,7 +387,6 @@ export class ProjectSession {
     if (task.status === "queued") {
       this.processingQueue.cancelTask(taskId);
       task.status = "not-saved";
-      task.updatedAt = nowIso();
     }
     this.visionQueue.cancelTask(taskId);
     return this.snapshot();
@@ -403,7 +398,6 @@ export class ProjectSession {
     for (const task of this.#project.tasks) {
       if (task.status === "queued" || cancelledSet.has(task.id)) {
         task.status = "not-saved";
-        task.updatedAt = nowIso();
       }
     }
     this.visionQueue.cancelAll();

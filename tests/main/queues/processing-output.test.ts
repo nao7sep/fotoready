@@ -81,6 +81,22 @@ describe("processTask output publication", () => {
   });
 });
 
+describe("processTask status times", () => {
+  it("changes the task's status, not its modified time, whether the save succeeds or fails", async () => {
+    const saved = arrange();
+    const before = saved.task.updatedAt;
+    await processTask(saved.project, saved.task.id, defaultGlobalSettings(), undefined, writingPool());
+    expect(saved.task.status).toBe("saved");
+    expect(saved.task.updatedAt).toBe(before);
+
+    const failed = arrange();
+    mocks.applyMetadataToOutput.mockRejectedValueOnce(new Error("exiftool failed"));
+    await processTask(failed.project, failed.task.id, defaultGlobalSettings(), undefined, writingPool());
+    expect(failed.task.status).toBe("error");
+    expect(failed.task.updatedAt).toBe(before);
+  });
+});
+
 describe("ProcessingQueue shutdown", () => {
   it("aborts the running save, skips waiting ones, and resolves after the running one settles", async () => {
     const started: string[] = [];

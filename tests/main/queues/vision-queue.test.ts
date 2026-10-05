@@ -226,6 +226,24 @@ describe("VisionQueue result ownership", () => {
   });
 });
 
+describe("VisionQueue status times", () => {
+  it("leaves the task's modified time while a run starts, settles or fails", async () => {
+    const { session, task } = await arrange({
+      describeImage: async () => {
+        throw new Error("describe failed");
+      },
+      suggestSlugs: async () => []
+    });
+    const before = task.updatedAt;
+
+    await session.runVision(task.id, { mode: "description" });
+
+    expect(task.error).toMatchObject({ stage: "vision" });
+    expect(task.visionRunning).toBe(false);
+    expect(task.updatedAt).toBe(before);
+  });
+});
+
 describe("VisionQueue retry after a failed step", () => {
   it("retries only the slug when the description was already committed", async () => {
     const describeImage = vi.fn(async () => "A committed description");

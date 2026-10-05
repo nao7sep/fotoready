@@ -87,6 +87,7 @@ export type Task = {
   /** Flipped to true the first time the user mutates the task (op, slug, output, generation flags). Used to decide whether `selectOriginal` reuses the active task slot or spawns a new one. */
   everEdited: boolean;
   createdAt: string;
+  /** Modified time, per the content-lifecycle conventions. */
   updatedAt: string;
 };
 

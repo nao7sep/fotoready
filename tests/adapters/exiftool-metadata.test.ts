@@ -33,6 +33,48 @@ describe("metadataCopyArgs", () => {
   });
 });
 
+/** Runs `body` with the process's local time zone set to `zone`, then restores the zone the machine had. */
+function inZone<T>(zone: string, body: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = zone;
+  try {
+    return body();
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+}
+
+describe("metadataCopyArgs save time", () => {
+  // 2026-09-26 01:30 UTC: 07:00 in Kolkata (+05:30), 18:30 the day before in Los Angeles (-07:00, summer time).
+  const savedAt = new Date(Date.UTC(2026, 8, 26, 1, 30, 0));
+
+  it("stamps ModifyDate with its offset beside it and a fresh XMP MetadataDate", () => {
+    const args = inZone("Asia/Kolkata", () => metadataCopyArgs({ ...baseInput, savedAt, writeModifyDate: true }));
+
+    expect(args).toEqual(expect.arrayContaining([
+      "-ModifyDate=2026:09:26 07:00:00+05:30",
+      "-OffsetTime=+05:30",
+      "-XMP-xmp:MetadataDate=2026:09:26 07:00:00+05:30",
+      "-SubSecTime="
+    ]));
+    expect(args).not.toContain("-OffsetTime=");
+  });
+
+  it("writes a zone west of UTC with its sign", () => {
+    const args = inZone("America/Los_Angeles", () => metadataCopyArgs({ ...baseInput, savedAt, writeModifyDate: true }));
+
+    expect(args).toEqual(expect.arrayContaining(["-ModifyDate=2026:09:25 18:30:00-07:00", "-OffsetTime=-07:00"]));
+  });
+
+  it("clears every save-time tag a source carries when ModifyDate is off", () => {
+    const args = metadataCopyArgs({ ...baseInput, savedAt, writeModifyDate: false });
+
+    expect(args).toEqual(expect.arrayContaining(["-ModifyDate=", "-OffsetTime=", "-XMP-xmp:MetadataDate=", "-SubSecTime="]));
+    expect(args.some((arg) => /^-(ModifyDate|OffsetTime|XMP-xmp:MetadataDate)=./.test(arg))).toBe(false);
+  });
+});
+
 describe("applyMetadataToOutput with ExifTool", () => {
   let dir: string;
 
@@ -83,6 +125,33 @@ describe("applyMetadataToOutput with ExifTool", () => {
     const kept = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
     expect(kept["IFD0:Make"] ?? kept.Make).toBe("Canon");
     expect(Object.keys(kept).some((key) => key.endsWith("GPSLatitude"))).toBe(true);
+  });
+
+  it("dates the output by its save, in EXIF and XMP, rather than by the source's last edit", async () => {
+    const sourcePath = path.join(dir, "source.jpg");
+    const outputPath = path.join(dir, "output.tmp");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, {
+      ModifyDate: "2020:01:01 00:00:00",
+      SubSecTime: "12",
+      OffsetTime: "+01:00",
+      "XMP-xmp:ModifyDate": "2020:01:01 00:00:00+01:00",
+      "XMP-xmp:MetadataDate": "2020:01:01 00:00:00+01:00"
+    } as never, ["-overwrite_original"]);
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
+    const savedAt = new Date(Date.UTC(2026, 8, 26, 1, 30, 0));
+
+    const args = inZone("Asia/Kolkata", () => metadataCopyArgs({ ...baseInput, sourcePath, savedAt, writeModifyDate: true }));
+    await exiftool.write(outputPath, {} as never, args);
+
+    const tags = await exiftool.read(outputPath, ["-G1", "-a", "-time:all"]) as unknown as Record<string, unknown>;
+    // As written in the file, not as exiftool-vendored parses it.
+    const written = (key: string) => (tags[key] as { rawValue?: string } | undefined)?.rawValue ?? tags[key];
+    expect(written("IFD0:ModifyDate")).toBe("2026:09:26 07:00:00");
+    expect(written("ExifIFD:OffsetTime")).toBe("+05:30");
+    expect(written("XMP-xmp:ModifyDate")).toBe("2026:09:26 07:00:00+05:30");
+    expect(written("XMP-xmp:MetadataDate")).toBe("2026:09:26 07:00:00+05:30");
+    expect(Object.keys(tags).filter((key) => key.endsWith("SubSecTime"))).toEqual([]);
   });
 
   it("flags a capture time carried only in IPTC and XMP", async () => {

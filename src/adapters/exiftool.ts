@@ -124,7 +124,7 @@ export type ApplyMetadataInput = {
 /**
  * Sets the output file's metadata for a save. Default: copy all source metadata, clear
  * fields that are no longer accurate after re-encoding, and optionally stamp this app
- * as Software / set ModifyDate to the save time (both opt-out via settings).
+ * as Software / stamp the save time as ModifyDate, OffsetTime and XMP MetadataDate (both opt-out via settings).
  * When `stripActive`, additionally strip every group not in `keep`.
  * `injectFields` are written last and win over any same-named source values.
  */
@@ -162,11 +162,18 @@ export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | 
     // IPTC/XMP place name that also says where the photo was taken.
     if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"), ...GPS_TAGS.map(({ tag }) => clear(tag)));
   }
-  // Re-stamp or clear Software/ModifyDate. When off, clear explicitly so a source value doesn't leak through.
-  // The source's ModifyDate subseconds and time zone never describe the re-stamped value, so they always go.
+  // Re-stamp or clear Software and the save time; when off, clear explicitly so a source value doesn't leak
+  // through. The save time follows the content-lifecycle conventions (Files, a derived file is new). ExifTool
+  // writes the zone-qualified stamp to EXIF as wall-clock time, kept beside OffsetTime, and to XMP with its
+  // offset, a copied XMP ModifyDate included. The source's subseconds never describe the stamp, so they always go.
   args.push(writeSoftwareTag ? `-Software=${APP_SOFTWARE_TAG}` : clear("Software"));
-  args.push(writeModifyDate ? `-ModifyDate=${exifDate(savedAt)}` : clear("ModifyDate"));
-  args.push(clear("SubSecTime"), clear("OffsetTime"));
+  if (writeModifyDate) {
+    const stamp = `${exifDate(savedAt)}${utcOffset(savedAt)}`;
+    args.push(`-ModifyDate=${stamp}`, `-OffsetTime=${utcOffset(savedAt)}`, `-XMP-xmp:MetadataDate=${stamp}`);
+  } else {
+    args.push(clear("ModifyDate"), clear("OffsetTime"), clear("XMP-xmp:MetadataDate"));
+  }
+  args.push(clear("SubSecTime"));
   args.push("-overwrite_original");
   return args;
 }
@@ -293,6 +300,16 @@ function tagText(value: unknown): string | undefined {
 // EXIF. The save-time ModifyDate write is opt-in and labeled "local clock" in
 // Settings. Do not "fix" this to UTC — leave the local getters as-is.
 function exifDate(date: Date): string {
-  const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${date.getFullYear()}:${pad(date.getMonth() + 1)}:${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return `${date.getFullYear()}:${pad2(date.getMonth() + 1)}:${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+/** The local clock's offset from UTC at `date`, as EXIF's OffsetTime writes it: `+09:00`, `-05:30`. */
+function utcOffset(date: Date): string {
+  const minutes = -date.getTimezoneOffset();
+  const magnitude = Math.abs(minutes);
+  return `${minutes < 0 ? "-" : "+"}${pad2(Math.floor(magnitude / 60))}:${pad2(magnitude % 60)}`;
+}
+
+function pad2(value: number): string {
+  return value.toString().padStart(2, "0");
 }

@@ -121,6 +121,37 @@ describe("AppSettingsModal Gemini section", () => {
   });
 
   it.each([
+    ["a trailing space", "gemini-3.8-flash ", "gemini-3.5-flash-lite "],
+    ["a different case", "Gemini-3.8-FLASH", "GEMINI-3.5-Flash-Lite"]
+  ])("keeps a chosen Thinking and image resolution when the model edit adds %s to the same row", async (_case, description, slug) => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low", "gemini.thinking.slug": "high" };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    await typeInto(fieldOf("Description model").input, description);
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": description });
+    await typeInto(fieldOf("Slug model").input, slug);
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.slug": slug });
+  });
+
+  it("resets a chosen Thinking and image resolution to the new row's defaults when the model edit resolves to a different row", async () => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.thinking.description": "high", "gemini.mediaResolution.description": "low", "gemini.thinking.slug": "high" };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    await typeInto(fieldOf("Description model").input, " Gemini-3.5-Flash-Lite");
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": " Gemini-3.5-Flash-Lite", "gemini.thinking.description": "minimal", "gemini.mediaResolution.description": "high" });
+    await typeInto(fieldOf("Slug model").input, "gemini-3.8-flash");
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.slug": "gemini-3.8-flash", "gemini.thinking.slug": "medium" });
+  });
+
+  it("resets Thinking and image resolution when the model edit moves from an unlisted id to a listed one", async () => {
+    const setSettingsDraft = vi.fn();
+    const settings = { ...defaultGlobalSettings(), "gemini.description": "typed-unknown", "gemini.thinking.description": null, "gemini.mediaResolution.description": null };
+    await renderSettings({ initialTab: "vision", settings, setSettingsDraft });
+    await typeInto(fieldOf("Description model").input, "gemini-3.8-flash");
+    expect(setSettingsDraft).toHaveBeenLastCalledWith({ ...settings, "gemini.description": "gemini-3.8-flash", "gemini.thinking.description": "medium", "gemini.mediaResolution.description": "high" });
+  });
+
+  it.each([
     ["gemini-3.1-pro-preview", ["low", "medium", "high"], "medium"],
     ["gemini-3.8-flash", ["low", "medium", "high"], "medium"],
     ["gemini-3.5-flash-lite", ["minimal", "low", "medium", "high"], "minimal"]
@@ -336,6 +367,13 @@ async function clickButton(label: string): Promise<void> {
 function button(label: string): HTMLButtonElement | undefined {
   return [...document.querySelectorAll<HTMLButtonElement>("button")]
     .find((candidate) => candidate.textContent === label);
+}
+
+async function typeInto(input: HTMLInputElement, value: string): Promise<void> {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 
 function fieldOf(label: string): { input: HTMLInputElement; help: string; warning: string | null } {

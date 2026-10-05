@@ -447,6 +447,11 @@ function VisionTab({
                     value={settings[key]}
                     onChange={(event) => {
                       const model = event.currentTarget.value;
+                      // Thinking and image resolution reset only when the edit resolves to a different row, or between a row and none.
+                      if (supportedModel("gemini", model) === row) {
+                        setSettings({ ...settings, [key]: model });
+                        return;
+                      }
                       setSettings({
                         ...settings,
                         [key]: model,

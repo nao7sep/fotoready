@@ -39,6 +39,28 @@ describe("ProjectSession saved-task metadata persistence", () => {
     expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["spaces on an empty slug", null, "   "],
+    ["a case change", "pier", "PIER"]
+  ])("records no edit for a custom slug that normalizes to the stored one (%s)", async (_label, stored, typed) => {
+    for (const { session, task } of [savedSession(), notSavedSession()]) {
+      task.customSlug = stored;
+      task.everEdited = false;
+      const before = structuredClone(task);
+
+      await session.setCustomSlug(task.id, typed);
+
+      expect(session.snapshot().project.tasks[0]).toEqual(before);
+    }
+    // No undo step was recorded either: undoing leaves the not-saved task as it is.
+    const { session, task } = notSavedSession();
+    task.customSlug = stored;
+    await session.setCustomSlug(task.id, typed);
+    session.undoTaskEdit(task.id);
+    expect(session.snapshot().project.tasks[0]).toBe(task);
+    expect(mocks.writeTaskSidecarFile).not.toHaveBeenCalled();
+  });
+
   it("preserves not-saved metadata edits and their undo history", async () => {
     const { session, task } = notSavedSession();
 

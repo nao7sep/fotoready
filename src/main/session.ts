@@ -575,9 +575,12 @@ export class ProjectSession {
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
+    // An edit is judged after the cleanup that stores it (content-lifecycle conventions, Modified).
+    const nextSlug = normalizeOptionalSlug(customSlug);
+    if (nextSlug === task.customSlug) return this.snapshot();
     if (task.status === "not-saved") this.recordTaskEdit(task);
     await this.updateTaskMetadata(task, () => {
-      task.customSlug = normalizeOptionalSlug(customSlug);
+      task.customSlug = nextSlug;
       touchTaskMetadata(task);
     });
     return this.snapshot();

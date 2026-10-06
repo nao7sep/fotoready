@@ -692,7 +692,7 @@
   "dialog.messageDetails": "消息详细信息",
 
   "startup.corruptSettingsTitle": "无法读取设置",
-  "startup.corruptSettingsMessage": "你的 FotoReady 设置文件无法读取，已另存一份副本，不会丢失任何内容。",
+  "startup.corruptSettingsMessage": "你的 FotoReady 设置文件无法读取，已将其另行保存，不会丢失任何内容。",
   "startup.corruptSettingsDetail": "FotoReady 已将所有设置恢复为默认值并启动。你的项目和照片未受影响。无法读取的设置文件保存在：{path}",
   "startup.failedTitle": "FotoReady 无法启动",
   "startup.failedMessage": "FotoReady 无法完成打开设置和工作区。",

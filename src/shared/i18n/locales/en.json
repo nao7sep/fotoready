@@ -692,7 +692,7 @@
   "dialog.messageDetails": "Message details",
 
   "startup.corruptSettingsTitle": "Settings could not be read",
-  "startup.corruptSettingsMessage": "Your FotoReady settings file was unreadable and a copy has been set aside so nothing is lost.",
+  "startup.corruptSettingsMessage": "Your FotoReady settings file was unreadable and has been set aside so nothing is lost.",
   "startup.corruptSettingsDetail": "FotoReady has started with every setting at its default. Your projects and photos are untouched. The unreadable settings file was kept here: {path}",
   "startup.failedTitle": "FotoReady could not start",
   "startup.failedMessage": "FotoReady could not finish opening its settings and workspace.",

@@ -692,8 +692,8 @@
   "dialog.messageDetails": "メッセージの詳細",
 
   "startup.corruptSettingsTitle": "設定を読み込めませんでした",
-  "startup.corruptSettingsMessage": "FotoReady の設定ファイルが読み取れなかったため、何も失われないようにコピーを別に保管しました。",
-  "startup.corruptSettingsDetail": "すべての設定を既定値にして FotoReady を起動しました。プロジェクトと写真には手を加えていません。読み取れなかった設定ファイルはここに保管してあります：{path}",
+  "startup.corruptSettingsMessage": "FotoReady の設定ファイルが読み取れなかったため、何も失われないようにファイルを別に保管しました。",
+  "startup.corruptSettingsDetail": "すべての設定を既定値にして FotoReady を起動しました。プロジェクトと写真には手を加えていません。読み取れなかった設定ファイルは次の場所に保管してあります：{path}",
   "startup.failedTitle": "FotoReady を起動できませんでした",
   "startup.failedMessage": "FotoReady は設定とワークスペースを開き終えられませんでした。",
   "startup.failedDetail": "写真やプロジェクトのファイルは変更されていません。セッションログを確認してから、FotoReady をもう一度起動してください。",

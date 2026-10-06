@@ -692,7 +692,7 @@
   "dialog.messageDetails": "Подробности сообщения",
 
   "startup.corruptSettingsTitle": "Не удалось прочитать настройки",
-  "startup.corruptSettingsMessage": "Файл настроек FotoReady не читался, поэтому его копия отложена, чтобы ничего не потерять.",
+  "startup.corruptSettingsMessage": "Не удалось прочитать файл настроек FotoReady, поэтому он сохранён отдельно, чтобы ничего не потерялось.",
   "startup.corruptSettingsDetail": "FotoReady запущен со всеми настройками по умолчанию. Ваши проекты и фотографии не затронуты. Нечитаемый файл настроек сохранён здесь: {path}",
   "startup.failedTitle": "Не удалось запустить FotoReady",
   "startup.failedMessage": "FotoReady не удалось до конца открыть настройки и рабочее пространство.",

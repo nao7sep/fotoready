@@ -58,4 +58,27 @@ describe("atomicWriteFile", () => {
       process.umask(previousUmask);
     }
   });
+
+  it.runIf(isPosix)("keeps the replaced file's mode, but not its times", async () => {
+    await fsp.writeFile(filePath, "old");
+    await fsp.chmod(filePath, 0o640);
+    const past = new Date("2020-01-02T03:04:05.000Z");
+    await fsp.utimes(filePath, past, past);
+
+    await atomicWriteFile(filePath, "new", "utf8");
+
+    const stat = fs.statSync(filePath);
+    expect(stat.mode & 0o777).toBe(0o640);
+    expect(stat.mtime.getTime()).not.toBe(past.getTime());
+    expect(fs.readdirSync(tmpDir)).toEqual(["out.json"]);
+  });
+
+  it.runIf(isPosix)("applies an explicit mode over the replaced file's", async () => {
+    await fsp.writeFile(filePath, "old");
+    await fsp.chmod(filePath, 0o644);
+
+    await atomicWriteFile(filePath, "secret", { mode: 0o600 });
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
 });

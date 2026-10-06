@@ -40,10 +40,11 @@ export async function atomicWriteFile(
   try {
     const writeOptions = opts.mode !== undefined ? { mode: opts.mode } : undefined;
     await fs.writeFile(tmpPath, bytes, writeOptions);
-    // `writeFile`'s mode is masked by the umask, so set it explicitly on POSIX
-    // to guarantee a 0600 secrets file regardless of the inherited umask.
-    if (opts.mode !== undefined && process.platform !== "win32") {
-      await fs.chmod(tmpPath, opts.mode);
+    // A replace keeps the file's permissions (content-lifecycle conventions, Files); an explicit mode
+    // wins. `writeFile`'s mode is masked by the umask, so it is set explicitly on POSIX either way.
+    const mode = opts.mode ?? (await existingMode(filePath));
+    if (mode !== undefined && process.platform !== "win32") {
+      await fs.chmod(tmpPath, mode);
     }
     await fs.rename(tmpPath, filePath);
   } catch (error) {
@@ -54,4 +55,14 @@ export async function atomicWriteFile(
   // after-write hook (only the managed-text choke point supplies one). Recording before the rename would
   // risk a "backup of a save that never happened" (data-backup conventions).
   opts.afterWrite?.(bytes);
+}
+
+/** The permission bits of the file a write replaces, or undefined when there is none yet. */
+async function existingMode(filePath: string): Promise<number | undefined> {
+  try {
+    return (await fs.stat(filePath)).mode & 0o7777;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }

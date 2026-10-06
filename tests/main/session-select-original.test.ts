@@ -39,6 +39,19 @@ describe("ProjectSession.selectOriginal on an untouched task", () => {
     expect(switched.everEdited).toBe(false);
   });
 
+  it("keeps the task and its times when its own image is selected again", () => {
+    const { session, png } = arrange();
+    vi.setSystemTime(new Date("2026-10-05T01:00:00.000Z"));
+    session.selectOriginal(png.id);
+    const first = session.snapshot().project.tasks[0];
+
+    vi.setSystemTime(new Date("2026-10-05T02:00:00.000Z"));
+    const snapshot = session.selectOriginal(png.id);
+
+    expect(snapshot.project.tasks).toEqual([first]);
+    expect(snapshot.activeTaskId).toBe(first.id);
+  });
+
   it("drops undo steps that still describe the first image", async () => {
     const { session, png, jpeg } = arrange();
     session.selectOriginal(png.id);

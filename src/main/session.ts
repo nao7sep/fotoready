@@ -215,6 +215,8 @@ export class ProjectSession {
     const activeIndex = this.#project.tasks.findIndex((task) => task.id === this.#activeTaskId);
     const activeTask = activeIndex >= 0 ? this.#project.tasks[activeIndex] : null;
     if (activeTask && activeTask.status === "not-saved" && !activeTask.everEdited) {
+      // Selecting its own image again is no switch, so the task and its creation time stay.
+      if (activeTask.originalId === original.id) return this.snapshot();
       // An untouched task only holds the slot: it becomes a new task for this image, keeping its id and place.
       this.#project.tasks[activeIndex] = createTaskForOriginal(original, this.settings, activeTask.id);
       this.#taskUndoHistory.delete(activeTask.id);

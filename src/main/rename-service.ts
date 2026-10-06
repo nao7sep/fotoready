@@ -254,7 +254,11 @@ async function moveFile(from: string, to: string): Promise<void> {
   // <stem>-<nanoid>.tmp, alongside the destination (derived-filename grammar).
   const tempPath = path.join(path.dirname(to), `${path.parse(to).name}-${nanoid(8)}.tmp`);
   try {
+    // A copy keeps the source's modified time and mode (content-lifecycle conventions, Files).
+    const source = await fs.stat(from);
     await fs.copyFile(from, tempPath, fs.constants.COPYFILE_EXCL);
+    await fs.chmod(tempPath, source.mode & 0o7777);
+    await fs.utimes(tempPath, source.atime, source.mtime);
     await fs.rename(tempPath, to);
   } catch (innerError) {
     await fs.rm(tempPath, { force: true });

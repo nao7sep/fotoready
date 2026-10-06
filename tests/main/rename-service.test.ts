@@ -254,6 +254,34 @@ describe("runRename", () => {
     expect(task.output?.renamedAt).not.toBeNull();
   });
 
+  it("keeps the image's and sidecar's modified time and mode when the move crosses volumes", async () => {
+    const staged = await writeImage("staged-1.jpg");
+    const stagedSidecar = await writeSidecar(staged);
+    const modified = new Date("2024-03-04T05:06:07.000Z");
+    for (const file of [staged, stagedSidecar]) {
+      await fs.chmod(file, 0o640);
+      await fs.utimes(file, modified, modified);
+    }
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const project: Project = { outputDir: workDir, originals: [makeOriginal("o1", "DSC_0001.jpg")], tasks: [task] };
+    // A rename across volumes fails with EXDEV; only the copy's own temp may still be renamed.
+    const realRename = fs.rename;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (!String(from).endsWith(".tmp")) throw Object.assign(new Error("cross-device link"), { code: "EXDEV" });
+      return realRename(from as never, to as never);
+    });
+
+    await runRename(project, SLUG_ONLY);
+
+    for (const file of [path.join(workDir, "final.jpg"), path.join(workDir, "final.json")]) {
+      const stat = await fs.stat(file);
+      expect(stat.mtime.toISOString()).toBe(modified.toISOString());
+      if (process.platform !== "win32") expect(stat.mode & 0o777).toBe(0o640);
+    }
+    await expect(fs.access(staged)).rejects.toThrow();
+    expect((await fs.readdir(workDir)).sort()).toEqual(["final.jpg", "final.json"]);
+  });
+
   it("throws and renames nothing when any task is blocked", async () => {
     const staged = await writeImage("staged-1.jpg");
     const project: Project = {

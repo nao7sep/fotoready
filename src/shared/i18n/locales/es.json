@@ -160,6 +160,8 @@
   "failure.lutRefresh": "No se pudo actualizar la biblioteca de LUT. El selector sigue cerrado; restablece el acceso a la carpeta de LUT e inténtalo de nuevo.",
   "failure.stampRefresh": "No se pudo actualizar la biblioteca de stickers. El selector sigue cerrado; restablece el acceso a la carpeta de stickers e inténtalo de nuevo.",
   "failure.watermarkPick": "No se pudo elegir el archivo de marca de agua. La marca de agua actual no cambió; inténtalo de nuevo.",
+  "failure.withReason": "{failure}\n{reason}",
+  "failure.pathVariable": "Una ruta configurada hace referencia a la variable de entorno {variable}, que no está definida o está vacía. Define {variable} y reinicia FotoReady, o cambia la ruta.",
 
   "originals.title": "Originales",
   "originals.empty": "No hay originales. Agrega o suelta una imagen o un archivo auxiliar de tarea de FotoReady.",

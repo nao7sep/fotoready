@@ -1,11 +1,11 @@
 import path from "node:path";
 import { homedir } from "node:os";
+import { resolveConfiguredPath } from "./configured-path";
 import type { AssetImportResult, LutEntry } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import {
   compareAssetFileNames,
   deleteDirectoryAssets,
-  expandHomePath,
   importDirectoryAssets,
   isDirectoryAssetPath,
   listDirectoryAssets,
@@ -56,5 +56,5 @@ export async function deleteLuts(filePaths: readonly string[], lutFolder: string
 
 export function resolveLutDir(lutFolder: string, defaultLutDir: string): string {
   const trimmed = lutFolder.trim();
-  return trimmed.length > 0 ? expandHomePath(trimmed, homedir()) : defaultLutDir;
+  return trimmed.length > 0 ? resolveConfiguredPath(trimmed, homedir()) : defaultLutDir;
 }

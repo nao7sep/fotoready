@@ -160,6 +160,8 @@
   "failure.lutRefresh": "LUT ライブラリを更新できませんでした。選択画面は閉じたままです。LUT フォルダーにアクセスできる状態に戻して、もう一度お試しください。",
   "failure.stampRefresh": "スタンプライブラリを更新できませんでした。選択画面は閉じたままです。スタンプフォルダーにアクセスできる状態に戻して、もう一度お試しください。",
   "failure.watermarkPick": "透かしのファイルを選択できませんでした。現在の透かしは変わっていません。もう一度お試しください。",
+  "failure.withReason": "{failure}\n{reason}",
+  "failure.pathVariable": "設定したパスが環境変数 {variable} を参照していますが、この変数は設定されていないか空です。{variable} を設定して FotoReady を再起動するか、パスを変更してください。",
 
   "originals.title": "元画像",
   "originals.empty": "元画像がありません。画像か FotoReady のタスクのサイドカーファイルを追加するか、ドロップしてください。",

@@ -160,6 +160,8 @@
   "failure.lutRefresh": "Não foi possível atualizar a biblioteca de LUTs. O seletor continua fechado; restabeleça o acesso à pasta de LUTs e tente novamente.",
   "failure.stampRefresh": "Não foi possível atualizar a biblioteca de figurinhas. O seletor continua fechado; restabeleça o acesso à pasta de figurinhas e tente novamente.",
   "failure.watermarkPick": "Não foi possível escolher o arquivo de marca d’água. A marca d’água atual não mudou; tente novamente.",
+  "failure.withReason": "{failure}\n{reason}",
+  "failure.pathVariable": "Um caminho configurado faz referência à variável de ambiente {variable}, que não está definida ou está vazia. Defina {variable} e reinicie o FotoReady ou altere o caminho.",
 
   "originals.title": "Originais",
   "originals.empty": "Nenhum original. Adicione ou solte uma imagem ou um arquivo auxiliar de tarefa do FotoReady.",

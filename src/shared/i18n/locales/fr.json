@@ -160,6 +160,8 @@
   "failure.lutRefresh": "La bibliothèque de LUT n’a pas pu être actualisée. Le sélecteur reste fermé\u00a0; rétablissez l’accès au dossier des LUT et réessayez.",
   "failure.stampRefresh": "La bibliothèque de stickers n’a pas pu être actualisée. Le sélecteur reste fermé\u00a0; rétablissez l’accès au dossier des stickers et réessayez.",
   "failure.watermarkPick": "Le fichier de filigrane n’a pas pu être choisi. Le filigrane actuel est inchangé\u00a0; réessayez.",
+  "failure.withReason": "{failure}\n{reason}",
+  "failure.pathVariable": "Un chemin configuré fait référence à la variable d’environnement {variable}, qui n’est pas définie ou est vide. Définissez {variable} et redémarrez FotoReady, ou modifiez le chemin.",
 
   "originals.title": "Originaux",
   "originals.empty": "Aucun original. Ajoutez ou déposez une image ou un fichier annexe de tâche FotoReady.",

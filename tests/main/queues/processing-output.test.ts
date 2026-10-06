@@ -7,6 +7,7 @@ import type { Original, Project, Task } from "@shared/types/project";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { ProcessingQueue } from "@main/queues/processing-queue";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
+import { message } from "@shared/i18n/translate";
 
 const mocks = vi.hoisted(() => ({
   applyMetadataToOutput: vi.fn<(input: { outputPath: string }) => Promise<void>>()
@@ -182,5 +183,26 @@ describe("processTask sidecar failure", () => {
     expect(task.status).toBe("error");
     expect(task.output).toBeNull();
     expect((await fs.readdir(dir)).filter((name) => name.endsWith(".jpg") || name.endsWith(".tmp"))).toEqual([]);
+  });
+});
+
+describe("processTask with an output folder naming an unset variable", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("fails the save with a reason naming the variable, and writes nothing", async () => {
+    vi.stubEnv("FOTOREADY_OUTPUT_TEST_UNSET", undefined);
+    const { project, task } = arrange();
+    project.outputDir = path.join(dir, "$FOTOREADY_OUTPUT_TEST_UNSET");
+
+    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
+
+    expect(task.status).toBe("error");
+    expect(task.error?.message).toEqual(message("failure.withReason", {
+      failure: message("processingError.io"),
+      reason: message("failure.pathVariable", { variable: "FOTOREADY_OUTPUT_TEST_UNSET" })
+    }));
+    expect(await fs.readdir(dir)).toEqual([]);
   });
 });

@@ -15,6 +15,7 @@ import { resolveProjectOutputDir } from "@main/output-paths";
 import type { AppLogger } from "@main/logger";
 import { PipelineError, isRetryableCategory } from "@runtime/pipeline-error";
 import { message, type Message } from "@shared/i18n/translate";
+import { PathVariableError, pathVariableReason } from "@main/configured-path";
 
 export async function processTask(
   project: Project,
@@ -218,6 +219,9 @@ function taskError(error: unknown): TaskError {
 }
 
 function processingFailureMessage(error: unknown): Message {
+  if (error instanceof PathVariableError) {
+    return message("failure.withReason", { failure: message("processingError.io"), reason: pathVariableReason(error) });
+  }
   if (!(error instanceof PipelineError)) {
     return message("processingError.generic");
   }

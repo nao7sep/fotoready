@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { PathVariableError, resolveConfiguredPath } from "./configured-path";
 
 // Resolves the single storage root per the storage-path conventions. The root
 // is the FOTOREADY_DATA_DIR override when it is set and non-empty (its value is
@@ -16,40 +17,25 @@ import path from "node:path";
 const DATA_DIR_ENV_VAR = "FOTOREADY_DATA_DIR";
 
 /**
- * Expand a leading `~`/`~/` against the home directory and any `$VAR` / `%VAR%`
- * environment references. Used for the override value only; the default root is
- * built directly from `os.homedir()`.
- *
- * A reference to an environment variable that is not set is a hard startup
- * error, matching the fleet reference shape (mumbler/tapebox): a literal
- * `$VAR` kept in the path would be a silent misconfiguration — the app would
- * create a directory literally named `$VAR` — and the storage-path-conventions
- * require an override that does not resolve to a usable directory to be a
- * reported startup error, never a silent fallback of any shape. A variable set
- * to the empty string expands to "" (shell-like); if the whole value then
- * collapses to empty, the caller's empty-expansion check reports it.
+ * The override expanded and made absolute against the HOME directory through the
+ * shared configured-path resolver. A reference to an unset or empty variable is a
+ * hard startup error naming it: a literal `$VAR` kept in the path would create a
+ * directory literally named `$VAR`, and an empty one could collapse the root onto
+ * the bare home directory.
  */
-function expandHome(value: string, homeDir: string): string {
-  let expanded = value;
-  if (expanded === "~") {
-    expanded = homeDir;
-  } else if (expanded.startsWith("~/") || expanded.startsWith("~\\")) {
-    expanded = path.join(homeDir, expanded.slice(2));
+function expandOverride(value: string, homeDir: string): string {
+  try {
+    return path.resolve(resolveConfiguredPath(value, homeDir));
+  } catch (error) {
+    if (!(error instanceof PathVariableError)) throw error;
+    throw new Error(
+      `${DATA_DIR_ENV_VAR} is set to "${value}" but references the environment ` +
+        `variable "${error.variable}", which is not set or is empty. Set "${error.variable}", point ` +
+        `${DATA_DIR_ENV_VAR} at a usable directory, or unset it to use the ` +
+        `default storage root.`,
+      { cause: error }
+    );
   }
-  expanded = expanded.replace(/\$(\w+)|\$\{(\w+)\}|%(\w+)%/g, (_match, a, b, c) => {
-    const name = (a ?? b ?? c) as string;
-    const env = process.env[name];
-    if (env === undefined) {
-      throw new Error(
-        `${DATA_DIR_ENV_VAR} is set to "${value}" but references the environment ` +
-          `variable "${name}", which is not set. Set "${name}", point ` +
-          `${DATA_DIR_ENV_VAR} at a usable directory, or unset it to use the ` +
-          `default storage root.`
-      );
-    }
-    return env;
-  });
-  return expanded;
 }
 
 /**
@@ -71,20 +57,7 @@ export function resolveStorageRoot(
   let fromOverride = false;
   if (trimmed.length > 0) {
     fromOverride = true;
-    const expanded = expandHome(trimmed, homeDir);
-    // An override that is set but expands to nothing — a `$VAR`/`%VAR%`
-    // reference to a variable that is itself set to the empty string, say —
-    // must never silently collapse the root onto the bare home directory
-    // (path.resolve(homeDir, "") === homeDir). This is a reported startup
-    // error, never a silent fallback, per the storage-path-conventions.
-    if (expanded.trim().length === 0) {
-      throw new Error(
-        `${DATA_DIR_ENV_VAR} is set to "${override}" but expands to an empty path ` +
-          `(a $VAR/%VAR% reference set to an empty string?). Set it to a usable ` +
-          `directory, or unset it to use the default storage root.`
-      );
-    }
-    root = path.isAbsolute(expanded) ? path.resolve(expanded) : path.resolve(homeDir, expanded);
+    root = expandOverride(trimmed, homeDir);
   } else {
     root = path.join(homeDir, defaultDirName);
   }

@@ -82,11 +82,12 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
     expect(fs.existsSync(path.join(tmpHome, "$FOTOREADY_ROOT_TEST_UNSET"))).toBe(false);
   });
 
-  it("hard-errors when the override expands to an empty path (a $VAR set to the empty string), never collapsing onto bare HOME", () => {
+  it("hard-errors on a reference to a $VAR set to the empty string, naming it, never collapsing onto bare HOME", () => {
     process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_EMPTY";
     // Must throw rather than silently resolving to path.resolve(homeDir, "") === homeDir.
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/empty path/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_EMPTY/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/is empty/);
   });
 
   it.skipIf(process.platform === "win32")("creates a fresh root as owner-only (0700)", () => {

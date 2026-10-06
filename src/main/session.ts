@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { nanoid } from "nanoid";
 import { nowIso } from "@shared/time";
@@ -33,6 +34,7 @@ import type { AppLogger } from "@main/logger";
 import { isTaskBusyForRemoval } from "@main/task-removal";
 import { message } from "@shared/i18n/translate";
 import { mainTranslator } from "@main/i18n";
+import { resolveConfiguredPath } from "@main/configured-path";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -456,11 +458,15 @@ export class ProjectSession {
     if (!definition) {
       throw new Error(`Unknown op: ${opType}`);
     }
+    // Resolved before the edit is recorded, so a default naming an unset variable leaves the task unchanged.
+    const defaultWatermark = opType === "watermark-image" && this.settings.defaultWatermarkImage.trim()
+      ? resolveConfiguredPath(this.settings.defaultWatermarkImage.trim(), homedir())
+      : null;
     this.recordTaskEdit(task);
 
     const params = structuredClone(definition.defaultParams);
-    if (opType === "watermark-image" && typeof params.assetPath === "string" && !params.assetPath && this.settings.defaultWatermarkImage) {
-      params.assetPath = this.settings.defaultWatermarkImage;
+    if (defaultWatermark && typeof params.assetPath === "string" && !params.assetPath) {
+      params.assetPath = defaultWatermark;
     }
     // A new text watermark's placeholder words are interface text until the user replaces them.
     if (opType === "watermark-text" && typeof params.text === "string") {

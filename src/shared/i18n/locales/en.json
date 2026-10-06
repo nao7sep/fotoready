@@ -160,6 +160,8 @@
   "failure.lutRefresh": "The LUT library could not be refreshed. The chooser remains closed; restore access to the LUT folder and try again.",
   "failure.stampRefresh": "The stamp library could not be refreshed. The chooser remains closed; restore access to the stamp folder and try again.",
   "failure.watermarkPick": "The watermark file could not be chosen. The current watermark is unchanged; try again.",
+  "failure.withReason": "{failure}\n{reason}",
+  "failure.pathVariable": "A configured path refers to the environment variable {variable}, which is not set or is empty. Set {variable} and restart FotoReady, or change the path.",
 
   "originals.title": "Originals",
   "originals.empty": "No originals. Add or drop an image or FotoReady task sidecar.",

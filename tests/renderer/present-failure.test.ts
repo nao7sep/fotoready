@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { presentFailure } from "@renderer/present-failure";
 import { message } from "@shared/i18n/translate";
+import { ipcFailure } from "@shared/ipc-failure";
 
 afterEach(() => {
   delete (window as unknown as { api?: unknown }).api;
@@ -31,4 +32,17 @@ describe("presentFailure", () => {
     }));
   });
 
+});
+
+describe("presentFailure with a main-authored reason", () => {
+  it("puts the reason beneath the operation's own copy", () => {
+    Object.defineProperty(window, "api", { configurable: true, value: { system: { log: vi.fn().mockResolvedValue(undefined) } } });
+    const reason = message("failure.pathVariable", { variable: "PHOTOS" });
+    const authored = message("failure.lutRefresh");
+
+    expect(presentFailure(ipcFailure(reason), authored, "LUT library refresh failed")).toEqual(
+      message("failure.withReason", { failure: authored, reason })
+    );
+    expect(presentFailure(ipcFailure(reason), null, "LUT library refresh failed")).toBeNull();
+  });
 });

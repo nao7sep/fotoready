@@ -1,11 +1,11 @@
 import path from "node:path";
 import { homedir } from "node:os";
+import { resolveConfiguredPath } from "./configured-path";
 import type { AssetImportResult, StampEntry } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import {
   compareAssetFileNames,
   deleteDirectoryAssets,
-  expandHomePath,
   importDirectoryAssets,
   isDirectoryAssetPath,
   listDirectoryAssets,
@@ -72,5 +72,5 @@ export async function deleteStamps(filePaths: readonly string[], stampFolder: st
 
 export function resolveStampDir(stampFolder: string, defaultStampDir: string): string {
   const trimmed = stampFolder.trim();
-  return trimmed.length > 0 ? expandHomePath(trimmed, homedir()) : defaultStampDir;
+  return trimmed.length > 0 ? resolveConfiguredPath(trimmed, homedir()) : defaultStampDir;
 }

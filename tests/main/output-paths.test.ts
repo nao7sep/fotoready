@@ -1,5 +1,7 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import os from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PathVariableError } from "@main/configured-path";
 import { resolveProjectOutputDir } from "@main/output-paths";
 
 describe("resolveProjectOutputDir", () => {
@@ -23,5 +25,27 @@ describe("resolveProjectOutputDir", () => {
     const resolved = resolveProjectOutputDir("out/web", source);
     expect(resolved).toBe(path.resolve(path.dirname(source), "out/web"));
     expect(resolved).not.toBe(path.resolve(process.cwd(), "out/web"));
+  });
+
+  describe("with ~ and environment references", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    });
+
+    it("expands ~ against the home directory instead of nesting it under the source folder", () => {
+      vi.spyOn(os, "homedir").mockReturnValue("/fotoready-test-home");
+      expect(resolveProjectOutputDir("~/Pictures", source)).toBe(path.join("/fotoready-test-home", "Pictures"));
+    });
+
+    it("expands a variable, keeping the source folder as the base of a relative result", () => {
+      vi.stubEnv("FOTOREADY_OUTPUT_TEST", "exports");
+      expect(resolveProjectOutputDir("$FOTOREADY_OUTPUT_TEST/web", source)).toBe(path.resolve(path.dirname(source), "exports", "web"));
+    });
+
+    it("fails on an unset variable rather than creating a folder named after it", () => {
+      vi.stubEnv("FOTOREADY_OUTPUT_TEST_UNSET", undefined);
+      expect(() => resolveProjectOutputDir("%FOTOREADY_OUTPUT_TEST_UNSET%/web", source)).toThrow(PathVariableError);
+    });
   });
 });

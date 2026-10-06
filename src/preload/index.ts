@@ -3,10 +3,19 @@ import type { FotoReadyApi } from "@shared/types/ipc";
 import { WINDOW_ACTIVITY_CHANNEL } from "@shared/window-activity";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
 import { RECORDS_CHANGED_CHANNEL } from "@shared/records";
+import { isIpcFailure } from "@shared/ipc-failure";
+
+// Every request goes through here: a main-authored IpcFailure is rethrown as the
+// plain object itself, since contextBridge copies it intact but drops an Error's own fields.
+async function invoke(channel: string, ...args: unknown[]): Promise<any> {
+  const result = await ipcRenderer.invoke(channel, ...args);
+  if (isIpcFailure(result)) throw result;
+  return result;
+}
 
 const api: FotoReadyApi = {
   language: {
-    current: () => ipcRenderer.invoke("language.current"),
+    current: () => invoke("language.current"),
     onChanged: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, language: Parameters<typeof callback>[0]) => callback(language);
       ipcRenderer.on(LANGUAGE_CHANGED_CHANNEL, listener);
@@ -14,96 +23,96 @@ const api: FotoReadyApi = {
     }
   },
   system: {
-    getInfo: () => ipcRenderer.invoke("system.getInfo"),
+    getInfo: () => invoke("system.getInfo"),
     filePathForFile: (file) => webUtils.getPathForFile(file),
-    log: (entry) => ipcRenderer.invoke("system.log", entry),
-    openExternal: (url) => ipcRenderer.invoke("system.openExternal", url),
-    pickFile: (options) => ipcRenderer.invoke("system.pickFile", options),
-    pickFiles: (options) => ipcRenderer.invoke("system.pickFiles", options),
-    pickDirectory: (options) => ipcRenderer.invoke("system.pickDirectory", options),
-    revealInFolder: (filePath) => ipcRenderer.invoke("system.revealInFolder", filePath)
+    log: (entry) => invoke("system.log", entry),
+    openExternal: (url) => invoke("system.openExternal", url),
+    pickFile: (options) => invoke("system.pickFile", options),
+    pickFiles: (options) => invoke("system.pickFiles", options),
+    pickDirectory: (options) => invoke("system.pickDirectory", options),
+    revealInFolder: (filePath) => invoke("system.revealInFolder", filePath)
   },
   settings: {
-    get: () => ipcRenderer.invoke("settings.get"),
-    update: (settings) => ipcRenderer.invoke("settings.update", settings),
-    hasGeminiApiKey: () => ipcRenderer.invoke("settings.hasGeminiApiKey"),
-    setGeminiApiKey: (apiKey) => ipcRenderer.invoke("settings.setGeminiApiKey", apiKey),
-    clearGeminiApiKey: () => ipcRenderer.invoke("settings.clearGeminiApiKey")
+    get: () => invoke("settings.get"),
+    update: (settings) => invoke("settings.update", settings),
+    hasGeminiApiKey: () => invoke("settings.hasGeminiApiKey"),
+    setGeminiApiKey: (apiKey) => invoke("settings.setGeminiApiKey", apiKey),
+    clearGeminiApiKey: () => invoke("settings.clearGeminiApiKey")
   },
   state: {
-    get: () => ipcRenderer.invoke("state.get"),
-    update: (patch) => ipcRenderer.invoke("state.update", patch)
+    get: () => invoke("state.get"),
+    update: (patch) => invoke("state.update", patch)
   },
   project: {
-    current: () => ipcRenderer.invoke("project.current"),
-    setOutputDirFromDialog: () => ipcRenderer.invoke("project.setOutputDirFromDialog"),
-    clearOutputDir: () => ipcRenderer.invoke("project.clearOutputDir"),
-    addOriginals: (sourcePaths) => ipcRenderer.invoke("project.addOriginals", sourcePaths),
-    addOriginalsFromDialog: () => ipcRenderer.invoke("project.addOriginalsFromDialog"),
-    removeOriginal: (originalId) => ipcRenderer.invoke("project.removeOriginal", originalId),
-    selectOriginal: (originalId) => ipcRenderer.invoke("project.selectOriginal", originalId)
+    current: () => invoke("project.current"),
+    setOutputDirFromDialog: () => invoke("project.setOutputDirFromDialog"),
+    clearOutputDir: () => invoke("project.clearOutputDir"),
+    addOriginals: (sourcePaths) => invoke("project.addOriginals", sourcePaths),
+    addOriginalsFromDialog: () => invoke("project.addOriginalsFromDialog"),
+    removeOriginal: (originalId) => invoke("project.removeOriginal", originalId),
+    selectOriginal: (originalId) => invoke("project.selectOriginal", originalId)
   },
   task: {
-    select: (taskId) => ipcRenderer.invoke("task.select", taskId),
-    fork: (taskId) => ipcRenderer.invoke("task.fork", taskId),
-    delete: (taskId) => ipcRenderer.invoke("task.delete", taskId),
-    deleteSavedOutput: (taskId) => ipcRenderer.invoke("task.deleteSavedOutput", taskId),
-    dismissError: (taskId) => ipcRenderer.invoke("task.dismissError", taskId),
-    retry: (taskId) => ipcRenderer.invoke("task.retry", taskId),
-    save: (taskId) => ipcRenderer.invoke("task.save", taskId),
-    saveAll: () => ipcRenderer.invoke("task.saveAll"),
-    cancel: (taskId) => ipcRenderer.invoke("task.cancel", taskId),
-    cancelAll: () => ipcRenderer.invoke("task.cancelAll"),
-    addOp: (taskId, opType) => ipcRenderer.invoke("task.addOp", taskId, opType),
-    removeOp: (taskId, opId) => ipcRenderer.invoke("task.removeOp", taskId, opId),
-    moveOp: (taskId, opId, toIndex) => ipcRenderer.invoke("task.moveOp", taskId, opId, toIndex),
-    setOpEnabled: (taskId, opId, enabled) => ipcRenderer.invoke("task.setOpEnabled", taskId, opId, enabled),
-    updateOpParam: (taskId, opId, key, value, options) => ipcRenderer.invoke("task.updateOpParam", taskId, opId, key, value, options),
-    updateOpParams: (taskId, opId, patch, options) => ipcRenderer.invoke("task.updateOpParams", taskId, opId, patch, options),
-    undo: (taskId) => ipcRenderer.invoke("task.undo", taskId),
-    setGenerateDescription: (taskId, generateDescription) => ipcRenderer.invoke("task.setGenerateDescription", taskId, generateDescription),
-    setGenerateSlug: (taskId, generateSlug) => ipcRenderer.invoke("task.setGenerateSlug", taskId, generateSlug),
-    setCustomSlug: (taskId, customSlug) => ipcRenderer.invoke("task.setCustomSlug", taskId, customSlug),
-    clearVision: (taskId) => ipcRenderer.invoke("task.clearVision", taskId),
-    updateOutput: (taskId, key, value, options) => ipcRenderer.invoke("task.updateOutput", taskId, key, value, options)
+    select: (taskId) => invoke("task.select", taskId),
+    fork: (taskId) => invoke("task.fork", taskId),
+    delete: (taskId) => invoke("task.delete", taskId),
+    deleteSavedOutput: (taskId) => invoke("task.deleteSavedOutput", taskId),
+    dismissError: (taskId) => invoke("task.dismissError", taskId),
+    retry: (taskId) => invoke("task.retry", taskId),
+    save: (taskId) => invoke("task.save", taskId),
+    saveAll: () => invoke("task.saveAll"),
+    cancel: (taskId) => invoke("task.cancel", taskId),
+    cancelAll: () => invoke("task.cancelAll"),
+    addOp: (taskId, opType) => invoke("task.addOp", taskId, opType),
+    removeOp: (taskId, opId) => invoke("task.removeOp", taskId, opId),
+    moveOp: (taskId, opId, toIndex) => invoke("task.moveOp", taskId, opId, toIndex),
+    setOpEnabled: (taskId, opId, enabled) => invoke("task.setOpEnabled", taskId, opId, enabled),
+    updateOpParam: (taskId, opId, key, value, options) => invoke("task.updateOpParam", taskId, opId, key, value, options),
+    updateOpParams: (taskId, opId, patch, options) => invoke("task.updateOpParams", taskId, opId, patch, options),
+    undo: (taskId) => invoke("task.undo", taskId),
+    setGenerateDescription: (taskId, generateDescription) => invoke("task.setGenerateDescription", taskId, generateDescription),
+    setGenerateSlug: (taskId, generateSlug) => invoke("task.setGenerateSlug", taskId, generateSlug),
+    setCustomSlug: (taskId, customSlug) => invoke("task.setCustomSlug", taskId, customSlug),
+    clearVision: (taskId) => invoke("task.clearVision", taskId),
+    updateOutput: (taskId, key, value, options) => invoke("task.updateOutput", taskId, key, value, options)
   },
   ops: {
-    list: () => ipcRenderer.invoke("ops.list")
+    list: () => invoke("ops.list")
   },
   assets: {
-    aspectRatio: (assetPath) => ipcRenderer.invoke("assets.aspectRatio", assetPath),
-    thumbnail: (assetPath, longEdge) => ipcRenderer.invoke("assets.thumbnail", assetPath, longEdge)
+    aspectRatio: (assetPath) => invoke("assets.aspectRatio", assetPath),
+    thumbnail: (assetPath, longEdge) => invoke("assets.thumbnail", assetPath, longEdge)
   },
   preview: {
-    render: (taskId, options) => ipcRenderer.invoke("preview.render", taskId, options),
-    originalThumbnail: (originalId) => ipcRenderer.invoke("preview.originalThumbnail", originalId)
+    render: (taskId, options) => invoke("preview.render", taskId, options),
+    originalThumbnail: (originalId) => invoke("preview.originalThumbnail", originalId)
   },
   vision: {
-    runForTask: (taskId, options) => ipcRenderer.invoke("vision.runForTask", taskId, options)
+    runForTask: (taskId, options) => invoke("vision.runForTask", taskId, options)
   },
   rename: {
-    preview: (templateId, taskIds) => ipcRenderer.invoke("rename.preview", templateId, taskIds),
-    run: (templateId, taskIds) => ipcRenderer.invoke("rename.run", templateId, taskIds)
+    preview: (templateId, taskIds) => invoke("rename.preview", templateId, taskIds),
+    run: (templateId, taskIds) => invoke("rename.run", templateId, taskIds)
   },
   luts: {
-    list: () => ipcRenderer.invoke("luts.list"),
-    import: (filePaths) => ipcRenderer.invoke("luts.import", filePaths),
-    delete: (filePaths) => ipcRenderer.invoke("luts.delete", filePaths),
-    preview: (taskId, options, strength, previewLongEdge) => ipcRenderer.invoke("luts.preview", taskId, options, strength, previewLongEdge)
+    list: () => invoke("luts.list"),
+    import: (filePaths) => invoke("luts.import", filePaths),
+    delete: (filePaths) => invoke("luts.delete", filePaths),
+    preview: (taskId, options, strength, previewLongEdge) => invoke("luts.preview", taskId, options, strength, previewLongEdge)
   },
   stamps: {
-    list: () => ipcRenderer.invoke("stamps.list"),
-    import: (filePaths) => ipcRenderer.invoke("stamps.import", filePaths),
-    delete: (filePaths) => ipcRenderer.invoke("stamps.delete", filePaths)
+    list: () => invoke("stamps.list"),
+    import: (filePaths) => invoke("stamps.import", filePaths),
+    delete: (filePaths) => invoke("stamps.delete", filePaths)
   },
   queues: {
-    snapshot: () => ipcRenderer.invoke("queues.snapshot")
+    snapshot: () => invoke("queues.snapshot")
   },
   records: {
-    open: () => ipcRenderer.invoke("records.open"),
-    page: (query) => ipcRenderer.invoke("records.page", query),
-    detail: (kind, id) => ipcRenderer.invoke("records.detail", kind, id),
-    sources: () => ipcRenderer.invoke("records.sources"),
+    open: () => invoke("records.open"),
+    page: (query) => invoke("records.page", query),
+    detail: (kind, id) => invoke("records.detail", kind, id),
+    sources: () => invoke("records.sources"),
     onChanged: (callback) => {
       const listener = () => callback();
       ipcRenderer.on(RECORDS_CHANGED_CHANNEL, listener);
@@ -111,7 +120,7 @@ const api: FotoReadyApi = {
     }
   },
   lifecycle: {
-    approveClose: (allow) => ipcRenderer.invoke("lifecycle.approveClose", allow),
+    approveClose: (allow) => invoke("lifecycle.approveClose", allow),
     onCloseRequest: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) => callback(request);
       ipcRenderer.on("lifecycle.close-requested", listener);

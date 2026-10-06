@@ -1,4 +1,5 @@
 import path from "node:path";
+import { resolveConfiguredPath } from "./configured-path";
 
 // Resolves the output directory for a processed image. Per the storage-path
 // conventions, a GUI path is NEVER resolved against the working directory: a
@@ -8,8 +9,9 @@ import path from "node:path";
 // Resolution:
 //   - empty/whitespace `outputDir` → the source image's own directory (the
 //     established default for "save next to the original").
-//   - absolute `outputDir` → used as-is.
-//   - relative `outputDir` → resolved against the source image's directory (an
+//   - otherwise `~` and environment references are expanded (an unset or empty
+//     variable throws PathVariableError); an absolute result is used as-is, and a
+//     relative one is resolved against the source image's directory (an
 //     explicit, meaningful base), so "out/web" means a subfolder beside the
 //     source rather than something under the launch cwd.
 //
@@ -17,7 +19,5 @@ import path from "node:path";
 export function resolveProjectOutputDir(outputDir: string | null, sourcePath: string): string {
   const sourceDir = path.dirname(sourcePath);
   if (!outputDir || outputDir.trim().length === 0) return sourceDir;
-  const trimmed = outputDir.trim();
-  if (path.isAbsolute(trimmed)) return trimmed;
-  return path.resolve(sourceDir, trimmed);
+  return resolveConfiguredPath(outputDir.trim(), sourceDir);
 }

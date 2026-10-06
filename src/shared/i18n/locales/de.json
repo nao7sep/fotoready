@@ -162,6 +162,9 @@
   "failure.watermarkPick": "Die Wasserzeichendatei konnte nicht ausgewählt werden. Das aktuelle Wasserzeichen ist unverändert; versuchen Sie es erneut.",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "Ein eingestellter Pfad verweist auf die Umgebungsvariable {variable}, die nicht gesetzt oder leer ist. Setzen Sie {variable} und starten Sie FotoReady neu, oder ändern Sie den Pfad.",
+  "failure.lutLibraryUnavailable": "Die LUT-Bibliothek konnte nicht geladen werden und wird daher leer angezeigt. Korrigieren Sie in den Einstellungen den Ordner für importierte LUTs, um sie zu laden.",
+  "failure.stampLibraryUnavailable": "Die Sticker-Bibliothek konnte nicht geladen werden und wird daher leer angezeigt. Korrigieren Sie in den Einstellungen den Ordner für importierte Sticker, um sie zu laden.",
+  "failure.libraryFolderUnreadable": "Der Ordner {path} konnte nicht gelesen werden: {reason}",
 
   "originals.title": "Originale",
   "originals.empty": "Keine Originale. Fügen Sie ein Bild oder eine FotoReady-Aufgabendatei (Sidecar) hinzu oder legen Sie sie hier ab.",

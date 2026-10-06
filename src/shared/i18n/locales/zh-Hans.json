@@ -162,6 +162,9 @@
   "failure.watermarkPick": "无法选择水印文件。当前水印未改变；请重试。",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "已配置的路径引用了环境变量 {variable}，但该变量未设置或为空。请设置 {variable} 并重新启动 FotoReady，或更改该路径。",
+  "failure.lutLibraryUnavailable": "无法加载 LUT 库，因此显示为空。在设置中修正导入的 LUT 文件夹后即可加载。",
+  "failure.stampLibraryUnavailable": "无法加载贴纸库，因此显示为空。在设置中修正导入的贴纸文件夹后即可加载。",
+  "failure.libraryFolderUnreadable": "无法读取文件夹 {path}：{reason}",
 
   "originals.title": "原图",
   "originals.empty": "没有原图。添加或拖入一张图像或 FotoReady 任务附属文件。",

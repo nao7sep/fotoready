@@ -6,7 +6,7 @@ import type { Logger } from "@shared/types/log";
 
 vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
 
-import { importDirectoryAssets, readDirectoryAssets } from "@main/file-asset-catalog";
+import { LibraryFolderError, importDirectoryAssets, listDirectoryAssets, readDirectoryAssets } from "@main/file-asset-catalog";
 
 const roots: string[] = [];
 
@@ -27,6 +27,22 @@ describe("readDirectoryAssets", () => {
       expect.stringMatching(/asset library directory/i),
       expect.objectContaining({ assetDir: notADirectory, err: expect.anything() }),
     );
+  });
+});
+
+describe("listDirectoryAssets", () => {
+  it("fails with a reason naming the folder when the library folder cannot be created or read", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
+    roots.push(root);
+    const notADirectory = path.join(root, "library");
+    fs.writeFileSync(notADirectory, "not a directory");
+
+    const failure = await listDirectoryAssets(notADirectory, [".cube"]).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(LibraryFolderError);
+    expect((failure as LibraryFolderError).reason).toEqual({
+      key: "failure.libraryFolderUnreadable",
+      values: { path: notADirectory, reason: expect.stringContaining("EEXIST") }
+    });
   });
 });
 

@@ -162,6 +162,9 @@
   "failure.watermarkPick": "No se pudo elegir el archivo de marca de agua. La marca de agua actual no cambió; inténtalo de nuevo.",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "Una ruta configurada hace referencia a la variable de entorno {variable}, que no está definida o está vacía. Define {variable} y reinicia FotoReady, o cambia la ruta.",
+  "failure.lutLibraryUnavailable": "No se pudo cargar la biblioteca de LUT, por lo que se muestra vacía. En Configuración, corrige la carpeta de LUT importadas para cargar la biblioteca.",
+  "failure.stampLibraryUnavailable": "No se pudo cargar la biblioteca de stickers, por lo que se muestra vacía. En Configuración, corrige la carpeta de stickers importados para cargar la biblioteca.",
+  "failure.libraryFolderUnreadable": "No se pudo leer la carpeta {path}: {reason}",
 
   "originals.title": "Originales",
   "originals.empty": "No hay originales. Agrega o suelta una imagen o un archivo auxiliar de tarea de FotoReady.",

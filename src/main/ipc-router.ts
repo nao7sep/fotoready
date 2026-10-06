@@ -21,6 +21,7 @@ import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
 import { ipcFailure } from "@shared/ipc-failure";
+import { LibraryFolderError } from "@main/file-asset-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
@@ -51,7 +52,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   // Single IPC chokepoint: every handler is logged once on completion with its
   // duration and outcome, and any thrown failure is logged at `error` before it
   // propagates to the renderer; a failure with a user-facing reason (a
-  // configured path naming an unset variable) goes back as an IpcFailure
+  // configured path naming an unset variable, a library folder that cannot be
+  // read) goes back as an IpcFailure
   // instead. `level` splits genuine user intents (`info`)
   // from high-frequency / pure-query channels (`debug`), so editing-driven
   // traffic (preview, thumbnails, slider drags) stays in the developer-only
@@ -73,6 +75,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       } catch (error) {
         ctx.logger.error(`ipc ${channel} failed`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt), err: error });
         if (error instanceof PathVariableError) return ipcFailure(pathVariableReason(error));
+        if (error instanceof LibraryFolderError) return ipcFailure(error.reason);
         throw error;
       }
     });

@@ -162,6 +162,9 @@
   "failure.watermarkPick": "透かしのファイルを選択できませんでした。現在の透かしは変わっていません。もう一度お試しください。",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "設定したパスが環境変数 {variable} を参照していますが、この変数は設定されていないか空です。{variable} を設定して FotoReady を再起動するか、パスを変更してください。",
+  "failure.lutLibraryUnavailable": "LUT ライブラリを読み込めなかったため、空の状態で表示しています。設定の「読み込んだ LUT のフォルダー」を修正すると読み込まれます。",
+  "failure.stampLibraryUnavailable": "スタンプライブラリを読み込めなかったため、空の状態で表示しています。設定の「読み込んだスタンプのフォルダー」を修正すると読み込まれます。",
+  "failure.libraryFolderUnreadable": "フォルダー {path} を読み取れませんでした：{reason}",
 
   "originals.title": "元画像",
   "originals.empty": "元画像がありません。画像か FotoReady のタスクのサイドカーファイルを追加するか、ドロップしてください。",

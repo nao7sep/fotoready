@@ -162,6 +162,9 @@
   "failure.watermarkPick": "Non è stato possibile scegliere il file della filigrana. La filigrana attuale non è cambiata; riprova.",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "Un percorso configurato fa riferimento alla variabile d’ambiente {variable}, che non è impostata o è vuota. Imposta {variable} e riavvia FotoReady oppure cambia il percorso.",
+  "failure.lutLibraryUnavailable": "Non è stato possibile caricare la libreria dei LUT, quindi viene mostrata vuota. In Impostazioni, correggi la cartella dei LUT importati per caricare la libreria.",
+  "failure.stampLibraryUnavailable": "Non è stato possibile caricare la libreria degli sticker, quindi viene mostrata vuota. In Impostazioni, correggi la cartella degli sticker importati per caricare la libreria.",
+  "failure.libraryFolderUnreadable": "Non è stato possibile leggere la cartella {path}: {reason}",
 
   "originals.title": "Originali",
   "originals.empty": "Nessun originale. Aggiungi o trascina qui un’immagine o un file collaterale di attività di FotoReady.",

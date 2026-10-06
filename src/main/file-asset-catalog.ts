@@ -3,6 +3,7 @@ import { constants as fsConstants, type Dirent } from "node:fs";
 import path from "node:path";
 import { shell } from "electron";
 import type { Logger } from "@shared/types/log";
+import { message, type Message } from "@shared/i18n/translate";
 
 export type DirectoryAsset = {
   extension: string;
@@ -15,13 +16,31 @@ export type DirectoryAssetImportResult = {
   status: "imported" | "skipped-name-conflict";
 };
 
-export async function listDirectoryAssets(dir: string, extensions: readonly string[], logger?: Logger): Promise<DirectoryAsset[]> {
-  await fs.mkdir(dir, { recursive: true });
-  return readDirectoryAssets(dir, extensions, logger);
+/** A library folder could not be created or read; `reason` is the user-facing copy naming it. */
+export class LibraryFolderError extends Error {
+  readonly reason: Message;
+
+  constructor(dir: string, cause: unknown) {
+    super(`The asset library folder "${dir}" could not be read.`, { cause });
+    this.name = "LibraryFolderError";
+    // The OS error text stays as the OS gave it, per the localization conventions.
+    this.reason = message("failure.libraryFolderUnreadable", { path: dir, reason: cause instanceof Error ? cause.message : String(cause) });
+  }
+}
+
+/** Lists the user's library folder, creating it first; a folder that cannot be created or read throws LibraryFolderError. */
+export async function listDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
+  let entries: Dirent<string>[];
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    throw new LibraryFolderError(dir, error);
+  }
+  return assetsFromEntries(dir, entries, extensions);
 }
 
 export async function readDirectoryAssets(dir: string, extensions: readonly string[], logger?: Logger): Promise<DirectoryAsset[]> {
-  const allowed = new Set(extensions.map((extension) => extension.toLowerCase()));
   let entries: Dirent<string>[];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -33,6 +52,11 @@ export async function readDirectoryAssets(dir: string, extensions: readonly stri
     });
     return [];
   }
+  return assetsFromEntries(dir, entries, extensions);
+}
+
+function assetsFromEntries(dir: string, entries: readonly Dirent<string>[], extensions: readonly string[]): DirectoryAsset[] {
+  const allowed = new Set(extensions.map((extension) => extension.toLowerCase()));
   return entries
     .filter((entry) => entry.isFile() && allowed.has(path.extname(entry.name).toLowerCase()))
     .map((entry) => directoryAssetFromFileName(dir, entry.name))

@@ -19,7 +19,7 @@ export async function listStamps(stampFolder: string, defaultStampDir: string, b
   const dir = resolveStampDir(stampFolder, defaultStampDir);
   const [builtInEntries, userEntries] = await Promise.all([
     readDirectoryAssets(bundledStampsDir, STAMP_EXTENSIONS, logger),
-    listDirectoryAssets(dir, STAMP_EXTENSIONS, logger)
+    listDirectoryAssets(dir, STAMP_EXTENSIONS)
   ]);
   const catalogEntries = await readBuiltinStampCatalog(
     bundledStampsDir,

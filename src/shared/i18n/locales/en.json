@@ -162,6 +162,9 @@
   "failure.watermarkPick": "The watermark file could not be chosen. The current watermark is unchanged; try again.",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "A configured path refers to the environment variable {variable}, which is not set or is empty. Set {variable} and restart FotoReady, or change the path.",
+  "failure.lutLibraryUnavailable": "The LUT library could not be loaded, so it is shown as empty. Fix the imported LUT folder in Settings to load it.",
+  "failure.stampLibraryUnavailable": "The stamp library could not be loaded, so it is shown as empty. Fix the imported stamp folder in Settings to load it.",
+  "failure.libraryFolderUnreadable": "The folder {path} could not be read: {reason}",
 
   "originals.title": "Originals",
   "originals.empty": "No originals. Add or drop an image or FotoReady task sidecar.",

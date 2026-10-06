@@ -30,6 +30,7 @@ import { OwnedFailureList } from "./components/owned-failure-list";
 import { StartupLoadGate } from "./components/startup-load-gate";
 import { presentFailure } from "./present-failure";
 import { persistSettingsChanges } from "./settings-save";
+import { listLibrary, type LibraryListing } from "./library-listing";
 import { dismissOwnedFailure, runOwnedAction, type OwnedActionOutcome, type OwnedFailures } from "./owned-failures";
 import { isModalOpen } from "./components/modals/modal-stack";
 import { ConfirmerProvider, useConfirmer } from "./components/modals/confirmer";
@@ -190,10 +191,9 @@ function App(): React.JSX.Element {
       api.project.current(),
       api.ops.list(),
       api.queues.snapshot(),
-      api.luts.list(),
-      api.stamps.list()
+      listLibraries()
     ]).then(
-      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, loadedLuts, loadedStamps]) => {
+      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, [loadedLuts, loadedStamps]]) => {
         if (!current) return;
         setSystemInfo(info);
         setSettings(loadedSettings);
@@ -202,8 +202,7 @@ function App(): React.JSX.Element {
         setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
         setQueue(snapshot);
-        setLutEntries(loadedLuts);
-        setStampEntries(loadedStamps);
+        showLibraries(loadedLuts, loadedStamps);
         setStartupStatus("ready");
       }
     ).catch((error) => {
@@ -661,9 +660,8 @@ function App(): React.JSX.Element {
     });
     setSettingsOpen(false);
     try {
-      const [nextLuts, nextStamps] = await Promise.all([api.luts.list(), api.stamps.list()]);
-      setLutEntries(nextLuts);
-      setStampEntries(nextStamps);
+      const [nextLuts, nextStamps] = await listLibraries();
+      showLibraries(nextLuts, nextStamps);
       dismissOwnedFailure(setShellFailures, "asset-library-refresh");
     } catch (error) {
       const failure = presentFailure(error, message("failure.assetLibraryRefresh"), "asset libraries refresh after settings save failed");
@@ -719,6 +717,26 @@ function App(): React.JSX.Element {
       const failure = presentFailure(error, message("failure.histogramPosition"), "histogram position persistence failed");
       setShellFailures((current) => ({ ...current, "histogram-position": failure }));
     }
+  }
+
+  function listLibraries(): Promise<[LibraryListing<LutEntry>, LibraryListing<StampEntry>]> {
+    return Promise.all([
+      listLibrary(api.luts.list, message("failure.lutLibraryUnavailable"), "LUT library listing failed"),
+      listLibrary(api.stamps.list, message("failure.stampLibraryUnavailable"), "stamp library listing failed")
+    ]);
+  }
+
+  function showLibraries(luts: LibraryListing<LutEntry>, stamps: LibraryListing<StampEntry>): void {
+    setLutEntries(luts.entries);
+    setStampEntries(stamps.entries);
+    setShellFailures((current) => {
+      const next = { ...current };
+      for (const [key, notice] of [["lut-library", luts.notice], ["stamp-library", stamps.notice]] as const) {
+        if (notice) next[key] = notice;
+        else delete next[key];
+      }
+      return next;
+    });
   }
 
   async function reloadLuts(): Promise<void> {

@@ -162,6 +162,9 @@
   "failure.watermarkPick": "Não foi possível escolher o arquivo de marca d’água. A marca d’água atual não mudou; tente novamente.",
   "failure.withReason": "{failure}\n{reason}",
   "failure.pathVariable": "Um caminho configurado faz referência à variável de ambiente {variable}, que não está definida ou está vazia. Defina {variable} e reinicie o FotoReady ou altere o caminho.",
+  "failure.lutLibraryUnavailable": "Não foi possível carregar a biblioteca de LUTs, por isso ela aparece vazia. Nas Configurações, corrija a pasta de LUTs importados para carregar a biblioteca.",
+  "failure.stampLibraryUnavailable": "Não foi possível carregar a biblioteca de figurinhas, por isso ela aparece vazia. Nas Configurações, corrija a pasta de figurinhas importadas para carregar a biblioteca.",
+  "failure.libraryFolderUnreadable": "Não foi possível ler a pasta {path}: {reason}",
 
   "originals.title": "Originais",
   "originals.empty": "Nenhum original. Adicione ou solte uma imagem ou um arquivo auxiliar de tarefa do FotoReady.",

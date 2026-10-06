@@ -168,6 +168,49 @@ describe("applyMetadataToOutput with ExifTool", () => {
     expect(Object.keys(tags).filter((key) => key.endsWith("SubSecTime"))).toEqual([]);
   });
 
+  it("declares the output's sRGB pixels rather than the source's Adobe RGB, and keeps the capture facts", async () => {
+    const sourcePath = path.join(dir, "source.jpg");
+    const outputPath = path.join(dir, "output.tmp");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, {
+      Make: "Sony",
+      DateTimeOriginal: "2020:01:02 03:04:05",
+      ColorSpace: "Uncalibrated",
+      InteropIndex: "R03",
+      "XMP-exif:ColorSpace": "Uncalibrated",
+      "XMP-photoshop:ICCProfileName": "Adobe RGB (1998)",
+      "XMP-photoshop:ColorMode": "CMYK",
+      Gamma: 2.2,
+      WhitePoint: "0.3127 0.329",
+      PrimaryChromaticities: "0.64 0.33 0.21 0.71 0.15 0.06"
+    } as never, ["-overwrite_original"]);
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
+
+    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, keep: ["dates"], injectFields: {} });
+
+    const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
+    expect(tags["ExifIFD:ColorSpace"]).toBe("sRGB");
+    expect(tags["XMP-exif:ColorSpace"]).toBe("sRGB");
+    const stale = ["InteropIndex", "ICCProfileName", "ColorMode", "Gamma", "WhitePoint", "PrimaryChromaticities"];
+    expect(Object.keys(tags).filter((key) => stale.some((tag) => key.endsWith(`:${tag}`)))).toEqual([]);
+    expect(tags["IFD0:Make"]).toBe("Sony");
+    expect(Object.keys(tags).some((key) => key.endsWith("DateTimeOriginal"))).toBe(true);
+  });
+
+  it("adds no XMP colour space to an output whose source carried none", async () => {
+    const sourcePath = path.join(dir, "source.jpg");
+    const outputPath = path.join(dir, "output.tmp");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, { Make: "Canon" } as never, ["-overwrite_original"]);
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
+
+    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, injectFields: {} });
+
+    const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
+    expect(tags["ExifIFD:ColorSpace"]).toBe("sRGB");
+    expect(Object.keys(tags).filter((key) => key.startsWith("XMP"))).toEqual([]);
+  });
+
   it("flags a capture time carried only in IPTC and XMP", async () => {
     const sourcePath = path.join(dir, "source.jpg");
     await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);

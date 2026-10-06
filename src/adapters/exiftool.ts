@@ -94,7 +94,9 @@ const EDITORIAL_TAGS = [
 ] as const;
 
 // Fields that no longer describe the output after this app re-encodes the image.
-// Always cleared regardless of strip policy.
+// Always cleared regardless of strip policy. Decoding converts every source to sRGB, so the
+// source's colour declarations (its profile, DCF colour space, colour mode, gamma and primaries)
+// go with them, and ColorSpace is re-stamped as sRGB after the copy.
 const ALWAYS_STALE_TAGS = [
   "ThumbnailImage",
   "PreviewImage",
@@ -107,6 +109,12 @@ const ALWAYS_STALE_TAGS = [
   "PixelXDimension",
   "PixelYDimension",
   "ICC_Profile",
+  "ICCProfileName",
+  "InteropIndex",
+  "ColorMode",
+  "Gamma",
+  "WhitePoint",
+  "PrimaryChromaticities",
   "MakerNotes:all"
 ] as const;
 
@@ -155,6 +163,9 @@ export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | 
   const clear = (tag: string) => `-${tag}=`;
   const args = ["-TagsFromFile", sourcePath, "-all:all"];
   args.push(...ALWAYS_STALE_TAGS.map(clear));
+  // The output's pixels are sRGB (content-lifecycle conventions, Files, a derived file is new). Unqualified,
+  // ExifTool writes it to EXIF and overrides a copied XMP ColorSpace without adding XMP to a file that had none.
+  args.push("-ColorSpace=sRGB");
   if (stripActive) {
     if (!keep.includes("editorial")) args.push(...EDITORIAL_TAGS.map(clear));
     if (!keep.includes("dates")) args.push(...CAPTURE_TIME_TAGS.map(({ tag }) => clear(tag)));

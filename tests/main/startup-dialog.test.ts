@@ -19,14 +19,13 @@ beforeEach(() => {
 });
 
 describe("startup recovery dialog", () => {
-  it("keeps the quarantine path in diagnostics only", async () => {
-    await notifyCorruptSettings();
+  it("names the set-aside settings file and says every setting started at its default", async () => {
+    await notifyCorruptSettings("/Users/someone/.fotoready/config-20261006-031340-000-utc.invalid");
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
       title: "Settings could not be read",
-      detail: expect.stringContaining("recorded in the session log"),
+      detail: expect.stringMatching(/every setting at its default.*\/Users\/someone\/\.fotoready\/config-20261006-031340-000-utc\.invalid$/),
     }));
-    expect(JSON.stringify(showPlainMessageDialog.mock.calls[0])).not.toMatch(/\/private\/tmp|\.invalid/);
   });
 
   it("fails closed with the dialog rejection preserved when recovery cannot be presented", async () => {
@@ -34,7 +33,7 @@ describe("startup recovery dialog", () => {
     showPlainMessageDialog.mockRejectedValueOnce(cause);
     const logger = { error: vi.fn() };
 
-    const result = requireCorruptSettingsNotice(logger);
+    const result = requireCorruptSettingsNotice(logger, "/Users/someone/.fotoready/config-20261006-031340-000-utc.invalid");
 
     await expect(result).rejects.toMatchObject({
       message: "FotoReady could not present the corrupt-settings recovery notice.",

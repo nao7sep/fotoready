@@ -134,7 +134,7 @@ export async function bootstrap(): Promise<void> {
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   if (settingsQuarantinedTo) {
-    await requireCorruptSettingsNotice(logger);
+    await requireCorruptSettingsNotice(logger, settingsQuarantinedTo);
   }
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);

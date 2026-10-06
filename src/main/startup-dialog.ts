@@ -18,9 +18,9 @@ async function showNotice(title: MessageKey, message: MessageKey, detail: Messag
   });
 }
 
-/** App-authored recovery surface; quarantine paths remain in the session log. */
-export async function notifyCorruptSettings(): Promise<void> {
-  await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail");
+/** App-authored recovery surface: it names the set-aside `.invalid` file and the defaults started with (store-recovery-conventions). */
+export async function notifyCorruptSettings(quarantinedTo: string): Promise<void> {
+  await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail", { path: quarantinedTo });
 }
 
 /**
@@ -29,9 +29,9 @@ export async function notifyCorruptSettings(): Promise<void> {
  * shell fails, preserve that cause and reject into the existing fatal startup
  * path instead of opening the ordinary workspace with an invisible reset.
  */
-export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">): Promise<void> {
+export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">, quarantinedTo: string): Promise<void> {
   try {
-    await notifyCorruptSettings();
+    await notifyCorruptSettings(quarantinedTo);
   } catch (cause) {
     const error = new Error("FotoReady could not present the corrupt-settings recovery notice.", { cause });
     logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", err: error });

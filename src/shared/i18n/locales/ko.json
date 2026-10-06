@@ -693,7 +693,7 @@
 
   "startup.corruptSettingsTitle": "설정을 읽지 못했습니다",
   "startup.corruptSettingsMessage": "FotoReady 설정 파일을 읽을 수 없어서, 아무것도 잃지 않도록 사본을 따로 보관했습니다.",
-  "startup.corruptSettingsDetail": "읽을 수 없는 항목은 기본값으로 FotoReady를 시작했습니다. 프로젝트와 사진은 그대로입니다. 보관한 사본의 위치는 세션 로그에 기록되어 있습니다.",
+  "startup.corruptSettingsDetail": "모든 설정을 기본값으로 하여 FotoReady를 시작했습니다. 프로젝트와 사진은 그대로입니다. 읽을 수 없는 설정 파일은 다음 위치에 보관했습니다: {path}",
   "startup.failedTitle": "FotoReady를 시작하지 못했습니다",
   "startup.failedMessage": "FotoReady가 설정과 작업 공간을 끝까지 열지 못했습니다.",
   "startup.failedDetail": "사진이나 프로젝트 파일은 바뀌지 않았습니다. 세션 로그를 확인한 뒤 FotoReady를 다시 시작하십시오.",

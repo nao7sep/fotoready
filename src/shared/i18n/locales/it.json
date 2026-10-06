@@ -693,7 +693,7 @@
 
   "startup.corruptSettingsTitle": "Impossibile leggere le impostazioni",
   "startup.corruptSettingsMessage": "Il file delle impostazioni di FotoReady non era leggibile ed è stata messa da parte una copia perché nulla vada perso.",
-  "startup.corruptSettingsDetail": "FotoReady si è avviato con i valori predefiniti per i campi illeggibili. I tuoi progetti e le tue foto non sono stati toccati. La posizione della copia è annotata nel registro della sessione.",
+  "startup.corruptSettingsDetail": "FotoReady si è avviato con tutte le impostazioni ai valori predefiniti. I tuoi progetti e le tue foto non sono stati toccati. Il file delle impostazioni illeggibile è stato conservato qui: {path}",
   "startup.failedTitle": "Impossibile avviare FotoReady",
   "startup.failedMessage": "FotoReady non è riuscito a completare l’apertura delle impostazioni e dello spazio di lavoro.",
   "startup.failedDetail": "Nessuna foto e nessun file di progetto sono stati modificati. Controlla il registro della sessione, poi avvia di nuovo FotoReady.",

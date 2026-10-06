@@ -12,7 +12,7 @@ async function showNotice(title: MessageKey, message: MessageKey, detail: Messag
     title: t(title),
     message: t(message),
     detail: t(detail, detailValues),
-    closeLabel: t("common.ok"),
+    buttons: [t("common.ok")],
     detailsLabel: t("dialog.messageDetails"),
     lang: language,
   });

@@ -108,6 +108,10 @@
   "confirm.close.title": "FotoReady を閉じますか?",
   "confirm.close.message": "現在のワークスペースを破棄して閉じますか?",
   "confirm.close.messageWithSaves": "現在のワークスペースを破棄して閉じますか?実行中の保存は中止され、書きかけのファイルは削除されます。",
+  "quit.notSaved.title": "変更が保存されていません",
+  "quit.notSaved.message": "FotoReady は一部の変更の保存を完了できませんでした。今終了すると、それらの変更は失われます。",
+  "quit.notSaved.detail": "保存されていないもの：{items}",
+  "quit.quitAnyway": "このまま終了",
 
   "failure.workspaceWidths": "パネルの幅はこのセッションでは変わりましたが、保存できませんでした。FotoReady のデータフォルダーにアクセスできる状態に戻してから、もう一度パネルのサイズを変更してください。",
   "failure.openRecords": "ログウインドウを開けませんでした。",

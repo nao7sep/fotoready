@@ -55,7 +55,7 @@ describe("startup recovery dialog", () => {
       title: "FotoReady could not start",
       message: "FotoReady could not finish opening its settings and workspace.",
       detail: "No photos or project files were changed. Check the session log, then start FotoReady again.",
-      closeLabel: "OK",
+      buttons: ["OK"],
       detailsLabel: "Message details",
       lang: "en",
     });
@@ -78,7 +78,7 @@ describe("startup recovery dialog", () => {
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
       title: "FotoReady konnte nicht starten",
-      closeLabel: "OK",
+      buttons: ["OK"],
       detailsLabel: "Einzelheiten der Meldung",
       lang: "de",
     }));

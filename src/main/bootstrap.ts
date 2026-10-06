@@ -34,6 +34,9 @@ import { windowCloseQuits } from "./window-close";
 import type { CloseRequest } from "@shared/types/ipc";
 import { createRecordsReader } from "./records-reader";
 import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
+import { UserWorkWrites, saveUserWorkBeforeQuit, settleWithin, type QuitChoice, type UserWork } from "./quit-save";
+import { askWorkNotSaved } from "./quit-dialog";
+import { cancelOpenMessageDialogs } from "./plain-message-dialog";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
 // minimum both come from the shared layout metrics — never hand-typed literals (see
@@ -68,10 +71,10 @@ export function buildWindowOptions(
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Shared across the app's lifetime (and across windows, since macOS keeps the
-// process alive after the last window closes). The close guard records why the
-// app is shutting down; the quit shutdown reads it. "unknown" means
-// the app went down without passing through a recognized close path (e.g. an
-// external signal) — distinct from a deliberate user quit.
+// process alive after the last window closes). The quit records why the app is
+// shutting down, and its stop reads it. "unknown" means the app went down
+// without passing through a recognized quit path (e.g. an external signal) —
+// distinct from a deliberate user quit.
 export type ExitState = { reason: string };
 
 // This launch: the records' session, and the name of the text file a failure before the records
@@ -133,6 +136,7 @@ export async function bootstrap(): Promise<void> {
   const loadedState = await loadState(paths.statePath, logger);
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
+  const userWork = new UserWorkWrites();
   if (settingsQuarantinedTo) {
     await requireCorruptSettingsNotice(logger, settingsQuarantinedTo);
   }
@@ -140,7 +144,7 @@ export async function bootstrap(): Promise<void> {
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
-  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
 
@@ -149,6 +153,7 @@ export async function bootstrap(): Promise<void> {
     settings,
     uiState,
     stateCoordinator,
+    userWork,
     projectSession,
     logger,
     version: __APP_VERSION__,
@@ -178,20 +183,71 @@ export async function bootstrap(): Promise<void> {
 
   const exitState: ExitState = { reason: "unknown" };
 
+  // The main window, apart from the Records window beside it, and the guard that asks its
+  // renderer before a quit.
+  let mainWindow: BrowserWindow | null = null;
+  let mainGuard: CloseGuard | null = null;
+
+  const askNotSaved = (unsaved: UserWork[]): Promise<QuitChoice> =>
+    askWorkNotSaved(unsaved).catch((error: unknown) => {
+      logger.error("the quit question could not be shown; FotoReady stays open", { mod: "main.quit", err: error });
+      return "cancel" as const;
+    });
+
   // One launch = one session. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
-  // Quitting cancels in-flight saves, which remove their unfinished files, and lands the last
-  // state write, then closes the workers and the records reader, each stage for at most
-  // SHUTDOWN_WAIT_MS.
-  installQuitShutdown(async () => {
-    logger.info("app stopping", { mod: "main", reason: exitState.reason });
-    const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateCoordinator.flush()]), SHUTDOWN_WAIT_MS);
-    if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main", waitMs: SHUTDOWN_WAIT_MS });
-    await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), SHUTDOWN_WAIT_MS);
+  // Every quit path (unsaved-edits-conventions, Quitting) first asks the window's pre-quit
+  // confirmations and waits for the user's own work, then cancels in-flight saves, which remove
+  // their unfinished files, lands the last UI state write, and closes the workers and the records
+  // reader, each stage within its bound.
+  const quit = installQuitShutdown({
+    prepare: async () => {
+      userWork.beginQuit();
+      let go = false;
+      try {
+        if (quit.sessionEnding()) exitState.reason = "system-shutdown";
+        else if (exitState.reason !== "window-close") exitState.reason = "user-quit";
+        if (!quit.sessionEnding() && mainGuard && !(await mainGuard.confirmQuit())) return false;
+        go = await saveUserWorkBeforeQuit(userWork, askNotSaved, quit.sessionEnding, logger);
+        return go;
+      } catch (error) {
+        logger.error("quitting could not check the user's work", { mod: "main.quit", err: error });
+        go = quit.sessionEnding();
+        return go;
+      } finally {
+        if (!go) {
+          userWork.endQuit();
+          exitState.reason = "unknown";
+        }
+      }
+    },
+    answerForSessionEnd: () => {
+      cancelOpenMessageDialogs();
+      mainGuard?.answerForSessionEnd();
+    },
+    stop: async () => {
+      logger.info("app stopping", { mod: "main", reason: exitState.reason });
+      // UI state is not the user's own work: a write that failed is logged and never holds the quit.
+      const stateSaved = stateCoordinator.flush().catch((error: unknown) => {
+        logger.warn("the UI state was not saved before quit", { mod: "main.quit", statePath: paths.statePath, err: error });
+      });
+      const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateSaved]), QUIT_STOP_MS);
+      if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_STOP_MS });
+      const closed = await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), QUIT_CLOSE_MS);
+      if (!closed) logger.warn("the workers did not close in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_CLOSE_MS });
+    },
+    sessionEnded: () => {
+      logger.warn("the session ended before quitting finished", { mod: "main.quit", ...userWork.unsaved() });
+    }
   });
 
-  // The main window, apart from the Records window beside it.
-  let mainWindow: BrowserWindow | null = null;
+  // macOS and Linux announce the end of the session here; Windows only through the main window's
+  // session events (installCloseGuard). Electron passes this event a preventDefault its typings
+  // omit, which asks the OS to wait while FotoReady quits.
+  powerMonitor.on("shutdown", (event?: { preventDefault(): void }) => {
+    event?.preventDefault();
+    quit.endSession();
+  });
 
   const createWindow = async (): Promise<void> => {
     const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));
@@ -200,13 +256,16 @@ export async function bootstrap(): Promise<void> {
     // The Records window belongs to this window's workspace and closes with it, so the app's own
     // window-all-closed and re-activate paths see no window left behind.
     win.once("closed", () => {
-      if (mainWindow === win) mainWindow = null;
+      if (mainWindow === win) {
+        mainWindow = null;
+        mainGuard = null;
+      }
       closeRecordsWindow();
     });
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
-    installCloseGuard(win, exitState, () => stateCoordinator.flush());
+    mainGuard = installCloseGuard(win, exitState, quit);
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -267,40 +326,89 @@ export async function bootstrap(): Promise<void> {
   });
 }
 
-/** How long quitting waits for in-flight saves to stop and clean up before exiting anyway. */
-const SHUTDOWN_WAIT_MS = 10_000;
+// How long quitting waits, after the user's own work (QUIT_SAVE_MS), for in-flight saves to stop
+// and the last UI state write to land, then for the workers and the records reader to close. With
+// the save, the whole quit stays under the OS's kill delay (unsaved-edits-conventions, Quitting).
+const QUIT_STOP_MS = 1_500;
+const QUIT_CLOSE_MS = 1_000;
+
+export type QuitSteps = {
+  /**
+   * Runs before any window closes: the pre-quit confirmations and the save of the user's own work.
+   * Resolves false when the user keeps FotoReady open. Never rejects.
+   */
+  prepare(): Promise<boolean>;
+  /** Answers every question still open, as an ending session must not wait on one. */
+  answerForSessionEnd(): void;
+  /** Runs once the windows have closed; bounds each of its own waits. */
+  stop(): Promise<void>;
+  /** Records what a Windows session end cut short; the process exits right after. */
+  sessionEnded(): void;
+};
+
+export type QuitControl = {
+  /** Whether the quit has passed its checks, so the windows may close. */
+  approved(): boolean;
+  sessionEnding(): boolean;
+  /** The OS is ending the session: quit without asking, answering any open question. */
+  endSession(): void;
+  /**
+   * Windows is ending the session now. It may end the process as soon as the event returns, so
+   * whatever the quit has not finished is recorded and FotoReady exits before returning.
+   */
+  sessionEnded(): void;
+};
 
 /**
- * Exported for tests. Holds the exit once the windows have closed until `stop` settles, then quits
- * for real. A quit arriving while `stop` runs, such as a second Quit or window-all-closed, is held
- * at before-quit, so only the quit after `stop` ends the process.
+ * Exported for tests. Every quit arrives at before-quit — Quit from the menu, the keyboard or the
+ * Dock, the main window's close off macOS, and an ending session — and is held there while
+ * `prepare` runs, and at will-quit, once the windows have closed, while `stop` runs. A quit arriving
+ * meanwhile is held too, so only the quit after `stop` ends the process.
  */
-export function installQuitShutdown(stop: () => Promise<void>): void {
-  let shutdown: "running" | "stopping" | "done" = "running";
+export function installQuitShutdown(steps: QuitSteps): QuitControl {
+  let phase: "running" | "preparing" | "approved" | "stopping" | "done" = "running";
+  let sessionEnding = false;
   app.on("before-quit", (event) => {
-    if (shutdown === "stopping") event.preventDefault();
-  });
-  app.on("will-quit", (event) => {
-    if (shutdown === "done") return;
+    if (phase === "approved" || phase === "done") return;
     event.preventDefault();
-    if (shutdown === "stopping") return;
-    shutdown = "stopping";
-    void stop().finally(() => {
-      shutdown = "done";
+    if (phase !== "running") return;
+    phase = "preparing";
+    void steps.prepare().then((go) => {
+      if (!go) {
+        phase = "running";
+        return;
+      }
+      phase = "approved";
       app.quit();
     });
   });
-}
-
-/** Resolves true when `work` settles within `ms`, false when the wait runs out first. Never rejects. */
-async function settleWithin(work: Promise<unknown>, ms: number): Promise<boolean> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), ms); });
-  try {
-    return await Promise.race([work.then(() => true, () => true), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  app.on("will-quit", (event) => {
+    if (phase === "done") return;
+    event.preventDefault();
+    if (phase === "stopping") return;
+    phase = "stopping";
+    void steps.stop().finally(() => {
+      phase = "done";
+      app.quit();
+    });
+  });
+  const endSession = (): void => {
+    if (sessionEnding) return;
+    sessionEnding = true;
+    steps.answerForSessionEnd();
+    if (phase === "running") app.quit();
+  };
+  return {
+    approved: () => phase === "approved" || phase === "stopping" || phase === "done",
+    sessionEnding: () => sessionEnding,
+    endSession,
+    sessionEnded: () => {
+      endSession();
+      if (phase === "done") return;
+      steps.sessionEnded();
+      app.exit(0);
+    }
+  };
 }
 
 // Two URLs share an origin (file: URLs both report origin "null", so same-origin local navigation
@@ -314,78 +422,86 @@ function sameOrigin(a: string, b: string): boolean {
   }
 }
 
-/** Exported for tests: the system-shutdown hold is the part worth checking without a real window. */
-export function installCloseGuard(win: BrowserWindow, exitState: ExitState, prepareClose: () => Promise<void>): void {
+export type CloseGuard = {
+  /** Asks the renderer's pre-quit confirmations; resolves true when the user goes on with the quit. */
+  confirmQuit(): Promise<boolean>;
+  /** Answers an open confirmation for an ending session. */
+  answerForSessionEnd(): void;
+};
+
+/**
+ * Exported for tests. Holds the main window's close for the renderer's confirmations. Off macOS
+ * closing the window quits, so the close becomes the quit, and a cancelled quit keeps the window
+ * open; on macOS the window closes alone and the app goes on.
+ */
+export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl): CloseGuard {
+  // An approved macOS window close, which the guard then lets through.
   let closeAllowed = false;
-  let closeRequestPending = false;
-  let closeRequestMode: "window" | "quit" = "window";
-  // Set when the user approves a close, and never cleared: the close is then only landing the last
-  // state write, so a further close or quit waits for it instead of asking again.
-  let closeApproved = false;
-  let systemShutdown = false;
+  // The question the renderer is answering. A quit arriving while it asks about a window close
+  // joins it, and the answer then goes on with the quit instead of closing the window alone.
+  let pending: { mode: "window" | "quit"; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
 
-  // Holds the shutdown, where the event allows it, until the last state write has landed, for at
-  // most SHUTDOWN_WAIT_MS as quitting does, then quits. Electron passes powerMonitor's shutdown
-  // an event its typings omit.
-  const markSystemShutdown = (event?: { preventDefault(): void }) => {
-    if (systemShutdown) return;
-    systemShutdown = true;
-    closeAllowed = true;
-    exitState.reason = "system-shutdown";
-    event?.preventDefault();
-    void settleWithin(prepareClose(), SHUTDOWN_WAIT_MS).then(() => app.quit());
-  };
-
-  powerMonitor.once("shutdown", markSystemShutdown);
-  win.once("query-session-end", markSystemShutdown);
-  win.once("session-end", markSystemShutdown);
-
-  function requestClose(mode: "window" | "quit"): void {
-    if (win.webContents.isDestroyed()) return;
+  function ask(mode: "window" | "quit"): Promise<boolean> {
+    if (pending) {
+      if (mode === "quit") pending.mode = "quit";
+      return pending.answer;
+    }
+    if (win.webContents.isDestroyed()) return Promise.resolve(true);
     revealWindow(win);
-    if (closeRequestPending) return;
-    closeRequestPending = true;
-    closeRequestMode = mode;
+    let resolve!: (allow: boolean) => void;
+    const answer = new Promise<boolean>((settle) => { resolve = settle; });
+    pending = { mode, answer, resolve };
     const request: CloseRequest = { endsApp: mode === "quit" || windowCloseQuits(process.platform) };
     win.webContents.send("lifecycle.close-requested", request);
+    return answer;
+  }
+
+  function answer(allow: boolean): void {
+    const answered = pending;
+    pending = null;
+    if (!answered) return;
+    answered.resolve(allow);
+    if (allow && answered.mode === "window" && !quit.sessionEnding()) {
+      closeAllowed = true;
+      win.close();
+    }
   }
 
   win.on("close", (event) => {
-    if (closeAllowed || systemShutdown) return;
+    if (closeAllowed || quit.approved() || quit.sessionEnding()) return;
     event.preventDefault();
-    if (!closeApproved) requestClose("window");
-  });
-
-  // A quit during an approved window close turns that close into the quit, so it still ends the app
-  // once the write lands.
-  const beforeQuitHandler = (event: Electron.Event) => {
-    if (closeAllowed || systemShutdown) return;
-    event.preventDefault();
-    if (closeApproved) closeRequestMode = "quit";
-    else requestClose("quit");
-  };
-  app.on("before-quit", beforeQuitHandler);
-
-  ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean) => {
-    if (BrowserWindow.fromWebContents(event.sender) !== win) return;
-    closeRequestPending = false;
-    if (!allow || closeApproved) return;
-    closeApproved = true;
-    await settleWithin(prepareClose(), SHUTDOWN_WAIT_MS);
-    closeAllowed = true;
-    exitState.reason = closeRequestMode === "quit" ? "user-quit" : "window-close";
-    if (closeRequestMode === "quit") {
+    if (windowCloseQuits(process.platform)) {
+      exitState.reason = "window-close";
       app.quit();
       return;
     }
-    win.close();
+    void ask("window");
+  });
+
+  // Windows ends a session through the main window only, and never with a quit event. The query
+  // is never refused; it starts the quit without asking, and the end itself exits.
+  const endSession = (): void => quit.endSession();
+  const sessionEnded = (): void => quit.sessionEnded();
+  win.on("query-session-end", endSession);
+  win.on("session-end", sessionEnded);
+
+  ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== win) return;
+    answer(allow);
   });
 
   win.once("closed", () => {
-    app.off("before-quit", beforeQuitHandler);
-    powerMonitor.off("shutdown", markSystemShutdown);
-    win.off("query-session-end", markSystemShutdown);
-    win.off("session-end", markSystemShutdown);
+    win.off("query-session-end", endSession);
+    win.off("session-end", sessionEnded);
     ipcMain.removeHandler("lifecycle.approveClose");
+    // A window gone before its renderer answered asks nothing more.
+    const unanswered = pending;
+    pending = null;
+    unanswered?.resolve(true);
   });
+
+  return {
+    confirmQuit: () => ask("quit"),
+    answerForSessionEnd: () => answer(true)
+  };
 }

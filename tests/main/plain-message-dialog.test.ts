@@ -36,6 +36,10 @@ vi.mock("electron", () => {
 
     isDestroyed(): boolean { return this.destroyed; }
 
+    emitContents(event: string, ...args: unknown[]): void {
+      this.emit(event, ...args);
+    }
+
     loadURL(): Promise<void> {
       if (electron.loadError !== undefined) return Promise.reject(electron.loadError);
       return Promise.resolve().then(() => this.emit("dom-ready"));
@@ -62,7 +66,7 @@ vi.mock("electron", () => {
   };
 });
 
-import { renderPlainMessageDialogHtml, showPlainMessageDialog } from "@main/plain-message-dialog";
+import { cancelOpenMessageDialogs, renderPlainMessageDialogHtml, showPlainMessageDialog } from "@main/plain-message-dialog";
 
 beforeEach(() => {
   electron.dark = false;
@@ -72,7 +76,7 @@ beforeEach(() => {
 });
 
 // The page's own words come from the caller, already in the interface language.
-const words = { closeLabel: "OK", detailsLabel: "Message details", lang: "en" };
+const words = { buttons: ["OK"], detailsLabel: "Message details", lang: "en" };
 
 describe("plain message dialog", () => {
   it("renders distinct header, body, and footer regions", () => {
@@ -89,7 +93,7 @@ describe("plain message dialog", () => {
     const html = renderPlainMessageDialogHtml({
       title: "Titel",
       message: "Nachricht",
-      closeLabel: "OK <sofort>",
+      buttons: ["OK <sofort>"],
       detailsLabel: "Details der Meldung",
       lang: "de",
     });
@@ -97,6 +101,44 @@ describe("plain message dialog", () => {
     expect(html).toContain('<html lang="de">');
     expect(html).toContain('aria-label="Details der Meldung"');
     expect(html).toContain(">OK &lt;sofort&gt;</button>");
+  });
+
+  it("draws each button with its role, and wraps the row instead of clipping it", () => {
+    const html = renderPlainMessageDialogHtml({
+      title: "Title",
+      message: "Message",
+      buttons: ["Cancel", "Retry", "Quit anyway"],
+      defaultId: 1,
+      cancelId: 0,
+      destructiveId: 2,
+      detailsLabel: "Message details",
+      lang: "en",
+    });
+
+    expect(html).toContain('<button id="choice-0" class="button" type="button"');
+    expect(html).toContain('<button id="choice-1" class="button primary" type="button"');
+    expect(html).toContain('<button id="choice-2" class="button destructive" type="button"');
+    expect(html).toContain(".actions{display:flex;flex-wrap:wrap;");
+  });
+
+  it("answers with the button chosen, and with the cancel choice on Escape or an ending session", async () => {
+    const options = { title: "Title", message: "Message", buttons: ["Cancel", "Retry"], defaultId: 1, cancelId: 0, detailsLabel: "Message details", lang: "en" };
+
+    const chosen = showPlainMessageDialog(options);
+    await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+    navigate(0, "https://fotoready-dialog.invalid/choice/1");
+    await expect(chosen).resolves.toBe(1);
+
+    const escaped = showPlainMessageDialog(options);
+    await vi.waitFor(() => expect(electron.windows[1]?.show).toHaveBeenCalledOnce());
+    pressEscape(1);
+    await expect(escaped).resolves.toBe(0);
+
+    const ended = showPlainMessageDialog(options);
+    await vi.waitFor(() => expect(electron.windows[2]?.show).toHaveBeenCalledOnce());
+    cancelOpenMessageDialogs();
+    await expect(ended).resolves.toBe(0);
+    expect(electron.windows[2]?.close).toHaveBeenCalled();
   });
 
   it("follows the resolved theme in its page and its window background", async () => {
@@ -137,7 +179,7 @@ describe("plain message dialog", () => {
     await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
     electron.windows[0]?.close();
 
-    await expect(result).resolves.toBeUndefined();
+    await expect(result).resolves.toBe(0);
     expect(consoleError).toHaveBeenCalledWith(
       "[fotoready] Could not focus the message dialog button:",
       expect.objectContaining({ message: "focus failed" }),
@@ -145,3 +187,12 @@ describe("plain message dialog", () => {
     consoleError.mockRestore();
   });
 });
+
+function navigate(index: number, url: string): void {
+  const event = { preventDefault: vi.fn() };
+  (electron.windows[index] as unknown as { emitContents(name: string, ...args: unknown[]): void }).emitContents("will-navigate", event, url);
+}
+
+function pressEscape(index: number): void {
+  (electron.windows[index] as unknown as { emitContents(name: string, ...args: unknown[]): void }).emitContents("before-input-event", { preventDefault() {} }, { key: "Escape" });
+}

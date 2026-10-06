@@ -108,6 +108,10 @@
   "confirm.close.title": "Fechar o FotoReady?",
   "confirm.close.message": "Fechar e descartar o espaço de trabalho atual?",
   "confirm.close.messageWithSaves": "Fechar e descartar o espaço de trabalho atual? Os salvamentos em andamento são cancelados e seus arquivos incompletos são removidos.",
+  "quit.notSaved.title": "Alterações não salvas",
+  "quit.notSaved.message": "O FotoReady não conseguiu terminar de salvar algumas das suas alterações. Se você encerrar agora, elas serão perdidas.",
+  "quit.notSaved.detail": "Não salvo: {items}",
+  "quit.quitAnyway": "Encerrar mesmo assim",
 
   "failure.workspaceWidths": "A largura dos painéis mudou nesta sessão, mas não pôde ser salva. Restabeleça o acesso à pasta de dados do FotoReady e redimensione um painel de novo.",
   "failure.openRecords": "Não foi possível abrir a janela de registros.",

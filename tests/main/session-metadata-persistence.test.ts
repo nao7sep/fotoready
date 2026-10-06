@@ -12,6 +12,7 @@ vi.mock("@main/task-sidecar", async (importOriginal) => {
 });
 
 import { ProjectSession } from "@main/session";
+import { UserWorkWrites } from "@main/quit-save";
 
 const persistenceFailure = new Error("sidecar persistence failed");
 
@@ -37,6 +38,24 @@ describe("ProjectSession saved-task metadata persistence", () => {
     expect(restored).toBe(task);
     expect(restored).toEqual(before);
     expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a sidecar write that fails during a quit, which the quit's retry writes again with the change", async () => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    userWork.beginQuit();
+
+    await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
+    expect(task.customSlug).toBe("vision-slug");
+    expect(userWork.unsaved()).toEqual({ failed: [{ kind: "sidecar", file: "photo.json" }], running: [] });
+
+    userWork.retry();
+    await userWork.settle(1_000);
+
+    expect(userWork.unsaved()).toEqual({ failed: [], running: [] });
+    expect(task.customSlug).toBe("pier");
+    expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -87,13 +106,15 @@ function notSavedSession(): { session: ProjectSession; task: Task } {
   return arrangeSession(task);
 }
 
-function arrangeSession(task: Task): { session: ProjectSession; task: Task } {
+function arrangeSession(task: Task, userWork?: UserWorkWrites): { session: ProjectSession; task: Task } {
   const session = new ProjectSession(
     defaultGlobalSettings(),
     null as never,
     null as never,
     null as never,
-    "resources/stamps"
+    "resources/stamps",
+    undefined,
+    userWork
   );
   const project = session.snapshot().project;
   project.originals.push(original());

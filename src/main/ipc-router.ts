@@ -17,6 +17,7 @@ import { changeLanguagePreference, interfaceLanguage, mainTranslator } from "@ma
 import { installApplicationMenu } from "@main/menu";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
 import type { StateCoordinator } from "@main/state-io";
+import type { UserWorkWrites } from "@main/quit-save";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
@@ -35,6 +36,8 @@ export type RouterContext = {
   settings: GlobalSettings;
   uiState: UiState;
   stateCoordinator: StateCoordinator;
+  /** The settings and API key the user saves are their own work, which a quit waits for. */
+  userWork: UserWorkWrites;
   projectSession: ProjectSession;
   logger: AppLogger;
   version: string;
@@ -184,7 +187,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
   handle("settings.update", "info", async (_event, draft: unknown) => {
-    return serializeSettings(async () => {
+    return ctx.userWork.run({ kind: "settings" }, () => serializeSettings(async () => {
       const settings = await saveSettings(ctx.paths.settingsPath, draft, ctx.settings, ctx.logger);
       Object.assign(ctx.settings, settings);
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
@@ -196,11 +199,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
         for (const win of BrowserWindow.getAllWindows()) win.webContents.send(LANGUAGE_CHANGED_CHANNEL, language);
       }
       return ctx.settings;
-    });
+    }));
   });
   handle("settings.hasGeminiApiKey", "debug", async () => ctx.projectSession.hasGeminiApiKey());
-  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
-  handle("settings.clearGeminiApiKey", "info", async () => ctx.projectSession.clearGeminiApiKey());
+  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) =>
+    ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.setGeminiApiKey(apiKey)));
+  handle("settings.clearGeminiApiKey", "info", async () =>
+    ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.clearGeminiApiKey()));
 
   handle("state.get", "debug", async () => ctx.uiState);
   handle("state.update", "info", async (_event, patch: Partial<UiState>) => {

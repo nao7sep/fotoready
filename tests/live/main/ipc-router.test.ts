@@ -89,6 +89,7 @@ async function startApp(home: string) {
   const { ProcessingQueue } = await import("@main/queues/processing-queue");
   const { PipelineWorkerPool } = await import("@main/workers/pipeline-pool");
   const { createRecordsReader } = await import("@main/records-reader");
+  const { UserWorkWrites } = await import("@main/quit-save");
 
   const paths = getAppPaths();
   const records = openRecordsStore(paths.recordsPath, paths.logsDir);
@@ -102,12 +103,13 @@ async function startApp(home: string) {
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
-  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
+  const userWork = new UserWorkWrites();
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
   const recordsReader = createRecordsReader(paths.recordsPath);
   registerIpcHandlers({
-    paths, settings, uiState, stateCoordinator, projectSession, logger, version: "0.0.0-live",
+    paths, settings, uiState, stateCoordinator, userWork, projectSession, logger, version: "0.0.0-live",
     records: {
       reader: recordsReader,
       session: records.session,

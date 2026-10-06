@@ -108,6 +108,10 @@
   "confirm.close.title": "Fermer FotoReady\u00a0?",
   "confirm.close.message": "Fermer et abandonner l’espace de travail actuel\u00a0?",
   "confirm.close.messageWithSaves": "Fermer et abandonner l’espace de travail actuel\u00a0? Les enregistrements en cours sont annulés et leurs fichiers inachevés sont supprimés.",
+  "quit.notSaved.title": "Modifications non enregistrées",
+  "quit.notSaved.message": "FotoReady n’a pas pu terminer l’enregistrement de certaines de vos modifications. Si vous quittez maintenant, elles seront perdues.",
+  "quit.notSaved.detail": "Non enregistré\u00a0: {items}",
+  "quit.quitAnyway": "Quitter quand même",
 
   "failure.workspaceWidths": "La largeur des panneaux a changé pour cette session mais n’a pas pu être enregistrée. Rétablissez l’accès au dossier de données de FotoReady, puis redimensionnez de nouveau un panneau.",
   "failure.openRecords": "La fenêtre du journal n’a pas pu être ouverte.",

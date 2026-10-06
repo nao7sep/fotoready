@@ -149,4 +149,16 @@ describe("createStateCoordinator", () => {
     expect(state.histogramPosition).toEqual({ x: 5, y: 6 });
     expect(writer).toHaveBeenCalledTimes(2);
   });
+
+  it("reports the last write's failure from flush, so quitting can log it", async () => {
+    const writer = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("read-only"));
+    const coordinator = createStateCoordinator(statePath(), { state: defaultUiState(), writable: true }, writer);
+
+    void coordinator.update({ showHistogram: true });
+    void coordinator.update({ histogramPosition: { x: 1, y: 2 } }).catch(() => undefined);
+
+    await expect(coordinator.flush()).rejects.toThrow("read-only");
+  });
 });

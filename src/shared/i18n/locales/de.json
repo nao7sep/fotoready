@@ -108,6 +108,10 @@
   "confirm.close.title": "FotoReady schließen?",
   "confirm.close.message": "Schließen und den aktuellen Arbeitsbereich verwerfen?",
   "confirm.close.messageWithSaves": "Schließen und den aktuellen Arbeitsbereich verwerfen? Laufende Speichervorgänge werden abgebrochen, und ihre unfertigen Dateien werden entfernt.",
+  "quit.notSaved.title": "Änderungen nicht gespeichert",
+  "quit.notSaved.message": "FotoReady konnte einige Ihrer Änderungen nicht fertig speichern. Wenn Sie jetzt beenden, gehen sie verloren.",
+  "quit.notSaved.detail": "Nicht gespeichert: {items}",
+  "quit.quitAnyway": "Trotzdem beenden",
 
   "failure.workspaceWidths": "Die Bereichsbreiten haben sich für diese Sitzung geändert, konnten aber nicht gespeichert werden. Stellen Sie den Zugriff auf den Datenordner von FotoReady wieder her und ändern Sie dann die Größe eines Bereichs erneut.",
   "failure.openRecords": "Das Protokollfenster konnte nicht geöffnet werden.",

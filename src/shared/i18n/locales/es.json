@@ -108,6 +108,10 @@
   "confirm.close.title": "¿Cerrar FotoReady?",
   "confirm.close.message": "¿Cerrar y descartar el espacio de trabajo actual?",
   "confirm.close.messageWithSaves": "¿Cerrar y descartar el espacio de trabajo actual? Los guardados en curso se cancelan y sus archivos incompletos se eliminan.",
+  "quit.notSaved.title": "Cambios sin guardar",
+  "quit.notSaved.message": "FotoReady no pudo terminar de guardar algunos de tus cambios. Si sales ahora, se perderán.",
+  "quit.notSaved.detail": "Sin guardar: {items}",
+  "quit.quitAnyway": "Salir de todos modos",
 
   "failure.workspaceWidths": "El ancho de los paneles cambió en esta sesión, pero no se pudo guardar. Restablece el acceso a la carpeta de datos de FotoReady y vuelve a cambiar el tamaño de un panel.",
   "failure.openRecords": "No se pudo abrir la ventana de registros.",

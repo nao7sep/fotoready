@@ -18,7 +18,7 @@ import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
-import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
+import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, sidecarPathForOutput, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
@@ -35,6 +35,7 @@ import { isTaskBusyForRemoval } from "@main/task-removal";
 import { message } from "@shared/i18n/translate";
 import { mainTranslator } from "@main/i18n";
 import { resolveConfiguredPath } from "@main/configured-path";
+import { UserWorkWrites } from "@main/quit-save";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -61,7 +62,8 @@ export class ProjectSession {
     private readonly processingQueue: ProcessingQueue,
     workerPool: PipelineWorkerPool,
     private readonly bundledStampsDir: string,
-    private readonly logger?: AppLogger
+    private readonly logger?: AppLogger,
+    private readonly userWork: UserWorkWrites = new UserWorkWrites()
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
     this.#previewService = new PreviewService(workerPool);
@@ -747,8 +749,10 @@ export class ProjectSession {
   private async commitTaskMetadata(task: Task, apply: () => boolean): Promise<boolean> {
     if (!task.output) return apply();
     // In the lane, each change applies and persists in turn: the sidecar always holds the latest
-    // state, and a failed write rolls back only its own change, never a later one.
-    return this.#serializeOutputFiles(async () => {
+    // state, and a failed write rolls back only its own change, never a later one. The sidecar is
+    // the user's own work, so a quit waits for the write and can run it again.
+    const file = path.basename(sidecarPathForOutput(task.output.finalPath ?? task.output.stagedPath));
+    return this.userWork.run({ kind: "sidecar", file }, () => this.#serializeOutputFiles(async () => {
       const before = captureTaskMetadata(task);
       if (!apply()) return false;
       try {
@@ -758,7 +762,7 @@ export class ProjectSession {
         throw error;
       }
       return true;
-    });
+    }));
   }
 
   private recordTaskEdit(task: Task, options?: TaskEditOptions): void {

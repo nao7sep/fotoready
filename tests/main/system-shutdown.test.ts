@@ -1,83 +1,80 @@
 import { EventEmitter } from "node:events";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electron = vi.hoisted(() => ({
   quit: vi.fn(),
-  powerMonitor: null as unknown as import("node:events").EventEmitter
+  exit: vi.fn(),
+  listeners: new Map<string, Array<(event: { preventDefault(): void }) => void>>()
 }));
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
 vi.mock("electron", async () => {
   const { EventEmitter: Emitter } = await import("node:events");
-  electron.powerMonitor = new Emitter();
   return {
-    app: { on() {}, off() {}, quit: electron.quit, isPackaged: false },
-    BrowserWindow: { fromWebContents: () => null },
+    app: {
+      on(name: string, listener: (event: { preventDefault(): void }) => void) {
+        electron.listeners.set(name, [...(electron.listeners.get(name) ?? []), listener]);
+      },
+      off() {},
+      quit: electron.quit,
+      exit: electron.exit,
+      isPackaged: false
+    },
+    BrowserWindow: { fromWebContents: () => null, getFocusedWindow: () => null },
     ipcMain: { handle() {}, removeHandler() {} },
     nativeTheme: { themeSource: "system", shouldUseDarkColors: false },
-    powerMonitor: electron.powerMonitor
+    powerMonitor: new Emitter()
   };
 });
 
-const { installCloseGuard } = await import("@main/bootstrap");
+const { installCloseGuard, installQuitShutdown } = await import("@main/bootstrap");
 
 function fakeWindow(): EventEmitter & { webContents: { isDestroyed(): boolean; send(): void } } {
   return Object.assign(new EventEmitter(), { webContents: { isDestroyed: () => false, send() {} } });
 }
 
 beforeEach(() => {
-  vi.useFakeTimers();
   electron.quit.mockReset();
-  electron.powerMonitor.removeAllListeners();
+  electron.exit.mockReset();
+  electron.listeners.clear();
 });
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe("system shutdown", () => {
-  it.each(["powerMonitor shutdown", "query-session-end"])("on %s, holds the shutdown until the last state write lands, then quits", async (source) => {
-    let finishWrite!: () => void;
-    const prepareClose = vi.fn(() => new Promise<void>((resolve) => { finishWrite = resolve; }));
-    const exitState = { reason: "unknown" };
+describe("Windows session end", () => {
+  // Windows raises no quit event and may end the process as soon as session-end returns.
+  it("records what the quit has not finished and exits before the event returns", () => {
+    const sessionEnded = vi.fn();
+    const quit = installQuitShutdown({
+      prepare: () => new Promise<boolean>(() => {}),
+      answerForSessionEnd: () => {},
+      stop: async () => {},
+      sessionEnded
+    });
     const win = fakeWindow();
-    installCloseGuard(win as never, exitState, prepareClose);
-
-    const event = { preventDefault: vi.fn() };
-    if (source === "powerMonitor shutdown") electron.powerMonitor.emit("shutdown", event);
-    else win.emit("query-session-end", event);
-
-    expect(event.preventDefault).toHaveBeenCalledOnce();
-    expect(exitState.reason).toBe("system-shutdown");
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(electron.quit).not.toHaveBeenCalled();
-
-    finishWrite();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(electron.quit).toHaveBeenCalledOnce();
-    expect(prepareClose).toHaveBeenCalledOnce();
-  });
-
-  it("quits anyway when the write does not land within the limit", async () => {
-    const win = fakeWindow();
-    installCloseGuard(win as never, { reason: "unknown" }, () => new Promise<void>(() => {}));
+    installCloseGuard(win as never, { reason: "unknown" }, quit);
 
     win.emit("session-end", { preventDefault() {} });
-    await vi.advanceTimersByTimeAsync(9_999);
-    expect(electron.quit).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
+
+    expect(quit.sessionEnding()).toBe(true);
     expect(electron.quit).toHaveBeenCalledOnce();
+    expect(sessionEnded).toHaveBeenCalledOnce();
+    expect(electron.exit).toHaveBeenCalledExactlyOnceWith(0);
   });
 
-  it("acts once when Windows sends both session events", async () => {
-    const prepareClose = vi.fn(async () => {});
+  it("stops listening for the session once the window has closed", () => {
+    const quit = installQuitShutdown({
+      prepare: async () => true,
+      answerForSessionEnd: () => {},
+      stop: async () => {},
+      sessionEnded: () => {}
+    });
     const win = fakeWindow();
-    installCloseGuard(win as never, { reason: "unknown" }, prepareClose);
+    installCloseGuard(win as never, { reason: "unknown" }, quit);
 
+    win.emit("closed");
     win.emit("query-session-end", { preventDefault() {} });
     win.emit("session-end", { preventDefault() {} });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(prepareClose).toHaveBeenCalledOnce();
-    expect(electron.quit).toHaveBeenCalledOnce();
+
+    expect(quit.sessionEnding()).toBe(false);
+    expect(electron.exit).not.toHaveBeenCalled();
   });
 });

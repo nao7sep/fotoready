@@ -108,6 +108,10 @@
   "confirm.close.title": "Close FotoReady?",
   "confirm.close.message": "Close and discard the current workspace?",
   "confirm.close.messageWithSaves": "Close and discard the current workspace? Saves still in progress are cancelled, and their unfinished files are removed.",
+  "quit.notSaved.title": "Changes not saved",
+  "quit.notSaved.message": "FotoReady could not finish saving some of your changes. If you quit now, they will be lost.",
+  "quit.notSaved.detail": "Not saved: {items}",
+  "quit.quitAnyway": "Quit anyway",
 
   "failure.workspaceWidths": "The pane widths changed for this session but could not be saved. Restore access to FotoReady’s data folder, then resize a pane again.",
   "failure.openRecords": "The records window could not be opened.",

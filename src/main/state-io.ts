@@ -55,6 +55,7 @@ export async function saveState(statePath: string, state: UiState): Promise<void
 
 export type StateCoordinator = {
   update(patch: Partial<UiState>): Promise<UiStateNormalizationResult>;
+  /** Settles once every update has; rejects with the last update's failure, so quitting can log it. */
   flush(): Promise<void>;
 };
 
@@ -69,6 +70,7 @@ export function createStateCoordinator(
 ): StateCoordinator {
   const currentState = loaded.state;
   let tail: Promise<void> = Promise.resolve();
+  let last: Promise<unknown> = Promise.resolve();
   const update = (patch: Partial<UiState>): Promise<UiStateNormalizationResult> => {
     const operation = tail.then(async () => {
       const candidate = { ...currentState, ...patch };
@@ -81,7 +83,8 @@ export function createStateCoordinator(
       () => undefined,
       () => undefined
     );
+    last = operation;
     return operation;
   };
-  return { update, flush: async () => tail };
+  return { update, flush: async () => { await last; } };
 }

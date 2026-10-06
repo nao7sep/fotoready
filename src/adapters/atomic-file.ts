@@ -28,15 +28,21 @@ export async function atomicWriteFile(
   options?: AtomicWriteOptions | BufferEncoding
 ): Promise<void> {
   const opts: AtomicWriteOptions = typeof options === "string" ? { encoding: options } : options ?? {};
+  // The exact bytes that land on disk, held in memory so the after-write hook records what THIS call wrote
+  // — never a re-read of the file (which could capture a concurrent writer's content). For a string, the
+  // buffer uses the same encoding as the write below.
+  const bytes = typeof data === "string" ? Buffer.from(data, opts.encoding ?? "utf8") : data;
+  // A write that changes nothing is skipped (content-lifecycle conventions, Files): no replace and no
+  // after-write record. An explicit mode still applies to the file as it is.
+  if ((await existingBytes(filePath))?.equals(bytes)) {
+    if (opts.mode !== undefined && process.platform !== "win32") await fs.chmod(filePath, opts.mode);
+    return;
+  }
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   // <stem>-<nanoid>.tmp, alongside the target (derived-filename grammar): one final extension stating
   // the temp file's current role, never a dot-appended suffix on the full target filename.
   const tmpPath = path.join(dir, `${path.parse(filePath).name}-${nanoid(8)}.tmp`);
-  // The exact bytes that land on disk, held in memory so the after-write hook records what THIS call wrote
-  // — never a re-read of the file (which could capture a concurrent writer's content). For a string, the
-  // buffer uses the same encoding as the write below.
-  const bytes = typeof data === "string" ? Buffer.from(data, opts.encoding ?? "utf8") : data;
   try {
     const writeOptions = opts.mode !== undefined ? { mode: opts.mode } : undefined;
     await fs.writeFile(tmpPath, bytes, writeOptions);
@@ -55,6 +61,15 @@ export async function atomicWriteFile(
   // after-write hook (only the managed-text choke point supplies one). Recording before the rename would
   // risk a "backup of a save that never happened" (data-backup conventions).
   opts.afterWrite?.(bytes);
+}
+
+/** The bytes the file holds now, or undefined when it cannot be read; then the write goes ahead and reports any failure. */
+async function existingBytes(filePath: string): Promise<Buffer | undefined> {
+  try {
+    return await fs.readFile(filePath);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The permission bits of the file a write replaces, or undefined when there is none yet. */

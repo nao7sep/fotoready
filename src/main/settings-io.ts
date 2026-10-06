@@ -109,7 +109,19 @@ export async function saveSettings(
   const next = Object.fromEntries(SETTINGS_KEYS
     .filter((key) => !equalsBuiltIn(key, effective[key], builtIns[key]))
     .map((key) => [key, effective[key]]));
+  // First run writes nothing while every set is at its built-in (config-sets-conventions).
+  if (Object.keys(next).length === 0 && !(await fileExists(settingsPath))) return effective;
   // recorded: durable config sets use the managed atomic write and backup history.
   await writeManagedFile(settingsPath, versionedJson(FORMAT_VERSIONS.config, next));
   return effective;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }

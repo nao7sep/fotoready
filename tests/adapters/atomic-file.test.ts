@@ -81,4 +81,25 @@ describe("atomicWriteFile", () => {
 
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   });
+
+  it("skips a write whose bytes are already on disk, recording nothing", async () => {
+    await atomicWriteFile(filePath, "same", "utf8");
+    const renameSpy = vi.spyOn(fsp, "rename");
+    const afterWrite = vi.fn();
+
+    await atomicWriteFile(filePath, "same", { afterWrite });
+
+    expect(renameSpy).not.toHaveBeenCalled();
+    expect(afterWrite).not.toHaveBeenCalled();
+    renameSpy.mockRestore();
+  });
+
+  it.runIf(isPosix)("still applies an explicit mode when the bytes are unchanged", async () => {
+    await fsp.writeFile(filePath, "secret");
+    await fsp.chmod(filePath, 0o644);
+
+    await atomicWriteFile(filePath, "secret", { mode: 0o600 });
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
 });

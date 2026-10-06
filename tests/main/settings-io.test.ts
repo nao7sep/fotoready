@@ -28,9 +28,13 @@ afterEach(async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-/** The sets the file holds; every save records the format version first. */
+/** The sets the file holds, none while first run has written no file; every save records the format version first. */
 const written = async () => {
-  const { formatVersion, ...sets } = JSON.parse(await fs.readFile(settingsPath(), "utf8")) as Record<string, unknown>;
+  const text = await fs.readFile(settingsPath(), "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return '{"formatVersion":1}';
+    throw error;
+  });
+  const { formatVersion, ...sets } = JSON.parse(text) as Record<string, unknown>;
   expect(formatVersion).toBe(1);
   return sets;
 };
@@ -85,6 +89,20 @@ describe("settings by set", () => {
   it("loads built-ins on first run without writing any file", async () => {
     expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), quarantinedTo: null });
     expect(await fs.readdir(dir)).toEqual([]);
+  });
+
+  it("writes nothing when a first-run save leaves every set at its built-in", async () => {
+    const effective = await save({});
+    expect(effective).toEqual(defaults());
+    expect(await fs.readdir(dir)).toEqual([]);
+  });
+
+  it("leaves the file untouched when a save changes nothing", async () => {
+    await save({ defaultWebpQuality: 71 });
+    const renameSpy = vi.spyOn(fs, "rename");
+    await save({});
+    expect(renameSpy).not.toHaveBeenCalled();
+    expect(await written()).toEqual({ defaultWebpQuality: 71 });
   });
 
   it("writes only the set that changes", async () => {
@@ -245,7 +263,7 @@ describe("settings by set", () => {
       "gemini.description": ` ${defaults()["gemini.description"].toUpperCase()} `,
       "gemini.endpoint": `${defaults()["gemini.endpoint"]} `
     });
-    expect(await written()).toEqual({});
+    expect(await fs.readdir(dir)).toEqual([]);
   });
 
   it("stores a differing set in its cleaned form", async () => {

@@ -95,6 +95,8 @@
   "renameComplete.none": "Aucun fichier n’avait besoin d’être renommé.",
   "renameComplete.before": "Avant",
   "renameComplete.after": "Après",
+  "renameComplete.sourceRetained": "Le fichier renommé est prêt, mais sa copie précédente n’a pas pu être supprimée\u00a0: {path}",
+  "renameComplete.cleanupPending": "Les fichiers renommés sont prêts, mais le nettoyage n’est pas terminé. Consultez le journal de la session avant de supprimer les copies restantes.",
   "renameComplete.name": "Nom",
 
   "confirm.discardSettings.title": "Abandonner les modifications\u00a0?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "Cet emplacement n’a pas pu être choisi. Le chemin actuel est inchangé\u00a0; réessayez.",
   "failure.renamePreview": "L’aperçu du renommage n’a pas pu être préparé. Les fichiers enregistrés sont inchangés\u00a0; réessayez.",
   "failure.renameStopped": "Le renommage s’est arrêté avant la fin de tous les fichiers. Certains fichiers portent peut-être déjà leur nouveau nom\u00a0; vérifiez la liste actualisée, puis réessayez les éléments restants.",
+  "failure.outputSidecarNewer": "Ce fichier annexe a été enregistré avec une version plus récente de FotoReady et ne peut pas être modifié par cette version\u00a0: {path}. Ouvrez-le avec la version plus récente.",
+  "failure.outputSidecarUnreadable": "FotoReady n’a pas pu lire ce fichier annexe\u00a0: {path}. Réparez-le ou déplacez-le avant de modifier le fichier de sortie.",
   "failure.regenerateSlug": "Aucun slug de remplacement n’a pu être généré. Vérifiez les réglages Gemini, puis réessayez.",
   "failure.renameSlugSave": "Le slug de renommage n’a pas pu être enregistré. Votre modification reste affichée\u00a0; réessayez.",
   "failure.assetUse": "L’élément sélectionné n’a pas pu être utilisé. La sélection actuelle est inchangée\u00a0; réessayez.",

@@ -162,7 +162,7 @@ describe("RenameModal vision recovery", () => {
   });
 
   it("keeps the modal open and reconciled after a stopped partial rename", async () => {
-    await renderModal({ onPreview: async () => readyPreview, onRun: async () => "stopped" });
+    await renderModal({ onPreview: async () => readyPreview, onRun: async () => ({ status: "stopped", warnings: [] }) });
     await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
 
     await clickButton("Rename all");
@@ -171,8 +171,8 @@ describe("RenameModal vision recovery", () => {
   });
 
   it("blocks every close path while a rename batch is running", async () => {
-    let finishRun: ((outcome: "stopped") => void) | undefined;
-    const running = new Promise<"stopped">((resolve) => { finishRun = resolve; });
+    let finishRun: ((outcome: { status: "complete" | "stopped"; warnings: [] }) => void) | undefined;
+    const running = new Promise<{ status: "complete" | "stopped"; warnings: [] }>((resolve) => { finishRun = resolve; });
     const onClose = vi.fn();
     await renderModal({ onClose, onPreview: async () => readyPreview, onRun: async () => running });
     await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
@@ -191,7 +191,7 @@ describe("RenameModal vision recovery", () => {
     });
     expect(onClose).not.toHaveBeenCalled();
 
-    await act(async () => finishRun?.("stopped"));
+    await act(async () => finishRun?.({ status: "stopped", warnings: [] }));
     expect(button("Cancel")?.disabled).toBe(false);
   });
 });
@@ -201,7 +201,7 @@ async function renderModal(overrides: {
   onClose?: () => void;
   onPreview?: () => Promise<RenamePreview>;
   onRegenerateSlug?: (taskId: string) => Promise<void>;
-  onRun?: () => Promise<"complete" | "stopped">;
+  onRun?: () => Promise<{ status: "complete" | "stopped"; warnings: [] }>;
   onSetOutputDir?: () => Promise<void>;
 } = {}): Promise<void> {
   await act(async () => {
@@ -214,7 +214,7 @@ async function renderModal(overrides: {
       onOpenSettings: overrides.onOpenSettings ?? (() => undefined),
       onPreview: overrides.onPreview ?? (async () => preview),
       onRegenerateSlug: overrides.onRegenerateSlug ?? (async () => undefined),
-      onRun: overrides.onRun ?? (async () => "complete"),
+      onRun: overrides.onRun ?? (async () => ({ status: "complete", warnings: [] })),
       onSetRenameSlug: async () => undefined,
       onSetOutputDir: overrides.onSetOutputDir ?? (async () => undefined),
     }));

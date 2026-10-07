@@ -82,6 +82,9 @@ export type RenameRunResult = {
   snapshot: ProjectSnapshot;
   status: "complete" | "stopped";
   completedTaskIds: string[];
+  partialTaskIds: string[];
+  warnings: Message[];
+  reason?: Message;
 };
 
 export type OriginalImportIssue = {

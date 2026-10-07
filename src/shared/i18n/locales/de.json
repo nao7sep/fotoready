@@ -95,6 +95,8 @@
   "renameComplete.none": "Keine Datei musste umbenannt werden.",
   "renameComplete.before": "Vorher",
   "renameComplete.after": "Nachher",
+  "renameComplete.sourceRetained": "Die umbenannte Datei ist bereit, aber ihre vorherige Kopie konnte nicht entfernt werden: {path}",
+  "renameComplete.cleanupPending": "Die umbenannten Dateien sind bereit, aber die Bereinigung wurde nicht abgeschlossen. Prüfen Sie das Sitzungsprotokoll, bevor Sie verbliebene Kopien entfernen.",
   "renameComplete.name": "Name",
 
   "confirm.discardSettings.title": "Änderungen verwerfen?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "Dieser Ort konnte nicht ausgewählt werden. Der aktuelle Pfad ist unverändert; versuchen Sie es erneut.",
   "failure.renamePreview": "Die Vorschau zum Umbenennen konnte nicht erstellt werden. Die gespeicherten Dateien sind unverändert; versuchen Sie es erneut.",
   "failure.renameStopped": "Das Umbenennen wurde beendet, bevor alle Dateien fertig waren. Einige Dateien haben möglicherweise schon ihren neuen Namen; prüfen Sie die aktualisierte Liste und versuchen Sie es dann mit den übrigen Einträgen.",
+  "failure.outputSidecarNewer": "Diese Begleitdatei wurde mit einer neueren Version von FotoReady gespeichert und kann mit dieser Version nicht geändert werden: {path}. Öffnen Sie sie mit der neueren Version.",
+  "failure.outputSidecarUnreadable": "FotoReady konnte diese Begleitdatei nicht lesen: {path}. Reparieren oder verschieben Sie sie, bevor Sie die Ausgabedatei ändern.",
   "failure.regenerateSlug": "Es konnte kein neuer Slug erzeugt werden. Prüfen Sie die Gemini-Einstellungen und versuchen Sie es dann erneut.",
   "failure.renameSlugSave": "Der Slug zum Umbenennen konnte nicht gespeichert werden. Ihre Bearbeitung wird weiterhin angezeigt; versuchen Sie es erneut.",
   "failure.assetUse": "Das ausgewählte Element konnte nicht verwendet werden. Die aktuelle Auswahl ist unverändert; versuchen Sie es erneut.",

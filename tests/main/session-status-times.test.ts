@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import type { Original, Task, TaskStatus } from "@shared/types/project";
@@ -48,6 +51,24 @@ describe("ProjectSession status changes", () => {
     expect(task.output).toBeNull();
     expect(task.updatedAt).toBe(MODIFIED);
   });
+  it("leaves task state and output files unchanged when a newer sidecar refuses deletion", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-session-delete-"));
+    try {
+      const { session, task } = arrange("saved");
+      task.output!.stagedPath = path.join(root, "photo.jpg");
+      task.output!.stagedParamsPath = path.join(root, "photo.json");
+      await fs.writeFile(task.output!.stagedPath, "photo bytes");
+      await fs.writeFile(task.output!.stagedParamsPath, '{"formatVersion":2,"future":"preserved"}');
+      const before = structuredClone(task);
+      await expect(session.deleteSavedOutput(task.id)).rejects.toMatchObject({ reason: { key: "failure.outputSidecarNewer" } });
+      expect(task).toEqual(before);
+      expect(await fs.readFile(task.output!.stagedPath, "utf8")).toBe("photo bytes");
+      expect(await fs.readFile(task.output!.stagedParamsPath, "utf8")).toBe('{"formatVersion":2,"future":"preserved"}');
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
 });
 
 function arrange(status: TaskStatus): { session: ProjectSession; task: Task } {

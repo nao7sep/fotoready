@@ -95,6 +95,8 @@
   "renameComplete.none": "Nessun file doveva essere rinominato.",
   "renameComplete.before": "Prima",
   "renameComplete.after": "Dopo",
+  "renameComplete.sourceRetained": "Il file rinominato è pronto, ma non è stato possibile rimuovere la copia precedente: {path}",
+  "renameComplete.cleanupPending": "I file rinominati sono pronti, ma la pulizia non è stata completata. Controlla il registro della sessione prima di rimuovere le copie rimaste.",
   "renameComplete.name": "Nome",
 
   "confirm.discardSettings.title": "Scartare le modifiche?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "Non è stato possibile scegliere quella posizione. Il percorso attuale non è cambiato; riprova.",
   "failure.renamePreview": "Non è stato possibile preparare l’anteprima della rinomina. I file salvati non sono cambiati; riprova.",
   "failure.renameStopped": "La rinomina si è interrotta prima di completare tutti i file. Alcuni file potrebbero avere già il nuovo nome; controlla l’elenco aggiornato, poi riprova con gli elementi rimanenti.",
+  "failure.outputSidecarNewer": "Questo file collaterale è stato salvato con una versione più recente di FotoReady e non può essere modificato con questa versione: {path}. Aprilo con la versione più recente.",
+  "failure.outputSidecarUnreadable": "FotoReady non ha potuto leggere questo file collaterale: {path}. Riparalo o spostalo prima di modificare il file di output.",
   "failure.regenerateSlug": "Non è stato possibile generare uno slug sostitutivo. Controlla le impostazioni di Gemini, poi riprova.",
   "failure.renameSlugSave": "Non è stato possibile salvare lo slug per la rinomina. La modifica resta visibile; riprova.",
   "failure.assetUse": "Non è stato possibile usare l’elemento selezionato. La selezione attuale non è cambiata; riprova.",

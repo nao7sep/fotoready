@@ -1039,13 +1039,13 @@ function App(): React.JSX.Element {
           onRun={async (templateId, summary) => {
             const result = await api.rename.run(templateId);
             await refreshProject(result.snapshot);
-            if (result.status === "stopped") return "stopped";
+            if (result.status === "stopped") return result;
             setRenameOpen(false);
             await confirmer.alert({
               title: t("renameComplete.title"),
-              message: <RenameCompleteMessage summary={summary} />
+              message: <RenameCompleteMessage summary={summary} warnings={result.warnings} />
             });
-            return "complete";
+            return result;
           }}
           onSetRenameSlug={async (taskId, customSlug) => {
             await refreshProject(await api.task.setCustomSlug(taskId, customSlug));
@@ -1155,10 +1155,11 @@ function StatusBar({
   );
 }
 
-function RenameCompleteMessage({ summary }: { summary: RenameRunSummary }): React.JSX.Element {
-  const { t } = useI18n();
+function RenameCompleteMessage({ summary, warnings }: { summary: RenameRunSummary; warnings: Message[] }): React.JSX.Element {
+  const { t, text } = useI18n();
   return (
     <div className="rename-complete-summary">
+      {warnings.map((warning, index) => <OperationResult key={index} severity="warning">{text(warning)}</OperationResult>)}
       {summary.renamed.length > 0 ? (
         <section>
           <strong>{t("renameComplete.renamed", { count: summary.renamed.length })}</strong>

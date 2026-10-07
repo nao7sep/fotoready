@@ -22,6 +22,7 @@ import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
 import { ipcFailure } from "@shared/ipc-failure";
+import { OutputSidecarFormatError } from "./output-sidecar-format";
 import { LibraryFolderError } from "@main/file-asset-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
@@ -78,7 +79,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       } catch (error) {
         ctx.logger.error(`ipc ${channel} failed`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt), err: error });
         if (error instanceof PathVariableError) return ipcFailure(pathVariableReason(error));
-        if (error instanceof LibraryFolderError) return ipcFailure(error.reason);
+        if (error instanceof LibraryFolderError || error instanceof OutputSidecarFormatError) return ipcFailure(error.reason);
         throw error;
       }
     });

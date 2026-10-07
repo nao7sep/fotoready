@@ -95,6 +95,8 @@
   "renameComplete.none": "Ningún archivo necesitaba un nombre nuevo.",
   "renameComplete.before": "Antes",
   "renameComplete.after": "Después",
+  "renameComplete.sourceRetained": "El archivo renombrado está listo, pero no se pudo eliminar su copia anterior: {path}",
+  "renameComplete.cleanupPending": "Los archivos renombrados están listos, pero la limpieza no terminó. Revisa el registro de la sesión antes de eliminar las copias restantes.",
   "renameComplete.name": "Nombre",
 
   "confirm.discardSettings.title": "¿Descartar los cambios?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "No se pudo elegir esa ubicación. La ruta actual no cambió; inténtalo de nuevo.",
   "failure.renamePreview": "No se pudo preparar la vista previa del cambio de nombre. Los archivos guardados no cambiaron; inténtalo de nuevo.",
   "failure.renameStopped": "El cambio de nombre se detuvo antes de completar todos los archivos. Es posible que algunos ya tengan su nombre nuevo; revisa la lista actualizada y vuelve a intentarlo con los elementos restantes.",
+  "failure.outputSidecarNewer": "Este archivo auxiliar se guardó con una versión más reciente de FotoReady y esta versión no puede modificarlo: {path}. Ábrelo con la versión más reciente.",
+  "failure.outputSidecarUnreadable": "FotoReady no pudo leer este archivo auxiliar: {path}. Repáralo o muévelo antes de modificar el archivo de salida.",
   "failure.regenerateSlug": "No se pudo generar un slug de reemplazo. Revisa la configuración de Gemini e inténtalo de nuevo.",
   "failure.renameSlugSave": "No se pudo guardar el slug para el cambio de nombre. Tu edición sigue a la vista; inténtalo de nuevo.",
   "failure.assetUse": "No se pudo usar el elemento seleccionado. La selección actual no cambió; inténtalo de nuevo.",

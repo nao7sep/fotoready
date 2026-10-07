@@ -95,6 +95,8 @@
   "renameComplete.none": "이름을 바꿔야 하는 파일이 없었습니다.",
   "renameComplete.before": "변경 전",
   "renameComplete.after": "변경 후",
+  "renameComplete.sourceRetained": "이름을 변경한 파일은 준비되었지만 이전 사본을 삭제하지 못했습니다: {path}",
+  "renameComplete.cleanupPending": "이름을 변경한 파일은 준비되었지만 정리가 완료되지 않았습니다. 남은 사본을 삭제하기 전에 세션 로그를 확인하십시오.",
   "renameComplete.name": "이름",
 
   "confirm.discardSettings.title": "변경 사항을 버리시겠습니까?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "해당 위치를 선택하지 못했습니다. 현재 경로는 바뀌지 않았습니다. 다시 시도하십시오.",
   "failure.renamePreview": "이름 변경 미리 보기를 준비하지 못했습니다. 저장된 파일은 바뀌지 않았습니다. 다시 시도하십시오.",
   "failure.renameStopped": "모든 파일을 처리하기 전에 이름 변경이 중단되었습니다. 일부 파일은 이미 새 이름으로 바뀌었을 수 있습니다. 새로 고친 목록을 확인한 뒤 나머지 항목을 다시 시도하십시오.",
+  "failure.outputSidecarNewer": "이 사이드카 파일은 더 최신 FotoReady에서 저장되어 이 버전에서는 변경할 수 없습니다: {path}. 최신 버전에서 여십시오.",
+  "failure.outputSidecarUnreadable": "FotoReady에서 이 사이드카 파일을 읽지 못했습니다: {path}. 출력을 변경하기 전에 파일을 복구하거나 다른 위치로 옮기십시오.",
   "failure.regenerateSlug": "대체 슬러그를 생성하지 못했습니다. Gemini 설정을 확인한 뒤 다시 시도하십시오.",
   "failure.renameSlugSave": "이름 변경용 슬러그를 저장하지 못했습니다. 편집한 내용은 그대로 표시됩니다. 다시 시도하십시오.",
   "failure.assetUse": "선택한 항목을 사용하지 못했습니다. 현재 선택은 바뀌지 않았습니다. 다시 시도하십시오.",

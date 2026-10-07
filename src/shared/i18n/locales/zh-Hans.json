@@ -95,6 +95,8 @@
   "renameComplete.none": "没有需要重命名的文件。",
   "renameComplete.before": "之前",
   "renameComplete.after": "之后",
+  "renameComplete.sourceRetained": "重命名后的文件已准备好，但无法删除原来的副本：{path}",
+  "renameComplete.cleanupPending": "重命名后的文件已准备好，但清理未完成。删除剩余副本前，请查看会话日志。",
   "renameComplete.name": "名称",
 
   "confirm.discardSettings.title": "放弃更改？",
@@ -155,6 +157,8 @@
   "failure.pathPick": "无法选择该位置。当前路径未改变；请重试。",
   "failure.renamePreview": "无法准备重命名预览。已保存的文件未改变；请重试。",
   "failure.renameStopped": "重命名在全部文件完成之前停止了。部分文件可能已经改成新名称；请检查刷新后的列表，然后重试剩余的项目。",
+  "failure.outputSidecarNewer": "此附属文件由较新版本的 FotoReady 保存，当前版本无法更改：{path}。请使用较新版本打开。",
+  "failure.outputSidecarUnreadable": "FotoReady 无法读取此附属文件：{path}。更改输出前，请修复该文件或将其移至其他位置。",
   "failure.regenerateSlug": "无法生成替代别名。请检查 Gemini 设置后重试。",
   "failure.renameSlugSave": "无法保存用于重命名的别名。你的编辑仍显示着；请重试。",
   "failure.assetUse": "无法使用所选素材。当前选择未改变；请重试。",

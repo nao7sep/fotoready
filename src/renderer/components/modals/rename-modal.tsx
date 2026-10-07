@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { ProjectSnapshot, RenamePreview, RenamePreviewItem } from "@shared/types/ipc";
+import type { ProjectSnapshot, RenamePreview, RenamePreviewItem, RenameRunResult } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
 import { missingSlugLabel, missingSlugVisualState, renameIssueLabel, renameItemStateLabel, renameItemVisualState } from "@renderer/task-visual-state";
@@ -20,6 +20,7 @@ export type RenameRunSummary = {
 type RenameFailure = {
   message: Message;
   settingsRecovery?: boolean;
+  warning?: boolean;
 };
 
 const TEMPLATE_NAMES: Record<RenameTemplateId, MessageKey> = {
@@ -50,7 +51,7 @@ export function RenameModal({
   onOpenSettings(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<"complete" | "stopped">;
+  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<Pick<RenameRunResult, "status" | "warnings" | "reason">>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void | OwnedActionOutcome>;
 }): React.JSX.Element {
@@ -137,8 +138,10 @@ export function RenameModal({
     clearFailure("run");
     try {
       const outcome = await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
-      if (outcome === "stopped") {
-        retainFailure("run", { message: message("failure.renameStopped") });
+      if (outcome.status === "stopped") {
+        const failure = message("failure.renameStopped");
+        retainFailure("run", { message: outcome.reason ? message("failure.withReason", { failure, reason: outcome.reason }) : failure });
+        for (const [index, warning] of outcome.warnings.entries()) retainFailure(`cleanup:${index}`, { message: warning, warning: true });
         runBusyRef.current = false;
         setRunBusy(false);
       }
@@ -412,7 +415,7 @@ function RenameFailureNotice({
 }): React.JSX.Element {
   const { t, text } = useI18n();
   return (
-    <OperationResult className="modal-error" dismissLabel={t("rename.closeResult")} severity="error" onDismiss={onDismiss}>
+    <OperationResult className="modal-error" dismissLabel={t("rename.closeResult")} severity={failure.warning ? "warning" : "error"} onDismiss={onDismiss}>
       <span>{text(failure.message)}</span>
       {failure.settingsRecovery ? (
         <button className="toolbar-button compact-text" type="button" disabled={disabled} onClick={onOpenSettings}>

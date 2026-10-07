@@ -95,6 +95,8 @@
   "renameComplete.none": "名前を変更する必要のあるファイルはありませんでした。",
   "renameComplete.before": "変更前",
   "renameComplete.after": "変更後",
+  "renameComplete.sourceRetained": "名前を変更したファイルは準備できていますが、変更前のコピーを削除できませんでした：{path}",
+  "renameComplete.cleanupPending": "名前を変更したファイルは準備できていますが、後片付けが完了しませんでした。残ったコピーを削除する前にセッションログを確認してください。",
   "renameComplete.name": "名前",
 
   "confirm.discardSettings.title": "変更を破棄しますか?",
@@ -155,6 +157,8 @@
   "failure.pathPick": "その場所を選択できませんでした。現在のパスは変わっていません。もう一度お試しください。",
   "failure.renamePreview": "名前変更のプレビューを準備できませんでした。保存済みファイルは変わっていません。もう一度お試しください。",
   "failure.renameStopped": "すべてのファイルを処理する前に名前の変更が中断しました。一部のファイルはすでに新しい名前になっている可能性があります。更新された一覧を確認してから、残りの項目をもう一度お試しください。",
+  "failure.outputSidecarNewer": "このサイドカーファイルは新しい FotoReady で保存されているため、このバージョンでは変更できません：{path}。新しいバージョンで開いてください。",
+  "failure.outputSidecarUnreadable": "FotoReady はこのサイドカーファイルを読み取れませんでした：{path}。出力を変更する前に修復するか、別の場所に移してください。",
   "failure.regenerateSlug": "代わりのスラッグを生成できませんでした。Gemini の設定を確認して、もう一度お試しください。",
   "failure.renameSlugSave": "名前変更用のスラッグを保存できませんでした。編集内容は表示されたままです。もう一度お試しください。",
   "failure.assetUse": "選択した素材を使用できませんでした。現在の選択は変わっていません。もう一度お試しください。",

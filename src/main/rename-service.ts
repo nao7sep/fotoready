@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { nanoid } from "nanoid";
+import { moveOutputFile, type MoveCleanupFailure } from "./move-output-file";
+import { assertOutputSidecarFormat } from "./output-sidecar-format";
+import { message, type Message } from "@shared/i18n/translate";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import { assertSafeRenderedFilename } from "@shared/validation/filename-template";
@@ -159,21 +161,33 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
 
 export class RenameBatchStoppedError extends Error {
   readonly completedTaskIds: string[];
+  readonly partialTaskIds: string[];
+  readonly warnings: Message[];
 
-  constructor(cause: unknown, completedTaskIds: string[]) {
+  constructor(cause: unknown, completedTaskIds: string[], partialTaskIds: string[], warnings: Message[]) {
     super("Rename batch stopped before every item completed", { cause });
     this.name = "RenameBatchStoppedError";
     this.completedTaskIds = [...completedTaskIds];
+    this.partialTaskIds = [...partialTaskIds];
+    this.warnings = [...warnings];
   }
 }
 
-export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<string[]> {
+export async function runRename(project: Project, templateId?: RenameTemplateId, taskIds?: string[], logger?: AppLogger): Promise<{ completedTaskIds: string[]; warnings: Message[] }> {
   const preview = await previewRename(project, templateId, taskIds, logger);
   if (preview.blockedCount > 0) {
     throw new Error(blockedRenameMessage(preview));
   }
 
   const completedTaskIds: string[] = [];
+  const partialTaskIds: string[] = [];
+  const warnings: Message[] = [];
+  const moveFile = async (from: string, to: string, sidecarPath: string): Promise<void> => {
+    for (const failure of await moveOutputFile(from, to, logger, () => assertOutputSidecarFormat(sidecarPath))) {
+      logger?.warn("output published but move cleanup failed", { mod: "rename", from, to, err: failure.error, cleanupPath: failure.path });
+      warnings.push(cleanupWarning(failure));
+    }
+  };
 
   for (const item of preview.items) {
     if (item.status !== "ready" && item.status !== "unchanged") continue;
@@ -192,18 +206,19 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
         await ensureNoCollision(proposedParamsPath);
       }
 
-      await moveFile(item.currentPath, item.proposedPath);
+      const governingSidecar = stagedParamsPath || sidecarPathForOutput(item.currentPath);
+      await moveFile(item.currentPath, item.proposedPath, governingSidecar);
 
       if (sidecarMoveNeeded) {
         try {
-          await moveFile(stagedParamsPath, proposedParamsPath);
+          await moveFile(stagedParamsPath, proposedParamsPath, stagedParamsPath);
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "ENOENT") {
             // A missing optional sidecar does not block the image rename.
           } else {
             let rolledBack = false;
             try {
-              await moveFile(item.proposedPath, item.currentPath);
+              await moveFile(item.proposedPath, item.currentPath, governingSidecar);
               rolledBack = true;
             } catch (rollbackError) {
               logger?.warn("rename rollback failed; output left at the proposed path", {
@@ -217,7 +232,7 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
               task.output.stagedPath = item.proposedPath;
               task.output.finalPath = item.proposedPath;
               task.output.renamedAt = nowIso();
-              task.updatedAt = nowIso();
+              partialTaskIds.push(task.id);
             }
             throw error;
           }
@@ -229,42 +244,20 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
       task.output.stagedParamsPath = proposedParamsPath;
       task.output.finalParamsPath = proposedParamsPath;
       task.output.renamedAt = nowIso();
-      task.updatedAt = nowIso();
       completedTaskIds.push(task.id);
     } catch (error) {
       if (error instanceof RenameBatchStoppedError) throw error;
-      throw new RenameBatchStoppedError(error, completedTaskIds);
+      throw new RenameBatchStoppedError(error, completedTaskIds, partialTaskIds, warnings);
     }
   }
 
-  return completedTaskIds;
+  return { completedTaskIds, warnings };
 }
 
-async function moveFile(from: string, to: string): Promise<void> {
-  // not recorded: this moves an output image or its colocated output sidecar; a
-  // cross-volume fallback copies the same harvested output rather than saving app data.
-  try {
-    await fs.rename(from, to);
-    return;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EXDEV") {
-      throw error;
-    }
-  }
-  // <stem>-<nanoid>.tmp, alongside the destination (derived-filename grammar).
-  const tempPath = path.join(path.dirname(to), `${path.parse(to).name}-${nanoid(8)}.tmp`);
-  try {
-    // A copy keeps the source's modified time and mode (content-lifecycle conventions, Files).
-    const source = await fs.stat(from);
-    await fs.copyFile(from, tempPath, fs.constants.COPYFILE_EXCL);
-    await fs.chmod(tempPath, source.mode & 0o7777);
-    await fs.utimes(tempPath, source.atime, source.mtime);
-    await fs.rename(tempPath, to);
-  } catch (innerError) {
-    await fs.rm(tempPath, { force: true });
-    throw innerError;
-  }
-  await fs.rm(from, { force: true });
+function cleanupWarning(failure: MoveCleanupFailure): Message {
+  return failure.kind === "source"
+    ? message("renameComplete.sourceRetained", { path: failure.path })
+    : message("renameComplete.cleanupPending");
 }
 
 function blockedRenameMessage(preview: RenamePreview): string {

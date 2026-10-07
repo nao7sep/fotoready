@@ -4,7 +4,8 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { previewRename, runRename } from "@main/rename-service";
-import { defaultPipeline } from "@shared/defaults";
+import { ProjectSession } from "@main/session";
+import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { BUILTIN_RENAME_TEMPLATE_IDS } from "@shared/rename-template";
 import type { Original, Project, Task, TaskOutput } from "@shared/types/project";
 
@@ -31,7 +32,7 @@ async function writeImage(name: string, width = 1024, height = 768): Promise<str
 async function writeSidecar(imagePath: string): Promise<string> {
   const parsed = path.parse(imagePath);
   const sidecarPath = path.join(parsed.dir, `${parsed.name}.json`);
-  await fs.writeFile(sidecarPath, "{}\n");
+  await fs.writeFile(sidecarPath, '{"formatVersion":1}\n');
   return sidecarPath;
 }
 
@@ -264,11 +265,11 @@ describe("runRename", () => {
     }
     const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
     const project: Project = { outputDir: workDir, originals: [makeOriginal("o1", "DSC_0001.jpg")], tasks: [task] };
-    // A rename across volumes fails with EXDEV; only the copy's own temp may still be renamed.
-    const realRename = fs.rename;
-    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
-      if (!String(from).endsWith(".tmp")) throw Object.assign(new Error("cross-device link"), { code: "EXDEV" });
-      return realRename(from as never, to as never);
+    // A cross-volume source link fails with EXDEV; the destination staging can be linked.
+    const realLink = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
+      if (!path.dirname(String(from)).endsWith(".tmp")) throw Object.assign(new Error("cross-device link"), { code: "EXDEV" });
+      return realLink(from as never, to as never);
     });
 
     await runRename(project, SLUG_ONLY);
@@ -306,14 +307,14 @@ describe("runRename", () => {
 
     // Make the sidecar move (destination *.json) fail with a non-collision error, after the
     // image has already moved. The service must move the image back.
-    const realRename = fs.rename;
-    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+    const realLink = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
       if (String(to).endsWith(".json")) {
         const error = new Error("simulated sidecar failure") as NodeJS.ErrnoException;
         error.code = "EACCES";
         throw error;
       }
-      return realRename(from as never, to as never);
+      return realLink(from as never, to as never);
     });
 
     await expect(runRename(project, SLUG_ONLY)).rejects.toMatchObject({
@@ -340,12 +341,12 @@ describe("runRename", () => {
       originals: [makeOriginal("o1", "one.jpg"), makeOriginal("o2", "two.jpg")],
       tasks: [first, second]
     };
-    const realRename = fs.rename;
-    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+    const realLink = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
       if (String(to).endsWith("second.json")) {
         throw Object.assign(new Error("simulated second sidecar failure"), { code: "EACCES" });
       }
-      return realRename(from as never, to as never);
+      return realLink(from as never, to as never);
     });
 
     await expect(runRename(project, SLUG_ONLY)).rejects.toMatchObject({ completedTaskIds: ["t1"] });
@@ -353,4 +354,121 @@ describe("runRename", () => {
     expect(second.output?.finalPath).toBeNull();
     await expect(fs.access(staged2)).resolves.toBeUndefined();
   });
+  it("refuses a newer governing sidecar before changing the image or task", async () => {
+    const staged = await writeImage("future.jpg", 8, 8);
+    const params = await writeSidecar(staged);
+    await fs.writeFile(params, '{"formatVersion":2,"future":"keep"}');
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const before = structuredClone(task);
+    const bytes = await fs.readFile(staged);
+    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({
+      completedTaskIds: [], partialTaskIds: [], cause: { reason: { key: "failure.outputSidecarNewer" } }
+    });
+    expect(task).toEqual(before);
+    expect(await fs.readFile(staged)).toEqual(bytes);
+    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2,"future":"keep"}');
+    await expect(fs.access(path.join(workDir, "final.jpg"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("preserves the source image when a sidecar becomes newer after image publication", async () => {
+    const staged = await writeImage("late.jpg", 8, 8);
+    const params = await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const before = structuredClone(task);
+    const link = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
+      await link(from, to);
+      if (from === staged) await fs.writeFile(params, '{"formatVersion":2}');
+    });
+    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({
+      completedTaskIds: [], partialTaskIds: ["t1"], warnings: [{ key: "renameComplete.sourceRetained", values: { path: staged } }]
+    });
+    expect(task.updatedAt).toBe(before.updatedAt);
+    expect(task.output?.finalPath).toBe(path.join(workDir, "final.jpg"));
+    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
+    expect(await fs.readFile(staged)).toEqual(await fs.readFile(path.join(workDir, "final.jpg")));
+  });
+
+  it("rechecks governing authority after the cross-volume copy and before final publication", async () => {
+    const staged = await writeImage("copy-authority.jpg", 8, 8);
+    const params = await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const before = structuredClone(task);
+    const link = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
+      if (from === staged) throw Object.assign(new Error("cross-volume"), { code: "EXDEV" });
+      return link(from, to);
+    });
+    const copyFile = fs.copyFile;
+    vi.spyOn(fs, "copyFile").mockImplementation(async (from, to, mode) => {
+      await copyFile(from, to, mode);
+      await fs.writeFile(params, '{"formatVersion":2}');
+    });
+    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({ completedTaskIds: [], partialTaskIds: [] });
+    expect(task).toEqual(before);
+    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
+    await expect(fs.access(staged)).resolves.toBeUndefined();
+    await expect(fs.access(path.join(workDir, "final.jpg"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await fs.readdir(workDir)).sort()).toEqual(["copy-authority.jpg", "copy-authority.json"]);
+  });
+
+  it("reports the committed image as partial if sidecar failure cannot be rolled back", async () => {
+    const staged = await writeImage("partial.jpg", 8, 8);
+    const params = await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const modified = task.updatedAt;
+    const link = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
+      if (from === params || to === staged) throw Object.assign(new Error("move denied"), { code: "EACCES" });
+      return link(from, to);
+    });
+    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({ completedTaskIds: [], partialTaskIds: ["t1"] });
+    expect(task.output?.finalPath).toBe(path.join(workDir, "final.jpg"));
+    expect(task.output?.stagedParamsPath).toBe(params);
+    expect(task.updatedAt).toBe(modified);
+    await expect(fs.access(path.join(workDir, "final.jpg"))).resolves.toBeUndefined();
+    await expect(fs.access(params)).resolves.toBeUndefined();
+  });
+
+  it("keeps the committed task identity and warning when source cleanup is denied", async () => {
+    const staged = await writeImage("retained.jpg", 8, 8);
+    await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const modified = task.updatedAt;
+    const rm = fs.rm;
+    vi.spyOn(fs, "rm").mockImplementation(async (file, options) => {
+      if (file === staged) throw Object.assign(new Error("diagnostic cleanup sentinel"), { code: "EACCES" });
+      return rm(file, options);
+    });
+    expect(await runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).toEqual({
+      completedTaskIds: ["t1"], warnings: [{ key: "renameComplete.sourceRetained", values: { path: staged } }]
+    });
+    expect(task.output?.finalPath).toBe(path.join(workDir, "final.jpg"));
+    expect(task.output?.finalParamsPath).toBe(path.join(workDir, "final.json"));
+    expect(task.updatedAt).toBe(modified);
+    await expect(fs.access(staged)).resolves.toBeUndefined();
+  });
+
+  it("returns named sidecar refusal and actual partial identity through the session", async () => {
+    const staged = await writeImage("session.jpg", 8, 8);
+    const params = await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, null as never, "resources/stamps");
+    const project = session.snapshot().project;
+    project.outputDir = workDir;
+    project.tasks.push(task); project.originals.push(makeOriginal("o1", "original.jpg"));
+    const link = fs.link;
+    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
+      if (to === staged) throw Object.assign(new Error("rollback denied"), { code: "EACCES" });
+      await link(from, to);
+      if (from === staged) await fs.writeFile(params, '{"formatVersion":2}');
+    });
+    const result = await session.runRename(SLUG_ONLY);
+    expect(result).toMatchObject({ status: "stopped", completedTaskIds: [], partialTaskIds: ["t1"], warnings: [{ key: "renameComplete.sourceRetained", values: { path: staged } }], reason: { key: "failure.outputSidecarNewer", values: { path: params } } });
+    expect(result.snapshot.project.tasks[0].output?.finalPath).toBe(path.join(workDir, "final.jpg"));
+    expect(result.snapshot.project.tasks[0].output?.stagedParamsPath).toBe(params);
+    expect(await fs.readFile(staged)).toEqual(await fs.readFile(path.join(workDir, "final.jpg")));
+    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
+  });
+
 });

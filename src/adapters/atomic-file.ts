@@ -20,6 +20,8 @@ export type AtomicWriteOptions = {
    * never throws). Left undefined by every non-recorded caller (secrets, output sidecars, binaries).
    */
   afterWrite?: (bytes: Buffer) => void;
+  /** Current store authority immediately before repair or publication. */
+  beforeWrite?: () => Promise<void>;
 };
 
 export async function atomicWriteFile(
@@ -34,10 +36,8 @@ export async function atomicWriteFile(
   const bytes = typeof data === "string" ? Buffer.from(data, opts.encoding ?? "utf8") : data;
   // A write that changes nothing is skipped (content-lifecycle conventions, Files): no replace and no
   // after-write record. An explicit mode still applies to the file as it is.
-  if ((await existingBytes(filePath))?.equals(bytes)) {
-    if (opts.mode !== undefined && process.platform !== "win32") await fs.chmod(filePath, opts.mode);
-    return;
-  }
+  await opts.beforeWrite?.();
+  if (await skipUnchanged(filePath, bytes, opts)) return;
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   // <stem>-<nanoid>.tmp, alongside the target (derived-filename grammar): one final extension stating
@@ -52,9 +52,10 @@ export async function atomicWriteFile(
     if (mode !== undefined && process.platform !== "win32") {
       await fs.chmod(tmpPath, mode);
     }
+    await opts.beforeWrite?.();
     await fs.rename(tmpPath, filePath);
   } catch (error) {
-    await fs.rm(tmpPath, { force: true });
+    await fs.rm(tmpPath, { force: true }).catch((cleanupError) => console.warn("[atomic-write] could not remove temporary file", { filePath: tmpPath, err: cleanupError }));
     throw error;
   }
   // After the rename: the file is exactly where it belongs, so hand the just-written bytes to the caller's
@@ -63,12 +64,27 @@ export async function atomicWriteFile(
   opts.afterWrite?.(bytes);
 }
 
-/** The bytes the file holds now, or undefined when it cannot be read; then the write goes ahead and reports any failure. */
-async function existingBytes(filePath: string): Promise<Buffer | undefined> {
+/** Equality and an explicit access repair belong to the inspected file descriptor. */
+async function skipUnchanged(filePath: string, bytes: Buffer, opts: AtomicWriteOptions): Promise<boolean> {
+  let file: Awaited<ReturnType<typeof fs.open>>;
+  try { file = await fs.open(filePath, "r"); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+  let failed = false;
   try {
-    return await fs.readFile(filePath);
-  } catch {
-    return undefined;
+    if (!(await file.readFile()).equals(bytes)) return false;
+    await opts.beforeWrite?.();
+    if (opts.mode !== undefined && process.platform !== "win32") await file.chmod(opts.mode);
+    return true;
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    try { await file.close(); } catch (error) {
+      if (!failed) throw error;
+      console.warn("[atomic-write] could not close inspected file", { filePath, err: error });
+    }
   }
 }
 

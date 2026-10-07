@@ -233,7 +233,12 @@ describe("ApiKeyStore", () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     fs.writeFileSync(filePath, `${JSON.stringify({ formatVersion: 1, keys: { gemini: "stored-key" } })}\n`);
     fs.chmodSync(filePath, 0o644);
-    const chmod = vi.spyOn(fsPromises, "chmod").mockRejectedValueOnce(new Error("chmod denied"));
+    const open = fsPromises.open;
+    const chmod = vi.spyOn(fsPromises, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      vi.spyOn(file, "chmod").mockRejectedValueOnce(new Error("chmod denied"));
+      return file;
+    });
     const store = new ApiKeyStore(filePath, logger);
 
     await expect(store.resolve("gemini")).resolves.toBe("stored-key");
@@ -281,6 +286,53 @@ describe("ApiKeyStore", () => {
       expect(Object.keys(onDisk)).toEqual(["formatVersion", "keys"]);
       expect(onDisk.formatVersion).toBe(1);
       await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
+    });
+
+    it.runIf(isPosix)("repairs only the inspected descriptor if the pathname is replaced during its read", async () => {
+      fs.writeFileSync(filePath, JSON.stringify({ formatVersion: 1, keys: { gemini: "old-synthetic" } }));
+      fs.chmodSync(filePath, 0o644);
+      const future = JSON.stringify({ formatVersion: 2, future: "kept" });
+      const open = fsPromises.open;
+      const spy = vi.spyOn(fsPromises, "open").mockImplementation(async (...args) => {
+        const file = await open(...args);
+        const read = file.readFile.bind(file);
+        vi.spyOn(file, "readFile").mockImplementationOnce(async (...readArgs) => {
+          const text = await read(...readArgs);
+          const replacement = path.join(tmpDir, "replacement.json");
+          fs.writeFileSync(replacement, future, { mode: 0o644 });
+          fs.renameSync(replacement, filePath);
+          return text;
+        });
+        return file;
+      });
+      try {
+        await expect(new ApiKeyStore(filePath).peek("gemini")).resolves.toBe("old-synthetic");
+        expect(fs.readFileSync(filePath, "utf8")).toBe(future);
+        expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
+      } finally { spy.mockRestore(); }
+    });
+
+    it.runIf(isPosix)("leaves a newer file's broad permissions exactly as found", async () => {
+      fs.writeFileSync(filePath, JSON.stringify({ formatVersion: 2, keys: { gemini: "synthetic" } }));
+      fs.chmodSync(filePath, 0o644);
+      const store = new ApiKeyStore(filePath);
+      await expect(store.peek("gemini")).resolves.toBeNull();
+      expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
+    });
+
+    it("refuses a newer replacement created while the key save stages its bytes", async () => {
+      await new ApiKeyStore(filePath).set("gemini", "old-synthetic");
+      const write = fsPromises.writeFile;
+      const future = JSON.stringify({ formatVersion: 2, future: "kept" });
+      const spy = vi.spyOn(fsPromises, "writeFile").mockImplementation(async (...args) => {
+        await write(...args);
+        if (String(args[0]).endsWith(".tmp")) await write(filePath, future);
+      });
+      try {
+        await expect(new ApiKeyStore(filePath).set("gemini", "new-synthetic")).rejects.toMatchObject({ name: "NewerFormatError" });
+        expect(fs.readFileSync(filePath, "utf8")).toBe(future);
+        expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
+      } finally { spy.mockRestore(); }
     });
 
     it("reads a newer file as no key, refuses to store over it, and leaves it byte-identical", async () => {

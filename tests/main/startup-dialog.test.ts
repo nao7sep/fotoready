@@ -10,6 +10,7 @@ import {
   notifyCorruptSettings,
   notifyNewerFormat,
   notifyStartupFailure,
+  notifySettingsQuarantineFailure,
   requireCorruptSettingsNotice,
 } from "@main/startup-dialog";
 
@@ -69,6 +70,15 @@ describe("startup recovery dialog", () => {
       message: expect.stringContaining("left as it is"),
       detail: expect.stringContaining("/Users/someone/.fotoready/config.json"),
       lang: "en",
+    }));
+  });
+
+  it("names the unreadable settings left in place and explains repair or move recovery", async () => {
+    await notifySettingsQuarantineFailure("/chosen/config.json");
+    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Settings could not be read",
+      message: expect.stringContaining("original file was left in place"),
+      detail: "Repair or move this file, then start FotoReady again: /chosen/config.json",
     }));
   });
 

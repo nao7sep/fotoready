@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "Les réglages n’ont pas pu être lus",
   "startup.corruptSettingsMessage": "Votre fichier de réglages FotoReady était illisible et a été mis de côté pour que rien ne soit perdu.",
   "startup.corruptSettingsDetail": "FotoReady a démarré avec tous les réglages à leur valeur par défaut. Vos projets et vos photos sont intacts. Le fichier de réglages illisible a été conservé ici\u00a0: {path}",
+  "startup.settingsLeftMessage": "FotoReady n’a pas pu mettre de côté le fichier de réglages illisible. Le fichier d’origine est resté à sa place.",
+  "startup.settingsLeftDetail": "Réparez ou déplacez ce fichier, puis redémarrez FotoReady\u00a0: {path}",
   "startup.failedTitle": "FotoReady n’a pas pu démarrer",
   "startup.failedMessage": "FotoReady n’a pas pu finir d’ouvrir ses réglages et son espace de travail.",
   "startup.failedDetail": "Aucune photo ni aucun fichier de projet n’a été modifié. Consultez le journal de session, puis redémarrez FotoReady.",

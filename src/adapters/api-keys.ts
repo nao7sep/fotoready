@@ -1,7 +1,8 @@
-import fs from "node:fs/promises";
+import fs, { type FileHandle } from "node:fs/promises";
+import { assertJsonFileFormat } from "./json-file-format";
 import path from "node:path";
 import { utcStamp } from "@shared/time";
-import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson } from "@shared/format-versions";
+import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { Logger } from "@shared/types/log";
 
@@ -187,7 +188,7 @@ export class ApiKeyStore {
     // sensitive-at-rest in its entirety. Keeping secrets out is what keeps backups.sqlite3 no more sensitive
     // than ordinary user text; the 0600 mode below is where this file's protection lives (data-backup
     // conventions: "Secrets are never recorded").
-    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
+    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE, beforeWrite: () => assertJsonFileFormat(this.filePath, FORMAT_VERSIONS.apiKeys) });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -195,11 +196,11 @@ export class ApiKeyStore {
   // just once at startup. Each warning kind is once-per-session; the chmod itself
   // is unconditional whenever the file is found group/world-readable, so a file
   // re-widened after the first warning still gets tightened back.
-  private async warnIfInsecureMode(): Promise<void> {
+  private async warnIfInsecureMode(file: FileHandle): Promise<void> {
     if (!ENFORCE_FILE_MODE) return;
     let stat: Awaited<ReturnType<typeof fs.stat>>;
     try {
-      stat = await fs.stat(this.filePath);
+      stat = await file.stat();
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !this.#modeInspectionWarned) {
         this.#modeInspectionWarned = true;
@@ -222,7 +223,7 @@ export class ApiKeyStore {
       });
     }
     try {
-      await fs.chmod(this.filePath, SECRETS_FILE_MODE);
+      await file.chmod(SECRETS_FILE_MODE);
     } catch (error) {
       if (!this.#modeRepairWarned) {
         this.#modeRepairWarned = true;
@@ -236,10 +237,15 @@ export class ApiKeyStore {
   }
 
   private async readFile(): Promise<StoredKeys> {
-    await this.warnIfInsecureMode();
-    let text: string;
+    let read: VersionedJsonRead;
     try {
-      text = await fs.readFile(this.filePath, "utf8");
+      const file = await fs.open(this.filePath, "r");
+      try {
+        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys);
+        if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
+      } finally {
+        await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { keys: {}, newer: null };
       const movedTo = await this.moveAsideInvalid();
@@ -251,7 +257,6 @@ export class ApiKeyStore {
       });
       return { keys: {}, newer: null };
     }
-    const read = parseVersionedJson(text, FORMAT_VERSIONS.apiKeys);
     if (read.kind === "newer") {
       if (!this.#newerWarned) {
         this.#newerWarned = true;

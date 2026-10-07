@@ -39,6 +39,11 @@ export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">
   }
 }
 
+/** Failed settings quarantine reports the original file left in place. */
+export async function notifySettingsQuarantineFailure(filePath: string): Promise<void> {
+  await showNotice("startup.corruptSettingsTitle", "startup.settingsLeftMessage", "startup.settingsLeftDetail", { path: filePath });
+}
+
 export async function notifyStartupFailure(): Promise<void> {
   await showNotice("startup.failedTitle", "startup.failedMessage", "startup.failedDetail");
 }

@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "Не удалось прочитать настройки",
   "startup.corruptSettingsMessage": "Не удалось прочитать файл настроек FotoReady, поэтому он сохранён отдельно, чтобы ничего не потерялось.",
   "startup.corruptSettingsDetail": "FotoReady запущен со всеми настройками по умолчанию. Ваши проекты и фотографии не затронуты. Нечитаемый файл настроек сохранён здесь: {path}",
+  "startup.settingsLeftMessage": "FotoReady не удалось переместить нечитаемый файл настроек в сторону. Исходный файл оставлен на месте.",
+  "startup.settingsLeftDetail": "Исправьте или переместите этот файл, затем снова запустите FotoReady: {path}",
   "startup.failedTitle": "Не удалось запустить FotoReady",
   "startup.failedMessage": "FotoReady не удалось до конца открыть настройки и рабочее пространство.",
   "startup.failedDetail": "Фотографии и файлы проектов не изменены. Проверьте журнал сеанса и снова запустите FotoReady.",

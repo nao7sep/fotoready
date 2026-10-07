@@ -194,6 +194,26 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
+  it("refuses a newer settings file installed after the running settings were loaded", async () => {
+    const loaded = await loadSettings(settingsPath());
+    const future = '{"formatVersion":2,"future":"keep"}';
+    await fs.writeFile(settingsPath(), future);
+    await expect(saveSettings(settingsPath(), { ...loaded.settings, defaultWebpQuality: 71 }, loaded.settings)).rejects.toMatchObject({ name: "NewerFormatError", filePath: settingsPath() });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(future);
+  });
+
+  it("rechecks newer settings immediately before staged publication", async () => {
+    const write = fs.writeFile;
+    const future = '{"formatVersion":2,"future":"keep"}';
+    vi.spyOn(fs, "writeFile").mockImplementation(async (...args) => {
+      await write(...args);
+      if (String(args[0]).endsWith(".tmp")) await write(settingsPath(), future);
+    });
+    await expect(saveSettings(settingsPath(), { ...defaults(), defaultWebpQuality: 71 }, defaults())).rejects.toMatchObject({ name: "NewerFormatError" });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(future);
+    expect(await fs.readdir(dir)).toEqual(["config.json"]);
+  });
+
   it("never writes an invalid value, keeping each previous value and reporting each issue", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71, injectFields: { author: "Jane" }, theme: "dark" }));
     const warn = vi.fn();
@@ -310,7 +330,7 @@ describe("settings by set", () => {
   it("does not overwrite unreadable bytes when quarantine fails", async () => {
     await fs.writeFile(settingsPath(), "{ bad json");
     vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("quarantine refused"));
-    await expect(loadSettings(settingsPath())).rejects.toThrow("quarantine refused");
+    await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "SettingsQuarantineError", filePath: settingsPath(), cause: expect.objectContaining({ message: "quarantine refused" }) });
     expect(await fs.readFile(settingsPath(), "utf8")).toBe("{ bad json");
   });
 });

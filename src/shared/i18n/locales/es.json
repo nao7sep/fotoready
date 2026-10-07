@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "No se pudo leer la configuración",
   "startup.corruptSettingsMessage": "Tu archivo de configuración de FotoReady no se podía leer y se guardó aparte para que no se pierda nada.",
   "startup.corruptSettingsDetail": "FotoReady se inició con toda la configuración en sus valores predeterminados. Tus proyectos y fotos no se modificaron. El archivo de configuración que no se podía leer se guardó aquí: {path}",
+  "startup.settingsLeftMessage": "FotoReady no pudo apartar el archivo de configuración ilegible. El archivo original se dejó en su lugar.",
+  "startup.settingsLeftDetail": "Repara o mueve este archivo y vuelve a iniciar FotoReady: {path}",
   "startup.failedTitle": "FotoReady no pudo iniciarse",
   "startup.failedMessage": "FotoReady no pudo terminar de abrir su configuración y su espacio de trabajo.",
   "startup.failedDetail": "No se modificó ninguna foto ni ningún archivo de proyecto. Revisa el registro de la sesión y vuelve a iniciar FotoReady.",

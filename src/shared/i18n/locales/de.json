@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "Die Einstellungen konnten nicht gelesen werden",
   "startup.corruptSettingsMessage": "Ihre FotoReady-Einstellungsdatei war nicht lesbar; sie wurde beiseitegelegt, damit nichts verloren geht.",
   "startup.corruptSettingsDetail": "FotoReady wurde mit allen Einstellungen auf ihren Standardwerten gestartet. Ihre Projekte und Fotos sind unberührt. Die unlesbare Einstellungsdatei wurde hier aufbewahrt: {path}",
+  "startup.settingsLeftMessage": "FotoReady konnte die unlesbare Einstellungsdatei nicht zur Seite legen. Die ursprüngliche Datei wurde unverändert an ihrem Ort belassen.",
+  "startup.settingsLeftDetail": "Reparieren oder verschieben Sie diese Datei und starten Sie FotoReady erneut: {path}",
   "startup.failedTitle": "FotoReady konnte nicht starten",
   "startup.failedMessage": "FotoReady konnte seine Einstellungen und seinen Arbeitsbereich nicht fertig öffnen.",
   "startup.failedDetail": "Es wurden keine Fotos oder Projektdateien geändert. Prüfen Sie das Sitzungsprotokoll und starten Sie FotoReady dann erneut.",

@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { assertJsonFileFormat } from "@adapters/json-file-format";
 import os from "node:os";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
@@ -26,6 +27,13 @@ export type SettingsLoadResult = {
   quarantinedTo: string | null;
 };
 
+export class SettingsQuarantineError extends Error {
+  constructor(readonly filePath: string, cause: unknown) {
+    super("Unreadable settings could not be set aside and were left in place.", { cause });
+    this.name = "SettingsQuarantineError";
+  }
+}
+
 // Classify read/parse failures first; quarantine outside the catch so its failure propagates. A file
 // a newer build wrote halts startup and is left exactly as it is (store-recovery-conventions).
 async function readSettingsMap(settingsPath: string, logger?: AppLogger): Promise<{
@@ -43,7 +51,7 @@ async function readSettingsMap(settingsPath: string, logger?: AppLogger): Promis
   if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FORMAT_VERSIONS.config);
   const quarantinedTo = path.join(path.dirname(settingsPath), `${path.parse(settingsPath).name}-${utcStamp()}.invalid`);
   // not recorded: preserve the unreadable bytes; no replacement config is seeded.
-  await fs.rename(settingsPath, quarantinedTo);
+  try { await fs.rename(settingsPath, quarantinedTo); } catch (cause) { throw new SettingsQuarantineError(settingsPath, cause); }
   logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, quarantinedTo, err: read.error });
   return { sets: {}, quarantinedTo };
 }
@@ -112,7 +120,7 @@ export async function saveSettings(
   // First run writes nothing while every set is at its built-in (config-sets-conventions).
   if (Object.keys(next).length === 0 && !(await fileExists(settingsPath))) return effective;
   // recorded: durable config sets use the managed atomic write and backup history.
-  await writeManagedFile(settingsPath, versionedJson(FORMAT_VERSIONS.config, next));
+  await writeManagedFile(settingsPath, versionedJson(FORMAT_VERSIONS.config, next), () => assertJsonFileFormat(settingsPath, FORMAT_VERSIONS.config));
   return effective;
 }
 

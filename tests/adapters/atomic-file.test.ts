@@ -20,6 +20,39 @@ describe("atomicWriteFile", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it("preserves a same-byte admission refusal when descriptor close fails", async () => {
+    await fsp.writeFile(filePath, "same");
+    const primary = new Error("newer store refusal");
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const open = fsp.open;
+    const closeFailure = new Error("close denied");
+    const spy = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      const close = file.close.bind(file);
+      vi.spyOn(file, "close").mockImplementation(async () => { await close(); throw closeFailure; });
+      return file;
+    });
+    let checks = 0;
+    try {
+      await expect(atomicWriteFile(filePath, "same", { beforeWrite: async () => { if (++checks === 2) throw primary; } })).rejects.toBe(primary);
+      expect(await fsp.readFile(filePath, "utf8")).toBe("same");
+      expect(warning).toHaveBeenCalledWith("[atomic-write] could not close inspected file", expect.objectContaining({ err: closeFailure }));
+    } finally { warning.mockRestore(); spy.mockRestore(); }
+  });
+
+  it("preserves publication refusal when temporary cleanup also fails", async () => {
+    const primary = new Error("store admission refused");
+    const cleanup = new Error("temporary cleanup denied");
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rm = vi.spyOn(fsp, "rm").mockRejectedValue(cleanup);
+    let checks = 0;
+    try {
+      await expect(atomicWriteFile(filePath, "new", { beforeWrite: async () => { if (++checks === 2) throw primary; } })).rejects.toBe(primary);
+      expect(fs.existsSync(filePath)).toBe(false);
+      expect(warning).toHaveBeenCalledWith("[atomic-write] could not remove temporary file", expect.objectContaining({ err: cleanup }));
+    } finally { warning.mockRestore(); rm.mockRestore(); }
+  });
+
   it("writes the content via temp-then-rename and leaves no orphaned temp file", async () => {
     await atomicWriteFile(filePath, "hello world", "utf8");
     expect(await fsp.readFile(filePath, "utf8")).toBe("hello world");

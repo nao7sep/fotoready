@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "Settings could not be read",
   "startup.corruptSettingsMessage": "Your FotoReady settings file was unreadable and has been set aside so nothing is lost.",
   "startup.corruptSettingsDetail": "FotoReady has started with every setting at its default. Your projects and photos are untouched. The unreadable settings file was kept here: {path}",
+  "startup.settingsLeftMessage": "FotoReady could not set aside the unreadable settings file. The original file was left in place.",
+  "startup.settingsLeftDetail": "Repair or move this file, then start FotoReady again: {path}",
   "startup.failedTitle": "FotoReady could not start",
   "startup.failedMessage": "FotoReady could not finish opening its settings and workspace.",
   "startup.failedDetail": "No photos or project files were changed. Check the session log, then start FotoReady again.",

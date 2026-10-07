@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "Não foi possível ler as configurações",
   "startup.corruptSettingsMessage": "O arquivo de configurações do FotoReady estava ilegível e foi guardado à parte para que nada se perca.",
   "startup.corruptSettingsDetail": "O FotoReady foi iniciado com todas as configurações nos valores padrão. Seus projetos e fotos não foram alterados. O arquivo de configurações ilegível foi guardado aqui: {path}",
+  "startup.settingsLeftMessage": "O FotoReady não conseguiu separar o arquivo de configurações ilegível. O arquivo original foi mantido no lugar.",
+  "startup.settingsLeftDetail": "Repare ou mova este arquivo e inicie o FotoReady novamente: {path}",
   "startup.failedTitle": "O FotoReady não pôde ser iniciado",
   "startup.failedMessage": "O FotoReady não conseguiu terminar de abrir as configurações e o espaço de trabalho.",
   "startup.failedDetail": "Nenhuma foto nem arquivo de projeto foi alterado. Confira o registro da sessão e inicie o FotoReady de novo.",

@@ -707,6 +707,8 @@
   "startup.corruptSettingsTitle": "設定を読み込めませんでした",
   "startup.corruptSettingsMessage": "FotoReady の設定ファイルが読み取れなかったため、何も失われないようにファイルを別に保管しました。",
   "startup.corruptSettingsDetail": "すべての設定を既定値にして FotoReady を起動しました。プロジェクトと写真には手を加えていません。読み取れなかった設定ファイルは次の場所に保管してあります：{path}",
+  "startup.settingsLeftMessage": "読み取れない設定ファイルを退避できませんでした。元のファイルはそのまま残しています。",
+  "startup.settingsLeftDetail": "このファイルを修復するか別の場所に移してから、FotoReady を再起動してください：{path}",
   "startup.failedTitle": "FotoReady を起動できませんでした",
   "startup.failedMessage": "FotoReady は設定とワークスペースを開き終えられませんでした。",
   "startup.failedDetail": "写真やプロジェクトのファイルは変更されていません。セッションログを確認してから、FotoReady をもう一度起動してください。",

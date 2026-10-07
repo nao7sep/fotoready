@@ -76,11 +76,13 @@ describe("createRecordsReader", () => {
     await expect(reader().read({ op: "sources" })).rejects.toThrow(/no format version/);
   });
 
-  it("gives up on a read that does not answer in time", async () => {
+  it("rechecks the marker on its cached read connection", async () => {
     store().writeLog({ time: "2026-10-02T08:00:01.000Z", level: "info", message: "kept", fields: {} });
-    // A worker cannot even start within a millisecond.
-    const read = reader({ timeoutMs: 1 });
-    await expect(read.read({ op: "page", query: ALL })).rejects.toThrow("did not finish within 1 ms");
+    const read = reader();
+    await read.read({ op: "sources" });
+    const newer = new DatabaseSync(dbFile());
+    try { newer.exec("PRAGMA user_version = 2"); } finally { newer.close(); }
+    await expect(read.read({ op: "sources" })).rejects.toThrow(/NewerFormatError/);
   });
 
   it("fails every read after it closes", async () => {

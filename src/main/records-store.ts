@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { utcStamp } from "@shared/time";
-import { FORMAT_VERSIONS } from "@shared/format-versions";
+import { FORMAT_VERSIONS, NewerFormatError } from "@shared/format-versions";
 import type { LogLevel } from "@shared/types/log";
 import { jsonSafe } from "./json-safe";
-import { claimSqliteFormatVersion } from "./sqlite-format-version";
+import { assertSqliteFormatVersion, InvalidSqliteFormatError, openSqliteStore } from "./sqlite-format-version";
 
 // The app's records database (data-lifecycle-conventions, Records; logging-conventions). The main
 // process is its only writer; the renderer forwards its entries over IPC. Every row carries its
@@ -147,13 +147,11 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
 
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const opened = new DatabaseSync(file);
+    const opened = openSqliteStore(file, FORMAT_VERSIONS.records, SCHEMA);
     try {
       // First, so a database a newer build wrote is left exactly as it is and records go to the text file.
-      claimSqliteFormatVersion(opened, FORMAT_VERSIONS.records, file);
       opened.exec("PRAGMA journal_mode = WAL");
       opened.exec("PRAGMA synchronous = NORMAL");
-      opened.exec(SCHEMA);
       db = {
         handle: opened,
         insertLog: opened.prepare(
@@ -180,9 +178,22 @@ export function openRecordsStore(file: string, fallbackDir: string, sessionStart
     if (db) {
       let stored = false;
       try {
-        insert(db);
-        stored = true;
+        db.handle.exec("BEGIN IMMEDIATE");
+        try {
+          assertSqliteFormatVersion(db.handle, FORMAT_VERSIONS.records, file);
+          insert(db);
+          db.handle.exec("COMMIT");
+          stored = true;
+        } catch (error) {
+          try { db.handle.exec("ROLLBACK"); } catch { /* Preserve the write failure. */ }
+          throw error;
+        }
       } catch (error) {
+        if (error instanceof NewerFormatError || error instanceof InvalidSqliteFormatError) {
+          const refused = db;
+          db = null;
+          try { refused?.handle.close(); } catch { /* Preserve admission failure. */ }
+        }
         noteDbFailure(error);
       }
       if (stored) {

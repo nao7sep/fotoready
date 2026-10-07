@@ -30,9 +30,9 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DATA_DIR_NAME } from "@shared/constants";
-import { FORMAT_VERSIONS } from "@shared/format-versions";
+import { FORMAT_VERSIONS, NewerFormatError } from "@shared/format-versions";
 import type { Logger } from "@shared/types/log";
-import { claimSqliteFormatVersion } from "./sqlite-format-version";
+import { assertSqliteFormatVersion, InvalidSqliteFormatError, openSqliteStore } from "./sqlite-format-version";
 import { resolveStorageRoot } from "./storage-root";
 
 /** The store file under the resolved storage root. Computed lazily (not frozen into a module constant at
@@ -100,15 +100,13 @@ function ensureOpen(): DatabaseSync | null {
     // The first writer under the root does the `mkdir -p` (storage-path convention); the store may be the
     // first thing written on a fresh root.
     mkdirSync(path.dirname(file), { recursive: true });
-    const opened = new DatabaseSync(file);
+    const opened = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA);
     try {
       // First, so a store a newer build wrote is left exactly as it is and recording stays off.
-      claimSqliteFormatVersion(opened, FORMAT_VERSIONS.backups, file);
       opened.exec("PRAGMA journal_mode = WAL");
       // busy_timeout: under the tolerated two-instance case, a contended write waits up to this long for
       // SQLite's write lock instead of immediately failing with SQLITE_BUSY and dropping that record.
       opened.exec("PRAGMA busy_timeout = 5000");
-      opened.exec(SCHEMA);
     } catch (error) {
       opened.close();
       throw error;
@@ -163,6 +161,7 @@ export function record(absolutePath: string, bytes: Buffer): void {
     // after the first commits. busy_timeout above bounds lock contention.
     store.exec("BEGIN IMMEDIATE");
     transactionOpen = true;
+    assertSqliteFormatVersion(store, FORMAT_VERSIONS.backups, storeFile());
     const latest = store
       .prepare("SELECT content_sha256 AS h FROM backups WHERE path = ? ORDER BY id DESC LIMIT 1")
       .get(absolutePath) as { h: string } | undefined;
@@ -183,6 +182,10 @@ export function record(absolutePath: string, bytes: Buffer): void {
       } catch (error) {
         rollbackErr = error;
       }
+    }
+    if (err instanceof NewerFormatError || err instanceof InvalidSqliteFormatError) {
+      db = null;
+      try { store.close(); } catch (error) { rollbackErr ??= error; }
     }
     logger.warn("backup store: failed to record a managed write", {
       mod: "main.backup-store",

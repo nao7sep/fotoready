@@ -28,10 +28,16 @@ port.on("message", ({ id, read }: RecordsWorkerRequest) => {
     // recovers later is read then.
     if (db === null) {
       db = new DatabaseSync(databasePath, { readOnly: true });
-      // A database a newer build wrote is not read: its tables may not be the ones queried here.
-      assertSqliteFormatVersion(db, FORMAT_VERSIONS.records, databasePath);
     }
-    response = { id, ok: true, value: readRecords(db, read) };
+    db.exec("BEGIN");
+    try {
+      assertSqliteFormatVersion(db, FORMAT_VERSIONS.records, databasePath);
+      response = { id, ok: true, value: readRecords(db, read) };
+      db.exec("COMMIT");
+    } catch (error) {
+      try { db.exec("ROLLBACK"); } catch { /* Preserve the read failure. */ }
+      throw error;
+    }
   } catch (error) {
     try {
       db?.close();

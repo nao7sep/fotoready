@@ -133,7 +133,7 @@ describe("dedup by content hash, per path", () => {
     const { record } = await import("@main/backup-store");
     record(path.join(root, "config.json"), Buffer.from("serialized", "utf8"));
 
-    expect(transactionSql).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
+    expect(transactionSql).toEqual(["BEGIN IMMEDIATE", "COMMIT", "BEGIN IMMEDIATE", "COMMIT"]);
     expect(readRows(root)).toHaveLength(1);
   });
 
@@ -287,6 +287,32 @@ function userVersion(file: string): number {
 }
 
 describe("format version", () => {
+  it.each([0, -1])("refuses an existing empty store with marker %s", async (version) => {
+    const file = path.join(root, "backups.sqlite3");
+    const existing = new DatabaseSync(file);
+    existing.exec(`PRAGMA user_version = ${version}`); existing.close();
+    const before = readFileSync(file);
+    const { record, closeBackupStore } = await import("@main/backup-store");
+    record(path.join(root, "config.json"), Buffer.from("a"));
+    closeBackupStore();
+    expect(readFileSync(file)).toEqual(before);
+    expect(logCalls.warn).toHaveLength(1);
+  });
+
+  it("refuses a newer marker inside the cached record transaction", async () => {
+    const { record } = await import("@main/backup-store");
+    const target = path.join(root, "config.json");
+    record(target, Buffer.from("first"));
+    const newer = new DatabaseSync(path.join(root, "backups.sqlite3"));
+    newer.exec("PRAGMA user_version = 2"); newer.close();
+    record(target, Buffer.from("second"));
+    record(target, Buffer.from("third"));
+    expect(logCalls.warn).toHaveLength(1);
+    expect(readRows(root)).toHaveLength(1);
+    expect(userVersion(path.join(root, "backups.sqlite3"))).toBe(2);
+    expect(logCalls.warn[0]?.fields).toMatchObject({ err: expect.objectContaining({ name: "NewerFormatError" }) });
+  });
+
   it("records version 1 in a new store", async () => {
     const { record } = await import("@main/backup-store");
     record(path.join(root, "config.json"), Buffer.from("a", "utf8"));

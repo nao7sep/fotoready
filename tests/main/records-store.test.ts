@@ -169,6 +169,33 @@ describe("the records format version", () => {
     db.close();
   }
 
+  it.each([0, -1])("refuses an existing empty database with marker %s", (version) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const existing = new DatabaseSync(dbFile());
+    existing.exec(`PRAGMA user_version = ${version}`); existing.close();
+    const before = fs.readFileSync(dbFile());
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    records.writeLog({ time: sessionStart.toISOString(), level: "info", message: "fallback", fields: {} });
+    records.close();
+    expect(fs.readFileSync(dbFile())).toEqual(before);
+    expect(fallbackLines().at(-1)).toMatchObject({ message: "fallback" });
+  });
+
+  it("refuses a newer marker on the cached write connection", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const records = openRecordsStore(dbFile(), logsDir(), sessionStart);
+    const newer = new DatabaseSync(dbFile());
+    newer.exec("PRAGMA user_version = 2"); newer.close();
+    try {
+      records.writeLog({ time: sessionStart.toISOString(), level: "info", message: "fallback", fields: {} });
+      records.writeProviderCall(call);
+      expect(query("SELECT * FROM log_records")).toEqual([]);
+      expect(query("SELECT * FROM provider_calls")).toEqual([]);
+      expect(userVersion()).toBe(2);
+      expect(fallbackLines()).toHaveLength(3);
+    } finally { records.close(); }
+  });
+
   it("records version 1 in a new database", () => {
     openRecordsStore(dbFile(), logsDir(), sessionStart).close();
     expect(userVersion()).toBe(1);

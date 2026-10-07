@@ -1,20 +1,23 @@
-import type { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import path from "node:path";
+import { nanoid } from "nanoid";
+import { DatabaseSync } from "node:sqlite";
 import { NewerFormatError } from "../shared/format-versions.ts";
 
-// A SQLite store's format version, kept in `PRAGMA user_version` (store-recovery-conventions). An
-// unset one, 0, is a missing marker unless the database is still empty, as it is when just created.
-//
-// The records worker loads this module under Node's own TypeScript stripping in the tests, so its
-// imports are relative and spelled with their extension.
+// Store recovery conventions; worker imports use Node TypeScript stripping.
 
-/**
- * The recorded `user_version`, raw: 0 only for an empty database. Throws when a database with
- * tables records none, and {@link NewerFormatError} when it is newer than `supported`.
- */
+export class InvalidSqliteFormatError extends Error {
+  constructor(file: string) {
+    super(`${file} records no format version.`);
+    this.name = "InvalidSqliteFormatError";
+  }
+}
+
+/** Reject absent, invalid and unsupported store markers. */
 function checkedUserVersion(db: DatabaseSync, supported: number, file: string): number {
   const recorded = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
-  if (recorded === 0 && db.prepare("SELECT 1 FROM sqlite_master LIMIT 1").get() !== undefined) {
-    throw new Error(`${file} records no format version.`);
+  if (recorded <= 0) {
+    throw new InvalidSqliteFormatError(file);
   }
   if (recorded > supported) throw new NewerFormatError(file, recorded, supported);
   return recorded;
@@ -28,11 +31,40 @@ export function assertSqliteFormatVersion(db: DatabaseSync, supported: number, f
   checkedUserVersion(db, supported, file);
 }
 
-/**
- * For the database's writer: checks the version as {@link assertSqliteFormatVersion} does, then
- * records `supported` in a database just created. Call it before any pragma or schema statement
- * that could change the file.
- */
-export function claimSqliteFormatVersion(db: DatabaseSync, supported: number, file: string): void {
-  if (checkedUserVersion(db, supported, file) === 0) db.exec(`PRAGMA user_version = ${supported}`);
+/** Publish a complete new schema and marker together; never initialize an existing file. */
+export function openSqliteStore(file: string, supported: number, schema: string): DatabaseSync {
+  if (!fs.existsSync(file)) {
+    const temp = path.join(path.dirname(file), `${path.parse(file).name}-${nanoid(8)}.tmp`);
+    const descriptor = fs.openSync(temp, "wx");
+    fs.closeSync(descriptor);
+    let staging: DatabaseSync | null = null;
+    try {
+      staging = new DatabaseSync(temp);
+      staging.exec("BEGIN IMMEDIATE");
+      staging.exec(schema);
+      staging.exec(`PRAGMA user_version = ${supported}`);
+      staging.exec("COMMIT");
+      staging.close();
+      staging = null;
+      try { fs.linkSync(temp, file); } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (["EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL"].includes(code ?? "")) {
+          try { fs.copyFileSync(temp, file, fs.constants.COPYFILE_EXCL); } catch (copyError) {
+            if ((copyError as NodeJS.ErrnoException).code !== "EEXIST") throw copyError;
+          }
+        } else if (code !== "EEXIST") throw error;
+      }
+    } finally {
+      try { staging?.close(); } catch (error) { console.warn("[sqlite] could not close initialization staging", error); }
+      try { fs.rmSync(temp, { force: true }); } catch (error) { console.warn("[sqlite] could not remove initialization staging", error); }
+    }
+  }
+  const db = new DatabaseSync(file);
+  try {
+    assertSqliteFormatVersion(db, supported, file);
+    return db;
+  } catch (error) {
+    try { db.close(); } catch { /* Preserve admission failure. */ }
+    throw error;
+  }
 }

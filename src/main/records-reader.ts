@@ -33,6 +33,18 @@ export function createRecordsReader(
   let closed = false;
   let nextId = 1;
   const pending = new Map<number, Pending>();
+  const retiring = new Set<Promise<void>>();
+  const retirement = new WeakMap<Worker, Promise<void>>();
+
+  const retire = (current: Worker): Promise<void> => {
+    const existing = retirement.get(current);
+    if (existing) return existing;
+    const stopped = current.terminate().then(() => undefined, () => undefined);
+    retirement.set(current, stopped);
+    retiring.add(stopped);
+    void stopped.then(() => retiring.delete(stopped));
+    return stopped;
+  };
 
   // Fails the reads waiting on `owner`, or on any worker.
   const fail = (error: Error, owner?: Worker): void => {
@@ -47,7 +59,7 @@ export function createRecordsReader(
   const discard = (current: Worker, error: Error): void => {
     if (worker === current) worker = null;
     fail(error, current);
-    void current.terminate().catch(() => undefined);
+    void retire(current);
   };
 
   const ensureWorker = (): Worker => {
@@ -99,13 +111,14 @@ export function createRecordsReader(
       const current = worker;
       worker = null;
       fail(new Error("The records reader is closed."));
-      if (current === null) return;
+      if (current !== null) void retire(current);
+      if (retiring.size === 0) return;
       let timer: NodeJS.Timeout | undefined;
       const timeout = new Promise<void>((resolve) => {
         timer = setTimeout(resolve, CLOSE_TIMEOUT_MS);
       });
       try {
-        await Promise.race([current.terminate().then(() => undefined, () => undefined), timeout]);
+        await Promise.race([Promise.all([...retiring]), timeout]);
       } finally {
         clearTimeout(timer);
       }

@@ -205,12 +205,15 @@ export type LutPreviewEntry = LutEntry & {
 export type CloseRequest = {
   /** The close ends the app, discarding the workspace and cancelling running saves. */
   endsApp: boolean;
+  requestId: number;
 };
 
 export type ProjectEventName = "project.snapshot" | "queue.snapshot";
 
 export type TaskEditOptions = {
   historyGroup?: string;
+  expectedParams?: Record<string, unknown>;
+  expectedOriginalId?: string;
 };
 
 export type FotoReadyApi = {
@@ -314,7 +317,7 @@ export type FotoReadyApi = {
     onChanged(callback: () => void): () => void;
   };
   lifecycle: {
-    approveClose(allow: boolean): Promise<void>;
+    approveClose(allow: boolean, requestId: number): Promise<void>;
     onCloseRequest(callback: (request: CloseRequest) => void): () => void;
     onWindowActivityChanged(callback: (active: boolean) => void): () => void;
   };

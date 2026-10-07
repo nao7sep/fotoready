@@ -80,6 +80,39 @@ describe("ProjectSession saved-task metadata persistence", () => {
     expect(mocks.writeTaskSidecarFile).not.toHaveBeenCalled();
   });
 
+  it("skips canonical flag no-ops without persistence, edit time or undo", async () => {
+    for (const { session, task } of [savedSession(), notSavedSession()]) {
+      task.generateDescription = true;
+      task.generateSlug = true;
+      const before = structuredClone(task);
+      await session.setGenerateDescription(task.id, false);
+      await session.setGenerateSlug(task.id, true);
+      expect(task).toEqual(before);
+      if (task.status === "not-saved") session.undoTaskEdit(task.id);
+      expect(session.snapshot().project.tasks[0]).toBe(task);
+    }
+    expect(mocks.writeTaskSidecarFile).not.toHaveBeenCalled();
+  });
+
+  it("retains each input time while metadata waits behind an earlier sidecar write", async () => {
+    const { session, task } = savedSession();
+    let release!: () => void;
+    mocks.writeTaskSidecarFile.mockImplementationOnce(() => new Promise<string>((resolve) => { release = () => resolve("sidecar"); }));
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-07T01:00:00Z"));
+      const first = session.setCustomSlug(task.id, "first");
+      await Promise.resolve();
+      await Promise.resolve();
+      vi.setSystemTime(new Date("2026-10-07T01:01:00Z"));
+      const second = session.setGenerateSlug(task.id, true);
+      vi.setSystemTime(new Date("2026-10-07T01:02:00Z"));
+      release();
+      await Promise.all([first, second]);
+      expect(task.updatedAt).toBe("2026-10-07T01:01:00.000Z");
+    } finally { vi.useRealTimers(); }
+  });
+
   it("preserves not-saved metadata edits and their undo history", async () => {
     const { session, task } = notSavedSession();
 

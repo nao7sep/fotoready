@@ -61,6 +61,23 @@ afterEach(async () => {
 });
 
 describe("StampPickerModal groups", () => {
+  it("admits one use synchronously and waits for its mutation before closing", async () => {
+    let finish!: () => void;
+    const onUse = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const onClose = vi.fn();
+    await renderStampPicker({ onUse, onClose });
+    const item = document.querySelector('[role="option"]')!;
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      item.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(onUse).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(button("Import…")?.disabled).toBe(true);
+    await act(async () => finish());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("loads Reactions by default and keeps empty groups usable", async () => {
     await act(async () => {
       root.render(createElement(
@@ -170,7 +187,7 @@ describe("StampPickerModal groups", () => {
   });
 });
 
-async function renderStampPicker(): Promise<void> {
+async function renderStampPicker(overrides: { onUse?: (path: string) => Promise<void>; onClose?: () => void } = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(
       ConfirmerProvider,
@@ -181,7 +198,8 @@ async function renderStampPicker(): Promise<void> {
         onUse: () => undefined,
         previewLongEdge: 64,
         selectedPath: "",
-        stamps
+        stamps,
+        ...overrides
       })
     ));
   });

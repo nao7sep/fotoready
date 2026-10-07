@@ -30,6 +30,18 @@ describe("ProjectSession pipeline edits on a locked task", () => {
     expect(session.snapshot().project.tasks[0]).toEqual(before);
   });
 
+  it("refuses delayed asset patches after op parameters or the original changed", () => {
+    const { session, task } = arrange("not-saved");
+    const expectedParams = structuredClone(task.pipeline.ops[0].params);
+    const expectedOriginalId = task.originalId;
+    session.updateOpParam(task.id, "op-1", "x", 0.25);
+    const before = structuredClone(task);
+    expect(() => session.updateOpParams(task.id, "op-1", { x: 0.75 }, { expectedParams, expectedOriginalId })).toThrow("task changed");
+    expect(task).toEqual(before);
+    expect(() => session.updateOpParams(task.id, "op-1", { x: 0.75 }, { expectedParams: structuredClone(task.pipeline.ops[0].params), expectedOriginalId: "another-original" })).toThrow("task changed");
+    expect(task).toEqual(before);
+  });
+
   it("takes the same edits while the task is not saved", async () => {
     const { session, task } = arrange("not-saved");
 

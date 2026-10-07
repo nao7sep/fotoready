@@ -23,19 +23,14 @@ export async function notifyCorruptSettings(quarantinedTo: string): Promise<void
   await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail", { path: quarantinedTo });
 }
 
-/**
- * The quarantine is a durable recovery consequence, so startup may continue
- * only after its authored explanation was actually shown. If the presentation
- * shell fails, preserve that cause and reject into the existing fatal startup
- * path instead of opening the ordinary workspace with an invisible reset.
- */
-export async function requireCorruptSettingsNotice(logger: Pick<Logger, "error">, quarantinedTo: string): Promise<void> {
+/** A completed quarantine survives incidental presentation failure. */
+export async function showCorruptSettingsNotice(logger: Pick<Logger, "error">, quarantinedTo: string): Promise<boolean> {
   try {
     await notifyCorruptSettings(quarantinedTo);
-  } catch (cause) {
-    const error = new Error("FotoReady could not present the corrupt-settings recovery notice.", { cause });
-    logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", err: error });
-    throw error;
+    return true;
+  } catch (error) {
+    logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", quarantinedTo, err: error });
+    return false;
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { installWindowActivityState } from "./window-activity";
 import { BarChart3, CopyPlus, KeyRound, Menu as MenuIcon, Save, Trash2, X } from "lucide-react";
@@ -348,11 +348,17 @@ function App(): React.JSX.Element {
     };
   }, []);
 
+  const pendingCloseRequest = useRef<import("@shared/types/ipc").CloseRequest | null>(null);
+  const checkingClose = useRef(false);
   useEffect(() => {
-    return api.lifecycle.onCloseRequest((request) => {
-      void (async () => {
+    const check = async (): Promise<void> => {
+      if (checkingClose.current) return;
+      checkingClose.current = true;
+      let answeredId: number | undefined;
+      try {
         const approve = async (approved: boolean): Promise<void> => {
-          await api.lifecycle.approveClose(approved);
+          answeredId = pendingCloseRequest.current!.requestId;
+          await api.lifecycle.approveClose(approved, answeredId);
           dismissOwnedFailure(setShellFailures, "close-request");
         };
         if (settingsDirty || apiKeyDirty) {
@@ -368,7 +374,7 @@ function App(): React.JSX.Element {
           }
         }
 
-        const confirmation = closeConfirmation(request, {
+        const confirmation = closeConfirmation(pendingCloseRequest.current!, {
           hasWork: hasWorkspaceWork(project, queue),
           savesInFlight: queue.queued + queue.processing > 0
         });
@@ -383,10 +389,19 @@ function App(): React.JSX.Element {
         }
 
         await approve(true);
-      })().catch((error) => {
+      } catch (error) {
         const failure = presentFailure(error, message("failure.closeRequest"), "renderer close request failed");
         setShellFailures((current) => ({ ...current, "close-request": failure }));
-      });
+        answeredId = pendingCloseRequest.current!.requestId;
+        await api.lifecycle.approveClose(false, answeredId).catch(() => undefined);
+      } finally {
+        checkingClose.current = false;
+        if (pendingCloseRequest.current?.requestId !== answeredId) void check();
+      }
+    };
+    return api.lifecycle.onCloseRequest((request) => {
+      pendingCloseRequest.current = request;
+      void check();
     });
   }, [apiKeyDirty, confirmer, project, queue, settingsDirty, t]);
 
@@ -592,7 +607,7 @@ function App(): React.JSX.Element {
 
   async function updateOpParams(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch, options));
+    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch, options?.expectedParams ? { ...options, expectedOriginalId: activeTask.originalId } : options));
   }
 
   async function setGenerateDescription(generateDescription: boolean): Promise<void> {
@@ -935,7 +950,7 @@ function App(): React.JSX.Element {
           <div className="canvas-frame">
             <EditorCanvas
               fallbackLabel={activeOriginal ? basename(activeOriginal.sourcePath) : t("editor.importToBegin")}
-              onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "canvas operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.canvasParams") })}
+              onOpParamsChange={(opId, patch, options) => options?.expectedParams ? updateOpParams(opId, patch, options) : runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "canvas operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.canvasParams") })}
               onRetryPreview={() => setPreviewAttempt((attempt) => attempt + 1)}
               originalAspectRatio={activeOriginal ? activeOriginal.width / Math.max(activeOriginal.height, 1) : null}
               preview={activePreview}
@@ -1005,7 +1020,7 @@ function App(): React.JSX.Element {
             onMoveOp={(opId, toIndex) => void runOwnedAction({ action: () => moveOp(opId, toIndex), fields: { opId, toIndex }, key: taskOwnedKey(`op:${opId}:move`), operation: "operation move failed", setFailures: setOpsFailures, userMessage: message("failure.moveOp") })}
             onOpEnabledChange={(opId, enabled) => void runOwnedAction({ action: () => setOpEnabled(opId, enabled), fields: { opId }, key: taskOwnedKey(`op:${opId}:enabled`), operation: "operation enabled state update failed", setFailures: setOpsFailures, userMessage: message("failure.opEnabled") })}
             onOpParamChange={(opId, key, value, options) => void runOwnedAction({ action: () => updateOpParam(opId, key, value, options), fields: { opId, key }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameter update failed", setFailures: setOpsFailures, userMessage: message("failure.opParam") })}
-            onOpParamsChange={(opId, patch, options) => void runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.opParams") })}
+            onOpParamsChange={(opId, patch, options) => options?.expectedParams ? updateOpParams(opId, patch, options) : runOwnedAction({ action: () => updateOpParams(opId, patch, options), fields: { opId, keys: Object.keys(patch) }, key: taskOwnedKey(`op:${opId}:params`), operation: "operation parameters update failed", setFailures: setOpsFailures, userMessage: message("failure.opParams") })}
             onOutputChange={(key, value, options) => void runOwnedAction({ action: () => updateOutput(key, value, options), fields: { key }, key: taskOwnedKey(`output:setting:${key}`), operation: "output setting update failed", setFailures: setOpsFailures, userMessage: message("failure.outputSetting") })}
             onRemoveOp={(opId) => void runOwnedAction({ action: () => removeOp(opId), fields: { opId }, key: taskOwnedKey(`op:${opId}:remove`), operation: "operation removal failed", setFailures: setOpsFailures, userMessage: message("failure.removeOp") })}
             onRevealOpHandled={() => setPendingRevealOpId(null)}

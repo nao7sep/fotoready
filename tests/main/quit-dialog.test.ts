@@ -6,7 +6,7 @@ vi.mock("@main/plain-message-dialog", () => ({ showPlainMessageDialog }));
 vi.mock("electron", () => ({ app: { isPackaged: false }, systemPreferences: {} }));
 
 import { applyLanguagePreference } from "@main/i18n";
-import { askWorkNotSaved } from "@main/quit-dialog";
+import { askDiscardWorkspace, askWorkNotSaved } from "@main/quit-dialog";
 
 beforeEach(() => {
   showPlainMessageDialog.mockClear();
@@ -14,6 +14,18 @@ beforeEach(() => {
 });
 
 describe("the quit question about unsaved work", () => {
+  it("confirms workspace discard through the existing standalone dialog with safe cancellation", async () => {
+    await expect(askDiscardWorkspace(true)).resolves.toBe(true);
+    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining("Saves still in progress are cancelled"),
+      buttons: ["Cancel", "Close"], defaultId: 0, cancelId: 0, destructiveId: 1,
+    }));
+    showPlainMessageDialog.mockResolvedValueOnce(0);
+    await expect(askDiscardWorkspace(false)).resolves.toBe(false);
+    showPlainMessageDialog.mockRejectedValueOnce(new Error("dialog unavailable"));
+    await expect(askDiscardWorkspace(false)).rejects.toThrow("dialog unavailable");
+  });
+
   it("names what is not saved and offers Cancel, Retry as the default, and a destructive Quit anyway", async () => {
     await askWorkNotSaved([{ kind: "settings" }, { kind: "sidecar", file: "photo.json" }]);
 

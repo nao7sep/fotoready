@@ -9,7 +9,7 @@ export type CloseConfirmation = { title: MessageKey; message: MessageKey };
  * so it needs no confirmation.
  */
 export function closeConfirmation(
-  request: CloseRequest,
+  request: Pick<CloseRequest, "endsApp">,
   workspace: { hasWork: boolean; savesInFlight: boolean },
 ): CloseConfirmation | null {
   if (!request.endsApp || !workspace.hasWork) return null;

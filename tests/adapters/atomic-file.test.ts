@@ -20,6 +20,24 @@ describe("atomicWriteFile", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it("exclusively creates private staging, then preserves ordinary new-file defaults", async () => {
+    const writeFile = fsp.writeFile.bind(fsp);
+    const write = vi.spyOn(fsp, "writeFile").mockImplementation(async (file, data, options) => {
+      await writeFile(file, data, options);
+      if (isPosix) expect((await fsp.stat(file as string)).mode & 0o777).toBe(0o600 & ~process.umask());
+    });
+    const rename = fsp.rename.bind(fsp);
+    const publish = vi.spyOn(fsp, "rename").mockImplementation(async (from, to) => {
+      if (isPosix) expect((await fsp.stat(from)).mode & 0o777).toBe(0o666 & ~process.umask());
+      await rename(from, to);
+    });
+    try {
+      await atomicWriteFile(filePath, "managed text");
+      expect(write).toHaveBeenCalledWith(expect.stringMatching(/\.tmp$/), Buffer.from("managed text"), { flag: "wx", mode: 0o600 });
+      expect(await fsp.readFile(filePath, "utf8")).toBe("managed text");
+    } finally { write.mockRestore(); publish.mockRestore(); }
+  });
+
   it("preserves a same-byte admission refusal when descriptor close fails", async () => {
     await fsp.writeFile(filePath, "same");
     const primary = new Error("newer store refusal");

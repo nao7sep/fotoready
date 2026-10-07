@@ -99,6 +99,18 @@ export function AssetPickerModal<T extends PickerEntry>({
   const [pendingReselectIndex, setPendingReselectIndex] = useState<number | null>(null);
   const [errors, setErrors] = useState<Partial<Record<PickerOperation, Message>>>({});
   const [notice, setNotice] = useState<Message | null>(null);
+  const operationRunning = useRef(false);
+  const [busy, setBusy] = useState(false);
+  function beginOperation(): boolean {
+    if (operationRunning.current) return false;
+    operationRunning.current = true;
+    setBusy(true);
+    return true;
+  }
+  function endOperation(): void {
+    operationRunning.current = false;
+    setBusy(false);
+  }
 
   const entryIndexByPath = useMemo(
     () => new Map(entries.map((entry, index) => [entry.path, index])),
@@ -189,6 +201,7 @@ export function AssetPickerModal<T extends PickerEntry>({
   }
 
   async function useEntry(entry: T): Promise<void> {
+    if (!beginOperation()) return;
     try {
       setNotice(null);
       await onUse(entry);
@@ -196,10 +209,11 @@ export function AssetPickerModal<T extends PickerEntry>({
       onClose();
     } catch (entryError) {
       setOperationError("use", presentFailure(entryError, message("failure.assetUse"), "renderer asset use failed"));
-    }
+    } finally { endOperation(); }
   }
 
   async function importAssets(): Promise<void> {
+    if (!beginOperation()) return;
     try {
       setNotice(null);
       const filePaths = await api.system.pickFiles({ title: importTitle, extensions });
@@ -225,11 +239,12 @@ export function AssetPickerModal<T extends PickerEntry>({
       }
     } catch (importError) {
       setOperationError("import", presentFailure(importError, message("failure.assetImport"), "renderer asset import failed"));
-    }
+    } finally { endOperation(); }
   }
 
   async function deleteSelected(): Promise<void> {
-    if (!canDeleteSelected) return;
+    if (!canDeleteSelected || !beginOperation()) return;
+    try {
     const deletedEntries = selectedEntries;
     const deletedIndex = deletedEntries
       .map((entry) => entryIndexByPath.get(entry.path) ?? Number.POSITIVE_INFINITY)
@@ -272,6 +287,7 @@ export function AssetPickerModal<T extends PickerEntry>({
         "renderer asset deletion failed",
       ));
     }
+    } finally { endOperation(); }
   }
 
   function moveFocus(delta: number, options?: { extendSelection?: boolean; preserveSelection?: boolean }): void {
@@ -405,24 +421,24 @@ export function AssetPickerModal<T extends PickerEntry>({
       size="wide"
       tall
       surfaceClassName="asset-picker-modal"
-      onClose={onClose}
+      onClose={() => { if (!operationRunning.current) onClose(); }}
       footer={
         <>
-          <button className="toolbar-button" type="button" onClick={importAssets}>{t("assets.import")}</button>
+          <button className="toolbar-button" type="button" disabled={busy} onClick={importAssets}>{t("assets.import")}</button>
           <span className="top-bar-spacer" />
           <button
             className="toolbar-button"
-            disabled={!canDeleteSelected}
+            disabled={busy || !canDeleteSelected}
             title={deleteTitle}
             type="button"
             onClick={() => void deleteSelected()}
           >
             {t("common.delete")}
           </button>
-          <button className="toolbar-button" type="button" onClick={onClose}>{t("common.cancel")}</button>
+          <button className="toolbar-button" type="button" disabled={busy} onClick={onClose}>{t("common.cancel")}</button>
           <button
             className="primary-action"
-            disabled={!selectedEntry}
+            disabled={busy || !selectedEntry}
             title={useTitle}
             type="button"
             onClick={() => void useSelected()}

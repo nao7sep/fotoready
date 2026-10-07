@@ -85,6 +85,13 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     });
   };
 
+  let assetWrites: Promise<unknown> = Promise.resolve();
+  const mutateAssets = <T>(work: () => Promise<T>): Promise<T> => {
+    const result = assetWrites.then(work, work);
+    assetWrites = result.catch(() => undefined);
+    return result;
+  };
+
   const publishSnapshots = () => {
     const project = ctx.projectSession.snapshot();
     const queue = ctx.projectSession.queueSnapshot();
@@ -331,15 +338,15 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("rename.preview", "debug", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => ctx.projectSession.previewRename(templateId, taskIds));
   handle("rename.run", "info", async (_event, templateId?: RenameTemplateId, taskIds?: string[]) => publishResult(ctx.projectSession.runRename(templateId, taskIds)));
   handle("luts.list", "debug", async () => listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger));
-  handle("luts.import", "info", async (_event, filePaths: string[]) => importLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger));
-  handle("luts.delete", "info", async (_event, filePaths: string[]) => deleteLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir));
+  handle("luts.import", "info", async (_event, filePaths: string[]) => mutateAssets(() => importLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger)));
+  handle("luts.delete", "info", async (_event, filePaths: string[]) => mutateAssets(() => deleteLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir)));
   handle("luts.preview", "debug", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
     const luts = await listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger);
     return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
   });
   handle("stamps.list", "debug", async () => listStamps(ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger));
-  handle("stamps.import", "info", async (_event, filePaths: string[]) => importStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger));
-  handle("stamps.delete", "info", async (_event, filePaths: string[]) => deleteStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir));
+  handle("stamps.import", "info", async (_event, filePaths: string[]) => mutateAssets(() => importStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger)));
+  handle("stamps.delete", "info", async (_event, filePaths: string[]) => mutateAssets(() => deleteStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir)));
   handle("queues.snapshot", "debug", async () => ctx.projectSession.queueSnapshot());
 
   handle("records.open", "info", async () => ctx.records.openWindow());

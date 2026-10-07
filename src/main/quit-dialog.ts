@@ -25,3 +25,18 @@ export async function askWorkNotSaved(unsaved: UserWork[]): Promise<QuitChoice> 
   });
   return CHOICES[choice] ?? "cancel";
 }
+
+/** The process owns workspace discard even when its main window has closed. */
+export async function askDiscardWorkspace(savesInFlight: boolean): Promise<boolean> {
+  const { language, t } = mainTranslator();
+  return await showPlainMessageDialog({
+    title: t("confirm.close.title"),
+    message: t(savesInFlight ? "confirm.close.messageWithSaves" : "confirm.close.message"),
+    buttons: [t("common.cancel"), t("common.close")],
+    defaultId: 0,
+    cancelId: 0,
+    destructiveId: 1,
+    detailsLabel: t("dialog.messageDetails"),
+    lang: language,
+  }) === 1;
+}

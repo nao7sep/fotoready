@@ -51,6 +51,26 @@ afterEach(async () => {
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
+it("keeps the provider result receipt time while its sidecar commit waits", async () => {
+  const { session, task } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => ["slug"] });
+  const blocked = deferred<string>();
+  mocks.writeTaskSidecarFile.mockImplementationOnce(() => blocked.promise);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    vi.setSystemTime(new Date("2026-10-07T01:00:00Z"));
+    const edit = session.setCustomSlug(task.id, "user-slug");
+    await settleMicrotasks();
+    vi.setSystemTime(new Date("2026-10-07T01:01:00Z"));
+    const vision = session.runVision(task.id, { mode: "description" });
+    await settleMicrotasks();
+    vi.setSystemTime(new Date("2026-10-07T01:02:00Z"));
+    blocked.resolve("sidecar");
+    await Promise.all([edit, vision]);
+    expect(task.output?.vision?.ranAt).toBe("2026-10-07T01:01:00.000Z");
+    expect(task.updatedAt).toBe(task.output?.vision?.ranAt);
+  } finally { vi.useRealTimers(); }
+});
+
 describe("VisionQueue provider records", () => {
   it("records each provider call with the task it ran for", async () => {
     const writeProviderCall = vi.fn<(record: ProviderCallRecord) => void>();

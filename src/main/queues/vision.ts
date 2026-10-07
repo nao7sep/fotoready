@@ -211,7 +211,7 @@ export class VisionQueue {
             if (!task.output || !isCurrent()) return false;
             task.output.vision = { ...descriptionOnly, slugCandidates: [] };
             task.error = null;
-            task.updatedAt = nowIso();
+            task.updatedAt = descriptionOnly.ranAt;
             return true;
           });
           if (!committed) return;
@@ -242,7 +242,7 @@ export class VisionQueue {
           task.customSlug = generatedSlug;
         }
         task.error = null;
-        task.updatedAt = nowIso();
+        task.updatedAt = slugged?.slugRanAt ?? descriptionStep.ranAt;
         return true;
       });
       if (!committed) return;

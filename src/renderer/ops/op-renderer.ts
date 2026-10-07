@@ -37,7 +37,7 @@ export type OpCardProps<P extends Record<string, unknown>> = {
   disabled: boolean;
   ctx: OpCardContext;
   onParamChange<K extends keyof P>(key: K, value: P[K], options?: TaskEditOptions): void;
-  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void;
+  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void | Promise<void>;
 };
 
 export type OpOverlayProps<P extends Record<string, unknown>> = {
@@ -51,7 +51,7 @@ export type OpOverlayProps<P extends Record<string, unknown>> = {
    */
   editable: boolean;
   ctx: OverlayContext;
-  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void;
+  onParamsChange(patch: Partial<P>, options?: TaskEditOptions): void | Promise<void>;
 };
 
 export type ImageClickHandler<P extends Record<string, unknown>> = (

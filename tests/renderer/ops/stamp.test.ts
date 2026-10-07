@@ -8,6 +8,10 @@ import { StampSourceAction } from "@renderer/ops/stamp";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const picker = vi.hoisted(() => ({ onUse: null as null | ((path: string) => Promise<void>), normalize: vi.fn() }));
+vi.mock("@renderer/components/modals/asset-picker-modal", () => ({ StampPickerModal: (props: { onUse(path: string): Promise<void> }) => { picker.onUse = props.onUse; return null; } }));
+vi.mock("@renderer/ops/_asset-overlay", async (load) => ({ ...await load<typeof import("@renderer/ops/_asset-overlay")>(), normalizeAssetOverlayForPath: picker.normalize }));
+
 let root: Root;
 const log = vi.fn(async () => undefined);
 
@@ -24,6 +28,39 @@ afterEach(async () => {
 });
 
 describe("StampSourceAction chooser reload", () => {
+  it("rejects an aspect result after the captured task params changed", async () => {
+    let finish!: (patch: Partial<AssetOverlayParams>) => void;
+    picker.normalize.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const onParamsChange = vi.fn(async () => undefined);
+    const ctx = cardContext({ reloadStamps: async () => undefined });
+    const params = overlayParams();
+    const render = (value: AssetOverlayParams) => root.render(createElement(StampSourceAction, { ctx, params: value, disabled: false, onParamsChange, onParamChange: () => undefined }));
+    await act(async () => render(params));
+    await act(async () => chooseButton("Choose stamp…").click());
+    const choosing = picker.onUse!("/next.png");
+    await act(async () => render({ ...params, x: 0.25 }));
+    finish({ ...params, assetPath: "/next.png" });
+    await expect(choosing).rejects.toThrow("task changed");
+    expect(onParamsChange).not.toHaveBeenCalled();
+  });
+
+  it("carries the immutable params basis and awaits the actual mutation promise", async () => {
+    let finish!: () => void;
+    picker.normalize.mockResolvedValueOnce({ assetPath: "/next.png" });
+    const onParamsChange = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const params = overlayParams();
+    await act(async () => root.render(createElement(StampSourceAction, { ctx: cardContext({ reloadStamps: async () => undefined }), params, disabled: false, onParamsChange, onParamChange: () => undefined })));
+    await act(async () => chooseButton("Choose stamp…").click());
+    let settled = false;
+    const choosing = picker.onUse!("/next.png").then(() => { settled = true; });
+    await Promise.resolve();
+    expect(onParamsChange).toHaveBeenCalledWith({ assetPath: "/next.png" }, { expectedParams: params });
+    expect(settled).toBe(false);
+    finish();
+    await choosing;
+    expect(settled).toBe(true);
+  });
+
   it("keeps the chooser closed and owns a hostile reload rejection", async () => {
     const reloadStamps = vi.fn(async () => {
       throw new Error("Error invoking remote method: EACCES /private/tmp/FOTOREADY_STAMP_SENTINEL");

@@ -120,7 +120,7 @@ const api: FotoReadyApi = {
     }
   },
   lifecycle: {
-    approveClose: (allow) => invoke("lifecycle.approveClose", allow),
+    approveClose: (allow, requestId) => invoke("lifecycle.approveClose", allow, requestId),
     onCloseRequest: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) => callback(request);
       ipcRenderer.on("lifecycle.close-requested", listener);

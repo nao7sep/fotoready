@@ -55,7 +55,7 @@ type OpsPanelProps = {
   onMoveOp(opId: string, toIndex: number): void;
   onOpEnabledChange(opId: string, enabled: boolean): void;
   onOpParamChange(opId: string, key: string, value: unknown, options?: TaskEditOptions): void;
-  onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void;
+  onOpParamsChange(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): void | Promise<void>;
   onOutputChange(key: string, value: unknown, options?: TaskEditOptions): void;
   onRemoveOp(opId: string): void;
   onSelectOp(opId: string): void;

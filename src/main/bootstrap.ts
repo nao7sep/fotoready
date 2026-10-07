@@ -16,7 +16,7 @@ import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { nowIso } from "@shared/time";
-import { notifyStartupFailure, requireCorruptSettingsNotice } from "./startup-dialog";
+import { notifyStartupFailure, showCorruptSettingsNotice } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
 import {
   computeFirstRunWindowHeight,
@@ -35,7 +35,7 @@ import type { CloseRequest } from "@shared/types/ipc";
 import { createRecordsReader } from "./records-reader";
 import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
 import { UserWorkWrites, saveUserWorkBeforeQuit, settleWithin, type QuitChoice, type UserWork } from "./quit-save";
-import { askWorkNotSaved } from "./quit-dialog";
+import { askDiscardWorkspace, askWorkNotSaved } from "./quit-dialog";
 import { cancelOpenMessageDialogs } from "./plain-message-dialog";
 
 // Pure so it can be unit-tested without constructing a real BrowserWindow. The opening size and
@@ -137,9 +137,7 @@ export async function bootstrap(): Promise<void> {
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   const userWork = new UserWorkWrites();
-  if (settingsQuarantinedTo) {
-    await requireCorruptSettingsNotice(logger, settingsQuarantinedTo);
-  }
+  let recoveryNoticePending = settingsQuarantinedTo !== null && !(await showCorruptSettingsNotice(logger, settingsQuarantinedTo));
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
@@ -207,7 +205,7 @@ export async function bootstrap(): Promise<void> {
       try {
         if (quit.sessionEnding()) exitState.reason = "system-shutdown";
         else if (exitState.reason !== "window-close") exitState.reason = "user-quit";
-        if (!quit.sessionEnding() && mainGuard && !(await mainGuard.confirmQuit())) return false;
+        if (!quit.sessionEnding() && !(await confirmWorkspaceQuit(mainGuard, projectSession, askDiscardWorkspace)) && !quit.sessionEnding()) return false;
         go = await saveUserWorkBeforeQuit(userWork, askNotSaved, quit.sessionEnding, logger);
         return go;
       } catch (error) {
@@ -265,7 +263,7 @@ export async function bootstrap(): Promise<void> {
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
-    mainGuard = installCloseGuard(win, exitState, quit);
+    mainGuard = installCloseGuard(win, exitState, quit, logger);
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -279,6 +277,10 @@ export async function bootstrap(): Promise<void> {
 
     win.once("ready-to-show", () => {
       win.show();
+      if (recoveryNoticePending && settingsQuarantinedTo) {
+        recoveryNoticePending = false;
+        void showCorruptSettingsNotice(logger, settingsQuarantinedTo);
+      }
     });
 
     try {
@@ -434,26 +436,46 @@ export type CloseGuard = {
  * closing the window quits, so the close becomes the quit, and a cancelled quit keeps the window
  * open; on macOS the window closes alone and the app goes on.
  */
-export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl): CloseGuard {
+export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl, logger?: Pick<AppLogger, "warn">): CloseGuard {
   // An approved macOS window close, which the guard then lets through.
   let closeAllowed = false;
+  const presentationFailed = (error: unknown): void => {
+    if (logger) logger.warn("the close question could not be presented", { mod: "main.quit", err: error });
+    else console.warn("[close] could not present the close question", error);
+  };
   // The question the renderer is answering. A quit arriving while it asks about a window close
   // joins it, and the answer then goes on with the quit instead of closing the window alone.
-  let pending: { mode: "window" | "quit"; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
+  let requestId = 0;
+  let pending: { mode: "window" | "quit"; requestId: number; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
 
   function ask(mode: "window" | "quit"): Promise<boolean> {
     if (pending) {
-      if (mode === "quit") pending.mode = "quit";
-      return pending.answer;
+      const pendingAnswer = pending.answer;
+      if (mode === "quit" && pending.mode !== "quit") {
+        pending.mode = "quit";
+        pending.requestId = ++requestId;
+        try { win.webContents.send("lifecycle.close-requested", { endsApp: true, requestId }); } catch (error) {
+          presentationFailed(error);
+          answer(false);
+        }
+      }
+      return pendingAnswer;
     }
-    if (win.webContents.isDestroyed()) return Promise.resolve(true);
-    revealWindow(win);
+    if (win.webContents.isDestroyed()) return Promise.resolve(false);
+    try { revealWindow(win); } catch (error) {
+      presentationFailed(error);
+      return Promise.resolve(false);
+    }
     let resolve!: (allow: boolean) => void;
-    const answer = new Promise<boolean>((settle) => { resolve = settle; });
-    pending = { mode, answer, resolve };
-    const request: CloseRequest = { endsApp: mode === "quit" || windowCloseQuits(process.platform) };
-    win.webContents.send("lifecycle.close-requested", request);
-    return answer;
+    const answerPromise = new Promise<boolean>((settle) => { resolve = settle; });
+    pending = { mode, requestId: ++requestId, answer: answerPromise, resolve };
+    const request: CloseRequest = { endsApp: mode === "quit" || windowCloseQuits(process.platform), requestId };
+    try { win.webContents.send("lifecycle.close-requested", request); } catch (error) {
+      presentationFailed(error);
+      resolve(false);
+      pending = null;
+    }
+    return answerPromise;
   }
 
   function answer(allow: boolean): void {
@@ -485,8 +507,8 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
   win.on("query-session-end", endSession);
   win.on("session-end", sessionEnded);
 
-  ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean) => {
-    if (BrowserWindow.fromWebContents(event.sender) !== win) return;
+  ipcMain.handle("lifecycle.approveClose", async (event, allow: boolean, answeredRequestId: number) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== win || answeredRequestId !== pending?.requestId) return;
     answer(allow);
   });
 
@@ -494,14 +516,27 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
     win.off("query-session-end", endSession);
     win.off("session-end", sessionEnded);
     ipcMain.removeHandler("lifecycle.approveClose");
-    // A window gone before its renderer answered asks nothing more.
+    // Losing the required renderer answer cancels user quit; OS takeover proceeds.
     const unanswered = pending;
     pending = null;
-    unanswered?.resolve(true);
+    unanswered?.resolve(quit.sessionEnding());
   });
 
   return {
     confirmQuit: () => ask("quit"),
     answerForSessionEnd: () => answer(true)
   };
+}
+
+/** Confirm process-owned work using a usable renderer or the existing small dialog. */
+export async function confirmWorkspaceQuit(
+  guard: CloseGuard | null,
+  session: Pick<ProjectSession, "snapshot" | "queueSnapshot">,
+  ask: (savesInFlight: boolean) => Promise<boolean>,
+): Promise<boolean> {
+  if (guard) return guard.confirmQuit();
+  const project = session.snapshot().project;
+  const queue = session.queueSnapshot();
+  if (project.originals.length === 0 && project.tasks.length === 0 && queue.total === 0) return true;
+  return ask(queue.queued + queue.processing > 0);
 }

@@ -553,6 +553,10 @@ export class ProjectSession {
   updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): ProjectSessionSnapshot {
     const task = this.editableTask(taskId);
     const opIndex = findOpIndex(task, opId);
+    if (options?.expectedParams !== undefined && (
+      JSON.stringify(task.pipeline.ops[opIndex].params) !== JSON.stringify(options.expectedParams) ||
+      task.originalId !== options.expectedOriginalId
+    )) throw new Error("The task changed while the asset was being selected. Choose it again.");
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
     if (JSON.stringify(task.pipeline.ops[opIndex].params) === JSON.stringify(nextOp.params)) {
       return this.snapshot();
@@ -564,25 +568,23 @@ export class ProjectSession {
   }
 
   async setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSessionSnapshot> {
-    const task = this.metadataTask(taskId);
-    if (task.status === "not-saved") this.recordTaskEdit(task);
-    await this.updateTaskMetadata(task, () => {
-      const flags = nextMetadataFlags(task, { field: "generateDescription", value: generateDescription });
-      task.generateDescription = flags.generateDescription;
-      task.generateSlug = flags.generateSlug;
-      touchTaskMetadata(task);
-    });
-    return this.snapshot();
+    return this.setMetadataFlag(taskId, { field: "generateDescription", value: generateDescription });
   }
 
   async setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSessionSnapshot> {
+    return this.setMetadataFlag(taskId, { field: "generateSlug", value: generateSlug });
+  }
+
+  private async setMetadataFlag(taskId: string, change: Parameters<typeof nextMetadataFlags>[1]): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
-    if (task.status === "not-saved") this.recordTaskEdit(task);
-    await this.updateTaskMetadata(task, () => {
-      const flags = nextMetadataFlags(task, { field: "generateSlug", value: generateSlug });
-      task.generateDescription = flags.generateDescription;
-      task.generateSlug = flags.generateSlug;
-      touchTaskMetadata(task);
+    const occurredAt = nowIso();
+    await this.commitTaskMetadata(task, () => {
+      const flags = nextMetadataFlags(task, change);
+      if (flags.generateDescription === task.generateDescription && flags.generateSlug === task.generateSlug) return false;
+      if (task.status === "not-saved") this.recordTaskEdit(task);
+      Object.assign(task, flags);
+      touchTaskMetadata(task, occurredAt);
+      return true;
     });
     return this.snapshot();
   }
@@ -591,11 +593,13 @@ export class ProjectSession {
     const task = this.metadataTask(taskId);
     // An edit is judged after the cleanup that stores it (content-lifecycle conventions, Modified).
     const nextSlug = normalizeOptionalSlug(customSlug);
-    if (nextSlug === task.customSlug) return this.snapshot();
-    if (task.status === "not-saved") this.recordTaskEdit(task);
-    await this.updateTaskMetadata(task, () => {
+    const occurredAt = nowIso();
+    await this.commitTaskMetadata(task, () => {
+      if (nextSlug === task.customSlug) return false;
+      if (task.status === "not-saved") this.recordTaskEdit(task);
       task.customSlug = nextSlug;
-      touchTaskMetadata(task);
+      touchTaskMetadata(task, occurredAt);
+      return true;
     });
     return this.snapshot();
   }
@@ -684,13 +688,14 @@ export class ProjectSession {
     if (task.visionRunning) {
       throw new Error("The description is still being generated. Wait for it to finish before clearing it.");
     }
+    const occurredAt = nowIso();
     await this.updateTaskMetadata(task, () => {
       if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
         task.customSlug = null;
       }
       if (task.output) task.output.vision = null;
       if (task.error?.stage === "vision") task.error = null;
-      touchTaskMetadata(task);
+      touchTaskMetadata(task, occurredAt);
     });
     return this.snapshot();
   }
@@ -871,9 +876,9 @@ function touchTask(task: Task): void {
   task.error = null;
 }
 
-function touchTaskMetadata(task: Task): void {
+function touchTaskMetadata(task: Task, occurredAt = nowIso()): void {
   task.everEdited = true;
-  task.updatedAt = nowIso();
+  task.updatedAt = occurredAt;
   task.error = null;
 }
 

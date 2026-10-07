@@ -11,7 +11,7 @@ import {
   notifyNewerFormat,
   notifyStartupFailure,
   notifySettingsQuarantineFailure,
-  requireCorruptSettingsNotice,
+  showCorruptSettingsNotice,
 } from "@main/startup-dialog";
 
 beforeEach(() => {
@@ -29,24 +29,17 @@ describe("startup recovery dialog", () => {
     }));
   });
 
-  it("fails closed with the dialog rejection preserved when recovery cannot be presented", async () => {
-    const cause = new Error("EACCES /private/tmp/FOTOREADY_RECOVERY_SENTINEL");
+  it("continues startup after completed quarantine when the notice fails, retaining its path and cause", async () => {
+    const cause = new Error("dialog unavailable");
     showPlainMessageDialog.mockRejectedValueOnce(cause);
     const logger = { error: vi.fn() };
-
-    const result = requireCorruptSettingsNotice(logger, "/Users/someone/.fotoready/config-20261006-031340-000-utc.invalid");
-
-    await expect(result).rejects.toMatchObject({
-      message: "FotoReady could not present the corrupt-settings recovery notice.",
-      cause,
-    });
+    await expect(showCorruptSettingsNotice(logger, "/config.invalid")).resolves.toBe(false);
     expect(logger.error).toHaveBeenCalledWith(
       "could not show the corrupt-settings recovery dialog",
-      expect.objectContaining({
-        mod: "main",
-        err: expect.objectContaining({ cause }),
-      }),
+      { mod: "main", quarantinedTo: "/config.invalid", err: cause },
     );
+    await expect(showCorruptSettingsNotice(logger, "/config.invalid")).resolves.toBe(true);
+    expect(showPlainMessageDialog).toHaveBeenLastCalledWith(expect.objectContaining({ detail: expect.stringContaining("/config.invalid") }));
   });
 
   it("owns fatal startup copy without accepting exception diagnostics", async () => {

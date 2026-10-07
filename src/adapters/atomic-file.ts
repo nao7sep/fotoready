@@ -44,11 +44,11 @@ export async function atomicWriteFile(
   // the temp file's current role, never a dot-appended suffix on the full target filename.
   const tmpPath = path.join(dir, `${path.parse(filePath).name}-${nanoid(8)}.tmp`);
   try {
-    const writeOptions = opts.mode !== undefined ? { mode: opts.mode } : undefined;
+    const writeOptions = { flag: "wx", mode: 0o600 };
     await fs.writeFile(tmpPath, bytes, writeOptions);
     // A replace keeps the file's permissions (content-lifecycle conventions, Files); an explicit mode
     // wins. `writeFile`'s mode is masked by the umask, so it is set explicitly on POSIX either way.
-    const mode = opts.mode ?? (await existingMode(filePath));
+    const mode = opts.mode ?? (await existingMode(filePath)) ?? (0o666 & ~process.umask());
     if (mode !== undefined && process.platform !== "win32") {
       await fs.chmod(tmpPath, mode);
     }

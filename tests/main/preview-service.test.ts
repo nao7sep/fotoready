@@ -34,18 +34,28 @@ function fakePool(options: { holdStages?: boolean } = {}) {
   return { pool: pool as unknown as PipelineWorkerPool, baseCalls, stageCalls };
 }
 
+/**
+ * Renders through a service of its own over the session's live project. The session runs one preview
+ * at a time, but the main preview and the LUT picker still render concurrently through one cache.
+ */
+function directRender(pool: PipelineWorkerPool, session: ProjectSession, taskId: string) {
+  const service = new PreviewService(pool);
+  return () => service.renderTaskPreview(session.snapshot().project, taskId, defaultGlobalSettings().previewLongEdge);
+}
+
 describe("PreviewService stage cache", () => {
   it("never serves a stage rendered for an edit that was superseded while it rendered", async () => {
     const { pool, stageCalls } = fakePool({ holdStages: true });
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
+    const render = directRender(pool, session, task.id);
     const opId = task.pipeline.ops[0].id;
 
-    const late = session.renderPreview(task.id);
+    const late = render();
     await until(() => stageCalls.length === 1);
     session.updateOpParam(task.id, opId, "strength", 0.2);
 
-    const fresh = session.renderPreview(task.id);
+    const fresh = render();
     await until(() => stageCalls.length === 2);
     stageCalls[1].release();
     expect(await firstPixel(await fresh)).toBe(20);
@@ -54,7 +64,7 @@ describe("PreviewService stage cache", () => {
     expect(await firstPixel(await late)).toBe(10);
 
     // The late v1 render must not have replaced the stage the current value needs.
-    expect(await firstPixel(await session.renderPreview(task.id))).toBe(20);
+    expect(await firstPixel(await render())).toBe(20);
     expect(stageCalls).toHaveLength(2);
   });
 
@@ -63,9 +73,10 @@ describe("PreviewService stage cache", () => {
     const { pool, stageCalls } = fakePool(options);
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
+    const render = directRender(pool, session, task.id);
     task.pipeline.ops.push({ id: "lut-late", type: "lut", enabled: false, params: { cubePath: "/luts/film.cube", strength: 0.5 } });
 
-    const late = session.renderPreview(task.id);
+    const late = render();
     await until(() => stageCalls.length === 1);
     session.setOpEnabled(task.id, "lut-late", true);
     options.holdStages = false;
@@ -74,7 +85,7 @@ describe("PreviewService stage cache", () => {
     expect(await firstPixel(await late)).toBe(10);
 
     session.setOpEnabled(task.id, "lut-late", false);
-    expect(await firstPixel(await session.renderPreview(task.id))).toBe(10);
+    expect(await firstPixel(await render())).toBe(10);
   });
 
   it("keeps recently previewed tasks within the byte budget and always keeps the active one", async () => {

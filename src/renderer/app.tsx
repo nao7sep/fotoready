@@ -419,7 +419,8 @@ function App(): React.JSX.Element {
     timeoutId = window.setTimeout(() => {
       void api.preview.render(previewRequest.taskId, previewRequest.options)
         .then((result) => {
-          if (!cancelled) {
+          // Null: a newer request replaced this one, and its own answer follows.
+          if (!cancelled && result !== null) {
             setPreview(result);
             setPreviewState("idle");
           }

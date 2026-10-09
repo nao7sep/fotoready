@@ -8,7 +8,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import { applyMetadataToOutput } from "@adapters/exiftool";
 import { metadataPolicy } from "@main/metadata-policy";
-import { sha256Bytes } from "@runtime/hash";
+import { sha256BytesYielding } from "@runtime/hash";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { resolveOutputFormat, outputFormatExtension } from "@shared/output-format";
 import { writeTaskSidecarFile } from "@main/task-sidecar";
@@ -157,7 +157,7 @@ async function applyMetadataPolicy(outputPath: string, sourcePath: string, task:
     throw new PipelineError("metadata", `Failed to write metadata to the output file. ${errorMessage(error)}`);
   }
   const bytes = await fs.readFile(outputPath);
-  return { outputHash: sha256Bytes(bytes) };
+  return { outputHash: await sha256BytesYielding(bytes) };
 }
 
 function resolvePipelineForSave(

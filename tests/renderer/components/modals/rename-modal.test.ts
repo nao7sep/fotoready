@@ -196,7 +196,17 @@ describe("RenameModal vision recovery", () => {
   });
 });
 
+describe("RenameModal while a description runs", () => {
+  it("keeps Rename all disabled while a listed file is being described", async () => {
+    const describing = { ...snapshot, project: { ...snapshot.project, tasks: [{ id: "task-1", visionRunning: true, error: null }] } } as unknown as ProjectSnapshot;
+    await renderModal({ onPreview: async () => readyPreview, projectSnapshot: describing });
+    await vi.waitFor(() => expect(document.body.textContent).toContain("photo-ready.jpg"));
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+});
+
 async function renderModal(overrides: {
+  projectSnapshot?: ProjectSnapshot;
   onOpenSettings?: () => void;
   onClose?: () => void;
   onPreview?: () => Promise<RenamePreview>;
@@ -206,7 +216,7 @@ async function renderModal(overrides: {
 } = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(RenameModal, {
-      projectSnapshot: snapshot,
+      projectSnapshot: overrides.projectSnapshot ?? snapshot,
       outputDirLabel: "output",
       outputDirPath: "/output",
       onClearOutputDir: async () => undefined,

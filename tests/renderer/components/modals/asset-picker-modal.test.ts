@@ -3,8 +3,8 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AssetImportResult, StampEntry } from "@shared/types/ipc";
-import { StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
+import type { AssetImportResult, LutEntry, LutPreviewEntry, StampEntry } from "@shared/types/ipc";
+import { LutPickerModal, StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   pickFiles: vi.fn(async () => [] as string[]),
   importStamps: vi.fn<() => Promise<AssetImportResult[]>>(async () => []),
   deleteStamps: vi.fn(async () => undefined),
+  lutPreview: vi.fn<() => Promise<LutPreviewEntry[] | null>>(async () => []),
   log: vi.fn(async () => undefined)
 }));
 
@@ -21,7 +22,8 @@ vi.mock("@renderer/ipc/client", () => ({
   api: {
     assets: { thumbnail: mocks.thumbnail },
     system: { pickFiles: mocks.pickFiles },
-    stamps: { import: mocks.importStamps, delete: mocks.deleteStamps }
+    stamps: { import: mocks.importStamps, delete: mocks.deleteStamps },
+    luts: { preview: mocks.lutPreview }
   }
 }));
 
@@ -226,3 +228,35 @@ async function clickButton(label: string): Promise<void> {
   expect(target).toBeDefined();
   await act(async () => target!.click());
 }
+
+describe("the LUT picker", () => {
+  const lut = (name: string): LutEntry => ({ name, path: `/luts/${name}.cube`, builtin: false });
+  const preview = (entry: LutEntry): LutPreviewEntry => ({ ...entry, dataUrl: `data:${entry.path}`, width: 64, height: 48 });
+  const render = (luts: LutEntry[]) => act(async () => {
+    root.render(createElement(ConfirmerProvider, null, createElement(LutPickerModal, {
+      luts, previewLongEdge: 64, selectedPath: "", strength: 1, taskId: "task-1", targetOpId: "op-1",
+      onClose: () => undefined, onReload: async () => undefined, onUse: () => undefined
+    })));
+  });
+
+  it("lists the current LUTs at once after an import or delete, while their previews catch up", async () => {
+    const [warm, cool, film] = [lut("Warm"), lut("Cool"), lut("Film")];
+    mocks.lutPreview.mockResolvedValueOnce([preview(warm), preview(cool)]);
+    await render([warm, cool]);
+    await vi.waitFor(() => expect(document.querySelector(`img[src="data:${cool.path}"]`)).not.toBeNull());
+
+    mocks.lutPreview.mockImplementationOnce(() => new Promise(() => {}));
+    await render([warm, film]);
+
+    expect(document.body.textContent).toContain("Warm");
+    expect(document.body.textContent).toContain("Film");
+    expect(document.body.textContent).not.toContain("Cool");
+    expect(document.querySelector(`img[src="data:${warm.path}"]`)).not.toBeNull();
+  });
+
+  it("ignores an answer a newer request replaced", async () => {
+    mocks.lutPreview.mockResolvedValueOnce(null);
+    await render([lut("Warm")]);
+    expect(document.body.textContent).toContain("Warm");
+  });
+});

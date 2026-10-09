@@ -1,10 +1,11 @@
 import { useI18n } from "@renderer/i18n/I18nContext";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "@renderer/ipc/client";
 import { createAssetOverlayRenderer, normalizeAssetOverlayForPath } from "./_asset-overlay";
 import { fileNameFromPath } from "@shared/file-path";
 import type { AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpCardContext } from "./op-renderer";
+import type { TaskEditOptions } from "@shared/types/ipc";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
 import { message, type Message } from "@shared/i18n/translate";
@@ -38,17 +39,31 @@ export function WatermarkSourceAction({
 }: {
   ctx: OpCardContext;
   disabled: boolean;
-  onParamsChange(patch: Partial<AssetOverlayParams>): void;
+  onParamsChange(patch: Partial<AssetOverlayParams>, options?: TaskEditOptions): void | Promise<void>;
   params: AssetOverlayParams;
 }): React.JSX.Element {
   const { t, text } = useI18n();
   const [failure, setFailure] = useState<Message | null>(null);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const current = useRef({ ctx, params });
+  current.current = { ctx, params };
 
   async function choose(): Promise<void> {
     try {
       const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg", "webp"] });
       if (!picked) return;
-      onParamsChange(await normalizeAssetOverlayForPath(params, ctx.originalSize, picked));
+      // As the stamp picker does: the patch applies only to the task and values it was made from, and the
+      // session refuses it if they changed meanwhile, so a task switch or an edit during the wait is kept.
+      const started = current.current;
+      const expectedParams = structuredClone(started.params);
+      const patch = await normalizeAssetOverlayForPath(expectedParams, started.ctx.originalSize, picked);
+      if (!alive.current || current.current.ctx.activeTaskId !== started.ctx.activeTaskId ||
+          JSON.stringify(current.current.ctx.originalSize) !== JSON.stringify(started.ctx.originalSize) ||
+          JSON.stringify(current.current.params) !== JSON.stringify(expectedParams)) {
+        throw new Error("The task changed while the image was being selected. Choose it again.");
+      }
+      await onParamsChange(patch, { expectedParams });
       setFailure(null);
     } catch (error) {
       setFailure(presentFailure(error, message("failure.watermarkPick"), "watermark file picker failed"));

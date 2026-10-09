@@ -588,7 +588,8 @@ export function LutPickerModal({
     setLoading(true);
     void api.luts.preview(taskId, previewOptions, strength, previewLongEdge)
       .then((items) => {
-        if (!cancelled) setPreviews(items);
+        // Null: a newer request replaced this one, and its own answer follows.
+        if (!cancelled && items !== null) setPreviews(items);
       })
       .catch((previewError) => {
         console.warn("Failed to load LUT previews", previewError);
@@ -600,10 +601,13 @@ export function LutPickerModal({
     return () => { cancelled = true; };
   }, [luts, previewLongEdge, previewOptions, strength, taskId]);
 
-  const entries: PickerEntry[] = (previews.length > 0 ? previews : luts).map((entry) => ({
+  // The current list decides what is offered; a preview renders beside its LUT once it arrives, so a
+  // LUT just imported shows at once and one just deleted cannot be chosen while previews catch up.
+  const previewByPath = new Map(previews.map((preview) => [preview.path, preview.dataUrl]));
+  const entries: PickerEntry[] = luts.map((entry) => ({
     ...entry,
     name: entry.name || fileNameFromPath(entry.path),
-    previewDataUrl: "dataUrl" in entry && typeof entry.dataUrl === "string" ? entry.dataUrl : undefined
+    previewDataUrl: previewByPath.get(entry.path)
   }));
   return (
     <AssetPickerModal

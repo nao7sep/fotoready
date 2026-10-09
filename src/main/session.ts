@@ -6,7 +6,8 @@ import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import type { Original, Project, Task, VisionResult } from "@shared/types/project";
-import { sha256Bytes } from "@runtime/hash";
+import { sha256BytesYielding } from "@runtime/hash";
+import { LatestOnly } from "./latest-only";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
@@ -49,6 +50,9 @@ export class ProjectSession {
   #taskUndoHistory = new Map<string, Task[]>();
   #lastTaskUndoHistoryGroup = new Map<string, string | null>();
   #previewService: PreviewService;
+  // The main preview and the LUT picker each keep one render running and only the newest one waiting.
+  readonly #previews = new LatestOnly();
+  readonly #lutPreviews = new LatestOnly();
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
   #originalImportTail: Promise<unknown> = Promise.resolve();
   // Every change to saved output files after the save itself — sidecar rewrites, rename, deletion —
@@ -427,12 +431,14 @@ export class ProjectSession {
     return this.processingQueue.snapshot(this.#project);
   }
 
-  async renderPreview(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult> {
-    return this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options);
+  /** Resolves null when a newer preview request replaced this one before it ran. */
+  async renderPreview(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult | null> {
+    return this.#previews.run(() => this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options));
   }
 
-  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]> {
-    return this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength);
+  /** Resolves null when a newer LUT preview request replaced this one before it ran. */
+  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null> {
+    return this.#lutPreviews.run(() => this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength));
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {
@@ -464,7 +470,7 @@ export class ProjectSession {
     const defaultWatermark = opType === "watermark-image" && this.settings.defaultWatermarkImage.trim()
       ? resolveConfiguredPath(this.settings.defaultWatermarkImage.trim(), homedir())
       : null;
-    this.recordTaskEdit(task);
+    const pipeline = task.pipeline;
 
     const params = structuredClone(definition.defaultParams);
     if (defaultWatermark && typeof params.assetPath === "string" && !params.assetPath) {
@@ -484,6 +490,12 @@ export class ProjectSession {
     if (original) {
       await initializeOpParamsForOriginal(opType, params, original);
     }
+    // The wait above lets a save, an undo or a removal change the task; the step is added only to the
+    // task and pipeline it was made for, and the undo entry is recorded with it.
+    if (this.editableTask(taskId) !== task || task.pipeline !== pipeline) {
+      throw new Error("The task changed while the step was being added. Add it again.");
+    }
+    this.recordTaskEdit(task);
     placeNewBoxOverlay(opType, params, original ? imageBoundsForOriginal(original) : { maxX: 1, maxY: 1 });
     task.pipeline.ops.push({
       id: nanoid(),
@@ -795,7 +807,7 @@ async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: bool
   return {
     id: nanoid(),
     sourcePath: path.resolve(sourcePath),
-    sourceHash: sha256Bytes(bytes),
+    sourceHash: await sha256BytesYielding(bytes),
     size: bytes.byteLength,
     format,
     jpegQualityEstimate,

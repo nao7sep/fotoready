@@ -282,7 +282,8 @@ export type FotoReadyApi = {
     thumbnail(assetPath: string, longEdge?: number): Promise<AssetThumbnail>;
   };
   preview: {
-    render(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult>;
+    /** Null when a newer request replaced this one before it rendered. */
+    render(taskId: string, options?: PreviewRenderOptions): Promise<PreviewResult | null>;
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {
@@ -296,7 +297,8 @@ export type FotoReadyApi = {
     list(): Promise<LutEntry[]>;
     import(filePaths: string[]): Promise<AssetImportResult[]>;
     delete(filePaths: string[]): Promise<void>;
-    preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[]>;
+    /** Null when a newer request replaced this one before it rendered. */
+    preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null>;
   };
   stamps: {
     list(): Promise<StampEntry[]>;

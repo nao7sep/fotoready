@@ -52,6 +52,20 @@ describe("ProjectSession pipeline edits on a locked task", () => {
     expect(edited.pipeline.ops).toHaveLength(2);
     expect(edited.pipeline.ops[0].params.x).toBe(0.25);
   });
+
+  it("refuses a step whose task an undo replaced while the step was being prepared, losing neither", async () => {
+    const { session, task } = arrange("not-saved");
+    await session.addOp(task.id, "rotate");
+    const adding = session.addOp(task.id, "flip");
+    session.undoTaskEdit(task.id);
+
+    await expect(adding).rejects.toThrow("task changed");
+    const current = session.snapshot().project.tasks[0];
+    expect(current.pipeline.ops.map((op) => op.type)).toEqual(task.pipeline.ops.slice(0, 1).map((op) => op.type));
+    // The undo history still holds no entry for the refused step.
+    session.undoTaskEdit(task.id);
+    expect(session.snapshot().project.tasks[0].pipeline.ops.map((op) => op.type)).toEqual(current.pipeline.ops.map((op) => op.type));
+  });
 });
 
 function arrange(status: TaskStatus): { session: ProjectSession; task: Task } {

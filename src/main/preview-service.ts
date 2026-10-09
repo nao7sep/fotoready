@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import PQueue from "p-queue";
 import sharp from "sharp";
 import type { OpInstance } from "@shared/types/op";
 import type { Pipeline } from "@shared/types/pipeline";
@@ -37,9 +38,17 @@ type TaskPreviewCache = {
  */
 const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
 
+/**
+ * How many original thumbnails decode at once. Each holds a thread of the shared I/O pool for the
+ * whole decode, and one starts per new original, so a bulk import would otherwise hold every thread
+ * while file I/O waits (see threadpool-size.ts).
+ */
+const ORIGINAL_THUMBNAIL_CONCURRENCY = 2;
+
 export class PreviewService {
   // Least recently previewed first: a render moves its task to the end.
   #tasks = new Map<string, TaskPreviewCache>();
+  readonly #thumbnails = new PQueue({ concurrency: ORIGINAL_THUMBNAIL_CONCURRENCY });
   readonly #budgetBytes: number;
 
   constructor(private readonly workerPool: PipelineWorkerPool | null, options: { budgetBytes?: number } = {}) {
@@ -84,7 +93,11 @@ export class PreviewService {
     };
   }
 
-  async renderOriginalThumbnail(original: Original, longEdge = 160): Promise<OriginalThumbnail> {
+  renderOriginalThumbnail(original: Original, longEdge = 160): Promise<OriginalThumbnail> {
+    return this.#thumbnails.add(() => this.#renderOriginalThumbnail(original, longEdge));
+  }
+
+  async #renderOriginalThumbnail(original: Original, longEdge: number): Promise<OriginalThumbnail> {
     const image = sharp(original.sourcePath, { limitInputPixels: MAX_INPUT_PIXELS }).rotate();
     const metadata = await image.metadata();
     const bytes = await image

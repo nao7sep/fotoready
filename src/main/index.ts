@@ -1,3 +1,5 @@
+// First, before anything can start the I/O thread pool.
+import "./threadpool-size";
 import { app } from "electron";
 import { bootstrap, recordStartupFailure } from "./bootstrap";
 import { notifyNewerFormat, notifySettingsQuarantineFailure, notifyStartupFailure } from "./startup-dialog";

@@ -194,6 +194,9 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
     if (item.status !== "ready" && item.status !== "unchanged") continue;
     const task = project.tasks.find((candidate) => candidate.id === item.taskId);
     if (!task?.output || !item.currentPath || !item.proposedPath) continue;
+    // A description running for this file reads it; moving it now would fail that read. The window
+    // waits for it too, so this only covers a run that started after the window last refreshed.
+    if (task.visionRunning) continue;
     if (item.currentPath === item.proposedPath) continue;
 
     try {

@@ -255,6 +255,18 @@ describe("runRename", () => {
     expect(task.output?.renamedAt).not.toBeNull();
   });
 
+  it("leaves a file being described where it is", async () => {
+    const staged = await writeImage("describing.jpg");
+    await writeSidecar(staged);
+    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
+    task.visionRunning = true;
+    const project: Project = { outputDir: workDir, originals: [makeOriginal("o1", "DSC_0001.jpg")], tasks: [task] };
+
+    expect(await runRename(project, SLUG_ONLY)).toEqual({ completedTaskIds: [], warnings: [] });
+    await expect(fs.access(staged)).resolves.toBeUndefined();
+    expect(task.output?.finalPath ?? null).toBeNull();
+  });
+
   it("keeps the image's and sidecar's modified time and mode when the move crosses volumes", async () => {
     const staged = await writeImage("staged-1.jpg");
     const stagedSidecar = await writeSidecar(staged);

@@ -69,12 +69,15 @@ export function RenameModal({
     preview?.usesSlug
     && preview.items.some((item) => dirtySlugDrafts[item.taskId])
   );
+  const tasksById = new Map(projectSnapshot.project.tasks.map((task) => [task.id, task]));
+  // A file being described is read by the description while it runs, so Run waits for it, as its row does.
+  const describing = Boolean(preview?.items.some((item) => tasksById.get(item.taskId)?.visionRunning));
   const canRun = Boolean(
     preview?.items.some((item) => item.status === "ready")
     && preview.blockedCount === 0
     && !hasPendingSlugDrafts
+    && !describing
   );
-  const tasksById = new Map(projectSnapshot.project.tasks.map((task) => [task.id, task]));
   const globalFailures = Object.entries(failures).filter(([key]) => !key.includes("\0"));
 
   function clearFailure(key: string): void {

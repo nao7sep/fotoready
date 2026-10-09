@@ -782,7 +782,7 @@
   "records.kindProviderCall": "Вызов провайдера",
   "records.level": "Уровень",
   "records.allLevels": "Все уровни",
-  "records.levelAttention": "Требует внимания",
+  "records.levelWarnOrError": "Предупреждения и ошибки",
   "records.levelError": "Ошибка",
   "records.levelWarn": "Предупреждение",
   "records.levelInfo": "Информация",

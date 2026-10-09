@@ -103,9 +103,9 @@ describe("readRecords: page", () => {
     expect(titles(page({ level: "debug" }).records)).toEqual(["ipc preview.render"]);
   });
 
-  it("offers warnings, errors and failed provider calls as needing attention", () => {
+  it("offers warnings, errors and failed provider calls together", () => {
     seed();
-    expect(titles(page({ level: "attention" }).records)).toEqual(["save failed", "gemini description", "vision retry"]);
+    expect(titles(page({ level: "warn-or-error" }).records)).toEqual(["save failed", "gemini description", "vision retry"]);
   });
 
   it("searches every stored field, taking the search text literally", () => {

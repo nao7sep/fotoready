@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@google/genai";
 import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
@@ -7,7 +8,12 @@ import { visionError } from "@main/queues/vision";
 const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
 const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, mediaResolution: "high" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
-const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const };
+const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const, width: 1024, height: 768, sourcePath: "/out/harbor-k3Jq9xZa.jpg" };
+/** What a record keeps of the image sent: a summary, never the bytes (an approved departure). */
+const sentImage = {
+  mimeType: "image/jpeg", width: 1024, height: 768, byteSize: 5,
+  sha256: createHash("sha256").update(request.imageBytes).digest("hex"), sourcePath: "/out/harbor-k3Jq9xZa.jpg"
+};
 const ok = () => new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A mug." }] } }] }));
 const fail = (status: number) => new Response(JSON.stringify({ error: { message: "Please try later." } }), { status, headers: { "Content-Type": "application/json" } });
 const stall = (_url: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
@@ -121,7 +127,7 @@ describe("Gemini requests for an id with no row are plain", () => {
     expect(recordCall.mock.calls[0]![0].request).toEqual({
       model: "typed-unknown",
       contents: [
-        { inlineData: { mimeType: "image/jpeg", data: request.imageBytes.toString("base64") } },
+        { inlineData: { mimeType: "image/jpeg", data: sentImage } },
         { text: "Describe\n\nReturn one sentence only. Do not use bullet points or JSON." }
       ],
       config: {}
@@ -146,6 +152,15 @@ describe("Gemini requests for an id with no row are plain", () => {
 });
 
 describe("Gemini calls are handed over for recording", () => {
+  it("records a summary of the image sent while Gemini still receives the image itself", async () => {
+    fetchMock.mockImplementation(async () => ok());
+    await run();
+    expect(sentBody().contents[0].parts[0].inlineData).toEqual({ mimeType: "image/jpeg", data: request.imageBytes.toString("base64") });
+    const recorded = JSON.stringify(recordCall.mock.calls[0]![0].request);
+    expect(recorded).toContain(sentImage.sha256);
+    expect(recorded).not.toContain(request.imageBytes.toString("base64"));
+  });
+
   it("hands over every attempt whole: the request as sent and the response or failure", async () => {
     fetchMock.mockImplementationOnce(async () => fail(503)).mockImplementation(async () => ok());
     await expect(run({ maxRetries: 1 })).resolves.toBe("A mug.");
@@ -154,7 +169,7 @@ describe("Gemini calls are handed over for recording", () => {
     const sent = {
       model: opts.model,
       contents: [
-        { inlineData: { mimeType: "image/jpeg", data: request.imageBytes.toString("base64") } },
+        { inlineData: { mimeType: "image/jpeg", data: sentImage } },
         { text: expect.stringContaining("Describe") }
       ],
       config: { thinkingConfig: { thinkingLevel: "MEDIUM" }, safetySettings: SAFETY_OFF }

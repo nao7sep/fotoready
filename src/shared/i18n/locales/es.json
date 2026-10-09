@@ -782,7 +782,7 @@
   "records.kindProviderCall": "Llamada al proveedor",
   "records.level": "Nivel",
   "records.allLevels": "Todos los niveles",
-  "records.levelAttention": "Requiere atención",
+  "records.levelWarnOrError": "Advertencias y errores",
   "records.levelError": "Error",
   "records.levelWarn": "Advertencia",
   "records.levelInfo": "Información",

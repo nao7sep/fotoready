@@ -406,7 +406,7 @@ async function arrange(
       onProvider?.(recordCall);
       return provider;
     },
-    prepareInput: async () => Buffer.from("image")
+    prepareInput: async () => ({ bytes: Buffer.from("image"), width: 4, height: 3 })
   });
   await queue.setGeminiApiKey("test-key");
   const session = new ProjectSession(settings, queue, null as never, null as never, "resources/stamps");

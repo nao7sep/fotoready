@@ -29,7 +29,7 @@ export type VisionProvider = Pick<GeminiVisionProvider, "describeImage" | "sugge
 
 export type VisionQueueDeps = {
   createProvider(apiKey: string, endpoint: string, recordCall: (call: GeminiCall) => void): VisionProvider;
-  prepareInput(stagedPath: string, longEdge: number): Promise<Buffer>;
+  prepareInput(stagedPath: string, longEdge: number): Promise<{ bytes: Buffer; width: number; height: number }>;
 };
 
 /**
@@ -193,9 +193,10 @@ export class VisionQueue {
       // Each step records its own result, model and finish time; a step this run skips keeps the last one's.
       let described: Pick<VisionResult, "description" | "model" | "ranAt"> | null = null;
       if (includesDescriptionGeneration(mode)) {
-        const imageBytes = await this.#deps.prepareInput(task.output.finalPath ?? task.output.stagedPath, settings.preResizeLongEdge);
+        const sourcePath = task.output.finalPath ?? task.output.stagedPath;
+        const input = await this.#deps.prepareInput(sourcePath, settings.preResizeLongEdge);
         const description = await provider.describeImage(
-          { imageBytes, mimeType: "image/jpeg" },
+          { imageBytes: input.bytes, mimeType: "image/jpeg", width: input.width, height: input.height, sourcePath },
           {
             model: settings["gemini.description"],
             thinking: settings["gemini.thinking.description"],
@@ -263,11 +264,12 @@ function outputKey(output: NonNullable<Task["output"]>): string {
   return `${output.stagedAt}:${output.outputHash}`;
 }
 
-async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<Buffer> {
-  return sharp(stagedPath, { limitInputPixels: MAX_INPUT_PIXELS })
+async function prepareVisionInput(stagedPath: string, longEdge: number): Promise<{ bytes: Buffer; width: number; height: number }> {
+  const { data, info } = await sharp(stagedPath, { limitInputPixels: MAX_INPUT_PIXELS })
     .resize({ width: longEdge, height: longEdge, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 85 })
-    .toBuffer();
+    .toBuffer({ resolveWithObject: true });
+  return { bytes: data, width: info.width, height: info.height };
 }
 
 /**

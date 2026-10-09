@@ -43,8 +43,8 @@ beforeEach(() => {
 describe("records IPC", () => {
   it("reads a checked query, and logs nothing for a read that succeeded", async () => {
     read.mockResolvedValue({ records: [], more: false });
-    await expect(invoke("records.page", { ...ALL, level: "attention", extra: 1 })).resolves.toEqual({ records: [], more: false });
-    expect(read).toHaveBeenCalledWith({ op: "page", query: { ...ALL, level: "attention" } });
+    await expect(invoke("records.page", { ...ALL, level: "warn-or-error", extra: 1 })).resolves.toEqual({ records: [], more: false });
+    expect(read).toHaveBeenCalledWith({ op: "page", query: { ...ALL, level: "warn-or-error" } });
     expect([...logger.debug.mock.calls, ...logger.info.mock.calls]).toEqual([]);
   });
 

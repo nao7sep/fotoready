@@ -7,7 +7,7 @@ describe("parseRecordsQuery", () => {
   it("accepts every filter off, and every filter set", () => {
     expect(parseRecordsQuery(ALL)).toEqual(ALL);
     const full = {
-      session: "2026-10-02T08:00:00.000Z", kind: "provider-call", level: "attention", taskId: "task-1", search: "quota",
+      session: "2026-10-02T08:00:00.000Z", kind: "provider-call", level: "warn-or-error", taskId: "task-1", search: "quota",
       after: { time: "2026-10-02T08:00:01.000Z", kind: "log", id: 4 }
     };
     expect(parseRecordsQuery(full)).toEqual(full);

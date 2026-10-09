@@ -68,7 +68,7 @@ export const LEVEL_LABELS: Record<RecordLevel, MessageKey> = {
 };
 
 export const LEVEL_FILTER_LABELS: Record<RecordLevelFilter, MessageKey> = {
-  attention: "records.levelAttention",
+  "warn-or-error": "records.levelWarnOrError",
   ...LEVEL_LABELS
 };
 

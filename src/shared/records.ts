@@ -13,11 +13,11 @@ export const RECORD_KINDS: readonly RecordKind[] = ["log", "provider-call"];
 
 export const RECORD_LEVELS: readonly RecordLevel[] = ["error", "warn", "info", "debug"];
 
-// What the level filter offers: a record's own level, or `attention`, every record at `warn` or
-// `error`.
-export type RecordLevelFilter = "attention" | RecordLevel;
+// What the level filter offers: a record's own level, or `warn-or-error`, every record at `warn` or
+// `error`, labelled "Warnings and errors" (developer decision).
+export type RecordLevelFilter = "warn-or-error" | RecordLevel;
 
-export const RECORD_LEVEL_FILTERS: readonly RecordLevelFilter[] = ["attention", ...RECORD_LEVELS];
+export const RECORD_LEVEL_FILTERS: readonly RecordLevelFilter[] = ["warn-or-error", ...RECORD_LEVELS];
 
 export const RECORDS_PAGE_SIZE = 100;
 

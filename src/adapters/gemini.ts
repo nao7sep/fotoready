@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution, type SafetySetting } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
@@ -7,6 +8,25 @@ import { nowIso } from "@shared/time";
 export type VisionDescribeRequest = {
   imageBytes: Buffer;
   mimeType: "image/jpeg";
+  width: number;
+  height: number;
+  /** The file the image was resized from. */
+  sourcePath: string;
+};
+
+/**
+ * What a provider-call record keeps of the image sent, in place of its bytes. An approved departure
+ * from data-lifecycle-conventions' "recorded whole" (developer decision): the bytes can be made again
+ * from `sourcePath` and the resize settings, the hash identifies exactly what was sent, and keeping
+ * them would grow the records by about a photo per description.
+ */
+export type SentImageSummary = {
+  mimeType: string;
+  width: number;
+  height: number;
+  byteSize: number;
+  sha256: string;
+  sourcePath: string;
 };
 
 export type VisionCallOptions = {
@@ -38,7 +58,12 @@ export type GeminiCall = {
   /** 1 for the first send, counting each resend. */
   attempt: number;
   durationMs: number;
-  request: GenerateContentParameters;
+  /**
+   * The request as sent, except that an image part's `inlineData.data` holds a {@link SentImageSummary}
+   * instead of the image. It is FotoReady's own parameters only: the SDK adds the API key to the HTTP
+   * request itself, and its errors carry the status and body, never the key.
+   */
+  request: unknown;
   response: GenerateContentResponse | null;
   error: unknown;
 };
@@ -150,10 +175,23 @@ export class GeminiVisionProvider {
 
   async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
     const mediaResolution = imageMediaResolution(opts.model, opts.mediaResolution);
-    const response = await this.generate("description", opts, [
-      { inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") }, ...(mediaResolution ? { mediaResolution } : {}) },
-      { text: descriptionPrompt(opts.descriptionPrompt) }
-    ]);
+    const resolution = mediaResolution ? { mediaResolution } : {};
+    const prompt = { text: descriptionPrompt(opts.descriptionPrompt) };
+    const summary: SentImageSummary = {
+      mimeType: request.mimeType,
+      width: request.width,
+      height: request.height,
+      byteSize: request.imageBytes.byteLength,
+      sha256: createHash("sha256").update(request.imageBytes).digest("hex"),
+      sourcePath: request.sourcePath
+    };
+    const response = await this.generate(
+      "description",
+      opts,
+      [{ inlineData: { mimeType: request.mimeType, data: request.imageBytes.toString("base64") }, ...resolution }, prompt],
+      {},
+      [{ inlineData: { mimeType: request.mimeType, data: summary }, ...resolution }, prompt]
+    );
     assertUsableResponse(response, "image");
     return parseDescription(response.text ?? "");
   }
@@ -171,7 +209,9 @@ export class GeminiVisionProvider {
     role: GeminiCall["role"],
     opts: VisionCallOptions & { model: string; thinking: string | null },
     parts: Part[],
-    featureConfig: GenerateContentConfig = {}
+    featureConfig: GenerateContentConfig = {},
+    /** The parts as recorded, when they differ from those sent. */
+    recordedParts: unknown[] = parts
   ): Promise<GenerateContentResponse> {
     // The SDK's own retries are off; callWithRetry owns resending. The client's timeout bounds
     // each request, and a timed-out or otherwise unknown outcome is returned to the user, never resent.
@@ -184,12 +224,13 @@ export class GeminiVisionProvider {
       contents: parts,
       config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
     };
+    const recordedRequest = { ...request, contents: recordedParts };
     return callWithRetry(opts, async (attempt) => {
       const time = nowIso();
       const startedAt = performance.now();
       const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall({
         time, endpoint: this.endpoint, role, model: opts.model, attempt,
-        durationMs: performance.now() - startedAt, request, response, error
+        durationMs: performance.now() - startedAt, request: recordedRequest, response, error
       });
       try {
         const response = await ai.models.generateContent(request);

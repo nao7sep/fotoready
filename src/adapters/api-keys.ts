@@ -99,6 +99,19 @@ function normalize(raw: unknown): ApiKeysFile | null {
   return { keys };
 }
 
+/**
+ * A failure to read the file's JSON as it may be logged: its kind and position, never the parser's
+ * message, which can quote part of the file and so part of a stored key. Every other failure here
+ * carries a message this module wrote.
+ */
+function parseFailure(error: unknown): Record<string, unknown> {
+  if (error instanceof SyntaxError) {
+    const position = /at position (\d+)/.exec(error.message)?.[1];
+    return { name: error.name, ...(position === undefined ? {} : { position: Number(position) }) };
+  }
+  return error instanceof Error ? { name: error.name, message: error.message } : { name: "Error" };
+}
+
 export class ApiKeyStore {
   #chain: Promise<unknown> = Promise.resolve();
   #modeInspectionWarned = false;
@@ -258,7 +271,7 @@ export class ApiKeyStore {
       this.logger?.warn("api key file changed outside FotoReady and could not be read; treating as empty", { mod: "api-keys", apiKeysPath: this.filePath });
       return { keys: {} };
     }
-    const detail = read.kind === "invalid" ? { err: read.error } : {};
+    const detail = read.kind === "invalid" ? { err: parseFailure(read.error) } : {};
     let movedTo: string;
     try {
       // not recorded: both the live file and this corrupt quarantine contain secrets.

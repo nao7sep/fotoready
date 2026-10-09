@@ -7,8 +7,8 @@ import {
   builtinStampPathFor,
   parseBuiltinStampCatalog,
   readBuiltinStampCatalog,
-  relinkMissingBuiltinStamps
 } from "@main/builtin-stamp-catalog";
+import { relinkMissingAssets } from "@main/asset-relink";
 import { defaultOutputSettings } from "@shared/defaults";
 import type { Pipeline } from "@shared/types/pipeline";
 
@@ -142,7 +142,7 @@ describe("saved stamp paths", () => {
       output: defaultOutputSettings()
     };
 
-    const relinked = await relinkMissingBuiltinStamps(pipeline, bundled);
+    const relinked = await relinkMissingAssets(pipeline, { bundledStamps: bundled, importedStamps: null, bundledLuts: null, importedLuts: null });
 
     expect(relinked.ops.map((entry) => entry.params.assetPath)).toEqual([
       path.join(bundled, "heart.webp"),
@@ -154,5 +154,42 @@ describe("saved stamp paths", () => {
     ]);
     expect(relinked.ops[0]!.params).toEqual({ ...pipeline.ops[0]!.params, assetPath: path.join(bundled, "heart.webp") });
     expect(pipeline.ops[0]!.params.assetPath).toBe("/Applications/Old.app/Contents/Resources/stamps/heart.png");
+  });
+
+  it("relinks imported stamps and LUTs by file name in their current folders, and built-in LUTs among the built-ins", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-relink-"));
+    roots.push(root);
+    const bundled = path.join(root, "bundled-stamps");
+    const imported = path.join(root, "my-stamps");
+    const luts = path.join(root, "my-luts");
+    const bundledLuts = path.join(root, "bundled-luts");
+    for (const dir of [bundled, imported, luts, bundledLuts]) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ version: 1, stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }] }));
+    fs.writeFileSync(path.join(imported, "my-own.png"), "stamp");
+    fs.writeFileSync(path.join(luts, "Warm.cube"), "lut");
+    fs.writeFileSync(path.join(bundledLuts, "Film.cube"), "lut");
+
+    const stamp = (id: string, assetPath: string) => ({ id, type: "stamp", enabled: true, params: { assetPath } });
+    const lut = (id: string, cubePath: string) => ({ id, type: "lut", enabled: true, params: { cubePath, strength: 1 } });
+    const pipeline: Pipeline = {
+      ops: [
+        stamp("imported", "/old-root/stamps/my-own.png"),
+        stamp("lost", "/old-root/stamps/nowhere.png"),
+        lut("imported-lut", "/old-root/luts/Warm.cube"),
+        lut("builtin-lut", "/Applications/Old.app/Contents/Resources/luts/Film.cube"),
+        lut("lost-lut", "/old-root/luts/Gone.cube")
+      ],
+      output: defaultOutputSettings()
+    };
+
+    const relinked = await relinkMissingAssets(pipeline, { bundledStamps: bundled, importedStamps: imported, bundledLuts, importedLuts: luts });
+
+    expect(relinked.ops.map((entry) => entry.params.assetPath ?? entry.params.cubePath)).toEqual([
+      path.join(imported, "my-own.png"),
+      "/old-root/stamps/nowhere.png",
+      path.join(luts, "Warm.cube"),
+      path.join(bundledLuts, "Film.cube"),
+      "/old-root/luts/Gone.cube"
+    ]);
   });
 });

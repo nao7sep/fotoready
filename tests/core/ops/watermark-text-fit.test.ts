@@ -35,26 +35,54 @@ function counted<T>(render: (fontSize: number) => Promise<T>): { render: (fontSi
   };
 }
 
-describe("watermark text fit", () => {
-  beforeAll(warmTextRendering);
+const TEXTS = ["Watermark", "© Ag", "i"];
+// Small boxes keep the reference search's renders cheap.
+const BOXES = [[60, 20], [40, 13], [24, 24]] as const;
 
-  // Small boxes keep the reference search's renders cheap.
+type Reference = { text: string; maxWidth: number; maxHeight: number; expected: number; measured: Map<number, Size> };
+
+describe("watermark text fit", () => {
+  // The full binary search renders real text at every size it tries, which can take seconds on a
+  // loaded machine; it runs here, outside any test's own time limit, and keeps each real measurement.
+  const references: Reference[] = [];
+  beforeAll(async () => {
+    await warmTextRendering();
+    const defaults = requireOpModule("watermark-text").defaultParams as Params;
+    for (const text of TEXTS) {
+      const measured = new Map<number, Size>();
+      const render = async (fontSize: number): Promise<Size> => {
+        const { width, height } = await renderTrimmedTextBitmap({ ...defaults, text }, fontSize);
+        measured.set(fontSize, { width, height });
+        return { width, height };
+      };
+      for (const [maxWidth, maxHeight] of BOXES) {
+        references.push({ text, maxWidth, maxHeight, expected: await binarySearchFit(render, maxWidth, maxHeight), measured });
+      }
+    }
+  });
+
   it("picks the size a full binary search picks for real text, in a few renders", async () => {
     const defaults = requireOpModule("watermark-text").defaultParams as Params;
     const renderCounts: number[] = [];
-    for (const text of ["Watermark", "© Ag", "i"]) {
-      const params = { ...defaults, text };
-      const render = (fontSize: number) => renderTrimmedTextBitmap(params, fontSize);
-      for (const [maxWidth, maxHeight] of [[60, 20], [40, 13], [24, 24]] as const) {
-        const expected = await binarySearchFit(render, maxWidth, maxHeight);
-        const fit = counted(render);
-        const { fontSize, bitmap } = await fitLargestFontSize(fit.render, maxWidth, maxHeight);
-        expect(fontSize, `${text} in ${maxWidth}x${maxHeight}`).toBe(expected);
-        expect(bitmap).toEqual(await render(fontSize));
-        renderCounts.push(fit.calls());
-      }
+    for (const { text, maxWidth, maxHeight, expected, measured } of references) {
+      // The real measurements the reference search took; a size it did not try is rendered now.
+      const fit = counted(async (fontSize: number): Promise<Size> =>
+        measured.get(fontSize) ?? await renderTrimmedTextBitmap({ ...defaults, text }, fontSize));
+      const { fontSize } = await fitLargestFontSize(fit.render, maxWidth, maxHeight);
+      expect(fontSize, `${text} in ${maxWidth}x${maxHeight}`).toBe(expected);
+      renderCounts.push(fit.calls());
     }
+    expect(renderCounts).toHaveLength(TEXTS.length * BOXES.length);
     expect(Math.max(...renderCounts)).toBeLessThanOrEqual(5);
+  });
+
+  it("returns the bitmap of the size it picks, rendering real text", async () => {
+    const defaults = requireOpModule("watermark-text").defaultParams as Params;
+    const { text, maxWidth, maxHeight, expected } = references[0]!;
+    const render = (fontSize: number) => renderTrimmedTextBitmap({ ...defaults, text }, fontSize);
+    const { fontSize, bitmap } = await fitLargestFontSize(render, maxWidth, maxHeight);
+    expect(fontSize).toBe(expected);
+    expect(bitmap).toEqual(await render(fontSize));
   });
 
   it("picks the size a full binary search picks across box shapes", async () => {

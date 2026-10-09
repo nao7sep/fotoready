@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode
 } from "react";
@@ -476,11 +477,14 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   );
 }
 
+/** How far one arrow press moves the divider, as in every Records window (developer decision). */
+const KEY_RESIZE_STEP = 16;
+
 /**
  * The drag handle between the list and the detail pane. It owns only the gesture: it streams the
- * dragged width, held to the list's bounds, and reports the last one when the drag ends. Keyboard
- * resize is not offered, as on the main window's splitters: the width persists, so this is a setup
- * gesture rather than a frequent one.
+ * dragged width, held to the list's bounds, and reports the last one when the drag ends. From the
+ * keyboard (the window splitter pattern), arrows move it by KEY_RESIZE_STEP, Home and End take it to
+ * either bound, and releasing the key or leaving the handle saves, so a held arrow saves once.
  */
 function RecordsSplitter({
   label,
@@ -493,6 +497,26 @@ function RecordsSplitter({
   onResize: (width: number) => void;
   onCommit: (width: number) => void;
 }): React.JSX.Element {
+  // A held key moves on from where the last press left it, rendered or not.
+  const keyedWidth = useRef<number | null>(null);
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const from = keyedWidth.current ?? width;
+    const target =
+      event.key === "ArrowLeft" ? from - KEY_RESIZE_STEP
+      : event.key === "ArrowRight" ? from + KEY_RESIZE_STEP
+      : event.key === "Home" ? RECORDS_LIST_WIDTH.min
+      : event.key === "End" ? RECORDS_LIST_WIDTH.max
+      : null;
+    if (target === null) return;
+    event.preventDefault();
+    keyedWidth.current = clampRecordsListWidth(target);
+    onResize(keyedWidth.current);
+  };
+  const commitKeyedWidth = (): void => {
+    if (keyedWidth.current === null) return;
+    onCommit(keyedWidth.current);
+    keyedWidth.current = null;
+  };
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     event.preventDefault();
     const splitter = event.currentTarget;
@@ -524,7 +548,14 @@ function RecordsSplitter({
       role="separator"
       aria-orientation="vertical"
       aria-label={label}
+      aria-valuemin={RECORDS_LIST_WIDTH.min}
+      aria-valuemax={RECORDS_LIST_WIDTH.max}
+      aria-valuenow={Math.round(width)}
+      tabIndex={0}
       onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
+      onKeyUp={commitKeyedWidth}
+      onBlur={commitKeyedWidth}
     />
   );
 }

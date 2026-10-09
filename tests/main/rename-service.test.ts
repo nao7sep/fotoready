@@ -434,6 +434,12 @@ describe("runRename", () => {
     expect(result.snapshot.project.tasks[0].output?.finalPath).toBe(path.join(workDir, "final.jpg"));
     expect(result.snapshot.project.tasks[0].output?.stagedParamsPath).toBe(params);
     await expect(fs.access(params)).resolves.toBeUndefined();
+
+    // A later change rewrites the sidecar where it is, rather than starting a second one at the new name.
+    vi.restoreAllMocks();
+    await session.setCustomSlug("t1", "changed");
+    expect((await fs.readdir(workDir)).filter((name) => name.endsWith(".json"))).toEqual([path.basename(params)]);
+    expect(JSON.parse(await fs.readFile(params, "utf8")).task.customSlug).toBe("changed");
   });
 
 });

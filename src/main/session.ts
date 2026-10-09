@@ -8,6 +8,7 @@ import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } fr
 import type { Original, Project, Task, VisionResult } from "@shared/types/project";
 import { sha256BytesYielding } from "@runtime/hash";
 import { LatestOnly } from "./latest-only";
+import type { AssetFolders } from "./asset-relink";
 import { inspectSourceImage } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
@@ -52,6 +53,7 @@ export class ProjectSession {
   #previewService: PreviewService;
   // The main preview and the LUT picker each keep one render running and only the newest one waiting.
   readonly #previews = new LatestOnly();
+  #assetFolders: (() => AssetFolders) | null = null;
   readonly #lutPreviews = new LatestOnly();
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
   #originalImportTail: Promise<unknown> = Promise.resolve();
@@ -71,6 +73,11 @@ export class ProjectSession {
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
     this.#previewService = new PreviewService(workerPool);
+  }
+
+  /** Where imported and built-in stamps and LUTs live now, read at each import so a changed folder setting applies. */
+  setAssetFolders(folders: () => AssetFolders): void {
+    this.#assetFolders = folders;
   }
 
   snapshot(): ProjectSessionSnapshot {
@@ -123,7 +130,7 @@ export class ProjectSession {
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[]
   ): Promise<OriginalImportResult> {
-    const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger);
+    const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger, this.#assetFolders?.());
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
     const sidecars = [...sidecarResult.loaded];
     const usedSidecarPaths = new Set<string>();
@@ -739,11 +746,11 @@ export class ProjectSession {
     return task;
   }
 
-  /** Rewrites the sidecar from the task's current state beside its current output. Runs inside the output-files lane. */
+  /** Rewrites the task's sidecar from its current state, where it is now. Runs inside the output-files lane. */
   private async writeOutputSidecarIfSaved(task: Task): Promise<void> {
     const original = this.#project.originals.find((item) => item.id === task.originalId);
     if (!task.output || !original) return;
-    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline);
+    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output));
   }
 
   #serializeOutputFiles<T>(work: () => Promise<T>): Promise<T> {
@@ -770,7 +777,7 @@ export class ProjectSession {
     // In the lane, each change applies and persists in turn: the sidecar always holds the latest
     // state, and a failed write rolls back only its own change, never a later one. The sidecar is
     // the user's own work, so a quit waits for the write and can run it again.
-    const file = path.basename(sidecarPathForOutput(task.output.finalPath ?? task.output.stagedPath));
+    const file = path.basename(currentSidecarPath(task.output));
     return this.userWork.run({ kind: "sidecar", file }, () => this.#serializeOutputFiles(async () => {
       const before = captureTaskMetadata(task);
       if (!apply()) return false;
@@ -839,6 +846,15 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings, id:
     createdAt: now,
     updatedAt: now
   };
+}
+
+/**
+ * Where a saved task's sidecar is now. A rename whose sidecar move and rollback both failed leaves the
+ * image at its new name and the sidecar at its old one, so the recorded sidecar path wins over a path
+ * derived from the image's name, which would start a second sidecar.
+ */
+function currentSidecarPath(output: NonNullable<Task["output"]>): string {
+  return output.finalParamsPath ?? output.stagedParamsPath ?? sidecarPathForOutput(output.finalPath ?? output.stagedPath);
 }
 
 function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: LoadedTaskSidecar["sidecar"]): Task {

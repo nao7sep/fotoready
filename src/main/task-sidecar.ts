@@ -13,7 +13,7 @@ import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
-import { relinkMissingBuiltinStamps } from "./builtin-stamp-catalog";
+import { relinkMissingAssets, type AssetFolders } from "./asset-relink";
 
 /** v0.1.0 marked its sidecars `version: 1`; the body is otherwise the current one. */
 const VERSION_1_SIDECAR: EarlierJsonForm = ({ version, ...body }) => (version === 1 ? body : null);
@@ -28,8 +28,8 @@ export type TaskSidecarLoadResult = {
   rejected: OriginalImportIssue[];
 };
 
-export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline): Promise<string> {
-  const sidecarPath = sidecarPathForOutput(outputPath);
+/** Writes the task's sidecar beside `outputPath`, or at `sidecarPath` when the task already has one elsewhere. */
+export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline, sidecarPath = sidecarPathForOutput(outputPath)): Promise<string> {
   const payload = createTaskSidecar({
     original: {
       fileName: path.basename(original.sourcePath),
@@ -54,7 +54,9 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
 export async function loadTaskSidecars(
   filePaths: string[],
   bundledStampsDir: string,
-  logger?: Logger
+  logger?: Logger,
+  /** Where stamps and LUTs live now; without it only built-in stamps are relinked. */
+  folders?: AssetFolders
 ): Promise<TaskSidecarLoadResult> {
   const loaded: LoadedTaskSidecar[] = [];
   const rejected: TaskSidecarLoadResult["rejected"] = [];
@@ -114,10 +116,10 @@ export async function loadTaskSidecars(
       continue;
     }
     try {
-      sidecar.task.pipeline = await relinkMissingBuiltinStamps(sidecar.task.pipeline, bundledStampsDir);
+      sidecar.task.pipeline = await relinkMissingAssets(sidecar.task.pipeline, folders ?? { bundledStamps: bundledStampsDir, importedStamps: null, bundledLuts: null, importedLuts: null });
     } catch (error) {
-      // The task still opens; a stamp whose file is gone then fails where it is drawn, as any missing asset does.
-      logger?.error("built-in stamps could not be read to relink a saved task", { mod: "main.task-sidecar", filePath, err: error });
+      // The task still opens; an asset whose file is gone then fails where it is drawn, as any missing asset does.
+      logger?.error("stamps and LUTs could not be relinked for a saved task", { mod: "main.task-sidecar", filePath, err: error });
     }
     loaded.push({ path: filePath, sidecar });
   }

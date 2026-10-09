@@ -12,6 +12,8 @@ import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
 import { setBackupWriter } from "./backup-store";
 import { ProjectSession } from "./session";
+import { resolveStampDir } from "./stamp-catalog";
+import { resolveLutDir } from "./lut-catalog";
 import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
@@ -149,6 +151,14 @@ export async function bootstrap(): Promise<void> {
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
   const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
+  // A folder setting naming an unset variable leaves that kind of asset unrelinked; its listing reports the problem.
+  const folderOrNull = (resolve: () => string): string | null => { try { return resolve(); } catch { return null; } };
+  projectSession.setAssetFolders(() => ({
+    bundledStamps: paths.bundledStampsDir,
+    importedStamps: folderOrNull(() => resolveStampDir(settings.stampFolder, paths.stampsDir)),
+    bundledLuts: paths.bundledLutsDir,
+    importedLuts: folderOrNull(() => resolveLutDir(settings.lutFolder, paths.lutsDir))
+  }));
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
 

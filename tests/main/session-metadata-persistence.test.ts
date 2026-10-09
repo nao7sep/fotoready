@@ -48,7 +48,8 @@ describe("ProjectSession saved-task metadata persistence", () => {
 
     await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
     expect(task.customSlug).toBe("vision-slug");
-    expect(userWork.unsaved()).toEqual({ failed: [{ kind: "sidecar", file: "photo.json" }], running: [] });
+    // The quit question names the sidecar the task has, where it is.
+    expect(userWork.unsaved()).toEqual({ failed: [{ kind: "sidecar", file: "photo-fotoready.json" }], running: [] });
 
     userWork.retry();
     await userWork.settle(1_000);

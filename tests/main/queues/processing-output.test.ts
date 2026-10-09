@@ -163,6 +163,22 @@ function arrange(): { project: Project; task: Task } {
   return { project: { outputDir: dir, originals: [original], tasks: [task] }, task };
 }
 
+describe("processTask after the save completes", () => {
+  it("keeps the saved image and sidecar when announcing the save fails", async () => {
+    const { project, task } = arrange();
+    mocks.applyMetadataToOutput.mockImplementation(async () => undefined);
+    const onUpdate = vi.fn(async () => {
+      if (task.status === "saved") throw new Error("window gone");
+    });
+
+    await expect(processTask(project, task.id, defaultGlobalSettings(), onUpdate, writingPool())).rejects.toThrow("window gone");
+
+    expect(task.status).toBe("saved");
+    await expect(fs.access(task.output!.stagedPath)).resolves.toBeUndefined();
+    await expect(fs.access(task.output!.stagedParamsPath!)).resolves.toBeUndefined();
+  });
+});
+
 describe("processTask sidecar failure", () => {
   it("leaves the task without an output when the sidecar cannot be written", async () => {
     const { project, task } = arrange();
@@ -195,7 +211,8 @@ describe("processTask with an output folder naming an unset variable", () => {
   it("fails the save with a reason naming the variable, and writes nothing", async () => {
     vi.stubEnv("FOTOREADY_OUTPUT_TEST_UNSET", undefined);
     const { project, task } = arrange();
-    project.outputDir = path.join(dir, "$FOTOREADY_OUTPUT_TEST_UNSET");
+    // An expression starts with the variable; an absolute folder is taken as picked.
+    project.outputDir = "$FOTOREADY_OUTPUT_TEST_UNSET/out";
 
     await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
 

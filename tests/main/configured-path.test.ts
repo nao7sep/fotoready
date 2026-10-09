@@ -36,10 +36,18 @@ describe("resolveConfiguredPath", () => {
     expect(resolveConfiguredPath("out/web", base)).toBe(path.resolve(base, "out/web"));
   });
 
-  it("returns an absolute path as expanded", () => {
+  it("returns an absolute path as given", () => {
     const absolute = path.resolve("/exports/web");
     expect(resolveConfiguredPath(absolute, base)).toBe(absolute);
   });
+
+  it.each(["$HOME", "${HOME}", "%HOME%", "$FOTOREADY_PATH_TEST_UNSET", "100%FOTOREADY_PATH_TEST_UNSET%"])(
+    "keeps a picked folder named %s literal, whether its variable is set or not",
+    (name) => {
+      const picked = path.resolve("/exports", name, "web");
+      expect(resolveConfiguredPath(picked, base)).toBe(picked);
+    }
+  );
 
   it.each(["$FOTOREADY_PATH_TEST_UNSET", "${FOTOREADY_PATH_TEST_UNSET}", "%FOTOREADY_PATH_TEST_UNSET%"])(
     "fails on %s, naming the unset variable, rather than keeping it as typed",

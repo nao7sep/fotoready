@@ -89,7 +89,6 @@ export async function processTask(
     };
     task.status = "saved";
     logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
-    await onUpdate?.();
   } catch (error) {
     for (const strandedPath of [tempPath, writtenOutputPath]) {
       if (!strandedPath) continue;
@@ -115,7 +114,10 @@ export async function processTask(
       err: error
     });
     await onUpdate?.();
+    return;
   }
+  // Outside the try: the save is complete, so failing to announce it must not remove its files.
+  await onUpdate?.();
 }
 
 async function processOutputPipeline(

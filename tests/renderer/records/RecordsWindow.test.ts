@@ -501,6 +501,34 @@ describe("RecordsWindow", () => {
     expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.max}px`);
   });
 
+  it("moves the divider by keyboard and saves once when the key is released or the handle is left", async () => {
+    await mount();
+    const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
+    const shell = document.querySelector<HTMLElement>(".records-shell")!;
+    expect(splitter.tabIndex).toBe(0);
+    expect(splitter.getAttribute("aria-valuenow")).toBe(String(RECORDS_LIST_WIDTH.default));
+    const key = (type: "keydown" | "keyup", name: string) => act(async () => {
+      splitter.dispatchEvent(new KeyboardEvent(type, { key: name, bubbles: true }));
+    });
+
+    await key("keydown", "ArrowRight");
+    await key("keydown", "ArrowRight");
+    expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.default + 32}px`);
+    expect(update).not.toHaveBeenCalled();
+    await key("keyup", "ArrowRight");
+    expect(update).toHaveBeenCalledExactlyOnceWith({ recordsListWidth: RECORDS_LIST_WIDTH.default + 32 });
+
+    await key("keydown", "Home");
+    expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.min}px`);
+    await act(async () => splitter.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(update).toHaveBeenLastCalledWith({ recordsListWidth: RECORDS_LIST_WIDTH.min });
+
+    await key("keydown", "End");
+    await key("keyup", "End");
+    expect(update).toHaveBeenLastCalledWith({ recordsListWidth: RECORDS_LIST_WIDTH.max });
+    expect(update).toHaveBeenCalledTimes(3);
+  });
+
   it("narrows the list when the window narrows, saving nothing", async () => {
     await mount();
     const shell = document.querySelector<HTMLElement>(".records-shell")!;

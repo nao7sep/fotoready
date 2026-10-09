@@ -186,9 +186,25 @@ describe("the task sidecar format version", () => {
     return root;
   }
 
-  it("rejects a sidecar with no format version, its old `version` key included, as invalid", async () => {
+  it("reads v0.1.0's `version: 1` sidecar as its known earlier form, leaving the file as it is", async () => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
     const text = JSON.stringify({ version: 1, ...sidecarBody() });
+    await fs.writeFile(sidecarPath, text, "utf8");
+
+    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
+
+    expect(result.rejected).toEqual([]);
+    expect(result.loaded).toHaveLength(1);
+    expect(result.loaded[0]?.sidecar).not.toHaveProperty("version");
+    expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
+  });
+
+  it.each([
+    ["no marker at all", {}],
+    ["an unknown old `version`", { version: 2 }],
+  ])("rejects a sidecar with %s as invalid", async (_label, marker) => {
+    const sidecarPath = path.join(await tempRoot(), "photo.json");
+    const text = JSON.stringify({ ...marker, ...sidecarBody() });
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");

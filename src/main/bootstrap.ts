@@ -16,7 +16,7 @@ import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { nowIso } from "@shared/time";
-import { notifyStartupFailure, showCorruptSettingsNotice } from "./startup-dialog";
+import { notifyStartupFailure, showSettingsNotice } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
 import {
   computeFirstRunWindowHeight,
@@ -123,7 +123,7 @@ export async function bootstrap(): Promise<void> {
   // of the silent default. Recording itself is a side effect of each managed save (settings-io/state-io);
   // there is no startup backup pass to kick off (data-backup conventions: write-through, not a scan).
   setBackupLogger(logger);
-  const { settings, quarantinedTo: settingsQuarantinedTo } = await loadSettings(paths.settingsPath, logger);
+  const { settings, file: settingsFile, notice: settingsNotice } = await loadSettings(paths.settingsPath, logger);
   // The saved theme reaches the title bar, the renderer's prefers-color-scheme, and any recovery
   // dialog before the first window exists, so launch never shows the OS appearance and then switches.
   applyThemePreference(settings.theme);
@@ -137,7 +137,7 @@ export async function bootstrap(): Promise<void> {
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   const userWork = new UserWorkWrites();
-  let recoveryNoticePending = settingsQuarantinedTo !== null && !(await showCorruptSettingsNotice(logger, settingsQuarantinedTo));
+  if (settingsNotice) await showSettingsNotice(logger, settingsNotice);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
   const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
@@ -149,6 +149,7 @@ export async function bootstrap(): Promise<void> {
   registerIpcHandlers({
     paths,
     settings,
+    settingsFile,
     uiState,
     stateCoordinator,
     userWork,
@@ -277,10 +278,6 @@ export async function bootstrap(): Promise<void> {
 
     win.once("ready-to-show", () => {
       win.show();
-      if (recoveryNoticePending && settingsQuarantinedTo) {
-        recoveryNoticePending = false;
-        void showCorruptSettingsNotice(logger, settingsQuarantinedTo);
-      }
     });
 
     try {

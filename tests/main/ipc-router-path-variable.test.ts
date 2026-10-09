@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RouterContext } from "@main/ipc-router";
 import { message } from "@shared/i18n/translate";
-import { OutputSidecarFormatError } from "@main/output-sidecar-format";
+import { StoreNotWritableError } from "@adapters/json-store";
 import { ipcFailure } from "@shared/ipc-failure";
 
 // A configured path naming an unset variable, or a library folder that cannot be read, goes back
@@ -75,20 +75,21 @@ describe("a library folder that cannot be read", () => {
 });
 
 
-describe("an output sidecar refusal", () => {
-  it("transmits authored named-file recovery without the hostile diagnostic cause", async () => {
-    const refused = new OutputSidecarFormatError("/chosen/output.json", new Error("EACCES /internal/staging diagnostic sentinel"), true);
+describe("a store left as it is at load", () => {
+  it("transmits the named file and why it is not written, without the diagnostic message", async () => {
+    const refused = new StoreNotWritableError("/data/api-keys.json", "newer");
     handlers.clear();
     registerIpcHandlers({
       logger,
       settings: {},
       paths: {},
-      projectSession: { setSnapshotListener: () => {}, deleteSavedOutput: async () => { throw refused; } },
+      userWork: { run: (_kind: unknown, work: () => Promise<unknown>) => work() },
+      projectSession: { setSnapshotListener: () => {}, setGeminiApiKey: async () => { throw refused; } },
       records: { reader: { read: vi.fn(), close: async () => {} }, session: "s1", openWindow: vi.fn() }
     } as unknown as RouterContext);
-    const result = await handlers.get("task.deleteSavedOutput")!("task-1");
-    expect(result).toEqual(ipcFailure(message("failure.outputSidecarNewer", { path: "/chosen/output.json" })));
-    expect(JSON.stringify(result)).not.toContain("diagnostic sentinel");
-    expect(logger.error).toHaveBeenCalledWith("ipc task.deleteSavedOutput failed", expect.objectContaining({ err: refused }));
+    const result = await handlers.get("settings.setGeminiApiKey")!("new-key");
+    expect(result).toEqual(ipcFailure(message("failure.storeLeftNewer", { path: "/data/api-keys.json" })));
+    expect(JSON.stringify(result)).not.toContain("this session does not write it");
+    expect(logger.error).toHaveBeenCalledWith("ipc settings.setGeminiApiKey failed", expect.objectContaining({ err: refused }));
   });
 });

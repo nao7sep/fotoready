@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { atomicWriteFile } from "@adapters/atomic-file";
+import { atomicWriteFile, temporaryPathFor } from "@adapters/atomic-file";
 
 const isPosix = process.platform !== "win32";
 
@@ -38,37 +38,38 @@ describe("atomicWriteFile", () => {
     } finally { write.mockRestore(); publish.mockRestore(); }
   });
 
-  it("preserves a same-byte admission refusal when descriptor close fails", async () => {
+  it.runIf(isPosix)("preserves a same-byte mode repair failure when descriptor close fails", async () => {
     await fsp.writeFile(filePath, "same");
-    const primary = new Error("newer store refusal");
+    const primary = new Error("chmod denied");
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
     const open = fsp.open;
     const closeFailure = new Error("close denied");
     const spy = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
       const file = await open(...args);
       const close = file.close.bind(file);
+      vi.spyOn(file, "chmod").mockRejectedValueOnce(primary);
       vi.spyOn(file, "close").mockImplementation(async () => { await close(); throw closeFailure; });
       return file;
     });
-    let checks = 0;
     try {
-      await expect(atomicWriteFile(filePath, "same", { beforeWrite: async () => { if (++checks === 2) throw primary; } })).rejects.toBe(primary);
+      await expect(atomicWriteFile(filePath, "same", { mode: 0o600 })).rejects.toBe(primary);
       expect(await fsp.readFile(filePath, "utf8")).toBe("same");
       expect(warning).toHaveBeenCalledWith("[atomic-write] could not close inspected file", expect.objectContaining({ err: closeFailure }));
     } finally { warning.mockRestore(); spy.mockRestore(); }
   });
 
-  it("preserves publication refusal when temporary cleanup also fails", async () => {
-    const primary = new Error("store admission refused");
+  it("preserves a publication failure when temporary cleanup also fails", async () => {
+    const primary = new Error("rename refused");
     const cleanup = new Error("temporary cleanup denied");
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const rm = vi.spyOn(fsp, "rm").mockRejectedValue(cleanup);
-    let checks = 0;
+    // The first removal clears a leftover temp before staging; the second is the cleanup after the failure.
+    const rm = vi.spyOn(fsp, "rm").mockResolvedValueOnce(undefined).mockRejectedValue(cleanup);
+    const rename = vi.spyOn(fsp, "rename").mockRejectedValueOnce(primary);
     try {
-      await expect(atomicWriteFile(filePath, "new", { beforeWrite: async () => { if (++checks === 2) throw primary; } })).rejects.toBe(primary);
+      await expect(atomicWriteFile(filePath, "new")).rejects.toBe(primary);
       expect(fs.existsSync(filePath)).toBe(false);
       expect(warning).toHaveBeenCalledWith("[atomic-write] could not remove temporary file", expect.objectContaining({ err: cleanup }));
-    } finally { warning.mockRestore(); rm.mockRestore(); }
+    } finally { warning.mockRestore(); rm.mockRestore(); rename.mockRestore(); }
   });
 
   it("writes the content via temp-then-rename and leaves no orphaned temp file", async () => {
@@ -79,13 +80,31 @@ describe("atomicWriteFile", () => {
     expect(remaining).toEqual(["out.json"]);
   });
 
-  it("names the temp file <stem>-<nanoid>.tmp in the same directory as the target", async () => {
+  it("stages under the target's one fixed name, <stem>-<extension>.tmp, in the target's directory", async () => {
     const renameSpy = vi.spyOn(fsp, "rename");
     await atomicWriteFile(filePath, "hello world", "utf8");
-    const tempArg = renameSpy.mock.calls[0]?.[0] as string;
-    expect(path.dirname(tempArg)).toBe(tmpDir);
-    expect(path.basename(tempArg)).toMatch(/^out-[A-Za-z0-9_-]{8}\.tmp$/);
+    expect(renameSpy.mock.calls[0]?.[0]).toBe(path.join(tmpDir, "out-json.tmp"));
     renameSpy.mockRestore();
+    expect(temporaryPathFor(path.join(tmpDir, "photo-k3Jq9xZa.jpg"))).toBe(path.join(tmpDir, "photo-k3Jq9xZa-jpg.tmp"));
+    expect(temporaryPathFor(path.join(tmpDir, "photo-k3Jq9xZa.json"))).toBe(path.join(tmpDir, "photo-k3Jq9xZa-json.tmp"));
+    expect(temporaryPathFor(path.join(tmpDir, "notes"))).toBe(path.join(tmpDir, "notes.tmp"));
+  });
+
+  it("replaces a temp left by an interrupted write, staging the new one with restrictive access", async () => {
+    const leftover = path.join(tmpDir, "out-json.tmp");
+    await fsp.writeFile(leftover, "stale bytes from an interrupted write");
+    if (isPosix) await fsp.chmod(leftover, 0o666);
+    const writeFile = fsp.writeFile.bind(fsp);
+    const write = vi.spyOn(fsp, "writeFile").mockImplementation(async (file, data, options) => {
+      await writeFile(file, data, options);
+      if (isPosix) expect((await fsp.stat(file as string)).mode & 0o777).toBe(0o600 & ~process.umask());
+    });
+    try {
+      await atomicWriteFile(filePath, "fresh");
+      expect(write).toHaveBeenCalledOnce();
+    } finally { write.mockRestore(); }
+    expect(await fsp.readFile(filePath, "utf8")).toBe("fresh");
+    expect(await fsp.readdir(tmpDir)).toEqual(["out.json"]);
   });
 
   it("writes buffer content as well", async () => {

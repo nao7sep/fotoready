@@ -174,7 +174,8 @@ describe("processTask sidecar failure", () => {
       }
     } as unknown as PipelineWorkerPool;
     mocks.applyMetadataToOutput.mockImplementation(async (input) => {
-      const finalStem = path.parse(input.outputPath).name.slice(0, -"-12345678".length);
+      // The image is staged under its final name's fixed temp name, `<final stem>-jpg.tmp`.
+      const finalStem = path.parse(input.outputPath).name.slice(0, -"-jpg".length);
       await fs.mkdir(path.join(dir, `${finalStem}${TASK_SIDECAR_SUFFIX}`));
     });
 

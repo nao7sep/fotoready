@@ -95,7 +95,7 @@ async function startApp(home: string) {
   const records = openRecordsStore(paths.recordsPath, paths.logsDir);
   const logger = createLogger(records, { debug: false });
   setBackupLogger(logger);
-  const { settings } = await loadSettings(paths.settingsPath, logger);
+  const { settings, file: settingsFile } = await loadSettings(paths.settingsPath, logger);
   const loadedState = await loadState(paths.statePath, logger);
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
@@ -109,7 +109,7 @@ async function startApp(home: string) {
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
   const recordsReader = createRecordsReader(paths.recordsPath);
   registerIpcHandlers({
-    paths, settings, uiState, stateCoordinator, userWork, projectSession, logger, version: "0.0.0-live",
+    paths, settings, settingsFile, uiState, stateCoordinator, userWork, projectSession, logger, version: "0.0.0-live",
     records: {
       reader: recordsReader,
       session: records.session,

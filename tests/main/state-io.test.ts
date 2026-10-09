@@ -91,6 +91,30 @@ describe("loadState", () => {
     expect(files).toEqual(["state.json"]);
   });
 
+  it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)("uses defaults in memory for a file it cannot read, leaving it in place and unwritten for the session", async () => {
+    const text = `${JSON.stringify({ formatVersion: 1, showHistogram: true })}\n`;
+    await fs.writeFile(statePath(), text, "utf8");
+    await fs.chmod(statePath(), 0o000);
+    const warn = vi.fn();
+    let loaded: Awaited<ReturnType<typeof loadState>>;
+    try {
+      loaded = await loadState(statePath(), { warn } as unknown as AppLogger);
+    } finally { await fs.chmod(statePath(), 0o600); }
+    expect(loaded).toEqual({ state: defaultUiState(), writable: false });
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/could not be read/), expect.objectContaining({ err: expect.objectContaining({ code: "EACCES" }) }));
+    expect(await fs.readFile(statePath(), "utf8")).toBe(text);
+    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual(["state.json"]);
+  });
+
+  it("keeps defaults in memory when unreadable state cannot be reset, instead of stopping startup", async () => {
+    await fs.writeFile(statePath(), "{ not valid json", "utf8");
+    vi.spyOn(fs, "rename").mockRejectedValueOnce(Object.assign(new Error("read-only folder"), { code: "EROFS" }));
+    const warn = vi.fn();
+    expect(await loadState(statePath(), { warn } as unknown as AppLogger)).toEqual({ state: defaultUiState(), writable: false });
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/could not be reset/), expect.objectContaining({ statePath: statePath() }));
+    expect(await fs.readFile(statePath(), "utf8")).toBe("{ not valid json");
+  });
+
   it("treats a format version that is not a positive integer as unreadable", async () => {
     await fs.writeFile(statePath(), JSON.stringify({ formatVersion: "2", showHistogram: true }), "utf8");
 

@@ -42,11 +42,22 @@ export type VersionedJsonRead =
   | { kind: "invalid"; error: unknown };
 
 /**
- * Parses a JSON store's text against the format version this build writes. Text that is not a JSON
- * object, or whose marker is missing or not a positive integer, is invalid. `body` is the object
- * without its marker. Never throws.
+ * Reads a store written before format markers existed: the object as it was found, returned as a
+ * current-format body, or null when it is not that store's known earlier form.
  */
-export function parseVersionedJson(text: string, supported: number): VersionedJsonRead {
+export type EarlierJsonForm = (root: Record<string, unknown>) => Record<string, unknown> | null;
+
+/** v0.1.0's `config.json` and `api-keys.json`: the current body with no marker. */
+export const UNMARKED_EARLIER_FORM: EarlierJsonForm = (root) => root;
+
+/**
+ * Parses a JSON store's text against the format version this build writes. Text that is not a JSON
+ * object, or whose marker is not a positive integer, is invalid. A missing marker is invalid too,
+ * unless `earlierForm` recognizes the object as the store's known earlier form; that body is read as
+ * current and gains the marker on its next ordinary save, with no migration step. `body` is the
+ * object without its marker. Never throws.
+ */
+export function parseVersionedJson(text: string, supported: number, earlierForm?: EarlierJsonForm): VersionedJsonRead {
   let root: unknown;
   try {
     root = JSON.parse(text);
@@ -56,7 +67,12 @@ export function parseVersionedJson(text: string, supported: number): VersionedJs
   if (typeof root !== "object" || root === null || Array.isArray(root)) {
     return { kind: "invalid", error: new Error("The file is not a JSON object.") };
   }
-  const { [FORMAT_VERSION_KEY]: marker, ...body } = root as Record<string, unknown>;
+  const object = root as Record<string, unknown>;
+  if (!(FORMAT_VERSION_KEY in object) && earlierForm) {
+    const body = earlierForm(object);
+    if (body) return { kind: "current", body };
+  }
+  const { [FORMAT_VERSION_KEY]: marker, ...body } = object;
   if (typeof marker !== "number" || !Number.isInteger(marker) || marker < 1) {
     return { kind: "invalid", error: new Error(`${FORMAT_VERSION_KEY} is not a positive integer.`) };
   }

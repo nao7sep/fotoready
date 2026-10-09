@@ -18,7 +18,6 @@ import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles } from "@main/safe-delete";
-import { OutputSidecarFormatError } from "./output-sidecar-format";
 import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, sidecarPathForOutput, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { isTaskEditable } from "@shared/task-editing";
@@ -322,11 +321,6 @@ export class ProjectSession {
         task.output.finalParamsPath,
         task.output.stagedPath,
         task.output.stagedParamsPath
-      ].filter((filePath): filePath is string => typeof filePath === "string"), [
-        task.output.finalParamsPath,
-        task.output.stagedParamsPath,
-        sidecarPathForOutput(task.output.finalPath ?? task.output.stagedPath),
-        sidecarPathForOutput(task.output.stagedPath)
       ].filter((filePath): filePath is string => typeof filePath === "string"));
 
       task.status = "not-saved";
@@ -657,8 +651,7 @@ export class ProjectSession {
         status: "stopped",
         completedTaskIds: error instanceof RenameBatchStoppedError ? error.completedTaskIds : [],
         partialTaskIds: error instanceof RenameBatchStoppedError ? error.partialTaskIds : [],
-        warnings: error instanceof RenameBatchStoppedError ? error.warnings : [],
-        ...(error instanceof RenameBatchStoppedError && error.cause instanceof OutputSidecarFormatError ? { reason: error.cause.reason } : {})
+        warnings: error instanceof RenameBatchStoppedError ? error.warnings : []
       };
     }
   }

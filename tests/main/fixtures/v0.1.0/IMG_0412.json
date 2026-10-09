@@ -1,0 +1,356 @@
+{
+  "version": 1,
+  "original": {
+    "fileName": "IMG_0412.jpg",
+    "sourceHash": "9f2c4a6e1b3d5f7091a2b4c6d8e0f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5",
+    "size": 4183920,
+    "format": "jpeg",
+    "width": 4032,
+    "height": 3024
+  },
+  "task": {
+    "generateDescription": true,
+    "generateSlug": true,
+    "customSlug": null,
+    "pipeline": {
+      "ops": [
+        {
+          "id": "op_crop01",
+          "type": "crop",
+          "enabled": true,
+          "params": {
+            "x": 0.05,
+            "y": 0.04,
+            "w": 0.9,
+            "h": 0.88,
+            "aspectLock": null
+          }
+        },
+        {
+          "id": "op_tone01",
+          "type": "auto-tone",
+          "enabled": true,
+          "params": {
+            "shadowClip": 0.5,
+            "highlightClip": 0.5
+          }
+        },
+        {
+          "id": "op_size01",
+          "type": "resize",
+          "enabled": true,
+          "params": {
+            "mode": "fit",
+            "width": 2048,
+            "height": 2048,
+            "interpolation": "lanczos3"
+          }
+        },
+        {
+          "id": "op_text01",
+          "type": "watermark-text",
+          "enabled": true,
+          "params": {
+            "text": "© Example",
+            "x": 0.62,
+            "y": 0.84,
+            "w": 0.22,
+            "h": 0.08,
+            "rotation": 0,
+            "opacity": 0.7,
+            "fontFamily": "system-ui, sans-serif",
+            "color": "#ffffff",
+            "backgroundColor": "#000000",
+            "backgroundOpacity": 0,
+            "bold": false,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false,
+            "paddingX": 0.012,
+            "paddingY": 0.008,
+            "cornerRadius": 0.01,
+            "borderColor": "#ffffff",
+            "borderOpacity": 0,
+            "borderWidth": 0
+          }
+        },
+        {
+          "id": "op_stmp01",
+          "type": "stamp",
+          "enabled": true,
+          "params": {
+            "assetPath": "/Applications/FotoReady.app/Contents/Resources/stamps/approved.png",
+            "x": 0.72,
+            "y": 0.78,
+            "width": 0.12,
+            "height": 0.12,
+            "lockAspectRatio": true,
+            "flipHorizontal": false,
+            "flipVertical": false,
+            "opacity": 1,
+            "rotation": 0
+          }
+        },
+        {
+          "id": "op_strp01",
+          "type": "strip-metadata",
+          "enabled": true,
+          "params": {
+            "keep": [
+              "editorial"
+            ]
+          }
+        },
+        {
+          "id": "op_injt01",
+          "type": "inject-metadata",
+          "enabled": true,
+          "params": {
+            "fields": {
+              "author": "Jane Example",
+              "copyright": "© Jane Example"
+            }
+          }
+        },
+        {
+          "id": "op_more00",
+          "type": "rotate",
+          "enabled": true,
+          "params": {
+            "degrees": 0,
+            "fillColor": "rgba(0,0,0,0)"
+          }
+        },
+        {
+          "id": "op_more01",
+          "type": "flip",
+          "enabled": true,
+          "params": {
+            "horizontal": false,
+            "vertical": false
+          }
+        },
+        {
+          "id": "op_more02",
+          "type": "levels",
+          "enabled": true,
+          "params": {
+            "blackPoint": 0,
+            "whitePoint": 255,
+            "gamma": 1
+          }
+        },
+        {
+          "id": "op_more03",
+          "type": "white-balance",
+          "enabled": true,
+          "params": {
+            "temperature": 0,
+            "tint": 0,
+            "samplePoint": null
+          }
+        },
+        {
+          "id": "op_more04",
+          "type": "curves",
+          "enabled": true,
+          "params": {
+            "rgb": [
+              [
+                0,
+                0
+              ],
+              [
+                64,
+                64
+              ],
+              [
+                128,
+                128
+              ],
+              [
+                192,
+                192
+              ],
+              [
+                255,
+                255
+              ]
+            ]
+          }
+        },
+        {
+          "id": "op_more05",
+          "type": "hsl",
+          "enabled": true,
+          "params": {
+            "all": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "red": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "orange": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "yellow": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "green": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "aqua": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "blue": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "purple": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            },
+            "magenta": {
+              "hue": 0,
+              "sat": 0,
+              "lum": 0
+            }
+          }
+        },
+        {
+          "id": "op_more06",
+          "type": "unsharp-mask",
+          "enabled": true,
+          "params": {
+            "radius": 0.8,
+            "amount": 1.2
+          }
+        },
+        {
+          "id": "op_more07",
+          "type": "denoise",
+          "enabled": true,
+          "params": {
+            "strength": 0.3
+          }
+        },
+        {
+          "id": "op_more08",
+          "type": "lut",
+          "enabled": true,
+          "params": {
+            "cubePath": "",
+            "strength": 1
+          }
+        },
+        {
+          "id": "op_more09",
+          "type": "cover",
+          "enabled": true,
+          "params": {
+            "rects": [
+              {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.18,
+                "h": 0.18,
+                "rotation": 0,
+                "shape": "rectangle"
+              }
+            ],
+            "color": "#000000",
+            "opacity": 1
+          }
+        },
+        {
+          "id": "op_more10",
+          "type": "blur",
+          "enabled": true,
+          "params": {
+            "rects": [
+              {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.18,
+                "h": 0.18,
+                "rotation": 0,
+                "shape": "rectangle"
+              }
+            ],
+            "radius": 20
+          }
+        },
+        {
+          "id": "op_more11",
+          "type": "mosaic",
+          "enabled": true,
+          "params": {
+            "rects": [
+              {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.18,
+                "h": 0.18,
+                "rotation": 0,
+                "shape": "rectangle"
+              }
+            ],
+            "blockSize": 0.016
+          }
+        },
+        {
+          "id": "op_more12",
+          "type": "watermark-image",
+          "enabled": true,
+          "params": {
+            "assetPath": "",
+            "x": 0.74,
+            "y": 0.82,
+            "width": 0.12,
+            "height": 0.12,
+            "lockAspectRatio": true,
+            "flipHorizontal": false,
+            "flipVertical": false,
+            "opacity": 0.7,
+            "rotation": 0
+          }
+        }
+      ],
+      "output": {
+        "format": "webp",
+        "quality": 82,
+        "flattenTransparency": false,
+        "jpegProgressive": true,
+        "jpegChromaSubsampling": "4:2:0",
+        "webpMethod": 4,
+        "avifEffort": 4,
+        "pngPalette": false,
+        "backgroundForTransparency": "#ffffff"
+      }
+    },
+    "vision": {
+      "description": "A red tram crossing a stone bridge at dusk.",
+      "slugCandidates": [
+        "red-tram-stone-bridge-dusk",
+        "red-tram-bridge",
+        "tram-bridge"
+      ],
+      "model": "gemini-3-flash-preview",
+      "ranAt": "2026-07-20T09:14:03.512Z"
+    }
+  }
+}

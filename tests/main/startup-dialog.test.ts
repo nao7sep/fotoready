@@ -7,11 +7,11 @@ vi.mock("electron", () => ({ app: { isPackaged: false }, systemPreferences: {} }
 
 import { applyLanguagePreference } from "@main/i18n";
 import {
-  notifyCorruptSettings,
   notifyNewerFormat,
+  notifySettingsRecovery,
   notifyStartupFailure,
   notifySettingsQuarantineFailure,
-  showCorruptSettingsNotice,
+  showSettingsNotice,
 } from "@main/startup-dialog";
 
 beforeEach(() => {
@@ -21,25 +21,32 @@ beforeEach(() => {
 
 describe("startup recovery dialog", () => {
   it("names the set-aside settings file and says every setting started at its default", async () => {
-    await notifyCorruptSettings("/Users/someone/.fotoready/config-20261006-031340-000-utc.invalid");
+    await notifySettingsRecovery({ kind: "setAside", path: "/Users/someone/.fotoready/config-20261006-031340-utc.invalid" });
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
       title: "Settings could not be read",
-      detail: expect.stringMatching(/every setting at its default.*\/Users\/someone\/\.fotoready\/config-20261006-031340-000-utc\.invalid$/),
+      detail: expect.stringMatching(/every setting at its default.*\/Users\/someone\/\.fotoready\/config-20261006-031340-utc\.invalid$/),
     }));
   });
 
-  it("continues startup after completed quarantine when the notice fails, retaining its path and cause", async () => {
+  it("reports settings it could not open as left in place, not as damaged", async () => {
+    await notifySettingsRecovery({ kind: "unreadable", path: "/Users/someone/.fotoready/config.json" });
+
+    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Settings could not be read",
+      message: "FotoReady could not open its settings file. It started with every setting at its default and left the file as it is.",
+      detail: "Settings changes cannot be saved until FotoReady can open this file. Check its permissions and the disk it is on, then start FotoReady again: /Users/someone/.fotoready/config.json",
+    }));
+  });
+
+  it("logs a notice that cannot be shown and does not retry it", async () => {
     const cause = new Error("dialog unavailable");
     showPlainMessageDialog.mockRejectedValueOnce(cause);
     const logger = { error: vi.fn() };
-    await expect(showCorruptSettingsNotice(logger, "/config.invalid")).resolves.toBe(false);
-    expect(logger.error).toHaveBeenCalledWith(
-      "could not show the corrupt-settings recovery dialog",
-      { mod: "main", quarantinedTo: "/config.invalid", err: cause },
-    );
-    await expect(showCorruptSettingsNotice(logger, "/config.invalid")).resolves.toBe(true);
-    expect(showPlainMessageDialog).toHaveBeenLastCalledWith(expect.objectContaining({ detail: expect.stringContaining("/config.invalid") }));
+    const notice = { kind: "setAside", path: "/config.invalid" } as const;
+    await expect(showSettingsNotice(logger, notice)).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledWith("could not show the settings recovery notice", { mod: "main", notice, err: cause });
+    expect(showPlainMessageDialog).toHaveBeenCalledOnce();
   });
 
   it("owns fatal startup copy without accepting exception diagnostics", async () => {

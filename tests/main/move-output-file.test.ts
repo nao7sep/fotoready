@@ -7,6 +7,8 @@ import { moveOutputFile } from "@main/move-output-file";
 let root: string;
 let source: string;
 let destination: string;
+/** The destination's one fixed staging folder. */
+const staging = () => path.join(root, "destination-jpg.tmp");
 const crossDevice = () => Object.assign(new Error("cross-device"), { code: "EXDEV" });
 
 beforeEach(async () => {
@@ -58,12 +60,14 @@ describe("output file publication", () => {
   it("reports staging cleanup after publication without denying the move", async () => {
     crossVolume();
     const rm = fs.rm;
+    let stagingRemovals = 0;
     vi.spyOn(fs, "rm").mockImplementation(async (file, options) => {
-      if (String(file).endsWith(".tmp")) throw new Error("staging cleanup denied");
+      // The first removal clears a leftover staging folder before the move; the second is its cleanup.
+      if (file === staging() && ++stagingRemovals === 2) throw new Error("staging cleanup denied");
       return rm(file, options);
     });
     expect(await moveOutputFile(source, destination)).toEqual([
-      { path: expect.stringMatching(/\.tmp$/), kind: "staging", error: expect.objectContaining({ message: "staging cleanup denied" }) }
+      { path: staging(), kind: "staging", error: expect.objectContaining({ message: "staging cleanup denied" }) }
     ]);
     await expect(fs.access(source)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await fs.readFile(destination, "utf8")).toBe("complete image bytes");
@@ -73,7 +77,7 @@ describe("output file publication", () => {
     crossVolume();
     const primary = new Error("copy sentinel");
     vi.spyOn(fs, "copyFile").mockRejectedValue(primary);
-    vi.spyOn(fs, "rm").mockRejectedValue(new Error("cleanup sentinel"));
+    vi.spyOn(fs, "rm").mockResolvedValueOnce(undefined).mockRejectedValue(new Error("cleanup sentinel"));
     const logger = { warn: vi.fn() } as never;
     await expect(moveOutputFile(source, destination, logger)).rejects.toBe(primary);
     await expect(fs.access(destination)).rejects.toMatchObject({ code: "ENOENT" });
@@ -96,6 +100,21 @@ describe("output file publication", () => {
     const stat = await fs.stat(destination);
     expect(stat.mtime.toISOString()).toBe(modified.toISOString());
     if (process.platform !== "win32") expect(stat.mode & 0o777).toBe(0o640);
+    expect(await fs.readdir(root)).toEqual(["destination.jpg"]);
+  });
+
+  it("replaces a staging folder left by an interrupted move, creating the new one with restrictive access", async () => {
+    crossVolume();
+    await fs.mkdir(staging(), { mode: 0o755 });
+    await fs.writeFile(path.join(staging(), "destination.jpg"), "partial bytes");
+    if (process.platform !== "win32") await fs.chmod(staging(), 0o755);
+    const copyFile = fs.copyFile;
+    vi.spyOn(fs, "copyFile").mockImplementation(async (from, to, mode) => {
+      if (process.platform !== "win32") expect((await fs.stat(path.dirname(String(to)))).mode & 0o777).toBe(0o700);
+      return copyFile(from, to, mode);
+    });
+    expect(await moveOutputFile(source, destination)).toEqual([]);
+    expect(await fs.readFile(destination, "utf8")).toBe("complete image bytes");
     expect(await fs.readdir(root)).toEqual(["destination.jpg"]);
   });
 

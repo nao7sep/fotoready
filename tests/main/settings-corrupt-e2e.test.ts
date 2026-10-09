@@ -19,10 +19,10 @@ describe("a corrupt settings file on disk", () => {
     const corrupt = "{ not json at all";
     writeFileSync(path, corrupt);
 
-    const { quarantinedTo } = await loadSettings(path);
+    const { notice } = await loadSettings(path);
 
-    expect(quarantinedTo).toEqual(expect.stringContaining(".invalid"));
-    expect(readFileSync(quarantinedTo as string, "utf8")).toBe(corrupt);
+    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
+    expect(readFileSync(notice!.path, "utf8")).toBe(corrupt);
     // Recovery starts as a fresh install, leaving no seeded replacement.
     expect(readdirSync(dir)).not.toContain("config.json");
   });
@@ -31,8 +31,8 @@ describe("a corrupt settings file on disk", () => {
     const path = join(dir, "config.json");
     const before = JSON.stringify({ formatVersion: 1, workerPoolSize: 2 }, null, 2) + "\n";
     writeFileSync(path, before);
-    const { quarantinedTo } = await loadSettings(path);
-    expect(quarantinedTo).toBeNull();
+    const { notice } = await loadSettings(path);
+    expect(notice).toBeNull();
     expect(readdirSync(dir).filter((f) => f.endsWith(".invalid"))).toEqual([]);
   });
 });

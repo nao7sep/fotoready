@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { moveOutputFile, type MoveCleanupFailure } from "./move-output-file";
-import { assertOutputSidecarFormat } from "./output-sidecar-format";
 import { message, type Message } from "@shared/i18n/translate";
 import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
@@ -182,8 +181,10 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
   const completedTaskIds: string[] = [];
   const partialTaskIds: string[] = [];
   const warnings: Message[] = [];
-  const moveFile = async (from: string, to: string, sidecarPath: string): Promise<void> => {
-    for (const failure of await moveOutputFile(from, to, logger, () => assertOutputSidecarFormat(sidecarPath))) {
+  // Sidecars are not reread here: editing one outside FotoReady while a session runs is unsupported
+  // (developer decision).
+  const moveFile = async (from: string, to: string): Promise<void> => {
+    for (const failure of await moveOutputFile(from, to, logger)) {
       logger?.warn("output published but move cleanup failed", { mod: "rename", from, to, err: failure.error, cleanupPath: failure.path });
       warnings.push(cleanupWarning(failure));
     }
@@ -206,19 +207,18 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
         await ensureNoCollision(proposedParamsPath);
       }
 
-      const governingSidecar = stagedParamsPath || sidecarPathForOutput(item.currentPath);
-      await moveFile(item.currentPath, item.proposedPath, governingSidecar);
+      await moveFile(item.currentPath, item.proposedPath);
 
       if (sidecarMoveNeeded) {
         try {
-          await moveFile(stagedParamsPath, proposedParamsPath, stagedParamsPath);
+          await moveFile(stagedParamsPath, proposedParamsPath);
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "ENOENT") {
             // A missing optional sidecar does not block the image rename.
           } else {
             let rolledBack = false;
             try {
-              await moveFile(item.proposedPath, item.currentPath, governingSidecar);
+              await moveFile(item.proposedPath, item.currentPath);
               rolledBack = true;
             } catch (rollbackError) {
               logger?.warn("rename rollback failed; output left at the proposed path", {

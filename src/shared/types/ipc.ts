@@ -84,7 +84,6 @@ export type RenameRunResult = {
   completedTaskIds: string[];
   partialTaskIds: string[];
   warnings: Message[];
-  reason?: Message;
 };
 
 export type OriginalImportIssue = {

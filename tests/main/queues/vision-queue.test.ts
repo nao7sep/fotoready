@@ -124,8 +124,8 @@ describe("VisionQueue requests after a relaunch", () => {
     expect(chosen["gemini.thinking.description"]).not.toBe(defaultGlobalSettings()["gemini.thinking.description"]);
     expect(chosen["gemini.thinking.slug"]).not.toBe(defaultGlobalSettings()["gemini.thinking.slug"]);
     try {
-      const previous = (await loadSettings(settingsPath)).settings;
-      await saveSettings(settingsPath, { ...previous, ...chosen }, previous);
+      const { settings: previous, file } = await loadSettings(settingsPath);
+      await saveSettings(file, { ...previous, ...chosen }, previous);
       expect(JSON.parse(await fs.readFile(settingsPath, "utf8"))).toEqual({ formatVersion: 1, "gemini.description": "gemini-3.5-flash-lite", "gemini.slug": "gemini-3.8-flash" });
 
       const settings = (await loadSettings(settingsPath)).settings;

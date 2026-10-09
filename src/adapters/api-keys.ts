@@ -1,9 +1,7 @@
 import fs, { type FileHandle } from "node:fs/promises";
-import { assertJsonFileFormat } from "./json-file-format";
-import path from "node:path";
-import { utcStamp } from "@shared/time";
-import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
+import { FORMAT_VERSIONS, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
 import { atomicWriteFile } from "@adapters/atomic-file";
+import { setAsideStore, StoreNotWritableError, type StoreLeftReason } from "./json-store";
 import type { Logger } from "@shared/types/log";
 
 /**
@@ -28,10 +26,13 @@ import type { Logger } from "@shared/types/log";
  *     value is treated as plaintext. This is NOT encryption — the 0600 mode is the
  *     real protection.
  *   - On read: a group/world-readable file is warned about once and tightened to
- *     0600 (POSIX only); a corrupt/unreadable file is moved aside to a timestamped
- *     neighbour, warned, and treated as empty rather than throwing.
- *   - A file a newer build wrote (store-recovery-conventions) reads as empty, is
- *     warned about once, and is left exactly as it is: storing a key over it throws.
+ *     0600 (POSIX only).
+ *   - Whether the session may write the file is decided once, by its first read
+ *     (store-recovery-conventions; developer decisions): malformed content is moved
+ *     aside to a timestamped neighbour and treated as empty; a file that cannot be
+ *     read, cannot be moved aside, or was written by a newer build reads as empty, is
+ *     warned about once and left exactly as it is, and storing a key throws
+ *     {@link StoreNotWritableError}. v0.1.0's unmarked file is read as it is.
  */
 
 const MARKER = "obf:";
@@ -42,11 +43,6 @@ const KEY_ID_RE = /^[a-z0-9]+(\.[a-z0-9]+)*$/;
 
 interface ApiKeysFile {
   keys: Record<string, string>;
-}
-
-/** What a read found: the usable keys, and the error a write must throw when a newer build owns the file. */
-interface StoredKeys extends ApiKeysFile {
-  newer: NewerFormatError | null;
 }
 
 function assertKeyId(id: string): void {
@@ -108,7 +104,8 @@ export class ApiKeyStore {
   #modeInspectionWarned = false;
   #modeRepairWarned = false;
   #modeWarned = false;
-  #newerWarned = false;
+  /** Undefined until the first read; then null while writable, or why the file is left as it is. */
+  #left: StoreLeftReason | null | undefined = undefined;
 
   constructor(
     private readonly filePath: string,
@@ -157,7 +154,7 @@ export class ApiKeyStore {
     const trimmed = value.trim();
     return this.serialize(async () => {
       const all = await this.readFile();
-      if (all.newer) throw all.newer;
+      if (this.#left) throw new StoreNotWritableError(this.filePath, this.#left);
       if (trimmed.length === 0) delete all.keys[id];
       else all.keys[id] = encodeApiKey(trimmed);
       await this.write(all);
@@ -168,6 +165,7 @@ export class ApiKeyStore {
   clear(id: string): Promise<void> {
     assertKeyId(id);
     return this.serialize(async () => {
+      // A file left as it is reads as holding no key, so there is nothing to clear and nothing is written.
       const all = await this.readFile();
       if (id in all.keys) {
         delete all.keys[id];
@@ -188,7 +186,7 @@ export class ApiKeyStore {
     // sensitive-at-rest in its entirety. Keeping secrets out is what keeps backups.sqlite3 no more sensitive
     // than ordinary user text; the 0600 mode below is where this file's protection lives (data-backup
     // conventions: "Secrets are never recorded").
-    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE, beforeWrite: () => assertJsonFileFormat(this.filePath, FORMAT_VERSIONS.apiKeys) });
+    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -236,62 +234,64 @@ export class ApiKeyStore {
     }
   }
 
-  private async readFile(): Promise<StoredKeys> {
+  private async readFile(): Promise<ApiKeysFile> {
+    if (this.#left) return { keys: {} };
     let read: VersionedJsonRead;
     try {
       const file = await fs.open(this.filePath, "r");
       try {
-        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys);
+        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys, UNMARKED_EARLIER_FORM);
         if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
       } finally {
         await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { keys: {}, newer: null };
-      const movedTo = await this.moveAsideInvalid();
-      this.logger?.warn("api key file was unreadable; set aside and treating as empty", {
-        mod: "api-keys",
-        apiKeysPath: this.filePath,
-        movedTo,
-        err: error,
-      });
-      return { keys: {}, newer: null };
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return this.loaded({ keys: {} });
+      // An access failure never moves the file; it is reported as such, not as corruption.
+      return this.leave("unreadable", "api key file could not be read; treating as empty and leaving it as it is for this session", { err: error });
     }
     if (read.kind === "newer") {
-      if (!this.#newerWarned) {
-        this.#newerWarned = true;
-        this.logger?.warn("api key file was written by a newer FotoReady; treating as empty and leaving it as it is", {
-          mod: "api-keys",
-          apiKeysPath: this.filePath,
-          formatVersion: read.found,
-        });
-      }
-      return { keys: {}, newer: new NewerFormatError(this.filePath, read.found, FORMAT_VERSIONS.apiKeys) };
+      return this.leave("newer", "api key file was written by a newer FotoReady; treating as empty and leaving it as it is", { formatVersion: read.found });
     }
     const normalized = read.kind === "current" ? normalize(read.body) : null;
-    if (normalized) return { ...normalized, newer: null };
-    const movedTo = await this.moveAsideInvalid();
+    if (normalized) return this.loaded(normalized);
+    // A session that already decided to write the file meets malformed content only through an
+    // unsupported outside edit; it reads as empty and the next save replaces it.
+    if (this.#left === null) {
+      this.logger?.warn("api key file changed outside FotoReady and could not be read; treating as empty", { mod: "api-keys", apiKeysPath: this.filePath });
+      return { keys: {} };
+    }
+    const detail = read.kind === "invalid" ? { err: read.error } : {};
+    let movedTo: string;
+    try {
+      // not recorded: both the live file and this corrupt quarantine contain secrets.
+      movedTo = await setAsideStore(this.filePath);
+    } catch (moveError) {
+      return this.leave("unreadable", "api key file was not valid and could not be set aside; treating as empty and leaving it as it is for this session", { ...detail, moveErr: moveError });
+    }
     this.logger?.warn("api key file was not valid JSON or had an unexpected shape; set aside and treating as empty", {
       mod: "api-keys",
       apiKeysPath: this.filePath,
       movedTo,
-      ...(read.kind === "invalid" ? { err: read.error } : {}),
+      ...detail,
     });
-    return { keys: {}, newer: null };
+    return this.loaded({ keys: {} });
   }
 
-  // Move the unreadable file aside to a timestamped neighbour (handled once, not
-  // re-flagged on every read), returning the new path or null if it could not be
-  // moved. Best-effort: a failed move never blocks resolution.
-  private async moveAsideInvalid(): Promise<string | null> {
-    // <stem>-<timestamp>.invalid, alongside the source file (derived-filename grammar).
-    const movedTo = path.join(path.dirname(this.filePath), `${path.parse(this.filePath).name}-${utcStamp()}.invalid`);
-    try {
-      // not recorded: both the live file and this corrupt quarantine contain secrets.
-      await fs.rename(this.filePath, movedTo);
-      return movedTo;
-    } catch {
-      return null;
+  /** The first read decides the session may write the file. */
+  private loaded(keys: ApiKeysFile): ApiKeysFile {
+    this.#left ??= null;
+    return keys;
+  }
+
+  /** Leaves the file exactly as it is for the session; only the first read can decide this. */
+  private leave(reason: StoreLeftReason, warning: string, detail: Record<string, unknown>): ApiKeysFile {
+    if (this.#left === undefined) {
+      this.#left = reason;
+      this.logger?.warn(warning, { mod: "api-keys", apiKeysPath: this.filePath, ...detail });
+    } else {
+      this.logger?.warn("api key file could not be read; treating as empty", { mod: "api-keys", apiKeysPath: this.filePath, ...detail });
     }
+    return { keys: {} };
   }
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
+import { temporaryPathFor } from "@adapters/atomic-file";
 import { nowIso } from "@shared/time";
 import type { Project, Task, TaskError } from "@shared/types/project";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -52,7 +53,8 @@ export async function processTask(
     const sourcePath = original.sourcePath;
     const outputPath = await stagedOutputPath(project, task, original, sourcePath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    tempPath = temporaryOutputPath(outputPath);
+    // The staged output name already carries its own ID, so its fixed temp name is unique too.
+    tempPath = temporaryPathFor(outputPath);
 
     const result = await processOutputPipeline(task.pipeline, sourcePath, original, tempPath, settings, workerPool, signal);
 
@@ -128,11 +130,6 @@ async function processOutputPipeline(
   const resolved = resolvePipelineForSave(pipeline, original, settings);
   const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal });
   return { ...result, kind: "file" };
-}
-
-/** `<stem>-<nanoid>.tmp` beside the final output (derived-filename grammar). */
-function temporaryOutputPath(outputPath: string): string {
-  return path.join(path.dirname(outputPath), `${path.parse(outputPath).name}-${nanoid(8)}.tmp`);
 }
 
 async function publishOutput(tempPath: string, outputPath: string): Promise<void> {

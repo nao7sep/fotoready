@@ -5,7 +5,7 @@
  *  - record inserts a row whose content BLOB is BYTE-IDENTICAL to the input, including a CR/LF and a
  *    non-UTF-8 byte, with a correct SHA-256, a correct byte_size, the FULL absolute path, and an
  *    ISO-8601-ms `written_at_utc` in the serialized form (`2026-07-06T04:05:12.345Z`) — asserted to be that
- *    shape and explicitly NOT the `yyyymmdd-hhmmss-fff-utc` filename stamp.
+ *    shape and explicitly NOT the `yyyymmdd-hhmmss-utc` filename stamp.
  *  - dedup: an unchanged re-save of the same path writes no new row; a changed save writes one; a revert to
  *    earlier content writes one (it differs from the immediately-preceding row); dedup is per path.
  *  - best-effort: an injected insert failure never throws out of record, logs exactly one warn, and leaves
@@ -107,7 +107,7 @@ describe("record: BLOB fidelity, hash, size, path, and timestamp shape", () => {
     expect(path.isAbsolute(row.path)).toBe(true);
     // written_at_utc is the serialized ISO-8601-ms form (a data value) — NOT a filename stamp.
     expect(row.written_at_utc).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-    expect(row.written_at_utc).not.toMatch(/utc$/); // never the yyyymmdd-hhmmss-fff-utc filename shape
+    expect(row.written_at_utc).not.toMatch(/utc$/); // never the yyyymmdd-hhmmss-utc filename shape
     expect(new Date(row.written_at_utc).toISOString()).toBe(row.written_at_utc); // round-trips as a real instant
     // Success logs nothing.
     expect(logCalls.warn).toHaveLength(0);
@@ -359,7 +359,7 @@ describe("write-through: a real managed save records the exact bytes after the r
     const { defaultGlobalSettings } = await import("@shared/defaults");
 
     const file = path.join(root, "config.json");
-    await saveSettings(file, { ...defaultGlobalSettings(null), defaultWebpQuality: 71 }, defaultGlobalSettings(null));
+    await saveSettings({ path: file, stored: {}, writable: true }, { ...defaultGlobalSettings(null), defaultWebpQuality: 71 }, defaultGlobalSettings(null));
 
     const onDisk = readFileSync(file); // the exact bytes the atomic write landed
 
@@ -378,9 +378,10 @@ describe("write-through: a real managed save records the exact bytes after the r
     const { defaultGlobalSettings } = await import("@shared/defaults");
     const file = path.join(root, "config.json");
     const settings = { ...defaultGlobalSettings(null), defaultWebpQuality: 55 };
+    const settingsFile = { path: file, stored: {}, writable: true };
 
-    await saveSettings(file, settings, settings);
-    await saveSettings(file, settings, settings); // the same bytes again, which the store does not record twice
+    await saveSettings(settingsFile, settings, defaultGlobalSettings(null));
+    await saveSettings(settingsFile, settings, settings); // the same bytes again, which the store does not record twice
 
     expect(readRows(root)).toHaveLength(1);
   });

@@ -11,7 +11,8 @@ import { APP_NAME, IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
-import { saveSettings } from "@main/settings-io";
+import { saveSettings, type SettingsFile } from "@main/settings-io";
+import { StoreNotWritableError } from "@adapters/json-store";
 import { applyThemePreference } from "@main/theme";
 import { changeLanguagePreference, interfaceLanguage, mainTranslator } from "@main/i18n";
 import { installApplicationMenu } from "@main/menu";
@@ -22,7 +23,6 @@ import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
 import { ipcFailure } from "@shared/ipc-failure";
-import { OutputSidecarFormatError } from "./output-sidecar-format";
 import { LibraryFolderError } from "@main/file-asset-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
@@ -35,6 +35,7 @@ import { assertRecordId, assertRecordKind, parseRecordsQuery } from "@shared/val
 export type RouterContext = {
   paths: AppPaths;
   settings: GlobalSettings;
+  settingsFile: SettingsFile;
   uiState: UiState;
   stateCoordinator: StateCoordinator;
   /** The settings and API key the user saves are their own work, which a quit waits for. */
@@ -79,7 +80,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
       } catch (error) {
         ctx.logger.error(`ipc ${channel} failed`, { mod: "main.ipc", channel, ms: Math.round(performance.now() - startedAt), err: error });
         if (error instanceof PathVariableError) return ipcFailure(pathVariableReason(error));
-        if (error instanceof LibraryFolderError || error instanceof OutputSidecarFormatError) return ipcFailure(error.reason);
+        if (error instanceof LibraryFolderError || error instanceof StoreNotWritableError) return ipcFailure(error.reason);
         throw error;
       }
     });
@@ -196,7 +197,7 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("settings.get", "debug", async () => ctx.settings);
   handle("settings.update", "info", async (_event, draft: unknown) => {
     return ctx.userWork.run({ kind: "settings" }, () => serializeSettings(async () => {
-      const settings = await saveSettings(ctx.paths.settingsPath, draft, ctx.settings, ctx.logger);
+      const settings = await saveSettings(ctx.settingsFile, draft, ctx.settings, ctx.logger);
       Object.assign(ctx.settings, settings);
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
       // localization-conventions). A language change rebuilds the menu bar and reaches every window.

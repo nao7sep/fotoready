@@ -174,6 +174,44 @@ describe("ApiKeyStore", () => {
     expect(fs.readFileSync(path.join(tmpDir, invalidName!), "utf8")).toBe(original);
   });
 
+  it.runIf(isPosix)("leaves wrong-shaped JSON it cannot set aside in place, refusing to store a key over it for the session", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const original = `${JSON.stringify({ formatVersion: 1, gemini: "recover-me" })}\n`;
+    fs.writeFileSync(filePath, original);
+    const copyFile = vi.spyOn(fsPromises, "copyFile").mockRejectedValueOnce(Object.assign(new Error("read-only folder"), { code: "EROFS" }));
+    const store = new ApiKeyStore(filePath, logger);
+    try {
+      await expect(store.resolve("gemini")).resolves.toBeNull();
+      await expect(store.set("gemini", "new-key")).rejects.toMatchObject({
+        name: "StoreNotWritableError",
+        reason: { key: "failure.storeLeftUnreadable", values: { path: filePath } },
+      });
+    } finally { copyFile.mockRestore(); }
+    expect(fs.readFileSync(filePath, "utf8")).toBe(original);
+    expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/could not be set aside/), expect.objectContaining({ apiKeysPath: filePath }));
+  });
+
+  it.runIf(isPosix && process.getuid?.() !== 0)("leaves a file it cannot read in place, unmoved, refusing to store a key over it for the session", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const original = `${JSON.stringify({ formatVersion: 1, keys: { gemini: "stored-key" } })}\n`;
+    fs.writeFileSync(filePath, original);
+    fs.chmodSync(filePath, 0o000);
+    const store = new ApiKeyStore(filePath, logger);
+    try {
+      await expect(store.resolve("gemini")).resolves.toBeNull();
+      await expect(store.set("gemini", "new-key")).rejects.toMatchObject({
+        name: "StoreNotWritableError",
+        reason: { key: "failure.storeLeftUnreadable", values: { path: filePath } },
+      });
+      expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
+    } finally { fs.chmodSync(filePath, 0o600); }
+    expect(fs.readFileSync(filePath, "utf8")).toBe(original);
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/could not be read/), expect.objectContaining({ err: expect.objectContaining({ code: "EACCES" }) }));
+  });
+
   it.runIf(isPosix)("writes the secrets file with 0600 permissions on POSIX", async () => {
     const store = new ApiKeyStore(filePath);
     await store.set("gemini", "stored-key");
@@ -271,12 +309,12 @@ describe("ApiKeyStore", () => {
   });
 
   describe("format version", () => {
-    it("sets a file with no format version aside and resolves to no key", async () => {
+    it("reads a file with no format version as v0.1.0's form, leaving it as it is", async () => {
       const text = `${JSON.stringify({ keys: { gemini: "stored-key" } })}\n`;
-      fs.writeFileSync(filePath, text);
-      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBeNull();
-      const invalidName = fs.readdirSync(tmpDir).find((entry) => entry.startsWith("api-keys-") && entry.endsWith(".invalid"));
-      expect(fs.readFileSync(path.join(tmpDir, invalidName!), "utf8")).toBe(text);
+      fs.writeFileSync(filePath, text, { mode: 0o600 });
+      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
+      expect(fs.readFileSync(filePath, "utf8")).toBe(text);
+      expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
     });
 
     it("writes the current version first and reads it back", async () => {
@@ -320,21 +358,6 @@ describe("ApiKeyStore", () => {
       expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
     });
 
-    it("refuses a newer replacement created while the key save stages its bytes", async () => {
-      await new ApiKeyStore(filePath).set("gemini", "old-synthetic");
-      const write = fsPromises.writeFile;
-      const future = JSON.stringify({ formatVersion: 2, future: "kept" });
-      const spy = vi.spyOn(fsPromises, "writeFile").mockImplementation(async (...args) => {
-        await write(...args);
-        if (String(args[0]).endsWith(".tmp")) await write(filePath, future);
-      });
-      try {
-        await expect(new ApiKeyStore(filePath).set("gemini", "new-synthetic")).rejects.toMatchObject({ name: "NewerFormatError" });
-        expect(fs.readFileSync(filePath, "utf8")).toBe(future);
-        expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
-      } finally { spy.mockRestore(); }
-    });
-
     it("reads a newer file as no key, refuses to store over it, and leaves it byte-identical", async () => {
       const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
       const text = `${JSON.stringify({ formatVersion: 2, keys: { gemini: "stored-key" } })}\n`;
@@ -343,7 +366,7 @@ describe("ApiKeyStore", () => {
 
       await expect(store.resolve("gemini")).resolves.toBeNull();
       await expect(store.has("gemini")).resolves.toBe(false);
-      await expect(store.set("gemini", "new-key")).rejects.toMatchObject({ name: "NewerFormatError", filePath, found: 2, supported: 1 });
+      await expect(store.set("gemini", "new-key")).rejects.toMatchObject({ name: "StoreNotWritableError", filePath, reason: { key: "failure.storeLeftNewer", values: { path: filePath } } });
       await store.clear("gemini");
 
       expect(fs.readFileSync(filePath, "utf8")).toBe(text);

@@ -3,6 +3,7 @@ import { mainTranslator } from "./i18n";
 import type { Logger } from "@shared/types/log";
 import type { MessageKey } from "@shared/i18n/catalogues";
 import type { MessageValues } from "@shared/i18n/translate";
+import type { SettingsNotice } from "./settings-io";
 
 // Every notice speaks the interface language: the corrupt-settings notice shows after the settings
 // were read, and a startup failure before then speaks the computer's language (System).
@@ -18,19 +19,27 @@ async function showNotice(title: MessageKey, message: MessageKey, detail: Messag
   });
 }
 
-/** App-authored recovery surface: it names the set-aside `.invalid` file and the defaults started with (store-recovery-conventions). */
-export async function notifyCorruptSettings(quarantinedTo: string): Promise<void> {
-  await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail", { path: quarantinedTo });
+/**
+ * App-authored recovery surface (store-recovery-conventions): it names the set-aside `.invalid` file
+ * and the defaults started with, or the settings file left in place because it could not be read.
+ */
+export async function notifySettingsRecovery(notice: SettingsNotice): Promise<void> {
+  if (notice.kind === "setAside") {
+    await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail", { path: notice.path });
+  } else {
+    await showNotice("startup.corruptSettingsTitle", "startup.settingsUnreadableMessage", "startup.settingsUnreadableDetail", { path: notice.path });
+  }
 }
 
-/** A completed quarantine survives incidental presentation failure. */
-export async function showCorruptSettingsNotice(logger: Pick<Logger, "error">, quarantinedTo: string): Promise<boolean> {
+/**
+ * Shows the settings notice once. The recovery it reports has already happened, so a notice that
+ * cannot be shown is logged and not retried.
+ */
+export async function showSettingsNotice(logger: Pick<Logger, "error">, notice: SettingsNotice): Promise<void> {
   try {
-    await notifyCorruptSettings(quarantinedTo);
-    return true;
+    await notifySettingsRecovery(notice);
   } catch (error) {
-    logger.error("could not show the corrupt-settings recovery dialog", { mod: "main", quarantinedTo, err: error });
-    return false;
+    logger.error("could not show the settings recovery notice", { mod: "main", notice, err: error });
   }
 }
 

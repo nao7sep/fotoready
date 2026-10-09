@@ -17,27 +17,18 @@ beforeEach(async () => {
 });
 afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 
-describe("deleting an output and its governing sidecar", () => {
-  it("refuses a newer sidecar before trashing any file", async () => {
+describe("deleting an output and its sidecar", () => {
+  it("trashes the image and its sidecar without reading the sidecar", async () => {
     await fs.writeFile(sidecar, '{"formatVersion":2,"future":"kept"}');
-    await expect(deleteSelectedFiles([image, sidecar], [sidecar])).rejects.toMatchObject({ reason: { key: "failure.outputSidecarNewer" } });
-    expect(trashItem).not.toHaveBeenCalled();
-    expect(await fs.readFile(image, "utf8")).toBe("photo bytes");
-    expect(await fs.readFile(sidecar, "utf8")).toBe('{"formatVersion":2,"future":"kept"}');
+    const readFile = vi.spyOn(fs, "readFile");
+    await deleteSelectedFiles([image, sidecar]);
+    expect(trashItem.mock.calls).toEqual([[image], [sidecar]]);
+    expect(readFile).not.toHaveBeenCalled();
+    readFile.mockRestore();
   });
   it("still deletes an image whose optional sidecar is missing", async () => {
-    await deleteSelectedFiles([image, sidecar], [sidecar]);
+    await deleteSelectedFiles([image, sidecar]);
     expect(trashItem).toHaveBeenCalledExactlyOnceWith(image);
     await expect(fs.access(image)).rejects.toMatchObject({ code: "ENOENT" });
-  });
-  it("rechecks the current marker before the next destructive leaf", async () => {
-    await fs.writeFile(sidecar, '{"formatVersion":1}');
-    trashItem.mockImplementation(async (file) => {
-      await fs.rm(file);
-      await fs.writeFile(sidecar, '{"formatVersion":2}');
-    });
-    await expect(deleteSelectedFiles([image, sidecar], [sidecar])).rejects.toMatchObject({ reason: { key: "failure.outputSidecarNewer" } });
-    expect(trashItem).toHaveBeenCalledExactlyOnceWith(image);
-    expect(await fs.readFile(sidecar, "utf8")).toBe('{"formatVersion":2}');
   });
 });

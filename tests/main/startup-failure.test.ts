@@ -24,7 +24,7 @@ describe("a startup failure before the logger exists", () => {
 
     const logsDir = path.join(process.env.FOTOREADY_DATA_DIR!, "logs");
     const [file] = fs.readdirSync(logsDir);
-    expect(file).toMatch(/^\d{8}-\d{6}-\d{3}-utc\.log$/);
+    expect(file).toMatch(/^\d{8}-\d{6}-utc\.log$/);
     const line = JSON.parse(fs.readFileSync(path.join(logsDir, file), "utf8")) as Record<string, unknown>;
     expect(line).toMatchObject({ level: "error", message: "startup failed", mod: "main.bootstrap", err: { message: "no catalogue" } });
   });

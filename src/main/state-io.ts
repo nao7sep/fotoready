@@ -7,10 +7,17 @@ import type { AppLogger } from "./logger";
 
 export type LoadedState = {
   state: UiState;
-  /** False when a newer build wrote the file, which is then left exactly as it is for the session. */
+  /**
+   * Decided once at load: false when a newer build wrote the file or it could not be read or reset,
+   * which leaves it exactly as it is for the session.
+   */
   writable: boolean;
 };
 
+/**
+ * `state.json` is disposable UI state (developer decision): what cannot be read is replaced by
+ * defaults, in memory only when the file cannot be read or written, so it never stops startup.
+ */
 export async function loadState(statePath: string, logger?: AppLogger): Promise<LoadedState> {
   let read: VersionedJsonRead;
   try {
@@ -21,7 +28,8 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     // conventions) — it is written only once there is real state to record (a pane adjustment, a
     // histogram move).
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: defaultUiState(), writable: true };
-    read = { kind: "invalid", error };
+    logger?.warn("state file could not be read; using defaults and leaving it as it is for this session", { mod: "state", statePath, err: error });
+    return { state: defaultUiState(), writable: false };
   }
 
   if (read.kind === "newer") {
@@ -31,18 +39,23 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     return { state: defaultUiState(), writable: false };
   }
 
+  let state: UiState;
   if (read.kind === "current") {
-    const { state, issues } = normalizeUiState(read.body, defaultUiState());
-    if (issues.length === 0) return { state, writable: true };
+    const normalized = normalizeUiState(read.body, defaultUiState());
+    if (normalized.issues.length === 0) return { state: normalized.state, writable: true };
     // Nothing in this file has recovery value; log the invalid state and reset it.
-    logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, issues });
-    await saveState(statePath, state);
-    return { state, writable: true };
+    logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, issues: normalized.issues });
+    state = normalized.state;
+  } else {
+    logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, err: read.error });
+    state = defaultUiState();
   }
-
-  logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, err: read.error });
-  const state = defaultUiState();
-  await saveState(statePath, state);
+  try {
+    await saveState(statePath, state);
+  } catch (error) {
+    logger?.warn("state file could not be reset; leaving it as it is for this session", { mod: "state", statePath, err: error });
+    return { state, writable: false };
+  }
   return { state, writable: true };
 }
 

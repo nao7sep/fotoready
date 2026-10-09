@@ -1,24 +1,17 @@
 import fs from "node:fs/promises";
 import { shell } from "electron";
-import { assertOutputSidecarFormat, OutputSidecarFormatError } from "./output-sidecar-format";
 
-export async function deleteSelectedFiles(filePaths: string[], sidecarPaths: string[] = []): Promise<void> {
+export async function deleteSelectedFiles(filePaths: string[]): Promise<void> {
   const uniquePaths = [...new Set(filePaths.filter((filePath) => filePath.trim().length > 0))];
   const failures: string[] = [];
-  const checkSidecars = async () => {
-    for (const filePath of new Set(sidecarPaths)) await assertOutputSidecarFormat(filePath);
-  };
-  await checkSidecars();
 
   for (const filePath of uniquePaths) {
     try {
       if (!(await fileExists(filePath))) {
         continue;
       }
-      await checkSidecars();
       await shell.trashItem(filePath);
     } catch (error) {
-      if (error instanceof OutputSidecarFormatError) throw error;
       const detail = error instanceof Error ? error.message : String(error);
       failures.push(`${filePath}: ${detail}`);
     }

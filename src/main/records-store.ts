@@ -84,7 +84,7 @@ CREATE INDEX IF NOT EXISTS idx_provider_calls_session ON provider_calls (session
 CREATE INDEX IF NOT EXISTS idx_provider_calls_task_id ON provider_calls (task_id);
 `;
 
-// Writes one record as a JSON line to this session's `yyyymmdd-hhmmss-fff-utc.log` under
+// Writes one record as a JSON line to this session's `yyyymmdd-hhmmss-utc.log` under
 // `fallbackDir`, and when that fails, to the console, after telling `onFileFailure` why.
 function writeTextRecord(
   fallbackDir: string,

@@ -3,11 +3,10 @@ export function nowIso(): string {
 }
 
 /**
- * A machine-paced UTC filename stamp with millisecond precision (timestamp-conventions):
- * `yyyymmdd-hhmmss-fff-utc`, e.g. `20260610-031542-123-utc`. Every caller of this stamp names a file the
- * app assigns at runtime as part of its own operation (a session log, a backup archive, a quarantine
- * name) — never a human-authored document, which would stay at second precision instead.
+ * A UTC filename stamp with second precision (timestamp-conventions): `yyyymmdd-hhmmss-utc`, e.g.
+ * `20260610-031542-utc`. Its callers name a file the app creates at runtime (a quarantined store, a
+ * session's fallback log) and create it without overwriting one that already has the name.
  */
 export function utcStamp(date = new Date()): string {
-  return date.toISOString().slice(0, 23).replaceAll("-", "").replaceAll(":", "").replace(".", "-").replace("T", "-") + "-utc";
+  return date.toISOString().slice(0, 19).replaceAll("-", "").replaceAll(":", "").replace("T", "-") + "-utc";
 }

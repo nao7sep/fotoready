@@ -24,9 +24,8 @@ import { record } from "./backup-store";
  * the full absolute path of the managed file; `text` is its serialized content. Throws on write failure (the
  * caller logs it); the record itself never throws.
  */
-export async function writeManagedFile(filePath: string, text: string, beforeWrite?: () => Promise<void>): Promise<void> {
+export async function writeManagedFile(filePath: string, text: string): Promise<void> {
   await atomicWriteFile(filePath, text, {
-    beforeWrite,
     afterWrite: (bytes) => record(filePath, bytes)
   });
 }

@@ -45,7 +45,7 @@ function storeFile(): string {
 /**
  * The one add-only table. `content` is a BLOB of the exact bytes written — never decoded text, so CR/LF, a
  * BOM, and non-UTF-8 bytes are stored byte-identically. `written_at_utc` is the serialized ISO-8601-ms form
- * (`2026-07-06T04:05:12.345Z`), a data value — NEVER the `yyyymmdd-hhmmss-fff-utc` filename stamp. The
+ * (`2026-07-06T04:05:12.345Z`), a data value — NEVER the `yyyymmdd-hhmmss-utc` filename stamp. The
  * `(path, id)` index serves the latest-row-per-path dedup lookup.
  */
 const SCHEMA = `

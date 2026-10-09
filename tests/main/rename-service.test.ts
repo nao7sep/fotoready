@@ -354,62 +354,15 @@ describe("runRename", () => {
     expect(second.output?.finalPath).toBeNull();
     await expect(fs.access(staged2)).resolves.toBeUndefined();
   });
-  it("refuses a newer governing sidecar before changing the image or task", async () => {
-    const staged = await writeImage("future.jpg", 8, 8);
+  it("moves the sidecar without reading it, since editing it outside FotoReady during a session is unsupported", async () => {
+    const staged = await writeImage("unread.jpg", 8, 8);
     const params = await writeSidecar(staged);
     await fs.writeFile(params, '{"formatVersion":2,"future":"keep"}');
     const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
-    const before = structuredClone(task);
-    const bytes = await fs.readFile(staged);
-    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({
-      completedTaskIds: [], partialTaskIds: [], cause: { reason: { key: "failure.outputSidecarNewer" } }
-    });
-    expect(task).toEqual(before);
-    expect(await fs.readFile(staged)).toEqual(bytes);
-    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2,"future":"keep"}');
-    await expect(fs.access(path.join(workDir, "final.jpg"))).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
-  it("preserves the source image when a sidecar becomes newer after image publication", async () => {
-    const staged = await writeImage("late.jpg", 8, 8);
-    const params = await writeSidecar(staged);
-    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
-    const before = structuredClone(task);
-    const link = fs.link;
-    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
-      await link(from, to);
-      if (from === staged) await fs.writeFile(params, '{"formatVersion":2}');
-    });
-    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({
-      completedTaskIds: [], partialTaskIds: ["t1"], warnings: [{ key: "renameComplete.sourceRetained", values: { path: staged } }]
-    });
-    expect(task.updatedAt).toBe(before.updatedAt);
-    expect(task.output?.finalPath).toBe(path.join(workDir, "final.jpg"));
-    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
-    expect(await fs.readFile(staged)).toEqual(await fs.readFile(path.join(workDir, "final.jpg")));
-  });
-
-  it("rechecks governing authority after the cross-volume copy and before final publication", async () => {
-    const staged = await writeImage("copy-authority.jpg", 8, 8);
-    const params = await writeSidecar(staged);
-    const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
-    const before = structuredClone(task);
-    const link = fs.link;
-    vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
-      if (from === staged) throw Object.assign(new Error("cross-volume"), { code: "EXDEV" });
-      return link(from, to);
-    });
-    const copyFile = fs.copyFile;
-    vi.spyOn(fs, "copyFile").mockImplementation(async (from, to, mode) => {
-      await copyFile(from, to, mode);
-      await fs.writeFile(params, '{"formatVersion":2}');
-    });
-    await expect(runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).rejects.toMatchObject({ completedTaskIds: [], partialTaskIds: [] });
-    expect(task).toEqual(before);
-    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
-    await expect(fs.access(staged)).resolves.toBeUndefined();
-    await expect(fs.access(path.join(workDir, "final.jpg"))).rejects.toMatchObject({ code: "ENOENT" });
-    expect((await fs.readdir(workDir)).sort()).toEqual(["copy-authority.jpg", "copy-authority.json"]);
+    const readFile = vi.spyOn(fs, "readFile");
+    expect(await runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).toEqual({ completedTaskIds: ["t1"], warnings: [] });
+    expect(readFile.mock.calls.map(([file]) => file)).not.toContain(params);
+    expect(await fs.readFile(path.join(workDir, "final.json"), "utf8")).toBe('{"formatVersion":2,"future":"keep"}');
   });
 
   it("reports the committed image as partial if sidecar failure cannot be rolled back", async () => {
@@ -449,7 +402,7 @@ describe("runRename", () => {
     await expect(fs.access(staged)).resolves.toBeUndefined();
   });
 
-  it("returns named sidecar refusal and actual partial identity through the session", async () => {
+  it("returns the actual partial identity through the session when the sidecar move and rollback both fail", async () => {
     const staged = await writeImage("session.jpg", 8, 8);
     const params = await writeSidecar(staged);
     const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
@@ -460,15 +413,15 @@ describe("runRename", () => {
     const link = fs.link;
     vi.spyOn(fs, "link").mockImplementation(async (from, to) => {
       if (to === staged) throw Object.assign(new Error("rollback denied"), { code: "EACCES" });
+      if (from === params) throw Object.assign(new Error("sidecar move denied"), { code: "EACCES" });
       await link(from, to);
-      if (from === staged) await fs.writeFile(params, '{"formatVersion":2}');
     });
     const result = await session.runRename(SLUG_ONLY);
-    expect(result).toMatchObject({ status: "stopped", completedTaskIds: [], partialTaskIds: ["t1"], warnings: [{ key: "renameComplete.sourceRetained", values: { path: staged } }], reason: { key: "failure.outputSidecarNewer", values: { path: params } } });
+    expect(result).toEqual(expect.objectContaining({ status: "stopped", completedTaskIds: [], partialTaskIds: ["t1"], warnings: [] }));
+    expect(result).not.toHaveProperty("reason");
     expect(result.snapshot.project.tasks[0].output?.finalPath).toBe(path.join(workDir, "final.jpg"));
     expect(result.snapshot.project.tasks[0].output?.stagedParamsPath).toBe(params);
-    expect(await fs.readFile(staged)).toEqual(await fs.readFile(path.join(workDir, "final.jpg")));
-    expect(await fs.readFile(params, "utf8")).toBe('{"formatVersion":2}');
+    await expect(fs.access(params)).resolves.toBeUndefined();
   });
 
 });

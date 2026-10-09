@@ -51,7 +51,7 @@ export function RenameModal({
   onOpenSettings(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
   onRegenerateSlug(taskId: string): Promise<void>;
-  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<Pick<RenameRunResult, "status" | "warnings" | "reason">>;
+  onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<Pick<RenameRunResult, "status" | "warnings">>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void | OwnedActionOutcome>;
 }): React.JSX.Element {
@@ -139,8 +139,7 @@ export function RenameModal({
     try {
       const outcome = await onRun(templateId, preview ? renameRunSummary(preview) : { renamed: [], skipped: [] });
       if (outcome.status === "stopped") {
-        const failure = message("failure.renameStopped");
-        retainFailure("run", { message: outcome.reason ? message("failure.withReason", { failure, reason: outcome.reason }) : failure });
+        retainFailure("run", { message: message("failure.renameStopped") });
         for (const [index, warning] of outcome.warnings.entries()) retainFailure(`cleanup:${index}`, { message: warning, warning: true });
         runBusyRef.current = false;
         setRunBusy(false);

@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { nanoid } from "nanoid";
+import { temporaryPathFor } from "@adapters/atomic-file";
 import type { Logger } from "@shared/types/log";
 
 export type MoveCleanupFailure = { path: string; kind: "source" | "staging"; error: unknown };
@@ -10,14 +10,16 @@ function cannotLink(error: unknown): boolean {
 }
 
 /** Output publication follows storage-path and content-lifecycle conventions. */
-export async function moveOutputFile(from: string, to: string, logger?: Logger, assertAuthority?: () => Promise<void>): Promise<MoveCleanupFailure[]> {
+export async function moveOutputFile(from: string, to: string, logger?: Logger): Promise<MoveCleanupFailure[]> {
   const failures: MoveCleanupFailure[] = [];
   try {
-    await assertAuthority?.();
     await fs.link(from, to);
   } catch (error) {
     if (!cannotLink(error)) throw error;
-    const staging = path.join(path.dirname(to), `${path.parse(to).name}-${nanoid(8)}.tmp`);
+    // The target's one fixed staging folder; one left by an interrupted move is replaced, so the new
+    // folder is always created with restrictive access.
+    const staging = temporaryPathFor(to);
+    await fs.rm(staging, { recursive: true, force: true });
     await fs.mkdir(staging, { mode: 0o700 });
     const temp = path.join(staging, path.basename(to));
     try {
@@ -26,12 +28,10 @@ export async function moveOutputFile(from: string, to: string, logger?: Logger, 
       if (process.platform !== "win32") await fs.chmod(temp, source.mode & 0o7777);
       await fs.utimes(temp, source.atime, source.mtime);
       try {
-        await assertAuthority?.();
         await fs.link(temp, to);
       } catch (publishError) {
         if (!cannotLink(publishError)) throw publishError;
         // Volumes without hard links use an exclusively owned final descriptor.
-        await assertAuthority?.();
         const destination = await fs.open(to, "wx", source.mode & 0o7777);
         try {
           const input = await fs.open(temp, "r");
@@ -65,7 +65,6 @@ export async function moveOutputFile(from: string, to: string, logger?: Logger, 
     }
   }
   try {
-    await assertAuthority?.();
     await fs.rm(from, { force: true });
   } catch (error) {
     failures.push({ path: from, kind: "source", error });

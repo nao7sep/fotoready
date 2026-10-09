@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { nanoid } from "nanoid";
 
 export type AtomicWriteOptions = {
   encoding?: BufferEncoding;
@@ -20,9 +19,20 @@ export type AtomicWriteOptions = {
    * never throws). Left undefined by every non-recorded caller (secrets, output sidecars, binaries).
    */
   afterWrite?: (bytes: Buffer) => void;
-  /** Current store authority immediately before repair or publication. */
-  beforeWrite?: () => Promise<void>;
 };
+
+/**
+ * The one temporary name a target is staged under: `<stem>-<extension>.tmp` beside it (derived-filename
+ * grammar), e.g. `config-json.tmp`. It is fixed rather than random (developer decision): each target has
+ * one writer at a time (settings, keys and state each serialize their writes, sidecars and outputs go
+ * through the output lane, and the single-instance lock excludes a second FotoReady), so a name left
+ * by an interrupted write is replaced by the next write instead of accumulating. The extension is the
+ * discriminator because an output image and its sidecar share a stem.
+ */
+export function temporaryPathFor(target: string): string {
+  const { dir, name, ext } = path.parse(target);
+  return path.join(dir, ext ? `${name}-${ext.slice(1)}.tmp` : `${name}.tmp`);
+}
 
 export async function atomicWriteFile(
   filePath: string,
@@ -36,23 +46,21 @@ export async function atomicWriteFile(
   const bytes = typeof data === "string" ? Buffer.from(data, opts.encoding ?? "utf8") : data;
   // A write that changes nothing is skipped (content-lifecycle conventions, Files): no replace and no
   // after-write record. An explicit mode still applies to the file as it is.
-  await opts.beforeWrite?.();
   if (await skipUnchanged(filePath, bytes, opts)) return;
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
-  // <stem>-<nanoid>.tmp, alongside the target (derived-filename grammar): one final extension stating
-  // the temp file's current role, never a dot-appended suffix on the full target filename.
-  const tmpPath = path.join(dir, `${path.parse(filePath).name}-${nanoid(8)}.tmp`);
+  const tmpPath = temporaryPathFor(filePath);
   try {
-    const writeOptions = { flag: "wx", mode: 0o600 };
-    await fs.writeFile(tmpPath, bytes, writeOptions);
+    // A temp left by an interrupted write is removed first, so the exclusive create below always makes
+    // a new file with restrictive access instead of inheriting the leftover's.
+    await fs.rm(tmpPath, { force: true });
+    await fs.writeFile(tmpPath, bytes, { flag: "wx", mode: 0o600 });
     // A replace keeps the file's permissions (content-lifecycle conventions, Files); an explicit mode
     // wins. `writeFile`'s mode is masked by the umask, so it is set explicitly on POSIX either way.
     const mode = opts.mode ?? (await existingMode(filePath)) ?? (0o666 & ~process.umask());
     if (mode !== undefined && process.platform !== "win32") {
       await fs.chmod(tmpPath, mode);
     }
-    await opts.beforeWrite?.();
     await fs.rename(tmpPath, filePath);
   } catch (error) {
     await fs.rm(tmpPath, { force: true }).catch((cleanupError) => console.warn("[atomic-write] could not remove temporary file", { filePath: tmpPath, err: cleanupError }));
@@ -74,7 +82,6 @@ async function skipUnchanged(filePath: string, bytes: Buffer, opts: AtomicWriteO
   let failed = false;
   try {
     if (!(await file.readFile()).equals(bytes)) return false;
-    await opts.beforeWrite?.();
     if (opts.mode !== undefined && process.platform !== "win32") await file.chmod(opts.mode);
     return true;
   } catch (error) {

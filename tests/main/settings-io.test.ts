@@ -41,18 +41,21 @@ const written = async () => {
 
 /** Saves as the app does: the draft is the effective settings with the user's changes. */
 async function save(changes: Record<string, unknown>, logger?: AppLogger): Promise<GlobalSettings> {
-  const { settings: previous } = await loadSettings(settingsPath());
-  return saveSettings(settingsPath(), { ...previous, ...changes }, previous, logger);
+  const { settings: previous, file } = await loadSettings(settingsPath());
+  return saveSettings(file, { ...previous, ...changes }, previous, logger);
 }
 
+/** A file the process cannot read, as an access failure leaves it; skipped where permissions do not apply. */
+const accessDeniable = process.platform !== "win32" && process.getuid?.() !== 0;
+
 describe("the settings format version", () => {
-  it("quarantines a file with no format version, keeping its bytes", async () => {
+  it("reads a file with no format version as v0.1.0's form, leaving it as it is until the next save", async () => {
     const text = JSON.stringify({ defaultWebpQuality: 71 });
     await fs.writeFile(settingsPath(), text);
-    const { settings, quarantinedTo } = await loadSettings(settingsPath());
-    expect(settings).toEqual(defaults());
-    expect(quarantinedTo).toMatch(/config-.*\.invalid$/);
-    expect(await fs.readFile(quarantinedTo!, "utf8")).toBe(text);
+    const { settings, notice } = await loadSettings(settingsPath());
+    expect(settings).toEqual({ ...defaults(), defaultWebpQuality: 71 });
+    expect(notice).toBeNull();
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 
   it("writes the current version first and reads it back", async () => {
@@ -79,15 +82,15 @@ describe("the settings format version", () => {
 
   it("quarantines a file whose format version is not a positive integer", async () => {
     await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 0, defaultWebpQuality: 71 }));
-    const { settings, quarantinedTo } = await loadSettings(settingsPath());
+    const { settings, notice } = await loadSettings(settingsPath());
     expect(settings).toEqual(defaults());
-    expect(quarantinedTo).toMatch(/config-.*\.invalid$/);
+    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
   });
 });
 
 describe("settings by set", () => {
   it("loads built-ins on first run without writing any file", async () => {
-    expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), quarantinedTo: null });
+    expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), file: { path: settingsPath(), stored: {}, writable: true }, notice: null });
     expect(await fs.readdir(dir)).toEqual([]);
   });
 
@@ -118,10 +121,10 @@ describe("settings by set", () => {
     expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 
-  it("writes every set that differs and drops unknown and version keys at the next save", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71, version: 99, schemaVersion: 99, retired: true }));
+  it("keeps unknown keys through a save of another set", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71, version: 99, schemaVersion: 99, future: { kept: true } }));
     await save({ confirmDeleteTasks: false });
-    expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
+    expect(await written()).toEqual({ defaultWebpQuality: 71, version: 99, schemaVersion: 99, future: { kept: true }, confirmDeleteTasks: false });
   });
 
   it("drops the retired selection key and writes only the changed role", async () => {
@@ -194,24 +197,27 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("refuses a newer settings file installed after the running settings were loaded", async () => {
-    const loaded = await loadSettings(settingsPath());
-    const future = '{"formatVersion":2,"future":"keep"}';
-    await fs.writeFile(settingsPath(), future);
-    await expect(saveSettings(settingsPath(), { ...loaded.settings, defaultWebpQuality: 71 }, loaded.settings)).rejects.toMatchObject({ name: "NewerFormatError", filePath: settingsPath() });
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe(future);
-  });
+  it.skipIf(!accessDeniable)("leaves a file it cannot read in place, starts on built-ins and refuses to write it for the session", async () => {
+    const text = '{"formatVersion":1,"defaultWebpQuality":71}\n';
+    await fs.writeFile(settingsPath(), text);
+    await fs.chmod(settingsPath(), 0o000);
+    try {
+      const warn = vi.fn();
+      const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
+      expect(loaded.settings).toEqual(defaults());
+      expect(loaded.notice).toEqual({ kind: "unreadable", path: settingsPath() });
+      expect(loaded.file.writable).toBe(false);
+      expect(warn).toHaveBeenCalledWith("settings file could not be read; using built-ins and leaving it as it is for this session", expect.objectContaining({ err: expect.objectContaining({ code: "EACCES" }) }));
 
-  it("rechecks newer settings immediately before staged publication", async () => {
-    const write = fs.writeFile;
-    const future = '{"formatVersion":2,"future":"keep"}';
-    vi.spyOn(fs, "writeFile").mockImplementation(async (...args) => {
-      await write(...args);
-      if (String(args[0]).endsWith(".tmp")) await write(settingsPath(), future);
-    });
-    await expect(saveSettings(settingsPath(), { ...defaults(), defaultWebpQuality: 71 }, defaults())).rejects.toMatchObject({ name: "NewerFormatError" });
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe(future);
-    expect(await fs.readdir(dir)).toEqual(["config.json"]);
+      await expect(saveSettings(loaded.file, { ...loaded.settings, confirmDeleteTasks: false }, loaded.settings)).rejects.toMatchObject({
+        name: "StoreNotWritableError",
+        reason: { key: "failure.storeLeftUnreadable", values: { path: settingsPath() } },
+      });
+      expect(await fs.readdir(dir)).toEqual(["config.json"]);
+    } finally {
+      await fs.chmod(settingsPath(), 0o600);
+    }
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 
   it("never writes an invalid value, keeping each previous value and reporting each issue", async () => {
@@ -244,18 +250,30 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it("heals an invalid stored set at the next save, which writes it as its built-in", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 999, "gemini.description": "unlisted-model" }));
+  it("keeps invalid stored values through a save of another set, using their built-ins meanwhile", async () => {
+    const stored = { defaultWebpQuality: 999, visionDescriptionPrompt: "", injectFields: { author: "Jane", credit: 42 }, "gemini.description": "unlisted-model" };
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, ...stored }));
     const effective = await save({ confirmDeleteTasks: false });
-    expect(await written()).toEqual({ "gemini.description": "unlisted-model", confirmDeleteTasks: false });
+    expect(await written()).toEqual({ ...stored, confirmDeleteTasks: false });
     expect(effective.defaultWebpQuality).toBe(defaults().defaultWebpQuality);
+    expect(effective.visionDescriptionPrompt).toBe(defaults().visionDescriptionPrompt);
     expect(effective["gemini.description"]).toBe("unlisted-model");
   });
 
+  it("replaces an invalid stored value once the user edits that set", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 999, visionDescriptionPrompt: "" }));
+    await save({ defaultWebpQuality: 71 });
+    expect(await written()).toEqual({ defaultWebpQuality: 71, visionDescriptionPrompt: "" });
+    await save({ visionDescriptionPrompt: defaults().visionDescriptionPrompt });
+    expect(await written()).toEqual({ defaultWebpQuality: 71, visionDescriptionPrompt: "" });
+    await save({ visionDescriptionPrompt: "Describe it." });
+    expect(await written()).toEqual({ defaultWebpQuality: 71, visionDescriptionPrompt: "Describe it." });
+  });
+
   it("writes from the settings it holds, not from the file as it now is", async () => {
-    const { settings: previous } = await loadSettings(settingsPath());
+    const { settings: previous, file } = await loadSettings(settingsPath());
     await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71 }));
-    await saveSettings(settingsPath(), { ...previous, confirmDeleteTasks: false }, previous);
+    await saveSettings(file, { ...previous, confirmDeleteTasks: false }, previous);
     expect(await written()).toEqual({ confirmDeleteTasks: false });
   });
 
@@ -291,10 +309,11 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ visionSlugPrompt: "  Line one\n\n  Line two", "gemini.slug": "typed-model", uiFontFamily: "Inter Display" });
   });
 
-  it("removes a stored copy equal to its built-in at the next save of another set", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 }));
+  it("keeps a stored copy equal to its built-in through a save of another set", async () => {
+    const stored = { visionSlugPrompt: `${defaults().visionSlugPrompt}  `, "gemini.slug": defaults()["gemini.slug"].toUpperCase(), defaultWebpQuality: 71 };
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, ...stored }));
     await save({ confirmDeleteTasks: false });
-    expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
+    expect(await written()).toEqual({ ...stored, confirmDeleteTasks: false });
   });
 
   it("treats an empty metadata member as absent, since it injects nothing", async () => {
@@ -309,7 +328,7 @@ describe("settings by set", () => {
     await fs.writeFile(settingsPath(), original);
     const warn = vi.fn();
     const result = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
-    expect(result.quarantinedTo).toBeNull();
+    expect(result.notice).toBeNull();
     expect(result.settings).toEqual({ ...defaults(), confirmDeleteTasks: false });
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]?.[1].issue).toContain("settings.defaultWebpQuality");
@@ -321,15 +340,15 @@ describe("settings by set", () => {
     await fs.writeFile(settingsPath(), corrupt);
     const result = await loadSettings(settingsPath());
     expect(result.settings).toEqual(defaults());
-    expect(result.quarantinedTo).toMatch(/config-.*\.invalid$/);
-    expect(await fs.readFile(result.quarantinedTo!, "utf8")).toBe(corrupt);
+    expect(result.notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
+    expect(await fs.readFile(result.notice!.path, "utf8")).toBe(corrupt);
     await expect(fs.stat(settingsPath())).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), quarantinedTo: null });
+    expect((await loadSettings(settingsPath())).notice).toBeNull();
   });
 
   it("does not overwrite unreadable bytes when quarantine fails", async () => {
     await fs.writeFile(settingsPath(), "{ bad json");
-    vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("quarantine refused"));
+    vi.spyOn(fs, "copyFile").mockRejectedValueOnce(new Error("quarantine refused"));
     await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "SettingsQuarantineError", filePath: settingsPath(), cause: expect.objectContaining({ message: "quarantine refused" }) });
     expect(await fs.readFile(settingsPath(), "utf8")).toBe("{ bad json");
   });

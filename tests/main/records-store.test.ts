@@ -29,7 +29,7 @@ function query(sql: string): Array<Record<string, unknown>> {
 }
 
 function fallbackLines(): Array<Record<string, unknown>> {
-  const file = path.join(logsDir(), "20261002-031542-123-utc.log");
+  const file = path.join(logsDir(), "20261002-031542-utc.log");
   return fs.readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
@@ -79,7 +79,7 @@ describe("openRecordsStore", () => {
 
   it("leaves existing log files where they are", () => {
     fs.mkdirSync(logsDir());
-    const old = path.join(logsDir(), "20200101-000000-000-utc.log");
+    const old = path.join(logsDir(), "20200101-000000-utc.log");
     fs.writeFileSync(old, "{}\n");
     openRecordsStore(dbFile(), logsDir(), sessionStart).close();
     expect(fs.readFileSync(old, "utf8")).toBe("{}\n");

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { createTaskSidecar, isTaskSidecar, type TaskSidecar } from "@shared/task-sidecar";
-import { FORMAT_VERSIONS, parseVersionedJson, versionedJson } from "@shared/format-versions";
+import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type EarlierJsonForm } from "@shared/format-versions";
 import type { Original, Task } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
@@ -14,6 +14,9 @@ import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
 import { relinkMissingBuiltinStamps } from "./builtin-stamp-catalog";
+
+/** v0.1.0 marked its sidecars `version: 1`; the body is otherwise the current one. */
+const VERSION_1_SIDECAR: EarlierJsonForm = ({ version, ...body }) => (version === 1 ? body : null);
 
 export type LoadedTaskSidecar = {
   path: string;
@@ -74,7 +77,7 @@ export async function loadTaskSidecars(
       continue;
     }
 
-    const read = parseVersionedJson(source, FORMAT_VERSIONS.taskSidecar);
+    const read = parseVersionedJson(source, FORMAT_VERSIONS.taskSidecar, VERSION_1_SIDECAR);
     if (read.kind === "newer") {
       // Left exactly as it is, so the newer FotoReady that wrote it can still read it.
       logger?.warn("task sidecar was written by a newer FotoReady", { mod: "main.task-sidecar", filePath, formatVersion: read.found });

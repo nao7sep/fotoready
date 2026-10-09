@@ -19,14 +19,14 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
   const { t } = useI18n();
   const [linkFailures, setLinkFailures] = useState<OwnedFailures>({});
 
-  function openProjectPage(key: "repository" | "issues", url: string): void {
+  function openProjectPage(key: "repository" | "issues" | "developer", url: string): void {
     void runOwnedAction({
       action: () => api.system.openExternal(url),
       fields: { url },
       key,
       operation: "about link open failed",
       setFailures: setLinkFailures,
-      userMessage: message(key === "repository" ? "failure.openRepository" : "failure.openIssues")
+      userMessage: message(key === "issues" ? "failure.openIssues" : "failure.openRepository")
     });
   }
 
@@ -60,6 +60,9 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
         <div className="settings-summary">
           <span>{t("about.developer")}</span>
           <code>Yoshinao Inoguchi</code>
+          <button className="toolbar-button" type="button" onClick={() => openProjectPage("developer", "https://github.com/nao7sep")}>
+            GitHub
+          </button>
         </div>
         <div className="settings-summary">
           <span>{t("about.copyright")}</span>

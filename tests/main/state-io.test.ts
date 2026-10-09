@@ -16,12 +16,7 @@ const prevHome = process.env[ENV_VAR];
 let dir: string;
 const statePath = () => path.join(dir, "state.json");
 
-// The root override keeps these tests isolated from the developer's data. saveState does not
-// record volatile UI state in backups.sqlite3; any backup-store artifacts are excluded from the
-// state-directory assertions below.
-const STORE_FILES = new Set(["backups.sqlite3", "backups.sqlite3-wal", "backups.sqlite3-shm"]);
-const withoutStoreFiles = (files: string[]): string[] => files.filter((f) => !STORE_FILES.has(f));
-
+// The root override keeps these tests isolated from the developer's data.
 beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-state-"));
   process.env[ENV_VAR] = dir;
@@ -29,8 +24,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  // Close the store singleton so it releases this root's file handle and re-opens against the next test's
-  // throwaway root.
   if (prevHome === undefined) delete process.env[ENV_VAR];
   else process.env[ENV_VAR] = prevHome;
   await fs.rm(dir, { recursive: true, force: true });
@@ -44,7 +37,7 @@ describe("loadState", () => {
     // The volatile state file is not materialized on first run.
     await expect(fs.access(statePath())).rejects.toThrow();
     // No state.json, and no store file either — loadState performs no managed save, so nothing records.
-    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual([]);
+    expect(await fs.readdir(dir)).toEqual([]);
   });
 
   it("reads back state once it has actually been written, with its format version", async () => {
@@ -76,7 +69,7 @@ describe("loadState", () => {
     expect(writer).not.toHaveBeenCalled();
     expect(loaded.state.showHistogram).toBe(true);
     expect(await fs.readFile(statePath(), "utf8")).toBe(text);
-    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual(["state.json"]);
+    expect(await fs.readdir(dir)).toEqual(["state.json"]);
   });
 
   it("replaces unreadable disposable state with defaults", async () => {
@@ -85,7 +78,7 @@ describe("loadState", () => {
     const loaded = await loadState(statePath());
 
     expect(loaded).toEqual({ state: defaultUiState(), writable: true });
-    const files = withoutStoreFiles(await fs.readdir(dir));
+    const files = await fs.readdir(dir);
     expect(files).toEqual(["state.json"]);
   });
 
@@ -101,7 +94,7 @@ describe("loadState", () => {
     expect(loaded).toEqual({ state: defaultUiState(), writable: false });
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/could not be read/), expect.objectContaining({ err: expect.objectContaining({ code: "EACCES" }) }));
     expect(await fs.readFile(statePath(), "utf8")).toBe(text);
-    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual(["state.json"]);
+    expect(await fs.readdir(dir)).toEqual(["state.json"]);
   });
 
   it("keeps defaults in memory when unreadable state cannot be reset, instead of stopping startup", async () => {
@@ -125,7 +118,7 @@ describe("saveState", () => {
   it("leaves no state temp file behind when the write fails", async () => {
     vi.spyOn(fs, "rename").mockRejectedValueOnce(new Error("rename refused"));
     await expect(saveState(statePath(), defaultUiState())).rejects.toThrow("rename refused");
-    expect(withoutStoreFiles(await fs.readdir(dir))).toEqual([]);
+    expect(await fs.readdir(dir)).toEqual([]);
   });
 });
 

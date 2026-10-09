@@ -9,6 +9,7 @@
   "common.closeResult": "Cerrar el resultado",
   "common.confirm": "Confirmar",
   "common.delete": "Eliminar",
+  "common.keepEditing": "Seguir editando",
   "common.discard": "Descartar",
   "common.moveToTrash": "Mover a la papelera",
   "common.notGenerated": "Sin generar",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Nombre",
 
   "confirm.discardSettings.title": "¿Descartar los cambios?",
-  "confirm.discardSettings.message": "Tienes cambios de configuración sin guardar. ¿Descartarlos y cerrar?",
+  "confirm.discardSettings.message": "Tienes cambios sin guardar. ¿Descartarlos y cerrar?",
   "confirm.removeOriginal.title": "¿Quitar el original?",
   "confirm.removeOriginal.message": { "one": "Esto quita el original de la aplicación y también {count} tarea relacionada. El archivo de origen en el disco no se elimina.", "many": "Esto quita el original de la aplicación y también {count} de tareas relacionadas. El archivo de origen en el disco no se elimina.", "other": "Esto quita el original de la aplicación y también {count} tareas relacionadas. El archivo de origen en el disco no se elimina." },
   "confirm.deleteTask.title": "¿Eliminar la tarea?",

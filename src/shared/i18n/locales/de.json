@@ -9,6 +9,7 @@
   "common.closeResult": "Ergebnis schließen",
   "common.confirm": "Bestätigen",
   "common.delete": "Löschen",
+  "common.keepEditing": "Weiter bearbeiten",
   "common.discard": "Verwerfen",
   "common.moveToTrash": "In den Papierkorb legen",
   "common.notGenerated": "Nicht erzeugt",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Name",
 
   "confirm.discardSettings.title": "Änderungen verwerfen?",
-  "confirm.discardSettings.message": "Sie haben ungesicherte Änderungen an den Einstellungen. Verwerfen und schließen?",
+  "confirm.discardSettings.message": "Sie haben nicht gespeicherte Änderungen. Verwerfen und schließen?",
   "confirm.removeOriginal.title": "Original entfernen?",
   "confirm.removeOriginal.message": { "one": "Dadurch wird das Original aus der App entfernt, ebenso {count} zugehörige Aufgabe. Die Quelldatei auf dem Datenträger wird nicht gelöscht.", "other": "Dadurch wird das Original aus der App entfernt, ebenso {count} zugehörige Aufgaben. Die Quelldatei auf dem Datenträger wird nicht gelöscht." },
   "confirm.deleteTask.title": "Aufgabe löschen?",

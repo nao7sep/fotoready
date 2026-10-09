@@ -2,6 +2,13 @@
 
 Stack non-destructive edits on photos for publishing, choose exactly which metadata goes out with them, and batch-rename the results. FotoReady is a cross-platform desktop photo editor: reorder edits on each image (crop, levels, curves, white balance, HSL, LUTs, watermarks, conceal, and more) and export with collision-safe rename templates. It's for people preparing images for publication who want repeatable, privacy-aware output rather than a general-purpose darkroom. Built on Electron for macOS and Windows (also runnable from source on Linux).
 
+## Download
+
+Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows are on the [Releases](https://github.com/nao7sep/fotoready/releases/latest) page. These builds are **unsigned**, so the OS warns the first time you open one:
+
+- **macOS** — right-click the app and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/FotoReady.app`).
+- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
+
 ## Features
 
 - **Stackable, non-destructive edits** — reorderable op cards with live preview, even on large originals
@@ -21,12 +28,11 @@ Stack non-destructive edits on photos for publishing, choose exactly which metad
 - Optional: a Google Gemini API key for the AI-assist features
 - A current Node LTS and npm — only if building or running from source
 
-## Download
+## Use LUTs and stamps
 
-Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows are on the [Releases](https://github.com/nao7sep/fotoready/releases/latest) page. These builds are **unsigned**, so the OS warns the first time you open one:
+Add a LUT operation to a task and choose **Choose LUT…** to compare colour looks on your photo. Select a built-in LUT or import a `.cube` file in the picker, then adjust **Strength** to blend the effect.
 
-- **macOS** — right-click the app and choose **Open** (or run `xattr -dr com.apple.quarantine /Applications/FotoReady.app`).
-- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
+Add a stamp operation and choose **Choose stamp…** to browse the grouped catalogue or import a PNG, SVG, or WebP image. Position and resize the stamp on the preview before saving. Keep the saved image and its JSON sidecar together to reopen the editing recipe later.
 
 ## Run from source
 
@@ -40,7 +46,7 @@ npm run dist         # build a packaged app into release/
 
 ## Tests
 
-`npm test` typechecks and runs the whole suite, which takes a few seconds. `npm run test:full` then runs the live lane: it builds the app into `node_modules/.cache`, saves corpus photos through the built pipeline worker and the real ExifTool, and describes them through the real Gemini API, once on each supported description model. The photos come from the shared test-fixture corpus in the company repository, which must be checked out beside this one. Export `GEMINI_API_KEY` first; the lane makes a few paid Gemini calls, and the full run fails without the key.
+`npm test` typechecks the app and all tests, then runs the ordinary automated tests without paid provider calls. `npm run test:full` then runs the live lane: it builds the app into `node_modules/.cache`, saves corpus photos through the built pipeline worker and the real ExifTool, and describes them through the real Gemini API, once on each supported description model. The photos come from the shared test-fixture corpus in the company repository, which must be checked out beside this one. Export `GEMINI_API_KEY` first; the lane makes a few paid Gemini calls, and the full run fails without the key.
 
 ## License
 
@@ -48,4 +54,7 @@ npm run dist         # build a packaged app into release/
 
 ## Contact
 
-Yoshinao Inoguchi — yoshinao@inoguchi.com — <https://inoguchi.com>
+- **Name:** Yoshinao Inoguchi
+- **GitHub:** [@nao7sep](https://github.com/nao7sep)
+- **Email:** [yoshinao@inoguchi.com](mailto:yoshinao@inoguchi.com)
+- **Website:** [inoguchi.com](https://inoguchi.com)

@@ -9,6 +9,7 @@
   "common.closeResult": "Fechar o resultado",
   "common.confirm": "Confirmar",
   "common.delete": "Apagar",
+  "common.keepEditing": "Continuar editando",
   "common.discard": "Descartar",
   "common.moveToTrash": "Mover para a lixeira",
   "common.notGenerated": "Não gerado",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Nome",
 
   "confirm.discardSettings.title": "Descartar as alterações?",
-  "confirm.discardSettings.message": "Você tem alterações nas configurações que não foram salvas. Descartar e fechar?",
+  "confirm.discardSettings.message": "Há alterações não salvas. Descartá-las e fechar?",
   "confirm.removeOriginal.title": "Remover o original?",
   "confirm.removeOriginal.message": { "one": "Isso remove o original do aplicativo e também {count} tarefa relacionada. O arquivo original no disco não é apagado.", "many": "Isso remove o original do aplicativo e também {count} de tarefas relacionadas. O arquivo original no disco não é apagado.", "other": "Isso remove o original do aplicativo e também {count} tarefas relacionadas. O arquivo original no disco não é apagado." },
   "confirm.deleteTask.title": "Apagar a tarefa?",

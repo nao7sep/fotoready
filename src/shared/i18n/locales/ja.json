@@ -9,6 +9,7 @@
   "common.closeResult": "結果を閉じる",
   "common.confirm": "確認",
   "common.delete": "削除",
+  "common.keepEditing": "編集を続ける",
   "common.discard": "破棄",
   "common.moveToTrash": "ゴミ箱に入れる",
   "common.notGenerated": "未生成",
@@ -100,7 +101,7 @@
   "renameComplete.name": "名前",
 
   "confirm.discardSettings.title": "変更を破棄しますか？",
-  "confirm.discardSettings.message": "保存していない設定の変更があります。破棄して閉じますか？",
+  "confirm.discardSettings.message": "保存していない変更があります。破棄して閉じますか？",
   "confirm.removeOriginal.title": "元画像を取り除きますか？",
   "confirm.removeOriginal.message": { "other": "元画像をアプリから取り除き、関連する {count} 件のタスクも取り除きます。ディスク上の元ファイルは削除されません。" },
   "confirm.deleteTask.title": "タスクを削除しますか？",

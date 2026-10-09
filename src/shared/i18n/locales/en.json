@@ -9,6 +9,7 @@
   "common.closeResult": "Close result",
   "common.confirm": "Confirm",
   "common.delete": "Delete",
+  "common.keepEditing": "Keep editing",
   "common.discard": "Discard",
   "common.moveToTrash": "Move to trash",
   "common.notGenerated": "Not generated",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Name",
 
   "confirm.discardSettings.title": "Discard changes?",
-  "confirm.discardSettings.message": "You have unsaved settings changes. Discard them and close?",
+  "confirm.discardSettings.message": "You have unsaved changes. Discard them and close?",
   "confirm.removeOriginal.title": "Remove original?",
   "confirm.removeOriginal.message": { "one": "This removes the original from the app and also removes {count} related task. The source file on disk is not deleted.", "other": "This removes the original from the app and also removes {count} related tasks. The source file on disk is not deleted." },
   "confirm.deleteTask.title": "Delete task?",

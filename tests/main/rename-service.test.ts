@@ -97,6 +97,26 @@ const SLUG_SIZE = BUILTIN_RENAME_TEMPLATE_IDS.slugSize;
 const ORIGINAL_ONLY = BUILTIN_RENAME_TEMPLATE_IDS.original;
 
 describe("previewRename", () => {
+  it.runIf(process.platform === "win32")("refuses a case-only destination on a case-insensitive volume without changing either file", async () => {
+    const staged = await writeImage("SUNSET.jpg");
+    const sidecar = await writeSidecar(staged);
+    const imageBytes = await fs.readFile(staged);
+    const sidecarBytes = await fs.readFile(sidecar);
+    // This qualification requires the ordinary case-insensitive Windows volume.
+    expect((await fs.stat(path.join(workDir, "sunset.jpg"))).ino).toBe((await fs.stat(staged)).ino);
+    const project: Project = {
+      outputDir: workDir,
+      originals: [makeOriginal("o1", "DSC_0001.jpg")],
+      tasks: [makeTask({ id: "t1", originalId: "o1", customSlug: "sunset", stagedPath: staged })]
+    };
+    const preview = await previewRename(project, SLUG_ONLY);
+    expect(preview.items[0]).toMatchObject({ status: "blocked", issue: "name-exists" });
+    await expect(runRename(project, SLUG_ONLY)).rejects.toThrow();
+    expect((await fs.readFile(staged)).equals(imageBytes)).toBe(true);
+    expect((await fs.readFile(sidecar)).equals(sidecarBytes)).toBe(true);
+    expect((await fs.readdir(workDir)).sort()).toEqual(["SUNSET.jpg", "SUNSET.json"]);
+  });
+
   it("marks a task with no output as not-saved", async () => {
     const project: Project = {
       outputDir: workDir,

@@ -366,6 +366,7 @@ function App(): React.JSX.Element {
             title: t("confirm.discardSettings.title"),
             message: t("confirm.discardSettings.message"),
             confirmLabel: t("common.discard"),
+            cancelLabel: t("common.keepEditing"),
             danger: true
           });
           if (!discard) {
@@ -705,6 +706,7 @@ function App(): React.JSX.Element {
         title: t("confirm.discardSettings.title"),
         message: t("confirm.discardSettings.message"),
         confirmLabel: t("common.discard"),
+        cancelLabel: t("common.keepEditing"),
         danger: true
       });
       if (!discard) return;

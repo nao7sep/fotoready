@@ -9,6 +9,7 @@
   "common.closeResult": "Chiudi il risultato",
   "common.confirm": "Conferma",
   "common.delete": "Elimina",
+  "common.keepEditing": "Continua a modificare",
   "common.discard": "Scarta",
   "common.moveToTrash": "Sposta nel cestino",
   "common.notGenerated": "Non generato",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Nome",
 
   "confirm.discardSettings.title": "Scartare le modifiche?",
-  "confirm.discardSettings.message": "Ci sono modifiche alle impostazioni non salvate. Vuoi scartarle e chiudere?",
+  "confirm.discardSettings.message": "Hai modifiche non salvate. Scartarle e chiudere?",
   "confirm.removeOriginal.title": "Rimuovere l’originale?",
   "confirm.removeOriginal.message": { "one": "L’originale verrà rimosso dall’app insieme a {count} attività collegata. Il file originale sul disco non viene eliminato.", "many": "L’originale verrà rimosso dall’app insieme a {count} di attività collegate. Il file originale sul disco non viene eliminato.", "other": "L’originale verrà rimosso dall’app insieme a {count} attività collegate. Il file originale sul disco non viene eliminato." },
   "confirm.deleteTask.title": "Eliminare l’attività?",

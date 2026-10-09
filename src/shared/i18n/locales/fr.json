@@ -9,6 +9,7 @@
   "common.closeResult": "Fermer le résultat",
   "common.confirm": "Confirmer",
   "common.delete": "Supprimer",
+  "common.keepEditing": "Continuer à modifier",
   "common.discard": "Abandonner",
   "common.moveToTrash": "Placer dans la corbeille",
   "common.notGenerated": "Non généré",
@@ -100,7 +101,7 @@
   "renameComplete.name": "Nom",
 
   "confirm.discardSettings.title": "Abandonner les modifications\u00a0?",
-  "confirm.discardSettings.message": "Des modifications des réglages ne sont pas enregistrées. Les abandonner et fermer\u00a0?",
+  "confirm.discardSettings.message": "Des modifications ne sont pas enregistrées. Les abandonner et fermer\u00a0?",
   "confirm.removeOriginal.title": "Retirer l’original\u00a0?",
   "confirm.removeOriginal.message": { "one": "L’original sera retiré de l’application, ainsi que {count} tâche associée. Le fichier source sur le disque n’est pas supprimé.", "many": "L’original sera retiré de l’application, ainsi que {count} de tâches associées. Le fichier source sur le disque n’est pas supprimé.", "other": "L’original sera retiré de l’application, ainsi que {count} tâches associées. Le fichier source sur le disque n’est pas supprimé." },
   "confirm.deleteTask.title": "Supprimer la tâche\u00a0?",

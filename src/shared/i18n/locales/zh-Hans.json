@@ -9,6 +9,7 @@
   "common.closeResult": "关闭结果",
   "common.confirm": "确认",
   "common.delete": "删除",
+  "common.keepEditing": "继续编辑",
   "common.discard": "放弃",
   "common.moveToTrash": "移到废纸篓",
   "common.notGenerated": "未生成",
@@ -100,7 +101,7 @@
   "renameComplete.name": "名称",
 
   "confirm.discardSettings.title": "放弃更改？",
-  "confirm.discardSettings.message": "你有尚未保存的设置更改。要放弃这些更改并关闭吗？",
+  "confirm.discardSettings.message": "你有未保存的更改。要放弃这些更改并关闭吗？",
   "confirm.removeOriginal.title": "移除原图？",
   "confirm.removeOriginal.message": { "other": "这会从应用中移除该原图，同时移除 {count} 个相关任务。磁盘上的源文件不会被删除。" },
   "confirm.deleteTask.title": "删除任务？",

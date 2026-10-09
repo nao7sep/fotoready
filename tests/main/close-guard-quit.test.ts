@@ -74,7 +74,7 @@ function fakeWindow() {
 function installApp(save: () => Promise<boolean> = async () => true) {
   const { win, send } = fakeWindow();
   const exitState = { reason: "unknown" };
-  const stop = vi.fn(async () => {});
+  const stop = vi.fn(async () => true);
   let guard: ReturnType<typeof installCloseGuard> | null = null;
   const quit = installQuitShutdown({
     prepare: async () => {

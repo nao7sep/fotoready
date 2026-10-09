@@ -4,12 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
-import { openRecordsStore, writeFallbackRecord } from "./records-store";
+import { createRecordsStore, droppedRecordsRow, fallbackFile, writeFallbackRecord } from "./records-store";
+import { startStoreWriter } from "./store-writer";
 import { jsonSafe } from "./json-safe";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers } from "./ipc-router";
-import { setBackupLogger } from "./backup-store";
+import { setBackupWriter } from "./backup-store";
 import { ProjectSession } from "./session";
 import { VisionQueue } from "./queues/vision";
 import { ProcessingQueue } from "./queues/processing-queue";
@@ -112,17 +113,22 @@ export async function bootstrap(): Promise<void> {
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
   // off (never written to disk) in packaged release builds.
   const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
-  const records = openRecordsStore(paths.recordsPath, paths.logsDir, sessionStart);
-  records.onStored(notifyRecordsChanged);
+  const storeWriter = startStoreWriter({
+    recordsPath: paths.recordsPath,
+    backupsPath: paths.backupsPath,
+    fallbackPath: fallbackFile(paths.logsDir, sessionStart),
+    session: sessionStart.toISOString(),
+    droppedRecord: droppedRecordsRow,
+    onWarning: ({ message, fields }) => sessionLogger?.warn(message, fields)
+  });
+  storeWriter.onStored(notifyRecordsChanged);
+  const records = createRecordsStore(storeWriter, sessionStart);
   const recordsReader = createRecordsReader(paths.recordsPath);
   const logger = createLogger(records, { debug });
   sessionLogger = logger;
   installCrashHandlers(logger);
-  // Wire the session logger into the write-through data-backup store BEFORE any managed save, so the
-  // store's one best-effort warn (a failed record, an unopenable store) reaches this launch's log instead
-  // of the silent default. Recording itself is a side effect of each managed save (settings-io/state-io);
-  // there is no startup backup pass to kick off (data-backup conventions: write-through, not a scan).
-  setBackupLogger(logger);
+  // Before any protected save, so config.json saves and imported LUTs and stamps reach the history.
+  setBackupWriter(storeWriter);
   const { settings, file: settingsFile, notice: settingsNotice } = await loadSettings(paths.settingsPath, logger);
   // The saved theme reaches the title bar, the renderer's prefers-color-scheme, and any recovery
   // dialog before the first window exists, so launch never shows the OS appearance and then switches.
@@ -234,6 +240,11 @@ export async function bootstrap(): Promise<void> {
       if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_STOP_MS });
       const closed = await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), QUIT_CLOSE_MS);
       if (!closed) logger.warn("the workers did not close in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_CLOSE_MS });
+      // Last, so the lines above are among the records it writes. An ending session skips the drain.
+      const drained = await storeWriter.close({ drain: !quit.sessionEnding(), timeoutMs: QUIT_DRAIN_MS });
+      // The writer has stopped, so this line reaches the console.
+      if (!drained) logger.warn("the records and backups did not finish writing in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_DRAIN_MS });
+      return finished && closed && drained;
     },
     sessionEnded: () => {
       logger.warn("the session ended before quitting finished", { mod: "main.quit", ...userWork.unsaved() });
@@ -241,12 +252,9 @@ export async function bootstrap(): Promise<void> {
   });
 
   // macOS and Linux announce the end of the session here; Windows only through the main window's
-  // session events (installCloseGuard). Electron passes this event a preventDefault its typings
-  // omit, which asks the OS to wait while FotoReady quits.
-  powerMonitor.on("shutdown", (event?: { preventDefault(): void }) => {
-    event?.preventDefault();
-    quit.endSession();
-  });
+  // session events (installCloseGuard). The OS is never asked to wait: saves at logout are
+  // best-effort within the exit deadline (developer decision).
+  followOsShutdown(quit);
 
   const createWindow = async (): Promise<void> => {
     const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));
@@ -326,10 +334,30 @@ export async function bootstrap(): Promise<void> {
 }
 
 // How long quitting waits, after the user's own work (QUIT_SAVE_MS), for in-flight saves to stop
-// and the last UI state write to land, then for the workers and the records reader to close. With
-// the save, the whole quit stays under the OS's kill delay (unsaved-edits-conventions, Quitting).
+// and the last UI state write to land, then for the workers and the records reader to close, then
+// for the store writer's pending records and backups. They are sub-bounds of QUIT_DEADLINE_MS.
 const QUIT_STOP_MS = 1_500;
 const QUIT_CLOSE_MS = 1_000;
+const QUIT_DRAIN_MS = 1_000;
+
+/**
+ * One total exit deadline (developer decision): it starts when an ordinary quit is approved, after
+ * any questions and Retry choices, or when the OS session end begins, and a later quit request never
+ * extends it. An ending session spends at most QUIT_SAVE_MS of it on the user's own work.
+ */
+export const QUIT_DEADLINE_MS = 5_000;
+
+/**
+ * Ends the process at once. On macOS with Electron 44.2.0, one file read blocked on a stalled volume,
+ * synchronous or asynchronous, on a worker thread or on the main process's I/O pool, kept the process
+ * alive after `app.exit(0)` and `process.reallyExit(0)` until the read was released, while SIGKILL
+ * ended it immediately. Node maps it to TerminateProcess on Windows (checked in section 4's
+ * native qualification).
+ */
+function killProcess(): void {
+  console.error("[main.quit] quitting did not finish in time; ending FotoReady");
+  process.kill(process.pid, "SIGKILL");
+}
 
 export type QuitSteps = {
   /**
@@ -339,8 +367,12 @@ export type QuitSteps = {
   prepare(): Promise<boolean>;
   /** Answers every question still open, as an ending session must not wait on one. */
   answerForSessionEnd(): void;
-  /** Runs once the windows have closed; bounds each of its own waits. */
-  stop(): Promise<void>;
+  /**
+   * Runs once the windows have closed; bounds each of its own waits. Resolves true when every
+   * tracked operation settled (processing, vision, the Records reader, the store writer), so the
+   * ordinary exit cannot hang on one of them. Never rejects.
+   */
+  stop(): Promise<boolean>;
   /** Records what a Windows session end cut short; the process exits right after. */
   sessionEnded(): void;
 };
@@ -359,14 +391,30 @@ export type QuitControl = {
 };
 
 /**
+ * Exported for tests. macOS and Linux announce the end of the session through powerMonitor; the quit
+ * starts without asking the OS to wait.
+ */
+export function followOsShutdown(quit: Pick<QuitControl, "endSession">): void {
+  powerMonitor.on("shutdown", () => quit.endSession());
+}
+
+/**
  * Exported for tests. Every quit arrives at before-quit — Quit from the menu, the keyboard or the
  * Dock, the main window's close off macOS, and an ending session — and is held there while
  * `prepare` runs, and at will-quit, once the windows have closed, while `stop` runs. A quit arriving
  * meanwhile is held too, so only the quit after `stop` ends the process.
  */
-export function installQuitShutdown(steps: QuitSteps): QuitControl {
+export function installQuitShutdown(
+  steps: QuitSteps,
+  { deadlineMs = QUIT_DEADLINE_MS, forceExit = killProcess }: { deadlineMs?: number; forceExit?: () => void } = {}
+): QuitControl {
   let phase: "running" | "preparing" | "approved" | "stopping" | "done" = "running";
   let sessionEnding = false;
+  let deadline: NodeJS.Timeout | null = null;
+  const armDeadline = (): void => {
+    if (deadline !== null) return;
+    deadline = setTimeout(forceExit, deadlineMs);
+  };
   app.on("before-quit", (event) => {
     if (phase === "approved" || phase === "done") return;
     event.preventDefault();
@@ -378,6 +426,7 @@ export function installQuitShutdown(steps: QuitSteps): QuitControl {
         return;
       }
       phase = "approved";
+      armDeadline();
       app.quit();
     });
   });
@@ -386,14 +435,17 @@ export function installQuitShutdown(steps: QuitSteps): QuitControl {
     event.preventDefault();
     if (phase === "stopping") return;
     phase = "stopping";
-    void steps.stop().finally(() => {
+    void steps.stop().then((settled) => {
       phase = "done";
-      app.quit();
+      // Work still unsettled could keep the process alive through teardown, past the deadline.
+      if (settled) app.quit();
+      else forceExit();
     });
   });
   const endSession = (): void => {
     if (sessionEnding) return;
     sessionEnding = true;
+    armDeadline();
     steps.answerForSessionEnd();
     if (phase === "running") app.quit();
   };

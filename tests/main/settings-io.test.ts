@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadSettings, saveSettings } from "@main/settings-io";
-import { closeBackupStore } from "@main/backup-store";
 import { defaultGlobalSettings } from "@shared/defaults";
 import { multiline, singleLine } from "@shared/text-cleanup";
 import type { GlobalSettings } from "@shared/types/settings";
@@ -22,7 +21,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  closeBackupStore();
   if (prevHome === undefined) delete process.env[ENV_VAR];
   else process.env[ENV_VAR] = prevHome;
   await fs.rm(dir, { recursive: true, force: true });

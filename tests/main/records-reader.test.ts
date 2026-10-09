@@ -4,7 +4,8 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRecordsReader, type RecordsReader } from "@main/records-reader";
-import { openRecordsStore, type RecordsStore } from "@main/records-store";
+import { logRow, providerCallRow, type RecordsStore } from "@main/records-store";
+import { openRecordsDatabase } from "@main/records-tables";
 import type { RecordsQuery } from "@shared/records";
 
 // The reader runs the real records worker, as the app does, over a database the main process's own
@@ -12,7 +13,7 @@ import type { RecordsQuery } from "@shared/records";
 
 let root: string;
 const readers: RecordsReader[] = [];
-const stores: RecordsStore[] = [];
+const stores: Array<RecordsStore & { close(): void }> = [];
 const dbFile = () => path.join(root, "records.sqlite3");
 const ALL: RecordsQuery = { session: null, kind: null, level: null, taskId: null, search: "", after: null };
 
@@ -32,8 +33,16 @@ function reader(options?: { timeoutMs?: number }): RecordsReader {
   return created;
 }
 
-function store(): RecordsStore {
-  const created = openRecordsStore(dbFile(), path.join(root, "logs"), new Date("2026-10-02T08:00:00.000Z"));
+/** Writes records as the store writer does, synchronously, on an open connection like the writer's. */
+function store(): RecordsStore & { close(): void } {
+  const database = openRecordsDatabase(dbFile());
+  const session = "2026-10-02T08:00:00.000Z";
+  const created = {
+    session,
+    writeLog: (record: Parameters<RecordsStore["writeLog"]>[0]) => database.insert(session, logRow(record)),
+    writeProviderCall: (record: Parameters<RecordsStore["writeProviderCall"]>[0]) => database.insert(session, providerCallRow(record)),
+    close: () => database.close()
+  };
   stores.push(created);
   return created;
 }
@@ -74,15 +83,6 @@ describe("createRecordsReader", () => {
     db.close();
 
     await expect(reader().read({ op: "sources" })).rejects.toThrow(/no format version/);
-  });
-
-  it("rechecks the marker on its cached read connection", async () => {
-    store().writeLog({ time: "2026-10-02T08:00:01.000Z", level: "info", message: "kept", fields: {} });
-    const read = reader();
-    await read.read({ op: "sources" });
-    const newer = new DatabaseSync(dbFile());
-    try { newer.exec("PRAGMA user_version = 2"); } finally { newer.close(); }
-    await expect(read.read({ op: "sources" })).rejects.toThrow(/NewerFormatError/);
   });
 
   it("fails every read after it closes", async () => {

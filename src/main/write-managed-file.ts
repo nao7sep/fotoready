@@ -1,19 +1,13 @@
 /**
- * The single managed-text atomic-write choke point (data-backup + storage-path conventions). Every durable
- * text file fotoready OWNS and reloads as its own data — `config.json` (settings-io) — is written
- * through this one helper, so the data-backup hook lives in exactly ONE place. A
- * managed-text write that bypasses this helper is a silent backup gap.
+ * The managed-text atomic write (data-backup and storage-path conventions): `config.json`, the one
+ * durable text file FotoReady owns and reloads as its own data, is written through this helper, so its
+ * backup hook lives in one place. After the rename lands, the exact bytes just written are handed to
+ * the backup history ({@link record}), which queues them and never waits or throws, so a backup
+ * problem can never affect the save.
  *
- * It delegates the atomic temp-then-rename to {@link atomicWriteFile} (the layer-neutral writer shared with
- * the non-recorded write sites) and passes an `afterWrite` hook that, strictly AFTER the rename lands,
- * records the exact bytes just written into `~/.fotoready/backups.sqlite3`. The record is best-effort and
- * silent: {@link record} catches, logs once at `warn`, and swallows every failure, so a backup problem can
- * never throw back into this write or affect the save's success.
- *
- * Not every atomic write is a managed-text write. Volatile state (`state.json`), secrets, imported instruments, output images and
- * sidecars, logs, and recovery artifacts keep using their own unrecorded paths, with the reason beside
- * each logical write site. That per-write-site split IS the record/no-record decision, made at authoring
- * time by the call site, never by sniffing content here.
+ * Other writes keep their own unrecorded paths, with the reason beside each write site: `state.json`
+ * is state, `api-keys.json` a secret, saved images and their sidecars are output. Imported LUTs and
+ * stamps are recorded where they are added (`file-asset-catalog.ts`).
  */
 
 import { atomicWriteFile } from "@adapters/atomic-file";

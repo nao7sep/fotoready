@@ -45,7 +45,8 @@ export default defineConfig({
         input: {
           index: resolve("src/main/index.ts"),
           "workers/pipeline-worker": resolve("src/main/workers/pipeline-worker.ts"),
-          "workers/records-worker": resolve("src/main/workers/records-worker.ts")
+          "workers/records-worker": resolve("src/main/workers/records-worker.ts"),
+          "workers/store-writer": resolve("src/main/workers/store-writer.ts")
         }
       }
     }

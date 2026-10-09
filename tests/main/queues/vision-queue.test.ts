@@ -22,7 +22,10 @@ import { defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models
 import type { GlobalSettings } from "@shared/types/settings";
 import type { ProviderCallRecord } from "@main/records-store";
 import { loadSettings, saveSettings } from "@main/settings-io";
-import { closeBackupStore } from "@main/backup-store";
+import { DatabaseSync } from "node:sqlite";
+import { startStoreWriter } from "@main/store-writer";
+import { createRecordsStore, droppedRecordsRow, fallbackFile } from "@main/records-store";
+import { openRecordsDatabase, STORE_BUSY_TIMEOUT_MS } from "@main/records-tables";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
 
@@ -83,6 +86,44 @@ describe("VisionQueue provider records", () => {
     const { session, task } = await arrange({ describeImage, suggestSlugs: vi.fn(async () => ["a-harbor"]) }, { writeProviderCall }, (fn) => { recordCall = fn; });
     await session.runVision(task.id, { mode: "description" });
     expect(writeProviderCall).toHaveBeenCalledWith({ ...call, taskId: task.id, provider: "gemini" });
+  });
+});
+
+describe("VisionQueue with a locked records store", () => {
+  it("finishes a description at once and stays successful, the call recorded once the writer can", async () => {
+    const recordsPath = path.join(tempDir, "records.sqlite3");
+    const sessionStart = new Date("2026-10-09T05:00:00.000Z");
+    openRecordsDatabase(recordsPath).close();
+    const held = new DatabaseSync(recordsPath);
+    held.exec("BEGIN EXCLUSIVE");
+    const writer = startStoreWriter({
+      recordsPath, backupsPath: path.join(tempDir, "backups.sqlite3"), fallbackPath: fallbackFile(path.join(tempDir, "logs"), sessionStart),
+      session: sessionStart.toISOString(), droppedRecord: droppedRecordsRow, onWarning: () => {}
+    });
+    try {
+      let recordCall: ((call: GeminiCall) => void) | undefined;
+      const call = { time: "2026-10-09T05:00:01.000Z", endpoint: "https://models.example", role: "description", model: "gemini-3.8-flash", attempt: 1, durationMs: 5, request: { model: "gemini-3.8-flash", contents: [] }, response: null, error: null } satisfies GeminiCall;
+      const { session, task } = await arrange(
+        { describeImage: async () => { recordCall!(call); return "A harbor"; }, suggestSlugs: vi.fn(async () => ["a-harbor"]) },
+        createRecordsStore(writer, sessionStart),
+        (fn) => { recordCall = fn; }
+      );
+
+      const started = performance.now();
+      await session.runVision(task.id, { mode: "description" });
+      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
+      expect(task.error).toBeNull();
+      expect(task.output?.vision?.description).toBe("A harbor");
+    } finally {
+      held.exec("ROLLBACK");
+      held.close();
+      await writer.close({ drain: true, timeoutMs: 10_000 });
+    }
+    const check = new DatabaseSync(recordsPath);
+    const fallback = await fs.readFile(fallbackFile(path.join(tempDir, "logs"), sessionStart), "utf8").catch(() => "");
+    const stored = check.prepare("SELECT count(*) AS n FROM provider_calls").get() as { n: number };
+    check.close();
+    expect(stored.n + (fallback.includes('"message":"provider call"') ? 1 : 0)).toBe(1);
   });
 });
 
@@ -149,7 +190,6 @@ describe("VisionQueue requests after a relaunch", () => {
       expect(description.contents[0].parts[0].mediaResolution).toEqual({ level: "MEDIA_RESOLUTION_HIGH" });
       expect(slug.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "MEDIUM" });
     } finally {
-      closeBackupStore();
     }
   });
 });

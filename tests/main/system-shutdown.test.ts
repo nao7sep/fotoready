@@ -46,7 +46,7 @@ describe("Windows session end", () => {
     const quit = installQuitShutdown({
       prepare: () => new Promise<boolean>(() => {}),
       answerForSessionEnd: () => {},
-      stop: async () => {},
+      stop: async () => true,
       sessionEnded
     });
     const win = fakeWindow();
@@ -64,7 +64,7 @@ describe("Windows session end", () => {
     const quit = installQuitShutdown({
       prepare: async () => true,
       answerForSessionEnd: () => {},
-      stop: async () => {},
+      stop: async () => true,
       sessionEnded: () => {}
     });
     const win = fakeWindow();

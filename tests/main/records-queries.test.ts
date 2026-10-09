@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openRecordsStore, type ProviderCallRecord, type RecordsStore } from "@main/records-store";
+import { logRow, providerCallRow, type ProviderCallRecord, type RecordsStore } from "@main/records-store";
+import { openRecordsDatabase } from "@main/records-tables";
 import { readRecords } from "@main/records-queries";
 import { RECORDS_PAGE_SIZE, type RecordsQuery, type RecordSummary } from "@shared/records";
 
@@ -40,10 +41,16 @@ const call = (time: string, overrides: Partial<ProviderCallRecord> = {}): Provid
   ...overrides
 });
 
+/** Writes records as the store writer does, synchronously, so each test reads exactly what it wrote. */
 function store(sessionStart: Date, write: (records: RecordsStore) => void): void {
-  const records = openRecordsStore(dbFile(), path.join(root, "logs"), sessionStart);
-  write(records);
-  records.close();
+  const database = openRecordsDatabase(dbFile());
+  const session = sessionStart.toISOString();
+  write({
+    session,
+    writeLog: (record) => database.insert(session, logRow(record)),
+    writeProviderCall: (record) => database.insert(session, providerCallRow(record))
+  });
+  database.close();
 }
 
 function open(): DatabaseSync {

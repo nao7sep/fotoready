@@ -79,11 +79,12 @@ async function startApp(home: string) {
   handlers.clear();
   const { getAppPaths } = await import("@main/paths");
   const { createLogger } = await import("@main/logger");
-  const { openRecordsStore } = await import("@main/records-store");
+  const { createRecordsStore, droppedRecordsRow, fallbackFile } = await import("@main/records-store");
+  const { startStoreWriter } = await import("@main/store-writer");
   const { loadSettings, resolveWorkerPoolSize } = await import("@main/settings-io");
   const { createStateCoordinator, loadState } = await import("@main/state-io");
   const { registerIpcHandlers } = await import("@main/ipc-router");
-  const { closeBackupStore, setBackupLogger } = await import("@main/backup-store");
+  const { setBackupWriter } = await import("@main/backup-store");
   const { ProjectSession } = await import("@main/session");
   const { VisionQueue } = await import("@main/queues/vision");
   const { ProcessingQueue } = await import("@main/queues/processing-queue");
@@ -92,9 +93,15 @@ async function startApp(home: string) {
   const { UserWorkWrites } = await import("@main/quit-save");
 
   const paths = getAppPaths();
-  const records = openRecordsStore(paths.recordsPath, paths.logsDir);
-  const logger = createLogger(records, { debug: false });
-  setBackupLogger(logger);
+  const sessionStart = new Date();
+  let logger: ReturnType<typeof createLogger> | null = null;
+  const storeWriter = startStoreWriter({
+    recordsPath: paths.recordsPath, backupsPath: paths.backupsPath, fallbackPath: fallbackFile(paths.logsDir, sessionStart),
+    session: sessionStart.toISOString(), droppedRecord: droppedRecordsRow, onWarning: ({ message, fields }) => logger?.warn(message, fields)
+  });
+  const records = createRecordsStore(storeWriter, sessionStart);
+  logger = createLogger(records, { debug: false });
+  setBackupWriter(storeWriter);
   const { settings, file: settingsFile } = await loadSettings(paths.settingsPath, logger);
   const loadedState = await loadState(paths.statePath, logger);
   const uiState = loadedState.state;
@@ -133,8 +140,8 @@ async function startApp(home: string) {
       await stateCoordinator.flush();
       await pipelineWorkerPool.destroy();
       await recordsReader.close();
-      closeBackupStore();
-      logger.close();
+      setBackupWriter(null);
+      await storeWriter.close({ drain: true, timeoutMs: 1_000 });
     },
   };
 }

@@ -15,11 +15,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  // The store singleton holds a handle under the root; release it so the next test re-opens
-  // against its own root and the folder can be removed on every platform. Imported here, not at
-  // the top, so a spec's own vi.mock of node:os or electron still reaches the modules it loads.
-  const { closeBackupStore } = await import("@main/backup-store");
-  closeBackupStore();
   delete process.env.FOTOREADY_DATA_DIR;
   if (root !== null) {
     await rm(root, { recursive: true, force: true });

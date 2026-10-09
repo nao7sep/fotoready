@@ -61,8 +61,7 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
-  // not recorded: state.json is volatile UI state and nothing else (pane widths, histogram placement),
-  // so it stays out of the backup history; the write is still atomic.
+  // not recorded: state.json is UI state (pane widths, histogram placement), not the user's work.
   await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized));
 }
 

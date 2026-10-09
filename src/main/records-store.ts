@@ -1,15 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { utcStamp } from "@shared/time";
-import { FORMAT_VERSIONS, NewerFormatError } from "@shared/format-versions";
 import type { LogLevel } from "@shared/types/log";
 import { jsonSafe } from "./json-safe";
-import { assertSqliteFormatVersion, InvalidSqliteFormatError, openSqliteStore } from "./sqlite-format-version";
+import type { RecordRow } from "./records-tables";
+import type { StoreWriter } from "./store-writer";
 
-// The app's records database (data-lifecycle-conventions, Records; logging-conventions). The main
-// process is its only writer; the renderer forwards its entries over IPC. Every row carries its
-// time, its session (this launch, by its start time) and the task it belongs to, if any.
+// The app's records (data-lifecycle-conventions, Records; logging-conventions). The main process
+// makes each record JSON-safe and hands it to the store writer, which stores it off the main process;
+// the renderer forwards its entries over IPC. Every row carries its time, its session (this launch, by
+// its start time) and the task it belongs to, if any.
 
 /** One log line: the envelope and its JSON-safe fields. */
 export type LogRecord = {
@@ -44,65 +44,26 @@ export interface RecordsStore {
   readonly session: string;
   writeLog(record: LogRecord): void;
   writeProviderCall(record: ProviderCallRecord): void;
-  /**
-   * Called after each record the database stored; a record that went to the fallback file is not in
-   * the database, so it calls nothing. The Records window follows the database through it.
-   */
-  onStored(listener: () => void): void;
-  /** Idempotent and best-effort; safe to call from exit hooks. */
-  close(): void;
 }
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS log_records (
-  id      INTEGER PRIMARY KEY,
-  time    TEXT NOT NULL,
-  session TEXT NOT NULL,
-  task_id TEXT,
-  level   TEXT NOT NULL,
-  message TEXT NOT NULL,
-  fields  TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_log_records_session ON log_records (session);
-CREATE INDEX IF NOT EXISTS idx_log_records_task_id ON log_records (task_id);
-CREATE TABLE IF NOT EXISTS provider_calls (
-  id          INTEGER PRIMARY KEY,
-  time        TEXT NOT NULL,
-  session     TEXT NOT NULL,
-  task_id     TEXT,
-  provider    TEXT NOT NULL,
-  endpoint    TEXT NOT NULL,
-  role        TEXT NOT NULL,
-  model       TEXT NOT NULL,
-  attempt     INTEGER NOT NULL,
-  duration_ms INTEGER NOT NULL,
-  request     TEXT NOT NULL,
-  response    TEXT,
-  error       TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_provider_calls_session ON provider_calls (session);
-CREATE INDEX IF NOT EXISTS idx_provider_calls_task_id ON provider_calls (task_id);
-`;
-
 // Writes one record as a JSON line to this session's `yyyymmdd-hhmmss-utc.log` under
-// `fallbackDir`, and when that fails, to the console, after telling `onFileFailure` why.
-function writeTextRecord(
-  fallbackDir: string,
-  sessionStart: Date,
-  line: Record<string, unknown>,
-  level: LogLevel,
-  onFileFailure: (error: unknown) => void
-): void {
+// `fallbackDir`, and when that fails, to the console.
+function writeTextRecord(fallbackDir: string, sessionStart: Date, line: Record<string, unknown>, level: LogLevel): void {
   const text = `${JSON.stringify(line)}\n`;
   try {
     fs.mkdirSync(fallbackDir, { recursive: true });
-    fs.appendFileSync(path.join(fallbackDir, `${utcStamp(sessionStart)}.log`), text);
+    fs.appendFileSync(fallbackFile(fallbackDir, sessionStart), text);
     return;
   } catch (error) {
-    onFileFailure(error);
+    console.error("[records] the fallback log file could not be written; writing to the console", error);
   }
   const sink = level === "error" || level === "warn" ? console.error : console.log;
   sink(text.trimEnd());
+}
+
+/** This session's text file under `fallbackDir`, which takes the records the database cannot. */
+export function fallbackFile(fallbackDir: string, sessionStart: Date): string {
+  return path.join(fallbackDir, `${utcStamp(sessionStart)}.log`);
 }
 
 /**
@@ -110,147 +71,67 @@ function writeTextRecord(
  * exists: to the session's text file under `fallbackDir`, then to the console. Never throws.
  */
 export function writeFallbackRecord(fallbackDir: string, sessionStart: Date, line: Record<string, unknown>, level: LogLevel): void {
-  writeTextRecord(fallbackDir, sessionStart, line, level, (error) =>
-    console.error("[records] the fallback log file could not be written; writing to the console", error)
-  );
+  writeTextRecord(fallbackDir, sessionStart, line, level);
 }
 
-/**
- * Opens the records database at `file` for one session. A record the database cannot take is
- * written as a JSON line to this session's text file under `fallbackDir`, and when that fails too,
- * to the console. Never throws.
- */
-export function openRecordsStore(file: string, fallbackDir: string, sessionStart = new Date()): RecordsStore {
-  const session = sessionStart.toISOString();
-  let db: { handle: DatabaseSync; insertLog: StatementSync; insertCall: StatementSync } | null = null;
-  let dbFailureNoted = false;
-  let fileFailureNoted = false;
-  let storedListener: (() => void) | null = null;
-
-  const writeFallback = (line: Record<string, unknown>, level: LogLevel): void => {
-    writeTextRecord(fallbackDir, sessionStart, line, level, (error) => {
-      if (fileFailureNoted) return;
-      fileFailureNoted = true;
-      console.error("[records] the fallback log file could not be written; writing to the console", error);
-    });
-  };
-
-  const noteDbFailure = (error: unknown): void => {
-    if (dbFailureNoted) return;
-    dbFailureNoted = true;
-    console.error("[records] the records database could not be written; writing records to a text file", error);
-    writeFallback(
-      { time: new Date().toISOString(), level: "warn", message: "records database unavailable", mod: "main.records", file, err: jsonSafe(error) },
-      "warn"
-    );
-  };
-
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    const opened = openSqliteStore(file, FORMAT_VERSIONS.records, SCHEMA);
-    try {
-      // First, so a database a newer build wrote is left exactly as it is and records go to the text file.
-      opened.exec("PRAGMA journal_mode = WAL");
-      opened.exec("PRAGMA synchronous = NORMAL");
-      db = {
-        handle: opened,
-        insertLog: opened.prepare(
-          "INSERT INTO log_records (time, session, task_id, level, message, fields) VALUES (?, ?, ?, ?, ?, ?)"
-        ),
-        insertCall: opened.prepare(
-          "INSERT INTO provider_calls (time, session, task_id, provider, endpoint, role, model, attempt, duration_ms, request, response, error) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-      };
-    } catch (error) {
-      opened.close();
-      throw error;
-    }
-  } catch (error) {
-    noteDbFailure(error);
-  }
-
-  const write = (
-    insert: (open: NonNullable<typeof db>) => void,
-    fallback: () => Record<string, unknown>,
-    level: LogLevel
-  ): void => {
-    if (db) {
-      let stored = false;
-      try {
-        db.handle.exec("BEGIN IMMEDIATE");
-        try {
-          assertSqliteFormatVersion(db.handle, FORMAT_VERSIONS.records, file);
-          insert(db);
-          db.handle.exec("COMMIT");
-          stored = true;
-        } catch (error) {
-          try { db.handle.exec("ROLLBACK"); } catch { /* Preserve the write failure. */ }
-          throw error;
-        }
-      } catch (error) {
-        if (error instanceof NewerFormatError || error instanceof InvalidSqliteFormatError) {
-          const refused = db;
-          db = null;
-          try { refused?.handle.close(); } catch { /* Preserve admission failure. */ }
-        }
-        noteDbFailure(error);
-      }
-      if (stored) {
-        // Outside the write's own catch: a listener that throws did not fail the write.
-        try {
-          storedListener?.();
-        } catch (error) {
-          console.error("[records] the stored-record listener failed", error);
-        }
-        return;
-      }
-    }
-    writeFallback(fallback(), level);
-  };
-
+/** A log line as the store writer stores it, serialized here on the main process. */
+export function logRow(record: LogRecord): RecordRow {
   return {
-    session,
-    writeLog(record) {
-      const taskId = typeof record.fields.taskId === "string" ? record.fields.taskId : null;
-      write(
-        (open) => open.insertLog.run(record.time, session, taskId, record.level, record.message, JSON.stringify(record.fields)),
-        () => ({ time: record.time, level: record.level, message: record.message, ...record.fields }),
-        record.level
-      );
-    },
-    writeProviderCall(record) {
-      const request = jsonSafe(record.request);
-      const response = jsonSafe(record.response);
-      const error = jsonSafe(record.error);
-      const level: LogLevel = error === null ? "info" : "warn";
-      write(
-        (open) =>
-          open.insertCall.run(
-            record.time, session, record.taskId, record.provider, record.endpoint, record.role, record.model,
-            record.attempt, Math.round(record.durationMs), JSON.stringify(request),
-            response === null ? null : JSON.stringify(response), error === null ? null : JSON.stringify(error)
-          ),
-        () => ({
-          time: record.time, level, message: "provider call", taskId: record.taskId, provider: record.provider,
-          endpoint: record.endpoint, role: record.role, model: record.model, attempt: record.attempt,
-          durationMs: Math.round(record.durationMs), request, response, error
-        }),
-        level
-      );
-    },
-    onStored(listener) {
-      storedListener = listener;
-    },
-    close() {
-      const open = db;
-      db = null;
-      if (!open) return;
-      try {
-        open.handle.close();
-      } catch (error) {
-        console.error("[records] the records database could not be closed", error);
-      }
-    }
+    table: "log",
+    time: record.time,
+    taskId: typeof record.fields.taskId === "string" ? record.fields.taskId : null,
+    level: record.level,
+    message: record.message,
+    fields: JSON.stringify(record.fields),
+    fallback: JSON.stringify({ time: record.time, level: record.level, message: record.message, ...record.fields })
+  };
+}
+
+/** A provider call as the store writer stores it, serialized here on the main process. */
+export function providerCallRow(record: ProviderCallRecord): RecordRow {
+  const request = jsonSafe(record.request);
+  const response = jsonSafe(record.response);
+  const error = jsonSafe(record.error);
+  // The Records window reads a failed call as an error (records-queries.ts).
+  const level: LogLevel = error === null ? "info" : "error";
+  const durationMs = Math.round(record.durationMs);
+  return {
+    table: "call",
+    time: record.time,
+    taskId: record.taskId,
+    provider: record.provider,
+    endpoint: record.endpoint,
+    role: record.role,
+    model: record.model,
+    attempt: record.attempt,
+    durationMs,
+    request: JSON.stringify(request),
+    response: response === null ? null : JSON.stringify(response),
+    error: error === null ? null : JSON.stringify(error),
+    level,
+    fallback: JSON.stringify({
+      time: record.time, level, message: "provider call", taskId: record.taskId, provider: record.provider,
+      endpoint: record.endpoint, role: record.role, model: record.model, attempt: record.attempt,
+      durationMs, request, response, error
+    })
+  };
+}
+
+/** The record that reports how many records the busy writer dropped. */
+export function droppedRecordsRow(count: number): RecordRow {
+  return logRow({
+    time: new Date().toISOString(),
+    level: "warn",
+    message: "records were dropped while the records store was busy",
+    fields: { mod: "main.records", count }
+  });
+}
+
+/** This session's records, handed to the store writer; never waits and never throws. */
+export function createRecordsStore(writer: Pick<StoreWriter, "writeRecord">, sessionStart: Date): RecordsStore {
+  return {
+    session: sessionStart.toISOString(),
+    writeLog: (record) => writer.writeRecord(logRow(record)),
+    writeProviderCall: (record) => writer.writeRecord(providerCallRow(record))
   };
 }

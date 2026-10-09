@@ -10,7 +10,7 @@ import {
   type RecordSummary
 } from "../shared/records.ts";
 
-// The Records window's reads of records.sqlite3 (records-store.ts owns the schema). They run on the
+// The Records window's reads of records.sqlite3 (records-tables.ts owns the schema). They run on the
 // records worker, never on the main process, and only read.
 //
 // The worker loads this module under Node's own TypeScript stripping in the tests, so its imports

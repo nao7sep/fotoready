@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
-import { constants as fsConstants, type Dirent } from "node:fs";
+import type { Dirent } from "node:fs";
 import path from "node:path";
 import { shell } from "electron";
 import type { Logger } from "@shared/types/log";
+import { record } from "./backup-store";
 import { message, type Message } from "@shared/i18n/translate";
 
 export type DirectoryAsset = {
@@ -97,14 +98,9 @@ export async function importDirectoryAssets(
     }
 
     const entry = directoryAssetFromFileName(dir, sourceFileName);
+    let bytes: Buffer;
     try {
-      // not recorded: imported LUTs and stamps are copied instruments, including
-      // text-based .cube/.svg files, not managed text the user edits in place.
-      // A copy keeps the source's modified time and mode (content-lifecycle conventions, Files).
-      const source = await fs.stat(absoluteSource);
-      await fs.copyFile(absoluteSource, entry.path, fsConstants.COPYFILE_EXCL);
-      await fs.chmod(entry.path, source.mode & 0o7777);
-      await fs.utimes(entry.path, source.atime, source.mtime);
+      bytes = await copyNewFile(absoluteSource, entry.path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
         knownAssets.set(normalizedFileName, entry);
@@ -116,6 +112,9 @@ export async function importDirectoryAssets(
       }
       throw error;
     }
+    // recorded: a LUT or stamp the user adds is protected, once, from the exact bytes written
+    // (data-backup-conventions, Capture).
+    record(entry.path, bytes);
 
     knownAssets.set(normalizedFileName, entry);
     results.push({
@@ -124,6 +123,28 @@ export async function importDirectoryAssets(
     });
   }
   return results;
+}
+
+/**
+ * Copies `source` to `destination`, which must not exist yet, and returns the bytes written. The copy
+ * keeps the source's modified time and mode (content-lifecycle conventions, Files). A copy that fails
+ * after creating the destination removes it, since nothing else can own a file created exclusively.
+ */
+async function copyNewFile(source: string, destination: string): Promise<Buffer> {
+  const stat = await fs.stat(source);
+  const bytes = await fs.readFile(source);
+  const file = await fs.open(destination, "wx", stat.mode & 0o7777);
+  try {
+    await file.writeFile(bytes);
+    if (process.platform !== "win32") await file.chmod(stat.mode & 0o7777);
+    await file.utimes(stat.atime, stat.mtime);
+    await file.close();
+  } catch (error) {
+    await file.close().catch(() => undefined);
+    await fs.rm(destination, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  return bytes;
 }
 
 export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {

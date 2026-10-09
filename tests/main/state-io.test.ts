@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStateCoordinator, loadState, saveState } from "@main/state-io";
-import { closeBackupStore } from "@main/backup-store";
 import { defaultUiState } from "@shared/validation/state";
 import type { AppLogger } from "@main/logger";
 
@@ -32,7 +31,6 @@ afterEach(async () => {
   vi.restoreAllMocks();
   // Close the store singleton so it releases this root's file handle and re-opens against the next test's
   // throwaway root.
-  closeBackupStore();
   if (prevHome === undefined) delete process.env[ENV_VAR];
   else process.env[ENV_VAR] = prevHome;
   await fs.rm(dir, { recursive: true, force: true });

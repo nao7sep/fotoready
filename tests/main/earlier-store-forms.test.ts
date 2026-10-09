@@ -10,7 +10,6 @@ vi.mock("@adapters/exiftool", () => ({
 
 import { ProjectSession } from "@main/session";
 import { loadSettings, saveSettings } from "@main/settings-io";
-import { closeBackupStore } from "@main/backup-store";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { defaultGlobalSettings } from "@shared/defaults";
 
@@ -24,7 +23,6 @@ const roots: string[] = [];
 const prevDataDir = process.env.FOTOREADY_DATA_DIR;
 
 afterEach(async () => {
-  closeBackupStore();
   if (prevDataDir === undefined) delete process.env.FOTOREADY_DATA_DIR;
   else process.env.FOTOREADY_DATA_DIR = prevDataDir;
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));

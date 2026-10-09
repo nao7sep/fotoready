@@ -15,8 +15,8 @@ export const FORMAT_VERSIONS = {
   taskSidecar: 1,
   /** `records.sqlite3`. */
   records: 1,
-  /** `backups.sqlite3`. */
-  backups: 1
+  /** `backups.sqlite3`; 2 added per-session rows, and a version 1 store is upgraded in place. */
+  backups: 2
 } as const;
 
 export const FORMAT_VERSION_KEY = "formatVersion";

@@ -3,13 +3,8 @@ import type { LogFields, LogLevel, Logger } from "@shared/types/log";
 import { jsonSafeObject } from "./json-safe";
 import type { LogRecord, RecordsStore } from "./records-store";
 
-export interface AppLogger extends Logger {
-  /**
-   * Close the records store. Writes are synchronous, so there is nothing
-   * buffered to flush. Idempotent and best-effort; safe to call from exit hooks.
-   */
-  close(): void;
-}
+/** The session logger; its records are flushed by the store writer's bounded drain at quit. */
+export type AppLogger = Logger;
 
 export type CreateLoggerOptions = {
   /**
@@ -37,11 +32,11 @@ function buildRecord(level: LogLevel, message: string, fields?: LogFields): LogR
 }
 
 /**
- * Writes each log line as a record (logging-conventions). Writes are synchronous, so the last
- * lines before a crash are already stored; the records store owns the fallback when a write
- * fails. Never throws.
+ * Writes each log line as a record (logging-conventions), handed to the store writer without waiting;
+ * the writer owns the fallback when the database cannot take it. Lines from just before a crash may
+ * be lost (developer decision). Never throws.
  */
-export function createLogger(records: RecordsStore, options: CreateLoggerOptions): AppLogger {
+export function createLogger(records: Pick<RecordsStore, "writeLog">, options: CreateLoggerOptions): AppLogger {
   const { debug } = options;
 
   const emit = (level: LogLevel, message: string, fields?: LogFields): void => {
@@ -61,32 +56,25 @@ export function createLogger(records: RecordsStore, options: CreateLoggerOptions
     debug: (message, fields) => emit("debug", message, fields),
     info: (message, fields) => emit("info", message, fields),
     warn: (message, fields) => emit("warn", message, fields),
-    error: (message, fields) => emit("error", message, fields),
-    close: () => records.close()
+    error: (message, fields) => emit("error", message, fields)
   };
 }
 
 /**
  * Global last-resort hooks: log the failure with full fidelity before the
  * process dies, then preserve default behavior (re-throw uncaught exceptions,
- * mark a non-zero exit code for unhandled rejections). The records store is
- * closed on `exit`. Called exactly once per launch — `bootstrap` runs a single time and
- * only the window is recreated on macOS re-activate, so there is no second logger
- * to swap in.
+ * mark a non-zero exit code for unhandled rejections). Called exactly once per
+ * launch — `bootstrap` runs a single time and only the window is recreated on
+ * macOS re-activate, so there is no second logger to swap in.
  */
 export function installCrashHandlers(logger: AppLogger): void {
   process.on("uncaughtException", (error) => {
     logger.error("uncaught exception", { mod: "main", err: error });
-    logger.close();
     throw error;
   });
 
   process.on("unhandledRejection", (reason) => {
     logger.error("unhandled rejection", { mod: "main", err: reason });
     process.exitCode = 1;
-  });
-
-  process.on("exit", () => {
-    logger.close();
   });
 }

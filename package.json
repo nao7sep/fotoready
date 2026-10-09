@@ -36,7 +36,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-konva": "^19.2.5",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

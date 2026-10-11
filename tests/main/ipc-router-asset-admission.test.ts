@@ -16,11 +16,13 @@ const { registerIpcHandlers } = await import("@main/ipc-router");
 
 it("orders admitted asset mutations and releases the lane after import failure", async () => {
   let fail!: (error: unknown) => void;
+  const invalidateAssetPreviews = vi.fn();
+  owned.deleteStamps.mockImplementationOnce(async () => { expect(invalidateAssetPreviews).toHaveBeenCalledOnce(); });
   owned.importStamps.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
   registerIpcHandlers({
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     settings: { stampFolder: "" }, paths: { stampsDir: "/stamps", bundledStampsDir: "/bundled" },
-    projectSession: { setSnapshotListener: () => {} },
+    projectSession: { setSnapshotListener: () => {}, invalidateAssetPreviews },
   } as unknown as RouterContext);
   const first = owned.handlers.get("stamps.import")!(["/new.png"]);
   const failure = new Error("import failed");
@@ -32,5 +34,6 @@ it("orders admitted asset mutations and releases the lane after import failure",
   fail(failure);
   await refused;
   await second;
+  expect(invalidateAssetPreviews).toHaveBeenCalledTimes(2);
   expect(owned.deleteStamps).toHaveBeenCalledWith(["/old.png"], "", "/stamps");
 });

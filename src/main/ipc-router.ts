@@ -96,7 +96,15 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
 
   let assetWrites: Promise<unknown> = Promise.resolve();
   const mutateAssets = <T>(work: () => Promise<T>): Promise<T> => {
-    const result = assetWrites.then(work, work);
+    const mutate = async (): Promise<T> => {
+      try { return await work(); }
+      finally {
+        // A batch can change earlier files before a later import or trash operation fails.
+        ctx.projectSession.invalidateAssetPreviews();
+        assetThumbnailCache.clear();
+      }
+    };
+    const result = assetWrites.then(mutate, mutate);
     assetWrites = result.catch(() => undefined);
     return result;
   };

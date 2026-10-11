@@ -220,7 +220,11 @@ export function AssetPickerModal<T extends PickerEntry>({
       if (filePaths.length === 0) return;
 
       const imported = await onImport(filePaths);
-      await onRefresh();
+      try { await onRefresh(); }
+      catch (refreshError) {
+        setOperationError("import", presentFailure(refreshError, message("failure.assetImportUnrefreshed"), "renderer asset refresh after import failed"));
+        return;
+      }
       setOperationError("import", null);
       onImportComplete?.(imported);
 
@@ -238,7 +242,13 @@ export function AssetPickerModal<T extends PickerEntry>({
           : message("assets.skippedSome", { count: skippedEntries.length, total: imported.length, names: namesPreview(names, t, list) }));
       }
     } catch (importError) {
-      setOperationError("import", presentFailure(importError, message("failure.assetImport"), "renderer asset import failed"));
+      let refreshed = true;
+      try { await onRefresh(); }
+      catch (refreshError) {
+        refreshed = false;
+        presentFailure(refreshError, null, "renderer asset refresh after failed import failed");
+      }
+      setOperationError("import", presentFailure(importError, message(refreshed ? "failure.assetImport" : "failure.assetImportUnrefreshed"), "renderer asset import failed"));
     } finally { endOperation(); }
   }
 

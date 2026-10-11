@@ -168,13 +168,15 @@ describe("StampPickerModal groups", () => {
     mocks.importStamps.mockRejectedValue(new Error(
       "Error invoking remote method 'stamps.import': EACCES /private/tmp/FOTOREADY_SENTINEL"
     ));
-    await renderStampPicker();
+    const onReload = vi.fn(async () => undefined);
+    await renderStampPicker({ onReload });
     await clickButton("Import…");
 
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent).toContain(
-      "Assets could not be imported. The library is unchanged; check that the selected files are still available and try again."
+      "Import stopped before all files were added. The library was refreshed; check which files were added before trying again."
     );
+    expect(onReload).toHaveBeenCalledOnce();
     expect(error?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SENTINEL|invoking remote method/i);
     expect(error?.querySelectorAll("svg")).toHaveLength(1); // the close X only
     expect(error?.querySelector(".operation-result-close-icon")).not.toBeNull();
@@ -187,9 +189,33 @@ describe("StampPickerModal groups", () => {
       })
     }));
   });
+
+  it("keeps the import failure truthful when a partial result cannot be refreshed", async () => {
+    mocks.pickFiles.mockResolvedValue(["/first.png", "/missing.png"]);
+    mocks.importStamps.mockRejectedValue(new Error("second source unavailable"));
+    const onReload = vi.fn(async () => { throw new Error("library unavailable"); });
+    await renderStampPicker({ onReload });
+    await clickButton("Import…");
+    expect(onReload).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "The library could not be refreshed after the import attempt. Some files may already have been added. Reopen the picker to check its contents before trying again."
+    );
+    expect(button("Import…")?.disabled).toBe(false);
+  });
+
+  it("reports refresh failure without denying the import that already completed", async () => {
+    mocks.pickFiles.mockResolvedValue(["/new.png"]);
+    mocks.importStamps.mockResolvedValue([{ fileName: "new.png", path: "/new.png", status: "imported" }]);
+    const onReload = vi.fn(async () => { throw new Error("library unavailable"); });
+    await renderStampPicker({ onReload });
+    await clickButton("Import…");
+    expect(onReload).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Some files may already have been added");
+    expect(document.querySelector('[role="alert"]')?.textContent).not.toContain("Import stopped");
+  });
 });
 
-async function renderStampPicker(overrides: { onUse?: (path: string) => Promise<void>; onClose?: () => void } = {}): Promise<void> {
+async function renderStampPicker(overrides: { onUse?: (path: string) => Promise<void>; onClose?: () => void; onReload?: () => Promise<void> } = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(
       ConfirmerProvider,

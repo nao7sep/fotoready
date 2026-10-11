@@ -13,7 +13,7 @@ const HEIGHT = 2;
 type StageCall = { strength: number; release(): void };
 
 /** A worker pool whose stage renders fill the bitmap with the LUT strength and can be held open. */
-function fakePool(options: { holdStages?: boolean } = {}) {
+function fakePool(options: { holdStages?: boolean; assetPixel?: number } = {}) {
   const baseCalls: string[] = [];
   const stageCalls: StageCall[] = [];
   const pool = {
@@ -23,12 +23,13 @@ function fakePool(options: { holdStages?: boolean } = {}) {
     },
     async renderStage(input: { pipeline: Pipeline }) {
       const strength = Number(input.pipeline.ops[0].params.strength);
+      const pixel = options.assetPixel ?? Math.round(strength * 100);
       let release!: () => void;
       const gate = new Promise<void>((resolve) => { release = resolve; });
       stageCalls.push({ strength, release });
       if (!options.holdStages) release();
       await gate;
-      return { kind: "preview" as const, bitmap: filled(Math.round(strength * 100)).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: input.pipeline };
+      return { kind: "preview" as const, bitmap: filled(pixel).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: input.pipeline };
     }
   };
   return { pool: pool as unknown as PipelineWorkerPool, baseCalls, stageCalls };
@@ -44,6 +45,52 @@ function directRender(pool: PipelineWorkerPool, session: ProjectSession, taskId:
 }
 
 describe("PreviewService stage cache", () => {
+  it("rereads an explicitly reselected overlay without manufacturing a recipe edit", async () => {
+    const options = { assetPixel: 10 };
+    const { pool, stageCalls } = fakePool(options);
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
+    const { task } = arrange(session.project());
+    task.pipeline.ops = [{ id: "stamp", type: "stamp", enabled: true, params: {
+      assetPath: "/assets/same.png", x: 0, y: 0, width: 0.2, height: 0.2,
+      lockAspectRatio: true, flipHorizontal: false, flipVertical: false, opacity: 1, rotation: 0
+    } }];
+    expect(await firstPixel(await session.renderPreview(task.id))).toBe(10);
+    const before = structuredClone(task);
+    options.assetPixel = 20;
+    session.updateOpParams(task.id, "stamp", { assetPath: "/assets/same.png" }, {
+      expectedParams: structuredClone(task.pipeline.ops[0].params), expectedOriginalId: task.originalId
+    });
+    expect(await firstPixel(await session.renderPreview(task.id))).toBe(20);
+    expect(task).toEqual(before);
+    expect(stageCalls).toHaveLength(2);
+  });
+
+  it.each(["cubePath", "assetPath"])("retires %s task stages on library mutation, including held renders and other tasks", async (assetParam) => {
+    const options = { holdStages: false, assetPixel: 10 };
+    const { pool, stageCalls } = fakePool(options);
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
+    const a = arrange(session.project(), "a").task;
+    const b = arrange(session.project(), "b").task;
+    for (const task of [a, b]) {
+      task.pipeline.ops[0].params = { [assetParam]: "/assets/replaced.png", strength: 0.1 };
+    }
+    expect(await firstPixel(await session.renderPreview(a.id))).toBe(10);
+    options.holdStages = true;
+    const held = session.renderPreview(b.id);
+    await until(() => stageCalls.length === 2);
+    const before = structuredClone(session.project());
+    session.invalidateAssetPreviews();
+    options.assetPixel = 20;
+    options.holdStages = false;
+    stageCalls[1].release();
+    expect(await firstPixel(await held)).toBe(10);
+    expect(await firstPixel(await session.renderPreview(a.id))).toBe(20);
+    expect(await firstPixel(await session.renderPreview(b.id))).toBe(20);
+    expect(await firstPixel(await session.renderPreview(b.id))).toBe(20);
+    expect(stageCalls).toHaveLength(4);
+    expect(session.project()).toEqual(before);
+  });
+
   it("never serves a stage rendered for an edit that was superseded while it rendered", async () => {
     const { pool, stageCalls } = fakePool({ holdStages: true });
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
@@ -151,7 +198,8 @@ function filled(value: number): Uint8Array {
   return new Uint8Array(WIDTH * HEIGHT * 4).fill(value);
 }
 
-async function firstPixel(preview: { dataUrl: string }): Promise<number> {
+async function firstPixel(preview: { dataUrl: string } | null): Promise<number> {
+  if (!preview) throw new Error("preview unexpectedly superseded");
   const png = Buffer.from(preview.dataUrl.replace(/^data:image\/png;base64,/, ""), "base64");
   const { data } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
   return data[0];

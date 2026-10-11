@@ -93,6 +93,16 @@ export class ProjectSession {
   /** Current project authority without calculating presentation-only privacy warnings. */
   project(): Project { return this.#project; }
 
+  /** Library mutations can replace bytes without changing any recipe path. Retire whole cache
+   * objects, so a held render can finish for its caller without repopulating a current task cache. */
+  invalidateAssetPreviews(): void {
+    for (const task of this.#project.tasks) {
+      if (task.pipeline.ops.some((op) => op.params.assetPath || op.params.cubePath)) {
+        this.#previewService.invalidateTask(task.id);
+      }
+    }
+  }
+
   #computePrivacyWarnings(): Record<string, PrivacyWarning> {
     const out: Record<string, PrivacyWarning> = {};
     const originals = new Map(this.#project.originals.map((original) => [original.id, original]));
@@ -590,6 +600,10 @@ export class ProjectSession {
       task.originalId !== options.expectedOriginalId
     )) throw new Error("The task changed while the asset was being selected. Choose it again.");
     const nextOp = applyOpParamPatch(task.pipeline.ops[opIndex], patch, getOpModule);
+    if (options?.expectedParams && typeof patch.assetPath === "string") {
+      // Explicitly choosing the same image is a fresh read, even when its geometry is unchanged.
+      this.#previewService.invalidateTask(taskId);
+    }
     if (JSON.stringify(task.pipeline.ops[opIndex].params) === JSON.stringify(nextOp.params)) {
       return this.snapshot();
     }

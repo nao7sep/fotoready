@@ -11,6 +11,8 @@ type CacheValue = AssetThumbnail | Promise<AssetThumbnail>;
 export class AssetThumbnailCache {
   private readonly entries = new Map<string, CacheValue>();
 
+  clear(): void { this.entries.clear(); }
+
   async get(assetPath: string, longEdge?: number): Promise<AssetThumbnail> {
     const size = thumbnailSize(longEdge);
     const key = await thumbnailCacheKey(assetPath, size);
@@ -26,8 +28,10 @@ export class AssetThumbnailCache {
     this.trim();
     try {
       const thumbnail = await pending;
-      this.entries.set(key, thumbnail);
-      this.trim();
+      if (this.entries.get(key) === pending) {
+        this.entries.set(key, thumbnail);
+        this.trim();
+      }
       return thumbnail;
     } catch (error) {
       if (this.entries.get(key) === pending) {

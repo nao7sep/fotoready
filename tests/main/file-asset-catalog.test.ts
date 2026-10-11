@@ -56,6 +56,19 @@ describe("listDirectoryAssets", () => {
 });
 
 describe("importDirectoryAssets", () => {
+  it("keeps earlier imported files when a later source cannot be read", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
+    roots.push(root);
+    const source = path.join(root, "first.cube");
+    const library = path.join(root, "library");
+    fs.writeFileSync(source, "LUT_3D_SIZE 2\n");
+    await expect(importDirectoryAssets([source, path.join(root, "missing.cube")], library, [".cube"])).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await listDirectoryAssets(library, [".cube"])).toEqual([
+      { extension: ".cube", fileName: "first.cube", path: path.join(library, "first.cube") }
+    ]);
+    expect(fs.readFileSync(path.join(library, "first.cube"), "utf8")).toBe("LUT_3D_SIZE 2\n");
+  });
+
   it("keeps the imported file's modified time and mode", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
     roots.push(root);

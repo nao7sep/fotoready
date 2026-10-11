@@ -13,8 +13,6 @@ type RenderedAssetBitmap = {
   width: number;
 };
 
-const assetAspectRatioCache = new Map<string, number>();
-const assetBitmapCache = new Map<string, RenderedAssetBitmap>();
 const ASSET_ASPECT_SAMPLE_WIDTH = 1024;
 
 export function validateAssetOverlayParams(value: unknown, path: string): AssetOverlayParams {
@@ -83,16 +81,12 @@ export async function applyAssetOverlay(image: sharp.Sharp, params: AssetOverlay
 
 export async function readAssetAspectRatio(assetPath: string): Promise<number> {
   if (!assetPath) return 1;
-  const key = normalizeAssetCacheKey(assetPath);
-  const cached = assetAspectRatioCache.get(key);
-  if (cached !== undefined) {
-    return cached;
-  }
+  // Imported files can be replaced at the same path. Decode for this operation; PreviewService
+  // already caches unchanged stages without retaining every size/opacity variant in each worker.
   const rendered = await renderTrimmedAssetBitmap(assetPath, ASSET_ASPECT_SAMPLE_WIDTH, false);
   const aspectRatio = rendered.info.width > 0 && rendered.info.height > 0
     ? rendered.info.width / rendered.info.height
     : 1;
-  assetAspectRatioCache.set(key, aspectRatio);
   return aspectRatio;
 }
 
@@ -106,14 +100,6 @@ async function renderAssetBitmap(
 ): Promise<RenderedAssetBitmap> {
   const aspectRatio = await readAssetAspectRatio(assetPath);
   const sampleWidth = Math.max(width, Math.round(height * aspectRatio));
-  const key = `${normalizeAssetCacheKey(assetPath)}|${sampleWidth}|${opacity.toFixed(4)}|${flipHorizontal ? "h" : "-"}${flipVertical ? "v" : "-"}`;
-  const cached = assetBitmapCache.get(key);
-  if (cached) {
-    return {
-      ...cached,
-      data: Buffer.from(cached.data)
-    };
-  }
   const rendered = await renderTrimmedAssetBitmap(assetPath, sampleWidth, true);
   const pixels = Buffer.from(rendered.data);
   for (let index = 3; index < pixels.length; index += rendered.info.channels) {
@@ -126,11 +112,7 @@ async function renderAssetBitmap(
     height: flipped.info.height,
     width: flipped.info.width
   };
-  assetBitmapCache.set(key, bitmap);
-  return {
-    ...bitmap,
-    data: Buffer.from(bitmap.data)
-  };
+  return bitmap;
 }
 
 async function transformAssetPixels(
@@ -206,10 +188,6 @@ async function renderTrimmedAssetBitmap(
     data: Buffer.from(trimmed.data),
     info: { width: trimmed.info.width, height: trimmed.info.height, channels: 4 }
   };
-}
-
-function normalizeAssetCacheKey(assetPath: string): string {
-  return assetPath.trim();
 }
 
 function alphaBounds(data: Buffer, width: number, height: number, channels: number): { left: number; top: number; width: number; height: number } | null {

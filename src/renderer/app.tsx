@@ -628,6 +628,7 @@ function App(): React.JSX.Element {
   async function updateOpParams(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
     await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch, options?.expectedParams ? { ...options, expectedOriginalId: activeTask.originalId } : options));
+    if (options?.expectedParams && typeof patch.assetPath === "string") setPreviewAttempt((attempt) => attempt + 1);
   }
 
   async function setGenerateDescription(generateDescription: boolean): Promise<void> {
@@ -779,10 +780,12 @@ function App(): React.JSX.Element {
 
   async function reloadLuts(): Promise<void> {
     setLutEntries(await api.luts.list());
+    setPreviewAttempt((attempt) => attempt + 1);
   }
 
   async function reloadStamps(): Promise<void> {
     setStampEntries(await api.stamps.list());
+    setPreviewAttempt((attempt) => attempt + 1);
   }
 
   async function updateOutput(key: string, value: unknown, options?: TaskEditOptions): Promise<void> {

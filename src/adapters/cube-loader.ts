@@ -13,10 +13,11 @@ type CachedLut = { version: string; lut: CubeLut };
 // Least recently used first: a hit moves its entry to the end.
 const cache = new Map<string, CachedLut>();
 
-/** Loads a .cube file, reusing the parsed LUT while the file's size and modification time are unchanged. */
+/** Reuses a parsed lattice while its filesystem identity and change timestamps are unchanged. */
 export async function loadCubeLut(cubePath: string): Promise<CubeLut> {
-  const stats = await fs.stat(cubePath);
-  const version = `${stats.size}:${stats.mtimeMs}`;
+  const stats = await fs.stat(cubePath, { bigint: true });
+  // Import preserves source mtime; recreated files still have their own identity/change time.
+  const version = `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}`;
   const cached = cache.get(cubePath);
   cache.delete(cubePath);
   if (cached?.version === version) {

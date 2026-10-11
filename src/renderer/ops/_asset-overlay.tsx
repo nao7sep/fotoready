@@ -27,7 +27,12 @@ export function createAssetOverlayRenderer(definition: {
   return {
     type: definition.type,
     Card(props) {
-      const aspectRatio = useLocalAssetAspectRatio(props.params.assetPath);
+      const [sourceSelections, setSourceSelections] = useState(0);
+      const aspectRatio = useLocalAssetAspectRatio(props.params.assetPath, props.ctx.stamps, sourceSelections);
+      const sourceProps: AssetOverlayCardProps = { ...props, onParamsChange: async (patch, options) => {
+        await props.onParamsChange(patch, options);
+        setSourceSelections((count) => count + 1);
+      } };
       return (
         <AssetOverlayControls
           aspectRatio={aspectRatio}
@@ -37,7 +42,7 @@ export function createAssetOverlayRenderer(definition: {
           onParamsChange={props.onParamsChange}
           params={props.params}
           flipControlsPlacement={definition.flipControlsPlacement}
-          sourceAction={definition.renderSourceAction(props)}
+          sourceAction={definition.renderSourceAction(sourceProps)}
           sourceField={definition.renderSourceField(props)}
         />
       );
@@ -333,7 +338,7 @@ export async function normalizeAssetOverlayForPath(
   );
 }
 
-export function useLocalAssetAspectRatio(assetPath: string): number {
+export function useLocalAssetAspectRatio(assetPath: string, refreshedLibrary?: unknown, sourceSelections = 0): number {
   const [aspectRatio, setAspectRatio] = useState(1);
   useEffect(() => {
     let cancelled = false;
@@ -341,7 +346,7 @@ export function useLocalAssetAspectRatio(assetPath: string): number {
       if (!cancelled) setAspectRatio(ar);
     });
     return () => { cancelled = true; };
-  }, [assetPath]);
+  }, [assetPath, refreshedLibrary, sourceSelections]);
   return aspectRatio;
 }
 

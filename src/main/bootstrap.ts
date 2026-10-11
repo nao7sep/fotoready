@@ -381,8 +381,7 @@ export const QUIT_DEADLINE_MS = 5_000;
  * Ends the process at once. On macOS with Electron 44.2.0, one file read blocked on a stalled volume,
  * synchronous or asynchronous, on a worker thread or on the main process's I/O pool, kept the process
  * alive after `app.exit(0)` and `process.reallyExit(0)` until the read was released, while SIGKILL
- * ended it immediately. Node maps it to TerminateProcess on Windows (checked in section 4's
- * native qualification).
+ * ended it immediately. Node maps it to TerminateProcess on Windows; native Windows qualification remains pending.
  */
 function killProcess(): void {
   console.error("[main.quit] quitting did not finish in time; ending FotoReady");

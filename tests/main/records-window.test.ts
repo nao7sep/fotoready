@@ -188,3 +188,20 @@ describe("notifyRecordsChanged", () => {
     consoleError.mockRestore();
   });
 });
+
+describe("platform window persistence", () => {
+  it.each([
+    ["darwin", false],
+    ["win32", true],
+    ["linux", false],
+  ] as const)("persists bounds and the supported display mode on %s", async (platform, displayMode) => {
+    const { buildRecordsWindowOptions } = await import("@main/records-window");
+    const descriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
+    try {
+      Object.defineProperty(process, "platform", { ...descriptor, value: platform });
+      expect(buildRecordsWindowOptions("Records", "/tmp/preload.mjs").windowStatePersistence).toEqual({ bounds: true, displayMode });
+    } finally {
+      Object.defineProperty(process, "platform", descriptor);
+    }
+  });
+});

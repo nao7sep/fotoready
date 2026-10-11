@@ -8,8 +8,9 @@ import { ownLiveChild } from "../helpers/live-child";
 
 const exec = promisify(execFile);
 
-it.runIf(process.platform === "win32")("stops only the disposable launcher runtime and leaves an unrelated process alive", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-launcher-stop-"));
+it.each([false, true])("stops only its disposable runtime (ignores SIGTERM: %s)", async (ignoreTerm) => {
+  // Match the script module's resolved root, including macOS /var -> /private/var.
+  const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-launcher-stop-")));
   const scripts = path.join(dir, "scripts");
   await fs.mkdir(scripts);
   const helper = path.join(scripts, "launcher-runtime.mjs");
@@ -17,7 +18,9 @@ it.runIf(process.platform === "win32")("stops only the disposable launcher runti
   // the stop command to this fixture, even if the developer has FotoReady running.
   await fs.copyFile(new URL("../../scripts/launcher-runtime.mjs", import.meta.url), helper);
   const code = "process.stdout.write('ready\\n'); setInterval(() => {}, 1000)";
-  const owned = ownLiveChild(spawn(process.execPath, ["-e", code, path.join(scripts, "run-dev.ps1")]), "owned launcher fixture");
+  const ownedCode = (ignoreTerm ? "process.on('SIGTERM', () => {}); " : "") + code;
+  const launcher = process.platform === "win32" ? "run-dev.ps1" : "run-dev.command";
+  const owned = ownLiveChild(spawn(process.execPath, ["-e", ownedCode, path.join(scripts, launcher)]), "owned launcher fixture");
   const unrelated = ownLiveChild(spawn(process.execPath, ["-e", code, path.join(dir, "unrelated.js")]), "unrelated fixture");
   try {
     await Promise.all([owned.waitReady(), unrelated.waitReady()]);
@@ -25,6 +28,9 @@ it.runIf(process.platform === "win32")("stops only the disposable launcher runti
     const { stdout } = await exec(process.execPath, [helper, "stop", "electron", "FotoReady", "FotoReady"], commandOptions);
     expect(stdout).toContain(`pid ${owned.child.pid}`);
     await owned.waitClosed();
+    if (process.platform !== "win32") {
+      expect(owned.child.signalCode).toBe(ignoreTerm ? "SIGKILL" : "SIGTERM");
+    }
     expect(unrelated.child.exitCode).toBeNull();
     expect(unrelated.child.signalCode).toBeNull();
     const second = await exec(process.execPath, [helper, "stop", "electron", "FotoReady", "FotoReady"], commandOptions);

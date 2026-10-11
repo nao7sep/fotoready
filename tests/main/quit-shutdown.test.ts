@@ -61,11 +61,19 @@ function steps(overrides: Partial<Parameters<typeof installQuitShutdown>[0]> = {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  electron.power.clear();
   electron.listeners.clear();
   electron.state.exits = 0;
   electron.state.exitCalls = [];
   electron.quit.mockClear();
   electron.exit.mockClear();
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("quit shutdown", () => {
@@ -136,8 +144,20 @@ describe("quit shutdown", () => {
 });
 
 describe("the total exit deadline", () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  it.each(["ordinary quit", "session end", "unsettled stop"])("uses the real force-exit adapter for %s", async (route) => {
+    // Stub only the outbound syscall: never terminate the test runner.
+    const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const quit = installQuitShutdown(steps({
+      stop: route === "unsettled stop" ? async () => false : () => new Promise<boolean>(() => {})
+    }));
+    if (route === "session end") quit.endSession();
+    else electron.quit();
+    await vi.advanceTimersByTimeAsync(route === "unsettled stop" ? 0 : QUIT_DEADLINE_MS);
+    expect(kill).toHaveBeenCalledExactlyOnceWith(process.pid, "SIGKILL");
+    expect(electron.exit).not.toHaveBeenCalled();
+    expect(electron.state.exits).toBe(0);
+  });
 
   it("is 5 s", () => {
     expect(QUIT_DEADLINE_MS).toBe(5_000);

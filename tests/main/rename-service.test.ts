@@ -97,13 +97,12 @@ const SLUG_SIZE = BUILTIN_RENAME_TEMPLATE_IDS.slugSize;
 const ORIGINAL_ONLY = BUILTIN_RENAME_TEMPLATE_IDS.original;
 
 describe("previewRename", () => {
-  it.runIf(process.platform === "win32")("refuses a case-only destination on a case-insensitive volume without changing either file", async () => {
+  it("refuses a case-only destination without changing either file", async () => {
     const staged = await writeImage("SUNSET.jpg");
     const sidecar = await writeSidecar(staged);
     const imageBytes = await fs.readFile(staged);
     const sidecarBytes = await fs.readFile(sidecar);
-    // This qualification requires the ordinary case-insensitive Windows volume.
-    expect((await fs.stat(path.join(workDir, "sunset.jpg"))).ino).toBe((await fs.stat(staged)).ino);
+    // The app refuses this collision on both case-sensitive and case-insensitive volumes.
     const project: Project = {
       outputDir: workDir,
       originals: [makeOriginal("o1", "DSC_0001.jpg")],

@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Electron's quit, reduced to what the close guard and the shutdown hold see: before-quit, then the
 // windows close (each close can be prevented), then will-quit, and the process ends only if
@@ -22,7 +22,7 @@ const electron = vi.hoisted(() => {
     if (emit("will-quit")) return;
     state.exits += 1;
   });
-  return { listeners, handlers, state, quit, closeQuits: { value: true } };
+  return { listeners, handlers, state, quit, exit: vi.fn(), closeQuits: { value: true } };
 });
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
@@ -35,7 +35,7 @@ vi.mock("electron", async () => {
       },
       off() {},
       quit: electron.quit,
-      exit: vi.fn(),
+      exit: electron.exit,
       isPackaged: false
     },
     BrowserWindow: { fromWebContents: () => electron.state.window, getFocusedWindow: () => null },
@@ -75,6 +75,7 @@ function installApp(save: () => Promise<boolean> = async () => true) {
   const { win, send } = fakeWindow();
   const exitState = { reason: "unknown" };
   const stop = vi.fn(async () => true);
+  const sessionEnded = vi.fn();
   let guard: ReturnType<typeof installCloseGuard> | null = null;
   const quit = installQuitShutdown({
     prepare: async () => {
@@ -83,20 +84,27 @@ function installApp(save: () => Promise<boolean> = async () => true) {
     },
     answerForSessionEnd: () => guard?.answerForSessionEnd(),
     stop,
-    sessionEnded: () => {}
+    sessionEnded
   });
   const logger = { warn: vi.fn() };
   guard = installCloseGuard(win as never, exitState, quit, logger);
   const approve = (allow: boolean) => electron.handlers.get("lifecycle.approveClose")!({ sender: win }, allow, send.mock.calls.at(-1)?.[1]?.requestId);
-  return { win, send, exitState, stop, quit, approve, logger };
+  return { win, send, exitState, stop, quit, approve, logger, sessionEnded };
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  electron.exit.mockClear();
   electron.listeners.clear();
   electron.handlers.clear();
   electron.state.exits = 0;
   electron.closeQuits.value = true;
   electron.quit.mockClear();
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 describe("close guard quit", () => {
@@ -225,5 +233,59 @@ describe("close guard quit", () => {
     quit.endSession();
 
     await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+  });
+});
+
+describe("Windows session events", () => {
+  it("records interrupted work and exits synchronously when session-end arrives during a save", async () => {
+    let finish!: (saved: boolean) => void;
+    const save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    const { win, send, sessionEnded, stop } = installApp(save);
+    const event = { preventDefault: vi.fn() };
+    win.emit("query-session-end", event);
+    expect(save).toHaveBeenCalledOnce();
+    win.emit("session-end", event);
+    expect(sessionEnded).toHaveBeenCalledOnce();
+    expect(electron.exit).toHaveBeenCalledExactlyOnceWith(0);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    finish(true);
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it("handles session-end even when Windows sends no preceding query", () => {
+    const { win, send, sessionEnded } = installApp(() => new Promise<boolean>(() => {}));
+    const event = { preventDefault: vi.fn() };
+    win.emit("session-end", event);
+    expect(sessionEnded).toHaveBeenCalledOnce();
+    expect(electron.exit).toHaveBeenCalledExactlyOnceWith(0);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("takes over an open renderer confirmation without asking again", async () => {
+    const save = vi.fn(async () => true);
+    const { win, send } = installApp(save);
+    electron.quit();
+    expect(send).toHaveBeenCalledOnce();
+    const event = { preventDefault: vi.fn() };
+    win.emit("query-session-end", event);
+    win.emit("query-session-end", event);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(save).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledOnce();
+    expect(electron.state.exits).toBe(1);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("detaches session listeners and the approval handler when the window closes", () => {
+    const { win } = installApp();
+    win.emit("closed");
+    expect(win.listenerCount("query-session-end")).toBe(0);
+    expect(win.listenerCount("session-end")).toBe(0);
+    expect(electron.handlers.has("lifecycle.approveClose")).toBe(false);
+    win.emit("session-end", { preventDefault: vi.fn() });
+    expect(electron.exit).not.toHaveBeenCalled();
   });
 });

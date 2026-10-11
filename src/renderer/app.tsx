@@ -650,12 +650,12 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.clearVision(activeTask.id));
   }
 
-  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<Message | null> {
+  async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<{ failure: Message | null } | null> {
     if (!await keyPrompt.ensureKey()) return null;
     const snapshot = await api.vision.runForTask(taskId, options);
     await refreshProject(snapshot);
     const error = snapshot.project.tasks.find((task) => task.id === taskId)?.error;
-    return error?.stage === "vision" ? error.message : null;
+    return { failure: error?.stage === "vision" ? error.message : null };
   }
 
   function openSettings(initialTab: SettingsTab = "save"): void {
@@ -1061,11 +1061,13 @@ function App(): React.JSX.Element {
           onPreview={(templateId) => api.rename.preview(templateId)}
           onRegenerateSlug={async (taskId) => {
             const task = project?.tasks.find((candidate) => candidate.id === taskId);
-            if (!task?.output) return;
+            if (!task?.output) return false;
             const mode = resolveSlugRegenerationMode(task.output.vision?.description);
-            const failure = await runVisionForTask(taskId, { mode });
+            const result = await runVisionForTask(taskId, { mode });
+            if (!result) return false;
             // The rename modal shows its own authored text; the key stays in the diagnostic.
-            if (failure) throw new Error(`slug generation failed: ${failure.key}`);
+            if (result.failure) throw new Error(`slug generation failed: ${result.failure.key}`);
+            return true;
           }}
           onRun={async (templateId, summary) => {
             const result = await api.rename.run(templateId);

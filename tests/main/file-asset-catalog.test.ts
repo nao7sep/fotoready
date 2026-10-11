@@ -41,8 +41,17 @@ describe("listDirectoryAssets", () => {
     expect(failure).toBeInstanceOf(LibraryFolderError);
     expect((failure as LibraryFolderError).reason).toEqual({
       key: "failure.libraryFolderUnreadable",
-      values: { path: notADirectory, reason: expect.stringContaining("EEXIST") }
+      values: { path: notADirectory }
     });
+    expect((failure as Error).cause).toMatchObject({ code: "EEXIST" });
+  });
+  it("keeps arbitrary diagnostics in the cause, outside the trusted presentation", () => {
+    const cause = new Error("EACCES /private/FOTOREADY_LIBRARY_DIAGNOSTIC_SENTINEL");
+    const failure = new LibraryFolderError("/chosen/stamps", cause);
+    expect(failure.cause).toBe(cause);
+    expect(failure.reason).toEqual({ key: "failure.libraryFolderUnreadable", values: { path: "/chosen/stamps" } });
+    expect(JSON.stringify(failure.reason)).not.toContain("DIAGNOSTIC_SENTINEL");
+    expect(new LibraryFolderError("/internal/data/stamps", cause, null).reason).toEqual({ key: "failure.libraryUnreadable" });
   });
 });
 

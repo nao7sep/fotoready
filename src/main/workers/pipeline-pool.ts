@@ -22,7 +22,7 @@ export class PipelineWorkerPool {
     sourcePath: string;
     pipeline: Pipeline;
     outputPath: string;
-    /** Aborting ends the render at once; the worker thread is replaced. */
+    /** Abort rejects the render promise and requests worker termination; physical work may settle later. */
     signal?: AbortSignal;
   }): Promise<Extract<WorkerResult, { kind: "process" }>> {
     const result = await this.run({

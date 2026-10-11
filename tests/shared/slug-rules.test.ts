@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSlugCandidate } from "@core/slug/rules";
+import { normalizeSlugCandidate } from "@shared/slug-rules";
 
 describe("normalizeSlugCandidate", () => {
   it("lowercases and replaces runs of non-alphanumerics with a single hyphen", () => {

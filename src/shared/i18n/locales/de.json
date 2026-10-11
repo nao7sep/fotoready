@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Diese Dateien werden in den Papierkorb des Systems verschoben und können dort wiederhergestellt werden:\n\n{paths}",
   "confirm.close.title": "FotoReady schließen?",
   "confirm.close.message": "Schließen und den aktuellen Arbeitsbereich verwerfen?",
-  "confirm.close.messageWithSaves": "Schließen und den aktuellen Arbeitsbereich verwerfen? Laufende Speichervorgänge werden abgebrochen, und ihre unfertigen Dateien werden entfernt.",
+  "confirm.close.messageWithSaves": "Das aktuelle Projekt schließen und verwerfen? Laufende Speichervorgänge werden abgebrochen; unvollständige temporäre Dateien können zurückbleiben.",
   "quit.notSaved.title": "Änderungen nicht gespeichert",
   "quit.notSaved.message": "FotoReady konnte einige Ihrer Änderungen nicht fertig speichern. Wenn Sie jetzt beenden, gehen sie verloren.",
   "quit.notSaved.detail": "Nicht gespeichert: {items}",
@@ -173,7 +173,8 @@
   "failure.pathVariable": "Ein eingestellter Pfad verweist auf die Umgebungsvariable {variable}, die nicht gesetzt oder leer ist. Setzen Sie {variable} und starten Sie FotoReady neu, oder ändern Sie den Pfad.",
   "failure.lutLibraryUnavailable": "Die LUT-Bibliothek konnte nicht geladen werden und wird daher leer angezeigt. Korrigieren Sie in den Einstellungen den Ordner für importierte LUTs, um sie zu laden.",
   "failure.stampLibraryUnavailable": "Die Sticker-Bibliothek konnte nicht geladen werden und wird daher leer angezeigt. Korrigieren Sie in den Einstellungen den Ordner für importierte Sticker, um sie zu laden.",
-  "failure.libraryFolderUnreadable": "Der Ordner {path} konnte nicht gelesen werden: {reason}",
+  "failure.libraryFolderUnreadable": "Der Ordner {path} konnte nicht gelesen werden. Stellen Sie den Zugriff wieder her oder wählen Sie in den Einstellungen einen anderen Ordner.",
+  "failure.libraryUnreadable": "Der Bibliotheksordner konnte nicht gelesen werden. Stellen Sie den Zugriff wieder her oder wählen Sie in den Einstellungen einen anderen Ordner.",
 
   "originals.title": "Originale",
   "originals.empty": "Keine Originale. Fügen Sie ein Bild oder eine FotoReady-Aufgabendatei (Sidecar) hinzu oder legen Sie sie hier ab.",

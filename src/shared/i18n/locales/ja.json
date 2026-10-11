@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "次のファイルをシステムのゴミ箱に移動します。ゴミ箱から元に戻せます:\n\n{paths}",
   "confirm.close.title": "FotoReady を閉じますか？",
   "confirm.close.message": "現在のワークスペースを破棄して閉じますか？",
-  "confirm.close.messageWithSaves": "現在のワークスペースを破棄して閉じますか？実行中の保存は中止され、書きかけのファイルは削除されます。",
+  "confirm.close.messageWithSaves": "現在の作業領域を破棄して閉じますか？ 進行中の保存はキャンセルされます。未完成の一時ファイルが残る場合があります。",
   "quit.notSaved.title": "変更が保存されていません",
   "quit.notSaved.message": "FotoReady は一部の変更の保存を完了できませんでした。今終了すると、それらの変更は失われます。",
   "quit.notSaved.detail": "保存されていないもの：{items}",
@@ -173,7 +173,8 @@
   "failure.pathVariable": "設定したパスが環境変数 {variable} を参照していますが、この変数は設定されていないか空です。{variable} を設定して FotoReady を再起動するか、パスを変更してください。",
   "failure.lutLibraryUnavailable": "LUT ライブラリを読み込めなかったため、空の状態で表示しています。設定の「読み込んだ LUT のフォルダー」を修正すると読み込まれます。",
   "failure.stampLibraryUnavailable": "スタンプライブラリを読み込めなかったため、空の状態で表示しています。設定の「読み込んだスタンプのフォルダー」を修正すると読み込まれます。",
-  "failure.libraryFolderUnreadable": "フォルダー {path} を読み取れませんでした：{reason}",
+  "failure.libraryFolderUnreadable": "フォルダー {path} を読み取れませんでした。アクセスできる状態に戻すか、設定で別のフォルダーを選んでください。",
+  "failure.libraryUnreadable": "ライブラリーのフォルダーを読み取れませんでした。アクセスできる状態に戻すか、設定で別のフォルダーを選んでください。",
 
   "originals.title": "元画像",
   "originals.empty": "元画像がありません。画像か FotoReady のタスクのサイドカーファイルを追加するか、ドロップしてください。",

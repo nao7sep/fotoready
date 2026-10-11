@@ -7,8 +7,8 @@ import { nowIso } from "@shared/time";
 import type { Project, Task } from "@shared/types/project";
 import { assertSafeRenderedFilename } from "@shared/validation/filename-template";
 import type { RenameIssue, RenamePreview } from "@shared/types/ipc";
-import { normalizeSlugCandidate } from "@core/slug/rules";
-import { sidecarPathForOutput } from "@main/task-sidecar";
+import { normalizeSlugCandidate } from "@shared/slug-rules";
+import { currentSidecarPath, sidecarPathForOutput } from "@main/task-sidecar";
 import { findRenameTemplate, renderRenameTemplate, renameTemplateUsesOriginal, renameTemplateUsesSlug, type RenameTemplateId } from "@shared/rename-template";
 import { resolveProjectOutputDir } from "@main/output-paths";
 import type { AppLogger } from "@main/logger";
@@ -139,7 +139,8 @@ export async function previewRename(project: Project, templateId?: RenameTemplat
       item.issue = "name-exists";
       continue;
     }
-    const currentParamsPath = sidecarPathForOutput(item.currentPath);
+    const task = project.tasks.find((candidate) => candidate.id === item.taskId);
+    const currentParamsPath = task?.output ? currentSidecarPath(task.output) : sidecarPathForOutput(item.currentPath);
     const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
     if (currentParamsPath !== proposedParamsPath && await pathExists(proposedParamsPath)) {
       item.status = "blocked";
@@ -203,7 +204,7 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
       await fs.mkdir(path.dirname(item.proposedPath), { recursive: true });
       await ensureNoCollision(item.proposedPath);
 
-      const stagedParamsPath = task.output.finalParamsPath ?? task.output.stagedParamsPath;
+      const stagedParamsPath = currentSidecarPath(task.output);
       const proposedParamsPath = sidecarPathForOutput(item.proposedPath);
       const sidecarMoveNeeded = Boolean(stagedParamsPath) && stagedParamsPath !== proposedParamsPath;
       if (sidecarMoveNeeded) {

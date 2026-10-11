@@ -17,7 +17,7 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 - **Batch rename** — collision-safe templates with per-row slug overrides
 - **LUTs and stamps** — apply built-in LUTs and a shipped catalogue of 363 stamps grouped as Cover, Marks, Bubbles, Reactions, Funny, Cute, Stories, and Seasonal; import your own `.cube`, PNG, SVG, or WebP assets when needed
 - **AI assist (opt-in)** — generate descriptions and slugs with Gemini, using a key stored locally
-- **Sidecar persistence** — each saved output writes a `.json` sidecar; drag it back in to re-create the task with its pipeline intact
+- **Sidecar persistence** — each saved output writes a `.json` sidecar; import it with the matching original photo to re-create the editing recipe
 - **Light and dark themes** — follow the OS appearance or pick Light or Dark in Settings › App › Appearance
 - **Ten interface languages** — English, German, Spanish, French, Italian, Brazilian Portuguese, Russian, Japanese, Korean, and Simplified Chinese; follows the computer's language, or pick one in Settings › App › Language
 
@@ -34,7 +34,7 @@ Editing and exporting need no key. When you explicitly ask FotoReady to generate
 
 Add a LUT operation to a task and choose **Choose LUT…** to compare colour looks on your photo. Select a built-in LUT or import a `.cube` file in the picker, then adjust **Strength** to blend the effect.
 
-Add a stamp operation and choose **Choose stamp…** to browse the grouped catalogue or import a PNG, SVG, or WebP image. Position and resize the stamp on the preview before saving. Keep the saved image and its JSON sidecar together to reopen the editing recipe later.
+Add a stamp operation and choose **Choose stamp…** to browse the grouped catalogue or import a PNG, SVG, or WebP image. Position and resize the stamp on the preview before saving. Keep the original photo and the saved output’s JSON sidecar to reopen the editing recipe later. Import both, or import the sidecar while the matching original is already in the workspace. The edited output alone cannot replace its original.
 
 ## Run from source
 

@@ -21,22 +21,22 @@ export type DirectoryAssetImportResult = {
 export class LibraryFolderError extends Error {
   readonly reason: Message;
 
-  constructor(dir: string, cause: unknown) {
+  constructor(dir: string, cause: unknown, displayPath: string | null = dir) {
     super(`The asset library folder "${dir}" could not be read.`, { cause });
     this.name = "LibraryFolderError";
-    // The OS error text stays as the OS gave it, per the localization conventions.
-    this.reason = message("failure.libraryFolderUnreadable", { path: dir, reason: cause instanceof Error ? cause.message : String(cause) });
+    // The actual directory and exception remain diagnostic evidence; only a chosen folder is named.
+    this.reason = displayPath === null ? message("failure.libraryUnreadable") : message("failure.libraryFolderUnreadable", { path: displayPath });
   }
 }
 
 /** Lists the user's library folder, creating it first; a folder that cannot be created or read throws LibraryFolderError. */
-export async function listDirectoryAssets(dir: string, extensions: readonly string[]): Promise<DirectoryAsset[]> {
+export async function listDirectoryAssets(dir: string, extensions: readonly string[], displayPath: string | null = dir): Promise<DirectoryAsset[]> {
   let entries: Dirent<string>[];
   try {
     await fs.mkdir(dir, { recursive: true });
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch (error) {
-    throw new LibraryFolderError(dir, error);
+    throw new LibraryFolderError(dir, error, displayPath);
   }
   return assetsFromEntries(dir, entries, extensions);
 }

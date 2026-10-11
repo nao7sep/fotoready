@@ -19,8 +19,8 @@ import { previewRename, RenameBatchStoppedError, runRename } from "@main/rename-
 import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
-import { deleteSelectedFiles } from "@main/safe-delete";
-import { isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, sidecarPathForOutput, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
+import { deleteSelectedFiles, FileTrashError } from "@main/safe-delete";
+import { currentSidecarPath, isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
@@ -29,7 +29,7 @@ import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 import { pickActiveTaskAfterOriginalRemoval } from "@main/session-selection";
 import type { RenameTemplateId } from "@shared/rename-template";
-import { normalizeSlugCandidate } from "@core/slug/rules";
+import { normalizeSlugCandidate } from "@shared/slug-rules";
 import { computePrivacyWarning } from "@main/privacy-warning";
 import type { PrivacyWarning } from "@shared/types/ipc";
 import type { AppLogger } from "@main/logger";
@@ -61,6 +61,8 @@ export class ProjectSession {
   // runs through this one lane, in order, so no two of them interleave on the same files.
   #outputFilesTail: Promise<unknown> = Promise.resolve();
   #closing = false;
+  // Retry identity belongs to the authored field; removed tasks are retained only by admitted work.
+  #metadataIntents = new WeakMap<Task, Map<string, { value?: boolean }>>();
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -88,10 +90,14 @@ export class ProjectSession {
     };
   }
 
+  /** Current project authority without calculating presentation-only privacy warnings. */
+  project(): Project { return this.#project; }
+
   #computePrivacyWarnings(): Record<string, PrivacyWarning> {
     const out: Record<string, PrivacyWarning> = {};
+    const originals = new Map(this.#project.originals.map((original) => [original.id, original]));
     for (const task of this.#project.tasks) {
-      const original = this.#project.originals.find((item) => item.id === task.originalId);
+      const original = originals.get(task.originalId);
       if (!original) continue;
       const warning = computePrivacyWarning(task, original);
       if (warning) out[task.id] = warning;
@@ -327,12 +333,24 @@ export class ProjectSession {
         throw new Error("This saved file is being analyzed. Wait for the description to finish before deleting it.");
       }
 
-      await deleteSelectedFiles([
-        task.output.finalPath,
-        task.output.finalParamsPath,
-        task.output.stagedPath,
-        task.output.stagedParamsPath
-      ].filter((filePath): filePath is string => typeof filePath === "string"));
+      const imagePath = task.output.finalPath ?? task.output.stagedPath;
+      try {
+        await deleteSelectedFiles([
+          task.output.finalPath,
+          task.output.finalParamsPath,
+          task.output.stagedPath,
+          task.output.stagedParamsPath
+        ].filter((filePath): filePath is string => typeof filePath === "string"));
+      } catch (error) {
+        if (error instanceof FileTrashError && error.removed.includes(imagePath)) {
+          task.status = "not-saved";
+          task.output = null;
+          task.error = null;
+          // IPC rejects with cleanup feedback, so publish the truthful image state first.
+          await this.emitSnapshot();
+        }
+        throw error;
+      }
 
       task.status = "not-saved";
       task.output = null;
@@ -425,8 +443,9 @@ export class ProjectSession {
   }
 
   /**
-   * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are aborted
-   * and remove their unfinished files. The caller bounds how long it waits.
+   * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are
+   * aborted. Worker termination can outlive rejection and leave a temporary file; the caller
+   * bounds its wait and worker teardown.
    */
   async shutdown(): Promise<void> {
     this.#closing = true;
@@ -590,6 +609,7 @@ export class ProjectSession {
 
   private async setMetadataFlag(taskId: string, change: Parameters<typeof nextMetadataFlags>[1]): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
+    const retryIsCurrent = this.metadataIntent(task, change.field, change.value);
     const occurredAt = nowIso();
     await this.commitTaskMetadata(task, () => {
       const flags = nextMetadataFlags(task, change);
@@ -598,12 +618,13 @@ export class ProjectSession {
       Object.assign(task, flags);
       touchTaskMetadata(task, occurredAt);
       return true;
-    });
+    }, retryIsCurrent);
     return this.snapshot();
   }
 
   async setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSessionSnapshot> {
     const task = this.metadataTask(taskId);
+    const retryIsCurrent = this.metadataIntent(task, "custom-slug");
     // An edit is judged after the cleanup that stores it (content-lifecycle conventions, Modified).
     const nextSlug = normalizeOptionalSlug(customSlug);
     const occurredAt = nowIso();
@@ -613,7 +634,7 @@ export class ProjectSession {
       task.customSlug = nextSlug;
       touchTaskMetadata(task, occurredAt);
       return true;
-    });
+    }, retryIsCurrent);
     return this.snapshot();
   }
 
@@ -688,7 +709,7 @@ export class ProjectSession {
   }
 
   #commitVision: VisionCommit = async (task, apply) => {
-    const committed = await this.commitTaskMetadata(task, apply);
+    const committed = await this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
     if (committed) await this.emitSnapshot();
     return committed;
   };
@@ -701,14 +722,16 @@ export class ProjectSession {
       throw new Error("The description is still being generated. Wait for it to finish before clearing it.");
     }
     const occurredAt = nowIso();
-    await this.updateTaskMetadata(task, () => {
-      if (task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
+    const authoredSlug = task.customSlug;
+    await this.commitTaskMetadata(task, () => {
+      if (task.customSlug === authoredSlug && task.customSlug && vision.slugCandidates.includes(task.customSlug)) {
         task.customSlug = null;
       }
       if (task.output) task.output.vision = null;
       if (task.error?.stage === "vision") task.error = null;
       touchTaskMetadata(task, occurredAt);
-    });
+      return true;
+    }, this.metadataIntent(task, "vision"));
     return this.snapshot();
   }
 
@@ -747,9 +770,8 @@ export class ProjectSession {
   }
 
   /** Rewrites the task's sidecar from its current state, where it is now. Runs inside the output-files lane. */
-  private async writeOutputSidecarIfSaved(task: Task): Promise<void> {
-    const original = this.#project.originals.find((item) => item.id === task.originalId);
-    if (!task.output || !original) return;
+  private async writeOutputSidecarIfSaved(task: Task, original: Original): Promise<void> {
+    if (!task.output) return;
     await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output));
   }
 
@@ -760,11 +782,19 @@ export class ProjectSession {
     return run;
   }
 
-  private async updateTaskMetadata(task: Task, update: () => void): Promise<void> {
-    await this.commitTaskMetadata(task, () => {
-      update();
-      return true;
-    });
+  private metadataIntent(task: Task, field: string, value?: boolean): () => boolean {
+    let intents = this.#metadataIntents.get(task);
+    if (!intents) { intents = new Map(); this.#metadataIntents.set(task, intents); }
+    const descriptionIntent = intents.get("generateDescription");
+    const identity = { value };
+    intents.set(field, identity);
+    // Separate flag choices remain retryable. Enabling a slug also requires description,
+    // so a later explicit description-off choice supersedes that older dependency.
+    return () => intents.get(field) === identity && (
+      field !== "generateSlug" || !value
+      || intents.get("generateDescription") === descriptionIntent
+      || intents.get("generateDescription")?.value !== false
+    );
   }
 
   /**
@@ -772,23 +802,28 @@ export class ProjectSession {
    * returning false. A failed write restores exactly the metadata fields this change could touch, so
    * state owned by other work (status, running flags, output paths) is never rolled back with it.
    */
-  private async commitTaskMetadata(task: Task, apply: () => boolean): Promise<boolean> {
+  private async commitTaskMetadata(task: Task, apply: () => boolean, retryIsCurrent: () => boolean): Promise<boolean> {
     if (!task.output) return apply();
+    // Removing workspace entries leaves saved files intact. Keep this admitted write's source
+    // identity through settlement instead of looking it up after removal.
+    const original = this.#project.originals.find((item) => item.id === task.originalId);
+    if (!original) throw new Error(`Original not found for task: ${task.id}`);
     // In the lane, each change applies and persists in turn: the sidecar always holds the latest
     // state, and a failed write rolls back only its own change, never a later one. The sidecar is
     // the user's own work, so a quit waits for the write and can run it again.
     const file = path.basename(currentSidecarPath(task.output));
-    return this.userWork.run({ kind: "sidecar", file }, () => this.#serializeOutputFiles(async () => {
+    return this.userWork.run({ kind: "sidecar", file }, (retrying) => this.#serializeOutputFiles(async () => {
+      if (retrying && !retryIsCurrent()) return false;
       const before = captureTaskMetadata(task);
       if (!apply()) return false;
       try {
-        await this.writeOutputSidecarIfSaved(task);
+        await this.writeOutputSidecarIfSaved(task, original);
       } catch (error) {
         restoreTaskMetadata(task, before);
         throw error;
       }
       return true;
-    }));
+    }), retryIsCurrent);
   }
 
   private recordTaskEdit(task: Task, options?: TaskEditOptions): void {
@@ -846,15 +881,6 @@ function createTaskForOriginal(original: Original, settings: GlobalSettings, id:
     createdAt: now,
     updatedAt: now
   };
-}
-
-/**
- * Where a saved task's sidecar is now. A rename whose sidecar move and rollback both failed leaves the
- * image at its new name and the sidecar at its old one, so the recorded sidecar path wins over a path
- * derived from the image's name, which would start a second sidecar.
- */
-function currentSidecarPath(output: NonNullable<Task["output"]>): string {
-  return output.finalParamsPath ?? output.stagedParamsPath ?? sidecarPathForOutput(output.finalPath ?? output.stagedPath);
 }
 
 function createTaskFromSidecar(original: Original, settings: GlobalSettings, sidecar: LoadedTaskSidecar["sidecar"]): Task {

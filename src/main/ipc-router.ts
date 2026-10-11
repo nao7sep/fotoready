@@ -120,6 +120,8 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   });
 
   let settingsChain: Promise<unknown> = Promise.resolve();
+  let settingsSubmission = 0;
+  let keySubmission = 0;
   const serializeSettings = <T>(fn: () => Promise<T>): Promise<T> => {
     const next = settingsChain.then(fn, fn);
     settingsChain = next.catch(() => {});
@@ -204,7 +206,10 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("language.current", "debug", async () => interfaceLanguage());
   handle("settings.get", "debug", async () => ctx.settings);
   handle("settings.update", "info", async (_event, draft: unknown) => {
-    return ctx.userWork.run({ kind: "settings" }, () => serializeSettings(async () => {
+    const submission = ++settingsSubmission;
+    const retryIsCurrent = (): boolean => submission === settingsSubmission;
+    return ctx.userWork.run({ kind: "settings" }, (retrying) => serializeSettings(async () => {
+      if (retrying && !retryIsCurrent()) return ctx.settings;
       const settings = await saveSettings(ctx.settingsFile, draft, ctx.settings, ctx.logger);
       Object.assign(ctx.settings, settings);
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
@@ -216,13 +221,17 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
         for (const win of BrowserWindow.getAllWindows()) win.webContents.send(LANGUAGE_CHANGED_CHANNEL, language);
       }
       return ctx.settings;
-    }));
+    }), retryIsCurrent);
   });
   handle("settings.hasGeminiApiKey", "debug", async () => ctx.projectSession.hasGeminiApiKey());
-  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) =>
-    ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.setGeminiApiKey(apiKey)));
-  handle("settings.clearGeminiApiKey", "info", async () =>
-    ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.clearGeminiApiKey()));
+  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) => {
+    const submission = ++keySubmission;
+    return ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.setGeminiApiKey(apiKey), () => submission === keySubmission);
+  });
+  handle("settings.clearGeminiApiKey", "info", async () => {
+    const submission = ++keySubmission;
+    return ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.clearGeminiApiKey(), () => submission === keySubmission);
+  });
 
   handle("state.get", "debug", async () => ctx.uiState);
   handle("state.update", "info", async (_event, patch: Partial<UiState>) => {
@@ -366,7 +375,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     ctx.records.reader.read({ op: "detail", kind: assertRecordKind(kind), id: assertRecordId(id) })
   );
   handle("records.sources", null, async () =>
-    recordSources(await ctx.records.reader.read({ op: "sources" }), ctx.records.session, ctx.projectSession.snapshot().project)
+    recordSources(await ctx.records.reader.read({ op: "sources" }), ctx.records.session, ctx.projectSession.project())
   );
   // Count admitted calls until their actual settlement, including native reads and queued work.
   return { closeAdmission: () => { accepting = false; }, isIdle: () => active === 0 };

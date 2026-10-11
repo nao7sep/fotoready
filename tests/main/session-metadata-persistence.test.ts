@@ -212,6 +212,128 @@ function original(): Original {
 }
 
 describe("ProjectSession sidecar write ordering", () => {
+  it.each(["original", "task"])("persists admitted edits after their %s leaves the workspace", async (removed) => {
+    const { session, task } = savedSession();
+    const written: Array<string | null> = [];
+    let release!: () => void;
+    mocks.writeTaskSidecarFile.mockImplementationOnce(async (...args: unknown[]) => {
+      written.push((args[2] as Task).customSlug);
+      await new Promise<void>((resolve) => { release = resolve; });
+      return "sidecar";
+    }).mockImplementation(async (...args: unknown[]) => {
+      expect((args[1] as Original).sourceHash).toBe("source-hash");
+      written.push((args[2] as Task).customSlug);
+      return "sidecar";
+    });
+    const first = session.setCustomSlug(task.id, "first");
+    await flush();
+    const second = session.setCustomSlug(task.id, "second");
+    if (removed === "original") session.removeOriginal(task.originalId);
+    else await session.deleteTask(task.id);
+    release();
+    await Promise.all([first, second]);
+    expect(session.snapshot().project.tasks).toEqual([]);
+    expect(written).toEqual(["first", "second"]);
+  });
+
+  it("does not retry an obsolete slug over a newer durable submission during quit", async () => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    let fail!: () => void;
+    const written: Array<string | null> = [];
+    mocks.writeTaskSidecarFile.mockImplementationOnce(async () => {
+      await new Promise<void>((_resolve, reject) => { fail = () => reject(persistenceFailure); });
+      return "sidecar";
+    }).mockImplementation(async (...args: unknown[]) => {
+      written.push((args[2] as Task).customSlug);
+      return "sidecar";
+    });
+    const first = session.setCustomSlug(task.id, "first");
+    const rejected = expect(first).rejects.toBe(persistenceFailure);
+    await flush();
+    const second = session.setCustomSlug(task.id, "second");
+    userWork.beginQuit();
+    fail();
+    await rejected;
+    await second;
+    userWork.retry();
+    await userWork.settle(1_000);
+    expect(task.customSlug).toBe("second");
+    expect(written).toEqual(["second"]);
+    expect(userWork.unsaved()).toEqual({ failed: [], running: [] });
+  });
+
+  it("retains a failed slug retry when an unrelated flag is saved", async () => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    userWork.beginQuit();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
+    await session.setGenerateSlug(task.id, true);
+    expect(userWork.unsaved().failed).toHaveLength(1);
+    userWork.retry();
+    await userWork.settle(1_000);
+    expect(task).toMatchObject({ customSlug: "pier", generateSlug: true, generateDescription: true });
+  });
+
+  it("keeps the newer coupled generation choice when quit retries", async () => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    userWork.beginQuit();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    await expect(session.setGenerateSlug(task.id, true)).rejects.toBe(persistenceFailure);
+    await session.setGenerateDescription(task.id, false);
+    userWork.retry();
+    await userWork.settle(1_000);
+    expect(task).toMatchObject({ generateSlug: false, generateDescription: false });
+  });
+
+  it.each(["description", "slug"] as const)("retains a failed %s choice after an independent flag no-op", async (field) => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    task.generateDescription = field === "slug";
+    task.generateSlug = field === "slug";
+    userWork.beginQuit();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    const change = field === "description"
+      ? session.setGenerateDescription(task.id, true)
+      : session.setGenerateSlug(task.id, false);
+    await expect(change).rejects.toBe(persistenceFailure);
+    if (field === "description") await session.setGenerateSlug(task.id, false);
+    else await session.setGenerateDescription(task.id, true);
+    expect(userWork.unsaved().failed).toHaveLength(1);
+    userWork.retry();
+    await userWork.settle(1_000);
+    expect(task).toMatchObject({ generateDescription: true, generateSlug: false });
+    expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips a queued retry superseded after Retry but before its output lane runs", async () => {
+    const userWork = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), userWork);
+    userWork.beginQuit();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    await expect(session.setCustomSlug(task.id, "obsolete")).rejects.toBe(persistenceFailure);
+    let release!: () => void;
+    const written: Array<string | null> = [];
+    mocks.writeTaskSidecarFile.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return "sidecar";
+    }).mockImplementation(async (...args: unknown[]) => {
+      written.push((args[2] as Task).customSlug);
+      return "sidecar";
+    });
+    const held = session.setGenerateDescription(task.id, true);
+    await flush();
+    userWork.retry();
+    const latest = session.setCustomSlug(task.id, "latest");
+    release();
+    await Promise.all([held, latest]);
+    await userWork.settle(1_000);
+    expect(written).toEqual(["latest"]);
+    expect(task.customSlug).toBe("latest");
+  });
+
   it("writes one sidecar at a time, each from the state current when it runs", async () => {
     const { session, task } = savedSession();
     const gates: Array<() => void> = [];

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ProjectSnapshot, RenamePreview, RenamePreviewItem, RenameRunResult } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
 import { builtinRenameTemplates, DEFAULT_RENAME_TEMPLATE_ID, type RenameTemplateId } from "@shared/rename-template";
@@ -11,6 +11,12 @@ import { ModalShell } from "./modal-shell";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import type { MessageKey } from "@shared/i18n/catalogues";
 import { message, type Message } from "@shared/i18n/translate";
+import { normalizeSlugCandidate } from "@shared/slug-rules";
+import { useConfirmer } from "./confirmer";
+
+type SlugDraft = { value: string; committed: string };
+const normalizedSlug = (value: string): string => normalizeSlugCandidate(value.trim());
+const slugDraftDirty = (draft: SlugDraft): boolean => normalizedSlug(draft.value) !== normalizedSlug(draft.committed);
 
 export type RenameRunSummary = {
   renamed: Array<{ from: string; to: string }>;
@@ -50,30 +56,32 @@ export function RenameModal({
   onClose(): void;
   onOpenSettings(): void;
   onPreview(templateId: RenameTemplateId): Promise<RenamePreview>;
-  onRegenerateSlug(taskId: string): Promise<void>;
+  onRegenerateSlug(taskId: string): Promise<boolean>;
   onRun(templateId: RenameTemplateId, summary: RenameRunSummary): Promise<Pick<RenameRunResult, "status" | "warnings">>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   onSetOutputDir(): Promise<void | OwnedActionOutcome>;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const [dirtySlugDrafts, setDirtySlugDrafts] = useState<Record<string, boolean>>({});
+  const confirmer = useConfirmer();
+  // Text belongs to this editing session, including while rows refresh or a template hides them.
+  const [slugDrafts, setSlugDrafts] = useState<Record<string, SlugDraft>>({});
   const [templateId, setTemplateId] = useState<RenameTemplateId>(DEFAULT_RENAME_TEMPLATE_ID);
   const [preview, setPreview] = useState<RenamePreview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewCurrent, setPreviewCurrent] = useState(false);
   const [runBusy, setRunBusy] = useState(false);
   const runBusyRef = useRef(false);
   const [actionTaskIds, setActionTaskIds] = useState<string[]>([]);
+  const pendingActions = useRef(new Set<string>());
+  const closing = useRef(false);
   const [failures, setFailures] = useState<Record<string, RenameFailure>>({});
   const modalBusy = runBusy;
-  const hasPendingSlugDrafts = Boolean(
-    preview?.usesSlug
-    && preview.items.some((item) => dirtySlugDrafts[item.taskId])
-  );
+  const hasPendingSlugDrafts = Object.values(slugDrafts).some(slugDraftDirty);
   const tasksById = new Map(projectSnapshot.project.tasks.map((task) => [task.id, task]));
   // A file being described is read by the description while it runs, so Run waits for it, as its row does.
   const describing = Boolean(preview?.items.some((item) => tasksById.get(item.taskId)?.visionRunning));
   const canRun = Boolean(
-    preview?.items.some((item) => item.status === "ready")
+    previewCurrent && preview?.items.some((item) => item.status === "ready")
     && preview.blockedCount === 0
     && !hasPendingSlugDrafts
     && !describing
@@ -94,28 +102,52 @@ export function RenameModal({
   }
 
   useEffect(() => {
-    const activeTaskIds = new Set(preview?.items.map((item) => item.taskId) ?? []);
-    setDirtySlugDrafts((current) => Object.fromEntries(
-      Object.entries(current).filter(([taskId]) => activeTaskIds.has(taskId))
-    ));
+    if (!preview) return;
+    setSlugDrafts((current) => {
+      const next: Record<string, SlugDraft> = {};
+      for (const item of preview.items) {
+        const draft = current[item.taskId];
+        if (!draft) continue;
+        const committed = item.customSlug ?? "";
+        // Snapshots can expose an optimistic write that later fails. Only this row's
+        // successful action acknowledges its draft; clean idle rows follow previews.
+        next[item.taskId] = slugDraftDirty(draft) || pendingActions.current.has(item.taskId)
+          ? draft : { value: committed, committed };
+      }
+      return next;
+    });
   }, [preview]);
 
-  const setDirtySlugDraft = useCallback((taskId: string, dirty: boolean) => {
-    setDirtySlugDrafts((current) => {
-      if (current[taskId] === dirty) return current;
-      return { ...current, [taskId]: dirty };
-    });
-  }, []);
+  async function requestClose(close: () => void = onClose): Promise<void> {
+    if (runBusyRef.current || pendingActions.current.size > 0 || closing.current) return;
+    closing.current = true;
+    try {
+      if (Object.values(slugDrafts).some(slugDraftDirty) && !await confirmer.confirm({
+        title: t("confirm.discardSettings.title"), message: t("confirm.discardSettings.message"),
+        confirmLabel: t("common.discard"), cancelLabel: t("common.keepEditing"), danger: true
+      })) return;
+      close();
+    } finally { closing.current = false; }
+  }
+
+  function startAction(taskId: string): void {
+    pendingActions.current.add(taskId);
+    setActionTaskIds([...pendingActions.current]);
+  }
+  function finishAction(taskId: string): void {
+    pendingActions.current.delete(taskId);
+    setActionTaskIds([...pendingActions.current]);
+  }
 
   useEffect(() => {
     let cancelled = false;
     async function loadPreview(): Promise<void> {
       setPreviewBusy(true);
-      setPreview(null);
+      setPreviewCurrent(false);
       clearFailure("preview");
       await onPreview(templateId)
       .then((result) => {
-        if (!cancelled) setPreview(result);
+        if (!cancelled) { setPreview(result); setPreviewCurrent(true); }
       })
       .catch((caught: unknown) => {
         if (!cancelled) retainFailure("preview", {
@@ -174,11 +206,11 @@ export function RenameModal({
       title={t("rename.title")}
       size="wide"
       tall
-      closeDisabled={runBusy}
-      onClose={onClose}
+      closeDisabled={runBusy || actionTaskIds.length > 0}
+      onClose={() => void requestClose()}
       footer={
         <>
-          <button className="toolbar-button" type="button" disabled={runBusy} onClick={onClose}>{t("common.cancel")}</button>
+          <button className="toolbar-button" type="button" disabled={runBusy || actionTaskIds.length > 0} onClick={() => void requestClose()}>{t("common.cancel")}</button>
           <button className="primary-action" type="button" disabled={modalBusy || previewBusy || actionTaskIds.length > 0 || !canRun} onClick={() => void confirm()}>
             {t("rename.run")}
           </button>
@@ -223,7 +255,7 @@ export function RenameModal({
           failure={failure}
           key={key}
           onDismiss={() => clearFailure(key)}
-          onOpenSettings={onOpenSettings}
+          onOpenSettings={() => void requestClose(onOpenSettings)}
         />
       ))}
 
@@ -233,41 +265,56 @@ export function RenameModal({
             actionBusy={actionTaskIds.includes(item.taskId)}
             disabled={modalBusy}
             item={item}
+            slugDraft={slugDrafts[item.taskId]?.value ?? item.customSlug ?? ""}
+            draftDirty={Boolean(slugDrafts[item.taskId] && slugDraftDirty(slugDrafts[item.taskId]))}
+            onChangeSlug={(value) => setSlugDrafts((current) => ({ ...current, [item.taskId]: { value, committed: current[item.taskId]?.committed ?? item.customSlug ?? "" } }))}
             key={item.taskId}
             task={tasksById.get(item.taskId)}
             failures={Object.entries(failures).filter(([key]) => key.startsWith(`${item.taskId}\0`))}
             onDismissFailure={clearFailure}
-            onOpenSettings={onOpenSettings}
+            onOpenSettings={() => void requestClose(onOpenSettings)}
             onRegenerateSlug={async (taskId) => {
               const key = renameTaskFailureKey(taskId, "generate");
-              setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
+              const submittedDraft = slugDrafts[taskId];
+              startAction(taskId);
               clearFailure(key);
               try {
-                await onRegenerateSlug(taskId);
+                const completed = await onRegenerateSlug(taskId);
+                if (completed) setSlugDrafts((current) => {
+                  if (!submittedDraft || current[taskId] !== submittedDraft) return current;
+                  const next = { ...current };
+                  delete next[taskId];
+                  return next;
+                });
               } catch (caught) {
                 retainFailure(key, {
                   message: presentFailure(caught, message("failure.regenerateSlug"), "renderer rename slug generation failed", { taskId }),
                   settingsRecovery: true
                 });
               } finally {
-                setActionTaskIds((current) => current.filter((id) => id !== taskId));
+                finishAction(taskId);
               }
             }}
             onSetRenameSlug={async (taskId, customSlug) => {
               const key = renameTaskFailureKey(taskId, "save");
-              setActionTaskIds((current) => current.includes(taskId) ? current : [...current, taskId]);
+              startAction(taskId);
               clearFailure(key);
               try {
                 await onSetRenameSlug(taskId, customSlug);
+                setSlugDrafts((current) => {
+                  const draft = current[taskId];
+                  if (!draft) return current;
+                  const committed = normalizedSlug(customSlug ?? "");
+                  return { ...current, [taskId]: { value: normalizedSlug(draft.value) === committed ? committed : draft.value, committed } };
+                });
               } catch (caught) {
                 retainFailure(key, {
                   message: presentFailure(caught, message("failure.renameSlugSave"), "renderer rename slug save failed", { taskId })
                 });
               } finally {
-                setActionTaskIds((current) => current.filter((id) => id !== taskId));
+                finishAction(taskId);
               }
             }}
-            onDraftStateChange={setDirtySlugDraft}
             showSlugEditor={Boolean(preview.usesSlug && item.currentPath)}
           />
         )) : (
@@ -286,7 +333,9 @@ function RenamePreviewRow({
   onDismissFailure,
   onOpenSettings,
   task,
-  onDraftStateChange,
+  slugDraft,
+  draftDirty,
+  onChangeSlug,
   onRegenerateSlug,
   onSetRenameSlug,
   showSlugEditor
@@ -298,24 +347,18 @@ function RenamePreviewRow({
   onDismissFailure(key: string): void;
   onOpenSettings(): void;
   task: Task | undefined;
-  onDraftStateChange(taskId: string, dirty: boolean): void;
+  slugDraft: string;
+  draftDirty: boolean;
+  onChangeSlug(value: string): void;
   onRegenerateSlug(taskId: string): Promise<void>;
   onSetRenameSlug(taskId: string, customSlug: string | null): Promise<void>;
   showSlugEditor: boolean;
 }): React.JSX.Element {
   const { t } = useI18n();
-  const initialSlugValue = item.customSlug ?? "";
-  const [slugDraft, setSlugDraft] = useState(initialSlugValue);
   const skipBlurCommitRef = useRef(false);
   const ime = useImeGuard();
 
-  useEffect(() => {
-    setSlugDraft(initialSlugValue);
-  }, [initialSlugValue, item.taskId]);
-
   const draftSlug = slugDraft.trim();
-  const initialSlug = initialSlugValue.trim();
-  const draftDirty = showSlugEditor && draftSlug !== initialSlug;
   const draftEmpty = showSlugEditor && draftSlug.length === 0;
   const previewVisualState = renameItemVisualState(task, item);
   const visualState = draftEmpty ? missingSlugVisualState(task) : previewVisualState;
@@ -326,12 +369,8 @@ function RenamePreviewRow({
       : renameItemStateLabel(previewVisualState, item));
   const rowDisabled = disabled || actionBusy || Boolean(task?.visionRunning);
 
-  useEffect(() => {
-    onDraftStateChange(item.taskId, draftDirty);
-  }, [draftDirty, item.taskId, onDraftStateChange]);
-
   async function commitSlugDraft(): Promise<void> {
-    if (draftSlug === initialSlug) return;
+    if (!draftDirty) return;
     await onSetRenameSlug(item.taskId, draftSlug.length > 0 ? draftSlug : null);
   }
 
@@ -369,7 +408,7 @@ function RenamePreviewRow({
                 }
                 void commitSlugDraft();
               }}
-              onChange={(event) => setSlugDraft(event.currentTarget.value)}
+              onChange={(event) => onChangeSlug(event.currentTarget.value)}
               onKeyDown={(event) => {
                 // Enter that ends an IME composition accepts the candidate; it must not commit.
                 if (event.key !== "Enter" || ime.isComposing(event)) return;

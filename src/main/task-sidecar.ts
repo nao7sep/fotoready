@@ -3,7 +3,7 @@ import path from "node:path";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { createTaskSidecar, isTaskSidecar, type TaskSidecar } from "@shared/task-sidecar";
 import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type EarlierJsonForm } from "@shared/format-versions";
-import type { Original, Task } from "@shared/types/project";
+import type { Original, Task, TaskOutput } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
@@ -27,6 +27,11 @@ export type TaskSidecarLoadResult = {
   loaded: LoadedTaskSidecar[];
   rejected: OriginalImportIssue[];
 };
+
+/** A partial rename may leave the sidecar at its recorded name while the image has moved. */
+export function currentSidecarPath(output: TaskOutput): string {
+  return output.finalParamsPath ?? output.stagedParamsPath ?? sidecarPathForOutput(output.finalPath ?? output.stagedPath);
+}
 
 /** Writes the task's sidecar beside `outputPath`, or at `sidecarPath` when the task already has one elsewhere. */
 export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline, sidecarPath = sidecarPathForOutput(outputPath)): Promise<string> {

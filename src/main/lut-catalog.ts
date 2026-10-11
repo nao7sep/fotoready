@@ -18,7 +18,7 @@ export async function listLuts(lutFolder: string, defaultLutDir: string, bundled
   const dir = resolveLutDir(lutFolder, defaultLutDir);
   const [builtInEntries, userEntries] = await Promise.all([
     readDirectoryAssets(bundledLutsDir, LUT_EXTENSIONS, logger),
-    listDirectoryAssets(dir, LUT_EXTENSIONS)
+    listDirectoryAssets(dir, LUT_EXTENSIONS, lutFolder.trim() ? dir : null)
   ]);
   return [
     ...builtInEntries.map((entry) => ({

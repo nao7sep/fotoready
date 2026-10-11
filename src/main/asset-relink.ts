@@ -16,10 +16,10 @@ export type AssetFolders = {
 /**
  * Points each stamp and LUT op whose file is gone at the file of the same name where it lives now, so
  * a task saved under another data root, install location, library folder or machine finds its assets
- * again (storage-path-conventions, Ownership decides location). A stamp is looked up first among the
- * built-ins, by the name its file stands for, then in the imported folder; a LUT in the imported
- * folder, then among the built-ins. Import keeps names unique across a library and its built-ins, so a
- * name finds at most one file. A missing file found nowhere is left as saved, and fails where it is
+ * again (storage-path-conventions, Ownership decides location). An exact imported filename wins
+ * before a built-in alias: imported formats may share a built-in's stem. Built-in stamps also accept
+ * an older extension so existing recipes survive format changes. A missing file found nowhere is
+ * left as saved, and fails where it is
  * drawn as any missing asset does. Watermark images are files the user picked from anywhere, so they
  * are left as they are.
  */
@@ -37,7 +37,7 @@ export async function relinkMissingAssets(pipeline: Pipeline, folders: AssetFold
     let current: string | null = null;
     if (op.type === "stamp") {
       builtinStamps ??= await readBuiltinStampCatalogEntries(folders.bundledStamps);
-      current = builtinStampPathFor(fileName, builtinStamps, folders.bundledStamps) ?? await existingIn(folders.importedStamps, fileName);
+      current = await existingIn(folders.importedStamps, fileName) ?? builtinStampPathFor(fileName, builtinStamps, folders.bundledStamps);
     } else {
       current = await existingIn(folders.importedLuts, fileName) ?? await existingIn(folders.bundledLuts, fileName);
     }

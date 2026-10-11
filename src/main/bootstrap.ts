@@ -212,9 +212,9 @@ export async function bootstrap(): Promise<void> {
   // One launch = one session. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
   // Every quit path (unsaved-edits-conventions, Quitting) first asks the window's pre-quit
-  // confirmations and waits for the user's own work, then cancels in-flight saves, which remove
-  // their unfinished files, lands the last UI state write, and closes the workers and the records
-  // reader, each stage within its bound.
+  // confirmations and waits for the user's own work, then cancels in-flight saves (unfinished
+  // temporary files may remain), lands the last UI state write, and closes the workers and the
+  // records reader, each stage within its bound.
   const quit = installQuitShutdown({
     prepare: async () => {
       userWork.beginQuit();

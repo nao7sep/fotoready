@@ -12,7 +12,7 @@ export type QuitChoice = "cancel" | "retry" | "quit";
 /** The bound on waiting for the user's own work at quit (unsaved-edits-conventions, Quitting). */
 export const QUIT_SAVE_MS = 2_000;
 
-type Write = { work: UserWork; write: () => Promise<unknown> };
+type Write = { work: UserWork; write: (retrying: boolean) => Promise<unknown>; retryIsCurrent: () => boolean };
 
 /**
  * The writes of the user's own work. Each is written when the user acts, so quitting has nothing
@@ -25,14 +25,18 @@ export class UserWorkWrites {
   #failed: Write[] = [];
   #quitting = false;
 
-  run<T>(work: UserWork, write: () => Promise<T>): Promise<T> {
-    const running = write();
+  run<T>(work: UserWork, write: (retrying: boolean) => Promise<T>, retryIsCurrent: () => boolean = () => true): Promise<T> {
+    return this.#start(work, write, retryIsCurrent, false);
+  }
+
+  #start<T>(work: UserWork, write: (retrying: boolean) => Promise<T>, retryIsCurrent: () => boolean, retrying: boolean): Promise<T> {
+    const running = write(retrying);
     this.#running.set(running, work);
     running.then(
       () => this.#running.delete(running),
       () => {
         this.#running.delete(running);
-        if (this.#quitting) this.#failed.push({ work, write });
+        if (this.#quitting && retryIsCurrent()) this.#failed.push({ work, write, retryIsCurrent });
       }
     );
     return running;
@@ -48,16 +52,18 @@ export class UserWorkWrites {
     this.#failed = [];
   }
 
-  /** Runs every kept failure again. */
+  /** Retries only submissions their authoring owner still considers current. */
   retry(): void {
     const failed = this.#failed;
     this.#failed = [];
-    for (const { work, write } of failed) void this.run(work, write).catch(() => undefined);
+    for (const { work, write, retryIsCurrent } of failed) {
+      if (retryIsCurrent()) void this.#start(work, write, retryIsCurrent, true).catch(() => undefined);
+    }
   }
 
   /** What is not saved now: the writes that failed during the quit and those still running. */
   unsaved(): { failed: UserWork[]; running: UserWork[] } {
-    return { failed: this.#failed.map((entry) => entry.work), running: [...this.#running.values()] };
+    return { failed: this.#failed.filter((entry) => entry.retryIsCurrent()).map((entry) => entry.work), running: [...this.#running.values()] };
   }
 
   /** Waits up to `ms` for the running writes, including any they start, then reports what is not saved. */

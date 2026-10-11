@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { geminiDiagnostic } from "./gemini-diagnostic";
 import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution, type SafetySetting } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
-import { normalizeSlugCandidate } from "@core/slug/rules";
+import { normalizeSlugCandidate } from "@shared/slug-rules";
 import { singleLine } from "@shared/text-cleanup";
 import { nowIso } from "@shared/time";
 

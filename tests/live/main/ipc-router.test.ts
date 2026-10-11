@@ -292,7 +292,7 @@ describe("the live save and vision paths", () => {
 
   it("describes and names a saved photo through the real Gemini API on the default models", async () => {
     requireGeminiKey();
-    const { normalizeSlugCandidate } = await import("@core/slug/rules");
+    const { normalizeSlugCandidate } = await import("@shared/slug-rules");
     const home = await freshHome("vision");
     try {
       await withApp(home, async (app) => {

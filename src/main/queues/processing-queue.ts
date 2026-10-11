@@ -111,8 +111,9 @@ export class ProcessingQueue {
   }
 
   /**
-   * Stops for quit: cancels every waiting save, aborts the running ones, and resolves once each has
-   * removed its unfinished files. The caller bounds how long it waits.
+   * Stops for quit: cancels every waiting save, aborts the running ones, and waits for their
+   * promises. Rejection can precede physical worker termination and leave a temporary file; the
+   * caller bounds its wait and tears down workers.
    */
   async shutdown(): Promise<void> {
     this.#closed = true;

@@ -412,6 +412,14 @@ describe("runRename", () => {
     expect(task.updatedAt).toBe(modified);
     await expect(fs.access(path.join(workDir, "final.jpg"))).resolves.toBeUndefined();
     await expect(fs.access(params)).resolves.toBeUndefined();
+    // The surviving sidecar belongs to this task, even though the image has another stem.
+    vi.restoreAllMocks();
+    task.customSlug = "partial";
+    const project = { outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] };
+    expect((await previewRename(project, SLUG_ONLY)).items[0].status).toBe("ready");
+    expect(await runRename(project, SLUG_ONLY)).toEqual({ completedTaskIds: ["t1"], warnings: [] });
+    expect(task.output?.finalPath).toBe(staged);
+    expect(task.output?.finalParamsPath).toBe(params);
   });
 
   it("keeps the committed task identity and warning when source cleanup is denied", async () => {

@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   registerIpcHandlers({
     logger,
-    projectSession: { setSnapshotListener: () => {}, snapshot: () => ({ project }) },
+    projectSession: { setSnapshotListener: () => {}, snapshot: () => ({ project }), project: () => project },
     records: { reader: { read, close: async () => {} }, session: "s2", openWindow }
   } as unknown as RouterContext);
 });

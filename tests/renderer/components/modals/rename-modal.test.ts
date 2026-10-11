@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectSnapshot, RenamePreview } from "@shared/types/ipc";
 import { RenameModal } from "@renderer/components/modals/rename-modal";
+import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -101,7 +102,7 @@ describe("RenameModal vision recovery", () => {
   it("clears the previous inline failure before a successful retry", async () => {
     const regenerate = vi.fn()
       .mockRejectedValueOnce(new Error("Gemini is unavailable. Open Settings."))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(true);
     await renderModal({ onRegenerateSlug: regenerate });
 
     await clickButton("Generate");
@@ -205,17 +206,151 @@ describe("RenameModal while a description runs", () => {
   });
 });
 
+describe("RenameModal authored slug lifetime", () => {
+  it("retains an uncommitted slug through a held snapshot refresh", async () => {
+    await renderModal({ onPreview: async () => readyPreview });
+    await typeSlug("harbour-draft");
+    let finish!: (value: RenamePreview) => void;
+    const refreshing = new Promise<RenamePreview>((resolve) => { finish = resolve; });
+    await renderModal({ projectSnapshot: { ...snapshot }, onPreview: () => refreshing });
+    expect(slugInput()?.value).toBe("harbour-draft");
+    expect(button("Rename all")?.disabled).toBe(true);
+    await act(async () => finish(readyPreview));
+    expect(slugInput()?.value).toBe("harbour-draft");
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+
+  it("keeps a draft when changing away from and back to a slug template", async () => {
+    const onPreview = vi.fn(async (template?: string) => ({ ...readyPreview, usesSlug: template !== "builtin-original" }));
+    await renderModal({ onPreview });
+    await typeSlug("harbour-draft");
+    const select = document.querySelector<HTMLSelectElement>("select")!;
+    for (const value of ["builtin-original", "builtin-slug"]) {
+      await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    }
+    expect(slugInput()?.value).toBe("harbour-draft");
+  });
+
+  it("blocks Rename all while a hidden template retains unsaved slug text", async () => {
+    await renderModal({ onPreview: async (template?: string) => ({ ...readyPreview, usesSlug: template !== "builtin-original" }) });
+    await typeSlug("harbour-draft");
+    const select = document.querySelector<HTMLSelectElement>("select")!;
+    await act(async () => { select.value = "builtin-original"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(slugInput()).toBeNull();
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+
+  it("keeps an optimistic preview from acknowledging a failed save, then permits an Enter retry", async () => {
+    const onClose = vi.fn();
+    let reject!: (error: Error) => void;
+    const onSetRenameSlug = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((_resolve, fail) => { reject = fail; }))
+      .mockResolvedValueOnce(undefined);
+    await renderModal({ onClose, onPreview: async () => readyPreview, onSetRenameSlug });
+    await typeSlug("harbour-draft");
+    await act(async () => slugInput()!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    const optimistic = { ...readyPreview, items: [{ ...readyPreview.items[0], customSlug: "harbour-draft" }] };
+    await renderModal({ onClose, projectSnapshot: { ...snapshot }, onPreview: async () => optimistic, onSetRenameSlug });
+    await act(async () => reject(new Error("write refused")));
+    expect(slugInput()?.value).toBe("harbour-draft");
+    expect(button("Rename all")?.disabled).toBe(true);
+    await clickButton("Cancel");
+    expect(onClose).not.toHaveBeenCalled();
+    await clickButton("Keep editing");
+    await act(async () => slugInput()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(onSetRenameSlug).toHaveBeenCalledTimes(2);
+    expect(button("Rename all")?.disabled).toBe(false);
+  });
+
+  it("retires only the text captured by a completed generation", async () => {
+    let finish!: (completed: boolean) => void;
+    const onRegenerateSlug = () => new Promise<boolean>((resolve) => { finish = resolve; });
+    await renderModal({ onPreview: async () => readyPreview, onRegenerateSlug });
+    await typeSlug("replace-this");
+    await clickButton("Regenerate");
+    const generated = { ...readyPreview, items: [{ ...readyPreview.items[0], customSlug: "generated" }] };
+    await renderModal({ projectSnapshot: { ...snapshot }, onPreview: async () => generated, onRegenerateSlug });
+    await act(async () => finish(true));
+    expect(slugInput()?.value).toBe("generated");
+    expect(button("Rename all")?.disabled).toBe(false);
+  });
+
+  it.each(["cancelled", "failed", "newer text"])("preserves a generation draft after %s", async (outcome) => {
+    let finish!: (completed: boolean) => void;
+    let reject!: (error: Error) => void;
+    const onRegenerateSlug = () => new Promise<boolean>((resolve, fail) => { finish = resolve; reject = fail; });
+    await renderModal({ onPreview: async () => readyPreview, onRegenerateSlug });
+    await typeSlug("keep-this");
+    await clickButton("Regenerate");
+    if (outcome === "newer text") await typeSlug("newer");
+    await act(async () => {
+      if (outcome === "failed") reject(new Error("provider failed"));
+      else finish(outcome === "newer text");
+    });
+    expect(slugInput()?.value).toBe(outcome === "newer text" ? "newer" : "keep-this");
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+
+  it("keeps another row's draft when the first row saves successfully", async () => {
+    const twoRows = { ...readyPreview, items: [readyPreview.items[0], { ...readyPreview.items[0], taskId: "task-2" }] };
+    await renderModal({ onPreview: async () => twoRows });
+    await typeSlug("first-row");
+    await typeSlug("second-row", 1);
+    await act(async () => slugInput()!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(slugInput(1)?.value).toBe("second-row");
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+
+  it("keeps failed blur-save text and guards Escape dismissal", async () => {
+    const onClose = vi.fn();
+    await renderModal({ onClose, onPreview: async () => readyPreview, onSetRenameSlug: async () => { throw new Error("write refused"); } });
+    await typeSlug("harbour-draft");
+    await act(async () => slugInput()!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(document.body.textContent).toContain("could not be saved");
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(button("Keep editing")).toBeDefined();
+    await clickButton("Keep editing");
+    expect(slugInput()?.value).toBe("harbour-draft");
+    await clickButton("Cancel");
+    await clickButton("Discard");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("does not clear newer text when an earlier submitted slug succeeds", async () => {
+    let finish!: () => void;
+    await renderModal({ onPreview: async () => readyPreview, onSetRenameSlug: () => new Promise<void>((resolve) => { finish = resolve; }) });
+    await typeSlug("first");
+    await act(async () => slugInput()!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    await typeSlug("newer");
+    await act(async () => finish());
+    await renderModal({ projectSnapshot: { ...snapshot }, onPreview: async () => ({ ...readyPreview, items: [{ ...readyPreview.items[0], customSlug: "first" }] }) });
+    expect(slugInput()?.value).toBe("newer");
+    expect(button("Rename all")?.disabled).toBe(true);
+  });
+});
+
+function slugInput(index = 0): HTMLInputElement | null { return document.querySelectorAll<HTMLInputElement>(".rename-preview-slug-input")[index] ?? null; }
+async function typeSlug(value: string, index = 0): Promise<void> {
+  await act(async () => {
+    const input = slugInput(index)!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 async function renderModal(overrides: {
   projectSnapshot?: ProjectSnapshot;
   onOpenSettings?: () => void;
   onClose?: () => void;
   onPreview?: () => Promise<RenamePreview>;
-  onRegenerateSlug?: (taskId: string) => Promise<void>;
+  onRegenerateSlug?: (taskId: string) => Promise<boolean>;
   onRun?: () => Promise<{ status: "complete" | "stopped"; warnings: [] }>;
   onSetOutputDir?: () => Promise<void>;
+  onSetRenameSlug?: (taskId: string, slug: string | null) => Promise<void>;
 } = {}): Promise<void> {
   await act(async () => {
-    root.render(createElement(RenameModal, {
+    root.render(createElement(ConfirmerProvider, null, createElement(RenameModal, {
       projectSnapshot: overrides.projectSnapshot ?? snapshot,
       outputDirLabel: "output",
       outputDirPath: "/output",
@@ -223,11 +358,11 @@ async function renderModal(overrides: {
       onClose: overrides.onClose ?? (() => undefined),
       onOpenSettings: overrides.onOpenSettings ?? (() => undefined),
       onPreview: overrides.onPreview ?? (async () => preview),
-      onRegenerateSlug: overrides.onRegenerateSlug ?? (async () => undefined),
+      onRegenerateSlug: overrides.onRegenerateSlug ?? (async () => true),
       onRun: overrides.onRun ?? (async () => ({ status: "complete", warnings: [] })),
-      onSetRenameSlug: async () => undefined,
+      onSetRenameSlug: overrides.onSetRenameSlug ?? (async () => undefined),
       onSetOutputDir: overrides.onSetOutputDir ?? (async () => undefined),
-    }));
+    })));
   });
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 }

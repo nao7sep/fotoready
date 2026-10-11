@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Questi file verranno spostati nel cestino di sistema, da cui potrai ripristinarli:\n\n{paths}",
   "confirm.close.title": "Chiudere FotoReady?",
   "confirm.close.message": "Chiudere e scartare lo spazio di lavoro attuale?",
-  "confirm.close.messageWithSaves": "Chiudere e scartare lo spazio di lavoro attuale? I salvataggi in corso vengono annullati e i loro file incompleti vengono rimossi.",
+  "confirm.close.messageWithSaves": "Chiudere e scartare l’area di lavoro corrente? I salvataggi in corso verranno annullati; potrebbero rimanere file temporanei incompleti.",
   "quit.notSaved.title": "Modifiche non salvate",
   "quit.notSaved.message": "FotoReady non è riuscito a completare il salvataggio di alcune modifiche. Se esci ora, andranno perse.",
   "quit.notSaved.detail": "Non salvato: {items}",
@@ -173,7 +173,8 @@
   "failure.pathVariable": "Un percorso configurato fa riferimento alla variabile d’ambiente {variable}, che non è impostata o è vuota. Imposta {variable} e riavvia FotoReady oppure cambia il percorso.",
   "failure.lutLibraryUnavailable": "Non è stato possibile caricare la libreria dei LUT, quindi viene mostrata vuota. In Impostazioni, correggi la cartella dei LUT importati per caricare la libreria.",
   "failure.stampLibraryUnavailable": "Non è stato possibile caricare la libreria degli sticker, quindi viene mostrata vuota. In Impostazioni, correggi la cartella degli sticker importati per caricare la libreria.",
-  "failure.libraryFolderUnreadable": "Non è stato possibile leggere la cartella {path}: {reason}",
+  "failure.libraryFolderUnreadable": "Impossibile leggere la cartella {path}. Ripristina l’accesso oppure scegli un’altra cartella nelle Impostazioni.",
+  "failure.libraryUnreadable": "Impossibile leggere la cartella della libreria. Ripristina l’accesso oppure scegli un’altra cartella nelle Impostazioni.",
 
   "originals.title": "Originali",
   "originals.empty": "Nessun originale. Aggiungi o trascina qui un’immagine o un file collaterale di attività di FotoReady.",

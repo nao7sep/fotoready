@@ -66,7 +66,7 @@ describe("a library folder that cannot be read", () => {
       register({ lutFolder: notADirectory, stampFolder: notADirectory });
 
       await expect(handlers.get(channel)!()).resolves.toEqual(
-        ipcFailure(message("failure.libraryFolderUnreadable", { path: notADirectory, reason: expect.any(String) }))
+        ipcFailure(message("failure.libraryFolderUnreadable", { path: notADirectory }))
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

@@ -144,7 +144,7 @@ function arrangeSession(task: Task, userWork?: UserWorkWrites): { session: Proje
   const session = new ProjectSession(
     defaultGlobalSettings(),
     null as never,
-    null as never,
+    { snapshot: () => ({}) } as never,
     null as never,
     "resources/stamps",
     undefined,
@@ -392,3 +392,52 @@ describe("ProjectSession sidecar write ordering", () => {
 async function flush(): Promise<void> {
   for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
 }
+
+describe("saved metadata settlement publication", () => {
+  it.each([
+    ["custom slug", (session: ProjectSession, task: Task) => session.setCustomSlug(task.id, "pier")],
+    ["generation flags", (session: ProjectSession, task: Task) => session.setGenerateSlug(task.id, true)],
+    ["cleared vision", (session: ProjectSession, task: Task) => session.clearVision(task.id)]
+  ])("publishes restored %s after another action exposes the pending write", async (_field, mutate) => {
+    const { session, task } = savedSession();
+    const before = structuredClone(task);
+    let visible = structuredClone(task);
+    session.setSnapshotListener((snapshot) => { visible = structuredClone(snapshot.project.tasks[0]); });
+    let reject!: () => void;
+    mocks.writeTaskSidecarFile.mockImplementationOnce(() => new Promise<string>((_resolve, fail) => { reject = () => fail(persistenceFailure); }));
+    const writing = mutate(session, task);
+    const failed = expect(writing).rejects.toBe(persistenceFailure);
+    await flush();
+    // Another action/processing update publishes the same authority while this save is held.
+    await session.emitSnapshot();
+    expect(visible).not.toEqual(before);
+    reject();
+    await failed;
+    expect(task).toEqual(before);
+    expect(visible).toEqual(before);
+  });
+
+  it("publishes a successful sidecar retry even though the original IPC has already failed", async () => {
+    const writes = new UserWorkWrites();
+    const { session, task } = arrangeSession(savedTask(), writes);
+    let visible = task.customSlug;
+    session.setSnapshotListener((snapshot) => { visible = snapshot.project.tasks[0].customSlug; });
+    writes.beginQuit();
+    mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
+    writes.retry();
+    await writes.settle(1_000);
+    expect(task.customSlug).toBe("pier");
+    expect(visible).toBe("pier");
+  });
+
+  it.each(["success", "failure"])("keeps a notification failure separate from persistence %s", async (outcome) => {
+    const { session, task } = savedSession();
+    session.setSnapshotListener(async () => { throw new Error("window notification failed"); });
+    if (outcome === "failure") mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
+    const writing = session.setCustomSlug(task.id, "pier");
+    if (outcome === "failure") await expect(writing).rejects.toBe(persistenceFailure);
+    else await expect(writing).resolves.toBeDefined();
+    expect(task.customSlug).toBe(outcome === "success" ? "pier" : "vision-slug");
+  });
+});

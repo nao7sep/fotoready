@@ -102,6 +102,8 @@ function App(): React.JSX.Element {
   });
   const [originalImportFeedback, setOriginalImportFeedback] = useState<OriginalImportFeedback | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
+  const projectBroadcasts = useRef(0);
+  const queueBroadcasts = useRef(0);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
@@ -190,6 +192,8 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     let current = true;
+    const projectRevision = projectBroadcasts.current;
+    const queueRevision = queueBroadcasts.current;
     void Promise.all([
       api.system.getInfo(),
       api.settings.get(),
@@ -206,9 +210,10 @@ function App(): React.JSX.Element {
         setSettings(loadedSettings);
         setUiState(loadedState);
         setHasGeminiApiKey(geminiKeyConfigured);
-        setProjectSnapshot(loadedProject);
+        // Reopening a window can receive worker completion while the startup reads are pending.
+        if (projectBroadcasts.current === projectRevision) setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
-        setQueue(snapshot);
+        if (queueBroadcasts.current === queueRevision) setQueue(snapshot);
         showLibraries(loadedLuts, loadedStamps);
         setStartupStatus("ready");
       }
@@ -344,9 +349,11 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
+      projectBroadcasts.current += 1;
       setProjectSnapshot(snapshot);
     });
     const offQueue = api.events.onQueueSnapshot((snapshot) => {
+      queueBroadcasts.current += 1;
       setQueue(snapshot);
     });
     return () => {

@@ -709,9 +709,7 @@ export class ProjectSession {
   }
 
   #commitVision: VisionCommit = async (task, apply) => {
-    const committed = await this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
-    if (committed) await this.emitSnapshot();
-    return committed;
+    return this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
   };
 
   async clearVision(taskId: string): Promise<ProjectSessionSnapshot> {
@@ -821,6 +819,13 @@ export class ProjectSession {
       } catch (error) {
         restoreTaskMetadata(task, before);
         throw error;
+      } finally {
+        // Another action may have published the pending metadata, and quit retries have no IPC
+        // completion to publish their result. Notification cannot change the primary write outcome.
+        try { await this.emitSnapshot(); }
+        catch (error) {
+          this.logger?.warn("task metadata settlement notification failed", { mod: "main.session", taskId: task.id, err: error });
+        }
       }
       return true;
     }), retryIsCurrent);

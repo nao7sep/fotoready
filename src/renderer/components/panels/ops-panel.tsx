@@ -562,10 +562,10 @@ function OutputControls({
             <p>{hasGeneratedSlug ? generatedSlug : t("common.notGenerated")}</p>
           </div>
           <div className="vision-description-actions">
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>{descriptionActionLabel}</button>
-            <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("description-and-slug")}>{combinedActionLabel}</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={() => onGenerateVision("description")}>{descriptionActionLabel}</button>
+            <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={() => onGenerateVision("description-and-slug")}>{combinedActionLabel}</button>
             {showSlugAction ? (
-              <button className="toolbar-button compact-text" disabled={metadataDisabled || !hasGeminiApiKey || visionGenerating} type="button" onClick={() => onGenerateVision("slug")}>{slugActionLabel}</button>
+              <button className="toolbar-button compact-text" disabled={metadataDisabled || visionGenerating} type="button" onClick={() => onGenerateVision("slug")}>{slugActionLabel}</button>
             ) : null}
           </div>
           {vision ? (

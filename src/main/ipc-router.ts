@@ -51,7 +51,11 @@ export type RouterContext = {
   };
 };
 
-export function registerIpcHandlers(ctx: RouterContext): void {
+export type IpcWork = { closeAdmission(): void; isIdle(): boolean };
+
+export function registerIpcHandlers(ctx: RouterContext): IpcWork {
+  let accepting = true;
+  let active = 0;
   const assetThumbnailCache = new AssetThumbnailCache();
 
   // Single IPC chokepoint: every handler is logged once on completion with its
@@ -72,6 +76,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
     handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
   ): void => {
     ipcMain.handle(channel, async (event, ...args) => {
+      if (!accepting) throw new Error("FotoReady is quitting.");
+      active += 1;
       const startedAt = performance.now();
       try {
         const result = await handler(event, ...args);
@@ -82,6 +88,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
         if (error instanceof PathVariableError) return ipcFailure(pathVariableReason(error));
         if (error instanceof LibraryFolderError || error instanceof StoreNotWritableError) return ipcFailure(error.reason);
         throw error;
+      } finally {
+        active -= 1;
       }
     });
   };
@@ -360,6 +368,8 @@ export function registerIpcHandlers(ctx: RouterContext): void {
   handle("records.sources", null, async () =>
     recordSources(await ctx.records.reader.read({ op: "sources" }), ctx.records.session, ctx.projectSession.snapshot().project)
   );
+  // Count admitted calls until their actual settlement, including native reads and queued work.
+  return { closeAdmission: () => { accepting = false; }, isIdle: () => active === 0 };
 }
 
 function normalizeAddOriginalsPaths(

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { geminiDiagnostic } from "./gemini-diagnostic";
 import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution, type SafetySetting } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
 import { normalizeSlugCandidate } from "@core/slug/rules";
@@ -61,7 +62,8 @@ export type GeminiCall = {
   /**
    * The request as sent, except that an image part's `inlineData.data` holds a {@link SentImageSummary}
    * instead of the image. It is FotoReady's own parameters only: the SDK adds the API key to the HTTP
-   * request itself, and its errors carry the status and body, never the key.
+   * request itself. Diagnostic copies mask that known key and credential fields, including echoes
+   * from a configured endpoint in its response or error.
    */
   request: unknown;
   response: GenerateContentResponse | null;
@@ -192,8 +194,12 @@ export class GeminiVisionProvider {
       {},
       [{ inlineData: { mimeType: request.mimeType, data: summary }, ...resolution }, prompt]
     );
-    assertUsableResponse(response, "image");
-    return parseDescription(response.text ?? "");
+    try {
+      assertUsableResponse(response, "image");
+      return parseDescription(response.text ?? "");
+    } catch (error) {
+      throw geminiDiagnostic(error, this.apiKey);
+    }
   }
 
   async suggestSlugs(description: string, opts: VisionSlugOptions): Promise<string[]> {
@@ -201,8 +207,12 @@ export class GeminiVisionProvider {
       responseMimeType: "application/json",
       responseSchema: SLUG_RESPONSE_SCHEMA
     });
-    assertUsableResponse(response, "description");
-    return parseSlugs(response.text ?? "");
+    try {
+      assertUsableResponse(response, "description");
+      return parseSlugs(response.text ?? "");
+    } catch (error) {
+      throw geminiDiagnostic(error, this.apiKey);
+    }
   }
 
   private async generate(
@@ -228,17 +238,18 @@ export class GeminiVisionProvider {
     return callWithRetry(opts, async (attempt) => {
       const time = nowIso();
       const startedAt = performance.now();
-      const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall({
+      const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall(geminiDiagnostic({
         time, endpoint: this.endpoint, role, model: opts.model, attempt,
         durationMs: performance.now() - startedAt, request: recordedRequest, response, error
-      });
+      }, this.apiKey));
       try {
         const response = await ai.models.generateContent(request);
         record(response, null);
         return response;
       } catch (error) {
-        record(null, error);
-        throw error;
+        const diagnostic = geminiDiagnostic(error, this.apiKey);
+        record(null, diagnostic);
+        throw diagnostic;
       }
     });
   }

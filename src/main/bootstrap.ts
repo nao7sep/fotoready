@@ -9,7 +9,7 @@ import { startStoreWriter } from "./store-writer";
 import { jsonSafe } from "./json-safe";
 import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
-import { registerIpcHandlers } from "./ipc-router";
+import { registerIpcHandlers, type IpcWork } from "./ipc-router";
 import { setBackupWriter } from "./backup-store";
 import { ProjectSession } from "./session";
 import { resolveStampDir } from "./stamp-catalog";
@@ -162,7 +162,7 @@ export async function bootstrap(): Promise<void> {
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
 
-  registerIpcHandlers({
+  const ipcWork = registerIpcHandlers({
     paths,
     settings,
     settingsFile,
@@ -240,22 +240,10 @@ export async function bootstrap(): Promise<void> {
       cancelOpenMessageDialogs();
       mainGuard?.answerForSessionEnd();
     },
-    stop: async () => {
-      logger.info("app stopping", { mod: "main", reason: exitState.reason });
-      // UI state is not the user's own work: a write that failed is logged and never holds the quit.
-      const stateSaved = stateCoordinator.flush().catch((error: unknown) => {
-        logger.warn("the UI state was not saved before quit", { mod: "main.quit", statePath: paths.statePath, err: error });
-      });
-      const finished = await settleWithin(Promise.all([projectSession.shutdown(), stateSaved]), QUIT_STOP_MS);
-      if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_STOP_MS });
-      const closed = await settleWithin(Promise.all([pipelineWorkerPool.destroy(), recordsReader.close()]), QUIT_CLOSE_MS);
-      if (!closed) logger.warn("the workers did not close in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_CLOSE_MS });
-      // Last, so the lines above are among the records it writes. An ending session skips the drain.
-      const drained = await storeWriter.close({ drain: !quit.sessionEnding(), timeoutMs: QUIT_DRAIN_MS });
-      // The writer has stopped, so this line reaches the console.
-      if (!drained) logger.warn("the records and backups did not finish writing in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_DRAIN_MS });
-      return finished && closed && drained;
-    },
+    approved: () => ipcWork.closeAdmission(),
+    stop: () => stopAppWork({ logger, exitReason: exitState.reason, statePath: paths.statePath,
+      stateCoordinator, projectSession, pipelineWorkerPool, recordsReader, storeWriter,
+      userWork, ipcWork, sessionEnding: quit.sessionEnding }),
     sessionEnded: () => {
       logger.warn("the session ended before quitting finished", { mod: "main.quit", ...userWork.unsaved() });
     }
@@ -350,6 +338,38 @@ const QUIT_STOP_MS = 1_500;
 const QUIT_CLOSE_MS = 1_000;
 const QUIT_DRAIN_MS = 1_000;
 
+/** Bootstrap's actual stop wiring: normal teardown is allowed only after owned work settles. */
+export async function stopAppWork({ logger, exitReason, statePath, stateCoordinator, projectSession,
+  pipelineWorkerPool, recordsReader, storeWriter, userWork, ipcWork, sessionEnding }: {
+  logger: Pick<AppLogger, "info" | "warn">;
+  exitReason: string;
+  statePath: string;
+  stateCoordinator: Pick<ReturnType<typeof createStateCoordinator>, "flush">;
+  projectSession: Pick<ProjectSession, "shutdown">;
+  pipelineWorkerPool: Pick<PipelineWorkerPool, "destroy">;
+  recordsReader: Pick<ReturnType<typeof createRecordsReader>, "close">;
+  storeWriter: Pick<ReturnType<typeof startStoreWriter>, "close">;
+  userWork: UserWorkWrites;
+  ipcWork: IpcWork;
+  sessionEnding(): boolean;
+}): Promise<boolean> {
+  logger.info("app stopping", { mod: "main", reason: exitReason });
+  // UI state is optional; its failure is logged without a quit question.
+  const stateSaved = stateCoordinator.flush().catch((error: unknown) => {
+    logger.warn("the UI state was not saved before quit", { mod: "main.quit", statePath, err: error });
+  });
+  const finished = await settleWithin(Promise.allSettled([projectSession.shutdown(), stateSaved]), QUIT_STOP_MS);
+  if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_STOP_MS });
+  const closed = await settleWithin(Promise.allSettled([pipelineWorkerPool.destroy(), recordsReader.close()]), QUIT_CLOSE_MS);
+  if (!closed) logger.warn("the workers did not close in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_CLOSE_MS });
+  const drained = await storeWriter.close({ drain: !sessionEnding(), timeoutMs: QUIT_DRAIN_MS });
+  if (!drained) logger.warn("the records and backups did not finish writing in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_DRAIN_MS });
+  // Quit anyway does not cancel primary writes, and IPC may still own native image/file reads.
+  // Their actual settlement (not the earlier bounded wait) decides whether teardown is safe.
+  const writesSettled = userWork.unsaved().running.length === 0;
+  return finished && closed && drained && writesSettled && ipcWork.isIdle();
+}
+
 /**
  * One total exit deadline (developer decision): it starts when an ordinary quit is approved, after
  * any questions and Retry choices, or when the OS session end begins, and a later quit request never
@@ -375,11 +395,13 @@ export type QuitSteps = {
    * Resolves false when the user keeps FotoReady open. Never rejects.
    */
   prepare(): Promise<boolean>;
+  /** Closes new work admission only after the cancelable checks have approved quitting. */
+  approved?(): void;
   /** Answers every question still open, as an ending session must not wait on one. */
   answerForSessionEnd(): void;
   /**
    * Runs once the windows have closed; bounds each of its own waits. Resolves true when every
-   * tracked operation settled (processing, vision, the Records reader, the store writer), so the
+   * tracked operation settled (primary writes, IPC, processing, vision, readers and writers), so the
    * ordinary exit cannot hang on one of them. Never rejects.
    */
   stop(): Promise<boolean>;
@@ -436,6 +458,7 @@ export function installQuitShutdown(
         return;
       }
       phase = "approved";
+      steps.approved?.();
       armDeadline();
       app.quit();
     });

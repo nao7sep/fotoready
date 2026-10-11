@@ -430,8 +430,7 @@ export class ProjectSession {
    */
   async shutdown(): Promise<void> {
     this.#closing = true;
-    this.visionQueue.cancelAll();
-    await Promise.all([this.processingQueue.shutdown(), this.#outputFilesTail]);
+    await Promise.allSettled([this.processingQueue.shutdown(), this.visionQueue.shutdown(), this.#outputFilesTail]);
   }
 
   queueSnapshot(): QueueSnapshot {
@@ -457,11 +456,12 @@ export class ProjectSession {
   }
 
   async afterTaskProcessed(taskId: string): Promise<void> {
+    if (this.#closing) return;
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task || task.status !== "saved" || !task.output || (!task.generateDescription && !task.generateSlug)) {
       return;
     }
-    if (!(await this.visionQueue.hasGeminiApiKey())) {
+    if (!(await this.visionQueue.hasGeminiApiKey()) || this.#closing) {
       return;
     }
     void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });

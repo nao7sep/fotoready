@@ -21,6 +21,8 @@ import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
 import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
+import { GeminiKeyModal } from "./components/modals/gemini-key-modal";
+import { useGeminiKeyPrompt } from "./use-gemini-key-prompt";
 import { AboutModal } from "./components/modals/about-modal";
 import { ShortcutsModal } from "./components/modals/shortcuts-modal";
 import { Menu, MenuItem } from "./components/Menu";
@@ -93,6 +95,11 @@ function App(): React.JSX.Element {
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("save");
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
+  const keyPrompt = useGeminiKeyPrompt({
+    hasKey: api.settings.hasGeminiApiKey,
+    saveKey: api.settings.setGeminiApiKey,
+    onStored: () => setHasGeminiApiKey(true),
+  });
   const [originalImportFeedback, setOriginalImportFeedback] = useState<OriginalImportFeedback | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
@@ -333,7 +340,7 @@ function App(): React.JSX.Element {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram, systemInfo]);
+  }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram, systemInfo, settings]);
 
   useEffect(() => {
     const offProject = api.events.onProjectSnapshot((snapshot) => {
@@ -361,6 +368,10 @@ function App(): React.JSX.Element {
           await api.lifecycle.approveClose(approved, answeredId);
           dismissOwnedFailure(setShellFailures, "close-request");
         };
+        if (!await keyPrompt.requestClose()) {
+          await approve(false);
+          return;
+        }
         if (settingsDirty || apiKeyDirty) {
           const discard = await confirmer.confirm({
             title: t("confirm.discardSettings.title"),
@@ -640,6 +651,7 @@ function App(): React.JSX.Element {
   }
 
   async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<Message | null> {
+    if (!await keyPrompt.ensureKey()) return null;
     const snapshot = await api.vision.runForTask(taskId, options);
     await refreshProject(snapshot);
     const error = snapshot.project.tasks.find((task) => task.id === taskId)?.error;
@@ -713,6 +725,7 @@ function App(): React.JSX.Element {
     }
     setApiKeyDraft("");
     setApiKeyClearRequested(false);
+    setSettingsDraft(null);
     setSettingsOpen(false);
   }
 
@@ -1089,6 +1102,9 @@ function App(): React.JSX.Element {
           systemInfo={systemInfo}
         />
       ) : null}
+
+      {keyPrompt.view ? <GeminiKeyModal {...keyPrompt.view} onChange={keyPrompt.changeDraft}
+        onSave={() => void keyPrompt.save()} onClose={() => void keyPrompt.requestClose()} /> : null}
 
       {shortcutsOpen ? <ShortcutsModal systemInfo={systemInfo} onClose={() => setShortcutsOpen(false)} /> : null}
 

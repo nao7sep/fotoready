@@ -26,6 +26,8 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 - macOS or Windows (Linux runs from source)
 - Metadata editing uses a bundled ExifTool: on macOS and Linux it runs on the **system Perl** interpreter (shipped with current macOS); Windows bundles a self-contained build needing no Perl
 - Optional: a Google Gemini API key for the AI-assist features
+
+Editing and exporting need no key. When you explicitly ask FotoReady to generate a description or slug without one, it offers Save or Not now; saving a key continues that request. You can also manage the key in Settings.
 - A current Node LTS and npm — only if building or running from source
 
 ## Use LUTs and stamps

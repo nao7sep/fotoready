@@ -63,6 +63,7 @@ export class VisionQueue {
   #tails = new Map<string, Promise<void>>();
   // Runs per task that have not settled (at most one running plus one pending).
   #outstanding = new Map<string, number>();
+  #closing = false;
 
   constructor(
     paths: AppPaths,
@@ -94,6 +95,7 @@ export class VisionQueue {
    * first await, so a caller may publish them right after calling.
    */
   runForTask(project: Project, taskId: string, options: VisionRunOptions | undefined, commit: VisionCommit): Promise<void> {
+    if (this.#closing) return Promise.resolve();
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) return Promise.reject(new Error(`Task not found: ${taskId}`));
     if (!task.output) return Promise.reject(new Error("Task must be saved before vision can run."));
@@ -142,6 +144,13 @@ export class VisionQueue {
     const ids = Array.from(this.#pending.keys());
     for (const job of this.#pending.values()) job.cancelled = true;
     return ids;
+  }
+
+  /** Cancellation only skips pending jobs; active native reads remain owned until they settle. */
+  async shutdown(): Promise<void> {
+    this.#closing = true;
+    this.cancelAll();
+    await Promise.allSettled([...this.#tails.values()]);
   }
 
   #settle(task: Task): void {

@@ -32,6 +32,17 @@ describe("OpsPanel result geometry", () => {
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
   });
 
+  it("keeps explicit AI commands available without a key on a saved output", async () => {
+    const task = taskWithOneOp();
+    task.status = "saved";
+    task.output = { stagedPath: "/tmp/photo.jpg", stagedParamsPath: "/tmp/photo.json", stagedAt: "2026-10-11", outputHash: "hash", vision: null, finalPath: null, finalParamsPath: null, renamedAt: null };
+    await render({}, task);
+    const commands = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .filter((button) => ["Generate description", "Generate description and slug"].includes(button.textContent ?? ""));
+    expect(commands).toHaveLength(2);
+    expect(commands.every((button) => !button.disabled)).toBe(true);
+  });
+
   it("keeps an operation failure inside the operation card", async () => {
     await render({ "task-1\0op:op-1:params": message("failure.opParam") }, taskWithOneOp());
 

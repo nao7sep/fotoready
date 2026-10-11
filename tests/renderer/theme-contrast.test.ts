@@ -120,6 +120,34 @@ describe("theme token contrast", () => {
       }
     });
 
+    it(`keeps neutral resting button edges distinct in the ${theme} theme`, () => {
+      const block = themeBlock(theme);
+      const edge = hexOf(block, "--button-border");
+      const fill = hexOf(block, "--button-bg");
+      // Use the weaker painted side. Disabled controls deliberately fade;
+      // semantic fills and selection rings retain their own treatments.
+      for (const surface of SURFACES) {
+        const strength = Math.min(contrast(edge, fill), contrast(edge, hexOf(block, surface)));
+        expect(strength, `button beside ${surface}`).toBeGreaterThanOrEqual(2);
+        expect(strength, `button beside ${surface}`).toBeLessThanOrEqual(2.5);
+      }
+    });
+
+    it(`keeps corrected band and HSL edges within the grouping range in the ${theme} theme`, () => {
+      const block = themeBlock(theme);
+      const pairs: ReadonlyArray<[string, string, string]> = [
+        ["--border-on-muted", "--surface-muted-bg", "--surface-bg"], // editor / preview toolbar
+        ["--border-on-muted", "--surface-muted-bg", "--status-bar-bg"],
+        ["--border-on-muted", "--surface-muted-bg", "--surface-raised-bg"], // HSL bands
+      ];
+      for (const [line, first, second] of pairs) {
+        const edge = hexOf(block, line);
+        const strength = Math.min(contrast(edge, hexOf(block, first)), contrast(edge, hexOf(block, second)));
+        expect(strength, `${line} between ${first} and ${second}`).toBeGreaterThanOrEqual(1.35);
+        expect(strength, `${line} between ${first} and ${second}`).toBeLessThanOrEqual(1.7);
+      }
+    });
+
     it(`keeps text at 4.5:1 or more in the ${theme} theme`, () => {
       const block = themeBlock(theme);
       for (const [foreground, background] of TEXT_PAIRS) {

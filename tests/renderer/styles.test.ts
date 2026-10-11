@@ -107,6 +107,16 @@ describe("line tokens", () => {
     expect(compact).toMatch(/\.hsl-band\{--border-color:var\(--border-on-muted\);[^}]*border:1pxsolidvar\(--border-color\)/);
   });
 
+  it("uses the muted-surface variant where the editor meets its toolbar and status band", () => {
+    expect(compact).toMatch(/\.editor-panel\{[^}]*--border-color:var\(--border-on-muted\)/);
+    expect(compact).toMatch(/\.status-bar\{[^}]*border-top:1pxsolidvar\(--border-on-muted\)/);
+  });
+
+  it("keeps modal bands at the neutral control edge rather than the stronger editable-field outline", () => {
+    expect(compact).toMatch(/\.modal-header\{[^}]*border-bottom:1pxsolidvar\(--button-border\)/);
+    expect(compact).toMatch(/\.modal-actions\{[^}]*border-top:1pxsolidvar\(--button-border\)/);
+  });
+
   it("separates the Settings sections with the separator token", () => {
     expect(compact).toMatch(/\.settings-section-stack>section\{[^}]*border-bottom:1pxsolidvar\(--border-color\)/);
   });

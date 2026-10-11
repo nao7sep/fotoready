@@ -23,13 +23,13 @@ vi.mock("react-dom/client", async (load) => {
 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-async function mount(approveClose: ReturnType<typeof vi.fn>) {
+async function mount(approveClose: ReturnType<typeof vi.fn>, settingsUpdate = vi.fn(async (value) => value)) {
   let requested!: (request: CloseRequest) => void;
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   Object.defineProperty(window, "api", { configurable: true, value: {
     language: { current: async () => ({ language: "en", locale: "en-US" }), onChanged: () => () => {} },
     system: { getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", cpuCount: 8, platform: "darwin" }), log: vi.fn(async () => {}) },
-    settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },
+    settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false, update: settingsUpdate },
     state: { get: async () => defaultUiState() },
     project: { current: async () => ({ project: { originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }) },
     ops: { list: async () => [] }, luts: { list: async () => [] }, stamps: { list: async () => [] },
@@ -74,4 +74,40 @@ it("answers with cancellation when required renderer confirmation fails", async 
   const request = await mount(approve);
   await act(async () => request({ endsApp: true, requestId: 3 }));
   expect(approve).toHaveBeenCalledWith(false, 3);
+});
+
+
+it("opens the latest saved settings through the keyboard shortcut", async () => {
+  const update = vi.fn(async (value) => value);
+  await mount(vi.fn(async () => {}), update);
+  const openSettings = async () => { await act(async () => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", metaKey: true, bubbles: true }));
+  }); };
+  await openSettings();
+  const format = document.querySelector<HTMLSelectElement>('[role="dialog"] select')!;
+  expect(format.value).toBe("original");
+  await act(async () => { format.value = "jpeg"; format.dispatchEvent(new Event("change", { bubbles: true })); });
+  await act(async () => document.querySelector<HTMLButtonElement>('[role="dialog"] button.primary-action')!.click());
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ defaultOutputFormat: "jpeg" }));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  await openSettings();
+  expect(document.querySelector<HTMLSelectElement>('[role="dialog"] select')!.value).toBe("jpeg");
+  expect(document.querySelector<HTMLButtonElement>('[role="dialog"] button.primary-action')!.disabled).toBe(true);
+});
+
+
+it("settles a discarded Settings draft before a later ordinary quit", async () => {
+  const approve = vi.fn(async () => {});
+  const request = await mount(approve);
+  owner.confirm.mockResolvedValue(true);
+  await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", metaKey: true, bubbles: true })));
+  const format = document.querySelector<HTMLSelectElement>('[role="dialog"] select')!;
+  await act(async () => { format.value = "jpeg"; format.dispatchEvent(new Event("change", { bubbles: true })); });
+  await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(owner.confirm).toHaveBeenCalledOnce();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  owner.confirm.mockClear();
+  await act(async () => request({ endsApp: true, requestId: 4 }));
+  expect(owner.confirm).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "Close and discard the current workspace?" }));
+  expect(approve).toHaveBeenCalledWith(true, 4);
 });

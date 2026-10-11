@@ -29,7 +29,8 @@
   --button-bg: #fafaf9;
   --button-hover-bg: #f0efee;
   --button-active-bg: #e7e5e4;
-  --button-border: #d6d3d1;
+  /* Neutral resting control edges stay distinct from grouping lines. */
+  --button-border: #a8a29e;
   --button-shadow: 0 1px 2px rgb(28 25 23 / 8%);
   --menu-hover-bg: #e7e5e4;
   /* The recessed track behind tabs and segmented choices. */
@@ -136,16 +137,16 @@
     --button-bg: #2e2e2e;
     --button-hover-bg: #353535;
     --button-active-bg: #3f3f3f;
-    --button-border: #4a4a4a;
+    --button-border: #606060;
     --button-shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --menu-hover-bg: #333333;
     --track-bg: #141414;
     --field-bg: #121212;
     --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    --border-color: #383838;
+    --border-color: #3c3c3c;
     --border-strong-color: #555555;
     --border-on-raised: #3e3e3e;
-    --border-on-muted: #383838;
+    --border-on-muted: #3c3c3c;
     --field-border-color: #818181;
     --selection-border-color: #fbbf24;
     --text-color: #e5e5e5;
@@ -392,7 +393,8 @@ button {
 
 .status-bar {
   justify-content: flex-start;
-  border-top: 1px solid var(--border-color);
+  /* The editor's muted surface meets this band above it. */
+  border-top: 1px solid var(--border-on-muted);
   border-bottom: 0;
   color: var(--text-muted-color);
   background: var(--status-bar-bg);
@@ -1089,6 +1091,8 @@ select:disabled {
 }
 
 .editor-panel {
+  /* Its edges and preview toolbar meet the muted canvas surface. */
+  --border-color: var(--border-on-muted);
   /* The editor is the fill pane; its real minimum (the source of truth is PANE_MINS.editor in
      @shared/layout/workspace-metrics) is mirrored here and in the grid's minmax() track so the
      content never collapses below a usable width. */
@@ -2110,9 +2114,9 @@ select:disabled {
 }
 
 .modal-header {
-  /* No fainter than the app's own control borders, so the band stays visible
-     without a tint. */
-  border-bottom: 1px solid var(--field-border-color);
+  /* Modal bands use the neutral button edge under the modal contract;
+     the stronger field outline identifies editable values. */
+  border-bottom: 1px solid var(--button-border);
 }
 
 /* A hidden title leaves the close control alone in the band: it keeps its
@@ -2168,9 +2172,8 @@ select:disabled {
 
 .modal-actions {
   justify-content: flex-end;
-  /* The same hairline as the header's, so the two bands read as a pair, and
-     no fainter than the app's own control borders. */
-  border-top: 1px solid var(--field-border-color);
+  /* Match the header's neutral control edge, as the modal contract requires. */
+  border-top: 1px solid var(--button-border);
 }
 
 /* The confirming button of the dialog that asks is filled, so a solid red marks

@@ -107,7 +107,8 @@ function newestFirst(a: RecordSummary, b: RecordSummary): number {
 /**
  * The newest page read again, joined with the rows already shown: a row in both takes the page's
  * copy, and the rows shown beyond the page stay, so the pages already read are kept and a page read
- * out of order loses nothing.
+ * out of order loses nothing. A disjoint newer range starts again at its own oldest cursor, so
+ * later paging includes the intervening history; a stale disjoint older refresh cannot reopen a gap.
  */
 export function mergeNewestPage(
   shown: readonly RecordSummary[],
@@ -115,9 +116,14 @@ export function mergeNewestPage(
   page: RecordsPage
 ): { records: RecordSummary[]; more: boolean } {
   const byKey = new Map(shown.map((record) => [recordKey(record), record]));
+  const first = page.records[0];
+  const last = page.records.at(-1);
+  if (shown.length > 0 && first && last && !page.records.some((record) => byKey.has(recordKey(record)))) {
+    if (newestFirst(first, shown.at(-1)!) > 0) return { records: [...shown], more: shownMore };
+    if (page.more && newestFirst(last, shown[0]) < 0) return { records: page.records, more: page.more };
+  }
   for (const record of page.records) byKey.set(recordKey(record), record);
   const records = [...byKey.values()].sort(newestFirst);
-  const last = page.records.at(-1);
   const beyond = last !== undefined && shown.some((record) => newestFirst(record, last) > 0);
   return { records, more: beyond ? shownMore : page.more };
 }

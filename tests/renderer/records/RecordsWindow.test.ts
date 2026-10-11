@@ -7,6 +7,7 @@ import { SPLITTER_WIDTH } from "@shared/layout/workspace-metrics";
 import type { RecordDetail, RecordsPage, RecordsQuery, RecordSummary } from "@shared/records";
 import type { FotoReadyApi } from "@shared/types/ipc";
 import type { UiState } from "@shared/types/state";
+import type { InterfaceLanguage } from "@shared/i18n/languages";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -40,6 +41,7 @@ const getState = vi.fn<FotoReadyApi["state"]["get"]>();
 const currentLanguage = vi.fn<FotoReadyApi["language"]["current"]>();
 const log = vi.fn<FotoReadyApi["system"]["log"]>();
 let recordsChanged: (() => void) | null = null;
+let languageChanged: ((language: InterfaceLanguage) => void) | null = null;
 const onChanged = vi.fn<FotoReadyApi["records"]["onChanged"]>((listener) => {
   recordsChanged = listener;
   return () => {
@@ -54,7 +56,7 @@ Object.defineProperty(window, "api", {
     records: { page, detail, sources, onChanged },
     state: { get: getState, update },
     system: { log },
-    language: { current: currentLanguage, onChanged: () => () => {} }
+    language: { current: currentLanguage, onChanged: (listener: (language: InterfaceLanguage) => void) => { languageChanged = listener; return () => { languageChanged = null; }; } }
   }
 });
 const { RecordsApp, RecordsWindow } = await import("@renderer/records/RecordsWindow");
@@ -94,6 +96,9 @@ beforeEach(() => {
   log.mockResolvedValue();
   onChanged.mockClear();
   recordsChanged = null;
+  languageChanged = null;
+  getState.mockReset().mockResolvedValue({ recordsListWidth: RECORDS_LIST_WIDTH.default } as UiState);
+  currentLanguage.mockReset().mockResolvedValue({ language: "en", locale: "en" });
   Object.assign(box, { scrollTop: 0, scrollHeight: 1000, clientHeight: 200, shellWidth: 2000 });
   resizeCallbacks.clear();
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -160,6 +165,18 @@ const cursorOf = (record: RecordSummary) => ({ time: record.time, kind: record.k
 const ALL: RecordsQuery = { session: null, kind: null, level: null, taskId: null, search: "", after: null };
 
 describe("RecordsApp", () => {
+  it("keeps a newer language broadcast when the older startup read arrives later", async () => {
+    const initial = deferred<InterfaceLanguage>();
+    currentLanguage.mockReturnValueOnce(initial.promise);
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(createElement(RecordsApp)));
+    await act(async () => languageChanged!({ language: "ja", locale: "ja" }));
+    await vi.waitFor(() => expect(document.title).toBe("ログ"));
+    await act(async () => initial.resolve({ language: "en", locale: "en" }));
+    expect(document.title).toBe("ログ");
+  });
   it("draws nothing until the language and the saved list width are known, then opens at that width", async () => {
     const state = deferred<UiState>();
     getState.mockReturnValueOnce(state.promise);
@@ -178,6 +195,23 @@ describe("RecordsApp", () => {
 });
 
 describe("RecordsWindow", () => {
+  it("rejects an older trailing page after a live refresh resets the displayed range", async () => {
+    page.mockResolvedValueOnce({ records: [call, line], more: true });
+    const trailing = deferred<RecordsPage>();
+    page.mockReturnValueOnce(trailing.promise);
+    await mount();
+    await scrollTo(800);
+    await scrollTo(0);
+    vi.useFakeTimers();
+    const newest = { ...newer, id: 200 };
+    page.mockResolvedValueOnce({ records: [newest], more: true });
+    await signal();
+    await act(async () => vi.advanceTimersByTime(1000));
+    await act(async () => trailing.resolve({ records: [{ ...line, id: 8, title: "stale trailing row" }], more: false }));
+    expect(titles()).toEqual(["app later"]);
+    await scrollTo(800);
+    expect(lastQuery().after).toEqual(cursorOf(newest));
+  });
   it("lists the records newest first in one listbox, with nothing selected yet", async () => {
     await mount();
 

@@ -75,6 +75,42 @@ function seed(): void {
 }
 
 describe("readRecords: page", () => {
+  it("adds ordered indexes to an existing admitted database without changing its records or version", () => {
+    seed();
+    const before = page().records;
+    db!.close(); db = null;
+    const old = new DatabaseSync(dbFile());
+    const indexes = old.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[];
+    for (const { name } of indexes) old.exec(`DROP INDEX "${name}"`);
+    old.close();
+    const reopened = openRecordsDatabase(dbFile());
+    try {
+      expect(reopened.db.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 1 });
+      expect(readRecords(reopened.db, { op: "page", query: ALL }).records).toEqual(before);
+      const indexRows = reopened.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[];
+      expect(indexRows.map((row) => row.name)).toEqual(expect.arrayContaining([
+        "idx_log_records_time", "idx_log_records_session_time", "idx_log_records_task_time",
+        "idx_provider_calls_time", "idx_provider_calls_session_time", "idx_provider_calls_task_time"
+      ]));
+    } finally { reopened.close(); }
+  });
+
+  it.each(["log", "provider-call"] as const)("pages through cross-kind timestamp ties after a %s cursor", (kind) => {
+    const time = "2026-10-02T08:00:00.000Z";
+    store(second, (records) => {
+      for (let index = 0; index < 160; index++) {
+        records.writeLog({ time, level: "info", message: `line ${index}`, fields: {} });
+        records.writeProviderCall(call(time));
+      }
+    });
+    const database = open();
+    const result = readRecords(database, { op: "page", query: { ...ALL, after: { time, kind, id: 51 } } });
+    const expected = kind === "log"
+      ? Array.from({ length: 50 }, (_, index) => `log:${50 - index}`)
+      : [...Array.from({ length: 50 }, (_, index) => `provider-call:${50 - index}`), ...Array.from({ length: 50 }, (_, index) => `log:${160 - index}`)];
+    expect(result.records.map((row) => `${row.kind}:${row.id}`)).toEqual(expected);
+    expect(result.more).toBe(kind === "provider-call");
+  });
   it("lists log lines and provider calls together, newest first, summarized", () => {
     seed();
     const { records, more } = page();

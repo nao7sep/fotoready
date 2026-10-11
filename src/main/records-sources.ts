@@ -12,8 +12,9 @@ export function recordSources(
   project: Pick<Project, "tasks" | "originals">
 ): RecordSources {
   const names = new Map<string, string>();
+  const originals = new Map(project.originals.map((original) => [original.id, original]));
   for (const task of project.tasks) {
-    const original = project.originals.find((item) => item.id === task.originalId);
+    const original = originals.get(task.originalId);
     if (original) names.set(task.id, original.sourcePath.split(/[\\/]/).at(-1) ?? original.sourcePath);
   }
   return {

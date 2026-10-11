@@ -67,7 +67,10 @@ export function RecordsApp(): React.JSX.Element | null {
         });
     };
     const off = api.language.onChanged(show);
-    void api.language.current().then(show, (error: unknown) => {
+    const initialTicket = latest;
+    void api.language.current().then((next) => {
+      if (current && latest === initialTicket) show(next);
+    }, (error: unknown) => {
       presentFailure(error, null, "records window language read failed");
       if (current) setLanguage((shown) => shown ?? ENGLISH);
     });
@@ -293,15 +296,17 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
     fetchingMore.current = true;
     const generation = listGeneration.current;
     setList((current) => (current.status === "ready" ? { ...current, loadingMore: true, moreFailed: false } : current));
-    void api.records.page({ ...filters, after: cursorAfter(list.records) }).then(
+    const after = cursorAfter(list.records);
+    void api.records.page({ ...filters, after }).then(
       (page) => {
         if (generation !== listGeneration.current) return;
         fetchingMore.current = false;
         liveSuspended.current = false;
         setList((current) =>
-          current.status === "ready"
-            ? { ...current, records: [...current.records, ...page.records], more: page.more, loadingMore: false }
-            : current
+          current.status !== "ready" ? current
+            : JSON.stringify(cursorAfter(current.records)) !== JSON.stringify(after)
+              ? { ...current, loadingMore: false }
+              : { ...current, records: [...current.records, ...page.records], more: page.more, loadingMore: false }
         );
       },
       (error: unknown) => {

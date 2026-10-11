@@ -13,6 +13,15 @@ const d = row(4, "2026-10-02T08:00:04.000Z");
 const keys = (records: RecordSummary[]) => records.map(recordKey);
 
 describe("mergeNewestPage", () => {
+  it("resets to a disjoint newer page so the next cursor cannot skip the intervening records", () => {
+    const shown = Array.from({ length: 100 }, (_, index) => row(100 - index, "2026-10-02T08:00:00.000Z"));
+    const newest = Array.from({ length: 100 }, (_, index) => row(250 - index, "2026-10-02T08:00:00.000Z"));
+    const merged = mergeNewestPage(shown, false, { records: newest, more: true });
+    expect(keys(merged.records)).toEqual(keys(newest));
+    expect(merged.more).toBe(true);
+    expect(cursorAfter(merged.records)?.id).toBe(151);
+    expect(mergeNewestPage(merged.records, merged.more, { records: shown, more: false })).toEqual(merged);
+  });
   it("puts new records ahead of the rows shown and keeps the pages already read", () => {
     const merged = mergeNewestPage([c, b, a], true, { records: [d, c], more: true });
     expect(keys(merged.records)).toEqual(keys([d, c, b, a]));

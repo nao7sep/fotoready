@@ -122,6 +122,25 @@ describe("catalogues", () => {
     }
   });
 
+  // An ellipsis carries meaning (a command that asks for more, an operation still running), so a
+  // translation has one exactly when English does; it is always the single character, and its spacing
+  // is set per language: German puts a no-break space before it, the others attach it directly
+  // (localization-conventions, Ellipsis).
+  it.each(LANGUAGES)("%s writes an ellipsis exactly where English does, as one character spaced for the language", (language) => {
+    for (const [key, englishEntry] of Object.entries(english)) {
+      const expected = forms(englishEntry).some((text) => text.includes("…"));
+      for (const text of forms(catalogues[language][key] ?? "")) {
+        expect(text, key).not.toContain("...");
+        expect(text.includes("…"), `${key}: ${text}`).toBe(expected);
+        for (const match of text.matchAll(/(.)…/gu)) {
+          expect(match[1], `${key}: ${text}`).not.toBe(" ");
+          if (language === "de") expect(match[1], `${key}: ${text}`).toBe(" ");
+          else expect(match[1], `${key}: ${text}`).not.toMatch(/\s/u);
+        }
+      }
+    }
+  });
+
   it.each(translations)("%s translates everything not listed as the same word", (language) => {
     const allowed = SAME_AS_ENGLISH[language] ?? [];
     const copied = Object.keys(english).filter((key) => {

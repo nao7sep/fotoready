@@ -475,6 +475,8 @@ button {
   filter: brightness(0.95);
 }
 
+/* One of the few justified truncations: the status bar is a single line of persistent chrome, and the
+   same task's full label is in the Tasks list, which wraps and is keyboard-navigable. */
 .status-active-label {
   font-style: italic;
   color: var(--text-muted-color);
@@ -564,17 +566,15 @@ button:focus-visible {
 }
 
 .app-menu button {
-  height: 30px;
-  padding: 0 10px;
+  min-height: 30px;
+  padding: 4px 10px;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--text-color);
   background: transparent;
   text-align: left;
   font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 /* Items touch, so a ring outside one would sit under the next item's hover
@@ -980,12 +980,12 @@ select:disabled {
   background: var(--brand-secondary-soft-border);
 }
 
+/* Names and states wrap rather than truncate (responsive-interface-conventions): a row may grow taller,
+   but its file name and its state stay whole. */
 .row-title,
 .row-detail {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .row-copy {
@@ -1035,24 +1035,6 @@ select:disabled {
   margin-top: 3px;
   font-size: 12px;
   color: var(--text-muted-color);
-}
-
-/* A task's state is what its row is for, and in some languages the op count
-   and the state together outgrow the pane ("20 Operationen · Nicht
-   gespeichert"): the line wraps instead of cutting the state off. */
-.task-row .row-detail {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-/* At the Originals pane's minimum width (140px) the size/format line is as
-   important as the file name — losing "· JPEG" to an ellipsis hides the very
-   thing the row is reporting, in English too. The file name still truncates
-   (it is often the longest and least essential part once the thumbnail and
-   size are visible); the size line wraps instead of clipping. */
-.original-list-entry .row-detail {
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 .status-dot {
@@ -1109,23 +1091,24 @@ select:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--surface-bg);
   font-size: 12px;
   color: var(--text-soft-color);
 }
 
+/* The file name and the task's state wrap onto a second line rather than truncate: the state is
+   evidence the editor relies on, and the bar grows by a line only for long names. */
 .preview-detail {
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 2px 8px;
+  overflow-wrap: anywhere;
   color: var(--text-strong-color);
   font-size: 13px;
 }
@@ -1727,9 +1710,7 @@ select:disabled {
   min-width: 0;
   color: var(--text-strong-color);
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .asset-source-action-stack {
@@ -2237,11 +2218,11 @@ select:disabled {
   display: none;
 }
 
+/* The proposed, current and original names are the evidence for the rename, so they wrap and are never
+   cut short. */
 .rename-preview-title {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: var(--text-strong-color);
   font-size: 13px;
   font-weight: 600;
@@ -2328,9 +2309,7 @@ select:disabled {
 
 .rename-preview-meta > span:last-child {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .rename-output-dir {
@@ -2582,9 +2561,7 @@ select:disabled {
   color: var(--text-strong-color);
   font-size: 12px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .asset-picker-badge {
@@ -2790,8 +2767,6 @@ select:disabled {
 .settings-grid > .row-detail {
   grid-column: span 2;
   margin-top: -2px;
-  overflow: visible;
-  text-overflow: clip;
 }
 
 .settings-inline-row {
@@ -3076,6 +3051,8 @@ kbd {
   color: inherit;
 }
 
+/* A justified truncation: log text can run to many lines, and the list is for scanning. The clamp draws
+   its one marker, and selecting the row shows the whole text in the detail pane. */
 .records-row-text {
   display: -webkit-box;
   overflow: hidden;

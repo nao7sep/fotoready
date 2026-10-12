@@ -475,16 +475,27 @@ button {
   filter: brightness(0.95);
 }
 
-/* One of the few justified truncations: the status bar is a single line of persistent chrome, and the
-   same task's full label is in the Tasks list, which wraps and is keyboard-navigable. */
+/* One of the few justified truncations: the status bar is a single line of persistent chrome. The
+   label is a button that selects the task, whose full name the preview toolbar then shows. */
 .status-active-label {
-  font-style: italic;
   color: var(--text-muted-color);
   min-width: 0;
   max-width: 280px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-style: italic;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-active-label:hover {
+  color: var(--text-strong-color);
 }
 
 /* ── Buttons ───────────────────────────────────────────────
@@ -673,15 +684,39 @@ select:disabled {
   font-size: 12px;
 }
 
+/* The other justified truncation: the badge is a fixed-height control in the one-line top bar. When a
+   folder is set, the label is a button that reveals it in Finder or Explorer, so the complete path is
+   reachable by click or keyboard; the inner block draws the one marker. */
 .output-badge-label {
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
+  border: 0;
+  background: transparent;
   color: var(--text-muted-color);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  font: inherit;
+  text-align: left;
   min-width: 0;
+}
+
+button.output-badge-label {
+  cursor: pointer;
+}
+
+button.output-badge-label:hover {
+  color: var(--text-strong-color);
+}
+
+button.output-badge-label:focus-visible {
+  outline-offset: -2px;
+}
+
+.output-badge-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .output-badge-button {

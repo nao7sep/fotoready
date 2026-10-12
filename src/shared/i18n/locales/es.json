@@ -127,6 +127,7 @@
   "failure.histogramPosition": "No se pudo guardar la posición del histograma. Sigue vigente la posición anterior.",
   "failure.queueRefresh": "El cambio se aplicó, pero no se pudo actualizar el estado de la cola. Se actualizará cuando la cola vuelva a informar.",
   "failure.outputFolderChange": "No se pudo cambiar la carpeta de salida. Se sigue usando la carpeta actual; inténtalo de nuevo.",
+  "failure.outputFolderReveal": "No se pudo mostrar la carpeta de salida. Comprueba que todavía existe e inténtalo de nuevo.",
   "failure.outputFolderClear": "No se pudo borrar la carpeta de salida. Se sigue usando la carpeta actual; inténtalo de nuevo.",
   "failure.removeOriginal": "«{name}» sigue en el proyecto. Cierra cualquier aplicación que use sus archivos e inténtalo de nuevo.",
   "failure.removeUnknownOriginal": "El original sigue en el proyecto. Cierra cualquier aplicación que use sus archivos e inténtalo de nuevo.",

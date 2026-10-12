@@ -127,6 +127,7 @@
   "failure.histogramPosition": "Não foi possível salvar a posição do histograma. A posição anterior continua em uso.",
   "failure.queueRefresh": "A alteração foi aplicada, mas o status da fila não pôde ser atualizado. Ele será atualizado quando a fila informar de novo.",
   "failure.outputFolderChange": "Não foi possível alterar a pasta de saída. A pasta atual continua em uso; tente novamente.",
+  "failure.outputFolderReveal": "Não foi possível mostrar a pasta de saída. Verifique se ela ainda existe e tente novamente.",
   "failure.outputFolderClear": "Não foi possível limpar a pasta de saída. A pasta atual continua em uso; tente novamente.",
   "failure.removeOriginal": "“{name}” continua no projeto. Feche qualquer aplicativo que esteja usando os arquivos dele e tente novamente.",
   "failure.removeUnknownOriginal": "O original continua no projeto. Feche qualquer aplicativo que esteja usando os arquivos dele e tente novamente.",

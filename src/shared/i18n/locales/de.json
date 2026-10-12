@@ -127,6 +127,7 @@
   "failure.histogramPosition": "Die Position des Histogramms konnte nicht gespeichert werden. Die bisherige Position gilt weiter.",
   "failure.queueRefresh": "Die Änderung wurde übernommen, aber der Warteschlangenstatus konnte nicht aktualisiert werden. Er wird aktualisiert, sobald die Warteschlange erneut meldet.",
   "failure.outputFolderChange": "Der Ausgabeordner konnte nicht geändert werden. Der aktuelle Ordner gilt weiter; versuchen Sie es erneut.",
+  "failure.outputFolderReveal": "Der Ausgabeordner konnte nicht angezeigt werden. Prüfen Sie, ob er noch existiert, und versuchen Sie es erneut.",
   "failure.outputFolderClear": "Der Ausgabeordner konnte nicht geleert werden. Der aktuelle Ordner gilt weiter; versuchen Sie es erneut.",
   "failure.removeOriginal": "„{name}“ bleibt im Projekt. Schließen Sie alle Apps, die seine Dateien verwenden, und versuchen Sie es dann erneut.",
   "failure.removeUnknownOriginal": "Das Original bleibt im Projekt. Schließen Sie alle Apps, die seine Dateien verwenden, und versuchen Sie es dann erneut.",

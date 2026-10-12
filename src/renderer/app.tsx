@@ -825,7 +825,26 @@ function App(): React.JSX.Element {
         <span className="app-title">{APP_NAME}</span>
         <span className="top-bar-spacer" />
         <div className="output-badge">
-          <span className="output-badge-label" title={project?.outputDir ?? ""}>{t("topBar.output", { folder: outputDirLabel })}</span>
+          {/* The path can be cut short here, so the label itself reveals the folder in Finder or Explorer:
+              its complete location is a click or a keypress away, not only a hover tooltip. */}
+          {project?.outputDir ? (
+            <button className="output-badge-label" type="button" title={project.outputDir} onClick={() => {
+              const folder = project.outputDir!;
+              void runOwnedAction({
+                action: () => api.system.revealInFolder(folder),
+                key: "output-directory-reveal",
+                operation: "output folder reveal failed",
+                setFailures: setShellFailures,
+                userMessage: message("failure.outputFolderReveal")
+              });
+            }}>
+              <span className="output-badge-text">{t("topBar.output", { folder: outputDirLabel })}</span>
+            </button>
+          ) : (
+            <span className="output-badge-label">
+              <span className="output-badge-text">{t("topBar.output", { folder: outputDirLabel })}</span>
+            </span>
+          )}
           <button className="output-badge-button" type="button" onClick={() => void runOwnedAction({
             action: setOutputDir,
             key: "output-directory",
@@ -1128,6 +1147,7 @@ function App(): React.JSX.Element {
           privacyWarnings={projectSnapshot?.privacyWarnings ?? null}
           hasGeminiApiKey={systemInfo ? hasGeminiApiKey : null}
           onOpenSettings={() => void openSettings("vision")}
+          onSelectTask={(taskId) => void runOwnedAction({ action: () => selectTask(taskId), fields: { taskId }, key: "status-select", operation: "task selection failed", setFailures: setShellFailures, userMessage: message("failure.selectTask") })}
         />
       </footer>
     </main>
@@ -1149,12 +1169,14 @@ function StatusBar({
   queue,
   privacyWarnings,
   hasGeminiApiKey,
-  onOpenSettings
+  onOpenSettings,
+  onSelectTask
 }: {
   queue: QueueSnapshot;
   privacyWarnings: Record<string, PrivacyWarning> | null;
   hasGeminiApiKey: boolean | null;
   onOpenSettings(): void;
+  onSelectTask(taskId: string): void;
 }): React.JSX.Element {
   const { t } = useI18n();
   const privacyCount = privacyWarnings ? Object.keys(privacyWarnings).length : 0;
@@ -1173,7 +1195,10 @@ function StatusBar({
         {queue.processing > 0 ? <span className="status-chip status-chip-active">{t("status.running", { count: queue.processing })}</span> : null}
         {queue.queued > 0 ? <span className="status-chip status-chip-info">{t("status.queued", { count: queue.queued })}</span> : null}
         {queue.errors > 0 ? <span className="status-chip status-chip-danger">{t("status.failed", { count: queue.errors })}</span> : null}
-        {queue.activeTaskLabel ? <span className="status-active-label" title={queue.activeTaskLabel}>{queue.activeTaskLabel}</span> : null}
+        {/* Cut short on this one-line bar, so it selects the task, whose full name the preview toolbar shows. */}
+        {queue.activeTaskLabel && queue.activeTaskId ? (
+          <button className="status-active-label" type="button" title={queue.activeTaskLabel} onClick={() => onSelectTask(queue.activeTaskId!)}>{queue.activeTaskLabel}</button>
+        ) : null}
         {idle && queue.total > 0 ? <span className="status-chip status-chip-idle">{t("status.idle")}</span> : null}
       </div>
       <span className="top-bar-spacer" />

@@ -158,12 +158,9 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("system.revealInFolder", "info", async (_event, filePath: string) => {
     if (typeof filePath !== "string" || filePath.length === 0) return;
     const resolved = path.resolve(filePath);
-    try {
-      await fs.lstat(resolved);
-    } catch (error) {
-      ctx.logger.warn("revealInFolder skipped: path does not exist", { mod: "main.ipc", filePath: resolved, err: error });
-      return;
-    }
+    // A missing path rejects, so the caller can say the folder could not be shown instead of
+    // the click doing nothing.
+    await fs.lstat(resolved);
     shell.showItemInFolder(resolved);
   });
   handle("system.openExternal", "info", async (_event, url: string) => {

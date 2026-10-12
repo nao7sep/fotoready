@@ -127,6 +127,7 @@
   "failure.histogramPosition": "无法保存直方图位置。仍在使用之前的位置。",
   "failure.queueRefresh": "更改已应用，但无法刷新队列状态。队列下次报告时会更新。",
   "failure.outputFolderChange": "无法更改输出文件夹。仍在使用当前文件夹；请重试。",
+  "failure.outputFolderReveal": "无法显示输出文件夹。请确认它仍然存在，然后重试。",
   "failure.outputFolderClear": "无法清除输出文件夹。仍在使用当前文件夹；请重试。",
   "failure.removeOriginal": "“{name}”仍在项目中。请关闭正在使用其文件的应用，然后重试。",
   "failure.removeUnknownOriginal": "原图仍在项目中。请关闭正在使用其文件的应用，然后重试。",

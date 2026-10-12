@@ -329,6 +329,11 @@ select {
   text-overflow: ellipsis;
 }
 
+.modal-actions > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* Every button shows the hand (the webview clickable idiom); disabled resets to
    the arrow below. */
 button {
@@ -2206,8 +2211,12 @@ button.output-badge-label:focus-visible {
   height: 1em;
 }
 
+/* A long translated label never squeezes its button into wrapping inside its fixed height: buttons
+   keep their one-line width, and one that no longer fits moves whole to a new row
+   (modal-dialog-conventions). */
 .modal-actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
   /* Match the header's neutral control edge, as the modal contract requires. */
   border-top: 1px solid var(--button-border);
 }

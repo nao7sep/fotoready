@@ -141,6 +141,21 @@ describe("catalogues", () => {
     }
   });
 
+  // A control that swaps its command for a running status must visibly change, or the press looks
+  // ignored: "Импорт…" can read as both Import and Importing. Each pair is one button's command and
+  // the status it shows while that command runs; a collision is fixed by rewording the command.
+  const COMMAND_STATUS_PAIRS = [
+    ["common.save", "common.saving"],
+    ["rename.generate", "rename.generating"],
+    ["rename.regenerate", "rename.regenerating"]
+  ] as const;
+
+  it.each(LANGUAGES)("%s words each command differently from the status that replaces it", (language) => {
+    for (const [command, status] of COMMAND_STATUS_PAIRS) {
+      expect(catalogues[language][command], `${command} / ${status}`).not.toBe(catalogues[language][status]);
+    }
+  });
+
   it.each(translations)("%s translates everything not listed as the same word", (language) => {
     const allowed = SAME_AS_ENGLISH[language] ?? [];
     const copied = Object.keys(english).filter((key) => {

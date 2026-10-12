@@ -121,9 +121,7 @@ describe("VisionQueue with a locked records store", () => {
 
       const started = performance.now();
       await session.runVision(task.id, { mode: "description" });
-      // Waiting on the held store would spend at least the whole busy timeout in SQLite's busy handler,
-      // so anything shorter proves the run did not wait, however loaded the machine is.
-      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS);
+      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
       expect(task.error).toBeNull();
       expect(task.output?.vision?.description).toBe("A harbor");
     } finally {

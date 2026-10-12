@@ -20,9 +20,6 @@ Object.defineProperty(globalThis, "ResizeObserver", {
   }
 });
 
-// Each test mounts the whole app from a fresh module graph, which takes seconds on a loaded machine.
-const MOUNT_TIMEOUT_MS = 30_000;
-
 const OUTPUT_DIR = "/fixtures/output/a folder whose path is longer than the top bar can show";
 
 const queue: QueueSnapshot = {
@@ -49,7 +46,7 @@ describe("values cut short in the main window", () => {
 
     await act(async () => badge!.click());
     expect(revealInFolder).toHaveBeenCalledTimes(2);
-  }, MOUNT_TIMEOUT_MS);
+  });
 
   it("selects the running task from the status bar", async () => {
     const select = vi.fn(async () => snapshot());
@@ -59,7 +56,7 @@ describe("values cut short in the main window", () => {
     expect(label?.textContent).toBe(queue.activeTaskLabel);
     await act(async () => label!.click());
     expect(select).toHaveBeenCalledWith("task-1");
-  }, MOUNT_TIMEOUT_MS);
+  });
 });
 
 function shellResults(): string {

@@ -121,3 +121,41 @@ describe("line tokens", () => {
     expect(compact).toMatch(/\.settings-section-stack>section\{[^}]*border-bottom:1pxsolidvar\(--border-color\)/);
   });
 });
+
+// Truncation is an audited exception (responsive-interface-conventions, text-cleanup-conventions rule
+// 4): each site draws one marker and has a click-and-keyboard path to the complete value, so a new
+// truncation or a marker-less clip has to come through this list rather than appear unreviewed.
+describe("truncation", () => {
+  const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: match[1]!.trim().replace(/\s+/g, " "),
+    declarations: Object.fromEntries(
+      match[2]!.split(";").filter((declaration) => declaration.includes(":")).map((declaration) => {
+        const [property, ...value] = declaration.split(":");
+        return [property!.trim(), value.join(":").trim()];
+      })
+    ) as Record<string, string>
+  }));
+
+  it("draws an ellipsis only at the reviewed sites", () => {
+    // The badge reveals its folder, the status label selects its task, a select opens its options and
+    // a Records row shows its text in the detail pane.
+    expect(rules.filter((rule) => rule.declarations["text-overflow"] === "ellipsis").map((rule) => rule.selector))
+      .toEqual(["select", ".status-active-label", ".output-badge-text"]);
+    expect(rules.filter((rule) => "-webkit-line-clamp" in rule.declarations).map((rule) => rule.selector))
+      .toEqual([".records-row-text"]);
+  });
+
+  it("never clips a line without a marker", () => {
+    const clipped = rules.filter(({ declarations }) =>
+      declarations["white-space"] === "nowrap"
+      && ["hidden", "clip"].includes(declarations.overflow ?? declarations["overflow-x"] ?? "")
+      && declarations["text-overflow"] !== "ellipsis");
+    // The screen-reader-only utility hides its text from sight on purpose.
+    expect(clipped.map((rule) => rule.selector)).toEqual([".sr-only"]);
+  });
+
+  it("lets a narrow pane's footer command wrap instead of overflowing the pane", () => {
+    expect(compact).toMatch(/\.panel-footer>\.toolbar-button\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+    expect(compact).toMatch(/\.panel-footer\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  });
+});

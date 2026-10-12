@@ -42,9 +42,8 @@ const BOXES = [[60, 20], [40, 13], [24, 24]] as const;
 type Reference = { text: string; maxWidth: number; maxHeight: number; expected: number; measured: Map<number, Size> };
 
 describe("watermark text fit", () => {
-  // The full binary search renders real text at every size it tries, which can take many seconds on a
-  // loaded machine; it runs here with its own generous bound, since it establishes the expected answers
-  // rather than timing anything, and keeps each real measurement.
+  // The full binary search renders real text at every size it tries; it runs here, outside the
+  // individual tests, and keeps each real measurement for them.
   const references: Reference[] = [];
   beforeAll(async () => {
     await warmTextRendering();
@@ -60,7 +59,7 @@ describe("watermark text fit", () => {
         references.push({ text, maxWidth, maxHeight, expected: await binarySearchFit(render, maxWidth, maxHeight), measured });
       }
     }
-  }, 120_000);
+  });
 
   it("picks the size a full binary search picks for real text, in a few renders", async () => {
     const defaults = requireOpModule("watermark-text").defaultParams as Params;

@@ -86,8 +86,7 @@ describe.each([
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ [folderKey]: "" }));
     await vi.waitFor(() => expect(shellResults()).not.toContain(notice));
     await expect(failingList.mock.results[1]!.value).resolves.toEqual([]);
-    // It mounts the whole app from a fresh module graph, which takes seconds on a loaded machine.
-  }, 30_000);
+  });
 });
 
 function mountApi(overrides: Record<string, unknown>): void {

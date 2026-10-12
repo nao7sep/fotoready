@@ -323,6 +323,12 @@ textarea {
   font: inherit;
 }
 
+/* A closed select narrower than its chosen option would otherwise clip it with no marker in
+   Chromium; the full option stays one click or keypress away in the open list. */
+select {
+  text-overflow: ellipsis;
+}
+
 /* Every button shows the hand (the webview clickable idiom); disabled resets to
    the arrow below. */
 button {
@@ -929,10 +935,24 @@ button.output-badge-label:focus-visible {
 .panel-footer {
   flex: 0 0 auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--control-gap);
   padding: 10px;
   border-top: 1px solid var(--border-color);
   background: var(--surface-bg);
+}
+
+/* The Originals and Tasks panes can be as narrow as 140px and 170px, and a footer command is as long
+   as its language makes it ("Originale hinzufügen …"): it wraps onto a second line inside its
+   button instead of overflowing the pane. */
+.panel-footer > .toolbar-button {
+  min-width: 0;
+  height: auto;
+  min-height: var(--control-h);
+  padding-block: 6px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .list {

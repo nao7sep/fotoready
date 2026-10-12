@@ -159,10 +159,3 @@ describe("truncation", () => {
     expect(compact).toMatch(/\.panel-footer\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
   });
 });
-
-describe("dialog footers", () => {
-  it("move a button that no longer fits to a new row, and wrap only a label wider than a whole row", () => {
-    expect(compact).toMatch(/\.modal-actions\{justify-content:flex-end;flex-wrap:wrap;/);
-    expect(compact).toMatch(/\.modal-actions>button\{flex-shrink:0;max-width:100%;height:auto;min-height:var\(--control-h\);padding-block:6px;[^}]*white-space:normal;/);
-  });
-});

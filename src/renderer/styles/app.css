@@ -331,7 +331,13 @@ select {
 
 .modal-actions > button {
   flex-shrink: 0;
-  white-space: nowrap;
+  max-width: 100%;
+  height: auto;
+  min-height: var(--control-h);
+  padding-block: 6px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Every button shows the hand (the webview clickable idiom); disabled resets to
@@ -2211,9 +2217,9 @@ button.output-badge-label:focus-visible {
   height: 1em;
 }
 
-/* A long translated label never squeezes its button into wrapping inside its fixed height: buttons
-   keep their one-line width, and one that no longer fits moves whole to a new row
-   (modal-dialog-conventions). */
+/* A long translated label is never squeezed or clipped: a button keeps its one-line width and one
+   that no longer fits moves whole to a new row; only a label wider than a whole row wraps inside its
+   own button, which grows taller (modal-dialog-conventions). */
 .modal-actions {
   justify-content: flex-end;
   flex-wrap: wrap;

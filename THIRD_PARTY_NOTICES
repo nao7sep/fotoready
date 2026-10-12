@@ -25,7 +25,7 @@ Upstream notices:
 https://github.com/lovell/sharp-libvips/blob/v1.3.4/THIRD-PARTY-NOTICES.md
 LGPLv3 terms: https://www.gnu.org/licenses/lgpl-3.0.html
 
-ExifTool 13.59 and exiftool-vendored 37.2.0
+ExifTool 13.59 and exiftool-vendored 39.0.1
 
 ExifTool is distributed under the same terms as Perl itself. The platform
 packages preserve the ExifTool and packaging licence material supplied by

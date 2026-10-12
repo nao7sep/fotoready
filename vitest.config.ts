@@ -37,6 +37,11 @@ export default defineConfig({
     // rendered-keys: every spec that mounts the interface also fails if a catalogue key reaches
     // the screen (localization-conventions, Gates).
     setupFiles: ["tests/setup/data-dir-isolation.ts", "tests/setup/rendered-keys.ts"],
+    // Outside Electron, the electron package's entry only returns its binary's path, and when the
+    // binary is missing (any fresh `npm ci`, CI included) it downloads it from every worker at once.
+    // Unit tests never run that binary, so the override hands back a path without touching it; the
+    // live lane keeps the real one.
+    env: { ELECTRON_OVERRIDE_DIST_PATH: "electron-binary-unused-in-unit-tests" },
     // The live lane spends money and builds the app; only npm run test:full runs it,
     // through vitest.live.config.ts.
     exclude: [...configDefaults.exclude, "tests/live/**"],

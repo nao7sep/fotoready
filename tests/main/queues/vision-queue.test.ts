@@ -55,7 +55,14 @@ afterEach(async () => {
 });
 
 it("keeps the provider result receipt time while its sidecar commit waits", async () => {
-  const { session, task } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => ["slug"] });
+  const described = deferred<void>();
+  const { session, task } = await arrange({
+    describeImage: async () => {
+      described.resolve();
+      return "A harbor";
+    },
+    suggestSlugs: async () => ["slug"]
+  });
   const blocked = deferred<string>();
   mocks.writeTaskSidecarFile.mockImplementationOnce(() => blocked.promise);
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -65,6 +72,9 @@ it("keeps the provider result receipt time while its sidecar commit waits", asyn
     await settleMicrotasks();
     vi.setSystemTime(new Date("2026-10-07T01:01:00Z"));
     const vision = session.runVision(task.id, { mode: "description" });
+    // The run reads the key file before calling the provider, so wait for the call itself rather than a
+    // fixed number of turns; the receipt time is stamped synchronously once the provider returns.
+    await described.promise;
     await settleMicrotasks();
     vi.setSystemTime(new Date("2026-10-07T01:02:00Z"));
     blocked.resolve("sidecar");
@@ -111,7 +121,9 @@ describe("VisionQueue with a locked records store", () => {
 
       const started = performance.now();
       await session.runVision(task.id, { mode: "description" });
-      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
+      // Waiting on the held store would spend at least the whole busy timeout in SQLite's busy handler,
+      // so anything shorter proves the run did not wait, however loaded the machine is.
+      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS);
       expect(task.error).toBeNull();
       expect(task.output?.vision?.description).toBe("A harbor");
     } finally {

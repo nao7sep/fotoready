@@ -175,7 +175,9 @@ describe("a locked or stalled store", () => {
     records.writeProviderCall(call);
     await saveSettings(loaded.file, { ...loaded.settings, defaultWebpQuality: 71 }, loaded.settings);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
+    // Waiting on either held store would spend at least the whole busy timeout in SQLite's busy
+    // handler, so anything shorter proves nothing waited, however loaded the machine is.
+    expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS);
     expect(JSON.parse(fs.readFileSync(settingsPath, "utf8"))).toMatchObject({ defaultWebpQuality: 71 });
 
     release();

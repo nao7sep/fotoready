@@ -311,7 +311,7 @@ describe("AppSettingsModal failure ownership", () => {
     const settings = { ...defaultGlobalSettings(), defaultOutputDirectory: "/Users/example/current" };
     const setSettingsDraft = vi.fn();
     await renderSettings({ settings, setSettingsDraft });
-    await clickButton("Choose folder…");
+    await clickButton("Choose folder");
 
     const result = document.querySelector('[role="alert"]');
     const path = document.querySelector<HTMLInputElement>('input[value="/Users/example/current"]');
@@ -323,7 +323,7 @@ describe("AppSettingsModal failure ownership", () => {
     expect(result?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_SETTINGS_SENTINEL|invoking remote method/i);
 
     pickDirectory.mockResolvedValue(null);
-    await clickButton("Choose folder…");
+    await clickButton("Choose folder");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("The current path is unchanged");
   });
 
@@ -331,7 +331,7 @@ describe("AppSettingsModal failure ownership", () => {
     pickFile.mockResolvedValue("/Users/example/mark.webp");
     const setSettingsDraft = vi.fn();
     await renderSettings({ initialTab: "assets", setSettingsDraft });
-    await clickButton("Choose file…");
+    await clickButton("Choose file");
 
     expect(pickFile).toHaveBeenCalledWith(expect.objectContaining({ extensions: ["png", "svg", "webp"] }));
     expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ defaultWatermarkImage: "/Users/example/mark.webp" }));

@@ -75,7 +75,7 @@ describe("StampPickerModal groups", () => {
     });
     expect(onUse).toHaveBeenCalledOnce();
     expect(onClose).not.toHaveBeenCalled();
-    expect(button("Import…")?.disabled).toBe(true);
+    expect(button("Import")?.disabled).toBe(true);
     await act(async () => finish());
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -142,7 +142,7 @@ describe("StampPickerModal groups", () => {
 
   it("imports PNG, SVG and WebP stamps", async () => {
     await renderStampPicker();
-    await clickButton("Import…");
+    await clickButton("Import");
 
     expect(mocks.pickFiles).toHaveBeenCalledWith(expect.objectContaining({ extensions: ["png", "svg", "webp"] }));
   });
@@ -155,7 +155,7 @@ describe("StampPickerModal groups", () => {
       status: "skipped-name-conflict"
     }]);
     await renderStampPicker();
-    await clickButton("Import…");
+    await clickButton("Import");
 
     const warning = document.querySelector('[role="status"]');
     expect(warning?.textContent).not.toContain("Warning:");
@@ -170,7 +170,7 @@ describe("StampPickerModal groups", () => {
     ));
     const onReload = vi.fn(async () => undefined);
     await renderStampPicker({ onReload });
-    await clickButton("Import…");
+    await clickButton("Import");
 
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent).toContain(
@@ -195,12 +195,12 @@ describe("StampPickerModal groups", () => {
     mocks.importStamps.mockRejectedValue(new Error("second source unavailable"));
     const onReload = vi.fn(async () => { throw new Error("library unavailable"); });
     await renderStampPicker({ onReload });
-    await clickButton("Import…");
+    await clickButton("Import");
     expect(onReload).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
       "The library could not be refreshed after the import attempt. Some files may already have been added. Reopen the picker to check its contents before trying again."
     );
-    expect(button("Import…")?.disabled).toBe(false);
+    expect(button("Import")?.disabled).toBe(false);
   });
 
   it("reports refresh failure without denying the import that already completed", async () => {
@@ -208,7 +208,7 @@ describe("StampPickerModal groups", () => {
     mocks.importStamps.mockResolvedValue([{ fileName: "new.png", path: "/new.png", status: "imported" }]);
     const onReload = vi.fn(async () => { throw new Error("library unavailable"); });
     await renderStampPicker({ onReload });
-    await clickButton("Import…");
+    await clickButton("Import");
     expect(onReload).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Some files may already have been added");
     expect(document.querySelector('[role="alert"]')?.textContent).not.toContain("Import stopped");

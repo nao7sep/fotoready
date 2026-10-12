@@ -142,7 +142,7 @@ describe("RenameModal vision recovery", () => {
       }
     });
 
-    await clickButton("Change…");
+    await clickButton("Change");
     const result = document.querySelector('[role="alert"]');
     expect(result?.textContent).toContain("The current folder is still in use");
     expect(result?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_RENAME_SENTINEL|invoking remote method/i);
@@ -156,7 +156,7 @@ describe("RenameModal vision recovery", () => {
     });
     await vi.waitFor(() => expect(document.querySelectorAll('[role="alert"]')).toHaveLength(1));
 
-    await clickButton("Change…");
+    await clickButton("Change");
     expect(document.querySelectorAll('[role="alert"]')).toHaveLength(2);
     expect(document.body.textContent).toContain("The rename preview could not be prepared");
     expect(document.body.textContent).toContain("The current folder is still in use");

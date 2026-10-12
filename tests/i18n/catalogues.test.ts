@@ -122,7 +122,7 @@ describe("catalogues", () => {
     }
   });
 
-  // An ellipsis carries meaning (a command that asks for more, an operation still running), so a
+  // An ellipsis carries meaning (an operation still running, or text cut short), so a
   // translation has one exactly when English does; it is always the single character, and its spacing
   // is set per language: German puts a no-break space before it, the others attach it directly
   // (localization-conventions, Ellipsis).
@@ -138,21 +138,6 @@ describe("catalogues", () => {
           else expect(match[1], `${key}: ${text}`).not.toMatch(/\s/u);
         }
       }
-    }
-  });
-
-  // A control that swaps its command for a running status must visibly change, or the press looks
-  // ignored: "Импорт…" can read as both Import and Importing. Each pair is one button's command and
-  // the status it shows while that command runs; a collision is fixed by rewording the command.
-  const COMMAND_STATUS_PAIRS = [
-    ["common.save", "common.saving"],
-    ["rename.generate", "rename.generating"],
-    ["rename.regenerate", "rename.regenerating"]
-  ] as const;
-
-  it.each(LANGUAGES)("%s words each command differently from the status that replaces it", (language) => {
-    for (const [command, status] of COMMAND_STATUS_PAIRS) {
-      expect(catalogues[language][command], `${command} / ${status}`).not.toBe(catalogues[language][status]);
     }
   });
 

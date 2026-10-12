@@ -36,7 +36,7 @@ describe("StampSourceAction chooser reload", () => {
     const params = overlayParams();
     const render = (value: AssetOverlayParams) => root.render(createElement(StampSourceAction, { ctx, params: value, disabled: false, onParamsChange, onParamChange: () => undefined }));
     await act(async () => render(params));
-    await act(async () => chooseButton("Choose stamp…").click());
+    await act(async () => chooseButton("Choose stamp").click());
     const choosing = picker.onUse!("/next.png");
     await act(async () => render({ ...params, x: 0.25 }));
     finish({ ...params, assetPath: "/next.png" });
@@ -50,7 +50,7 @@ describe("StampSourceAction chooser reload", () => {
     const onParamsChange = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
     const params = overlayParams();
     await act(async () => root.render(createElement(StampSourceAction, { ctx: cardContext({ reloadStamps: async () => undefined }), params, disabled: false, onParamsChange, onParamChange: () => undefined })));
-    await act(async () => chooseButton("Choose stamp…").click());
+    await act(async () => chooseButton("Choose stamp").click());
     let settled = false;
     const choosing = picker.onUse!("/next.png").then(() => { settled = true; });
     await Promise.resolve();
@@ -75,7 +75,7 @@ describe("StampSourceAction chooser reload", () => {
       }));
     });
 
-    await act(async () => chooseButton("Choose stamp…").click());
+    await act(async () => chooseButton("Choose stamp").click());
 
     const result = document.querySelector('[role="alert"]');
     expect(reloadStamps).toHaveBeenCalledOnce();

@@ -2298,8 +2298,8 @@ select:disabled {
 }
 
 /* Sized to content rather than a fixed 52px: some translated labels (e.g.
-   Italian "Originale") no longer fit that width, and the label must not wrap
-   while the filename beside it truncates instead. */
+   Italian "Originale") no longer fit that width, and the label stays on one
+   line while the filename beside it wraps. */
 .rename-preview-meta-label {
   color: var(--text-muted-color);
   text-transform: uppercase;

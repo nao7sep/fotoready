@@ -1977,9 +1977,10 @@ button.output-badge-label:focus-visible {
   max-height: 85vh;
 }
 
-/* Settings keeps one definite height on every tab, so a short tab does not
-   shrink the dialog and switching tabs never resizes it (developer review);
-   85vh is the tall-modal cap, inside the fleet's 84–90vh range. */
+/* Settings takes one definite height (developer review). Its page grows from a
+   zero basis to fill the body, so as a cap alone 85vh was never reached: the
+   dialog sat at the page's 360px floor on every tab. 85vh is inside the
+   fleet's 84–90vh range. */
 .settings-modal {
   height: 85vh;
 }

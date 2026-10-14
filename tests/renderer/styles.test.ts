@@ -167,9 +167,4 @@ describe("truncation", () => {
     // The screen-reader-only utility hides its text from sight on purpose.
     expect(clipped.map((rule) => rule.selector)).toEqual([".sr-only"]);
   });
-
-  it("lets a narrow pane's footer command wrap instead of overflowing the pane", () => {
-    expect(compact).toMatch(/\.panel-footer>\.toolbar-button\{[^}]*white-space:normal;overflow-wrap:anywhere/);
-    expect(compact).toMatch(/\.panel-footer\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
-  });
 });

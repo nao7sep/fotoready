@@ -972,19 +972,6 @@ button.output-badge-label:focus-visible {
   background: var(--surface-bg);
 }
 
-/* The Originals and Tasks panes can be as narrow as 140px and 170px, and a footer command is as long
-   as its language makes it ("Originale hinzufügen"): it wraps onto a second line inside its
-   button instead of overflowing the pane. */
-.panel-footer > .toolbar-button {
-  min-width: 0;
-  height: auto;
-  min-height: var(--control-h);
-  padding-block: 6px;
-  line-height: 1.25;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 .list {
   flex: 1 1 0;
   min-height: 0;

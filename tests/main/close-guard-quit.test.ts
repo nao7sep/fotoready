@@ -53,7 +53,8 @@ vi.mock("electron", async () => {
 // Whether closing the last window quits: off macOS it does, on macOS the app goes on.
 vi.mock("@main/window-close", () => ({ windowCloseQuits: () => electron.closeQuits.value }));
 
-const { confirmWorkspaceQuit, installCloseGuard, installQuitShutdown } = await import("@main/bootstrap");
+const { confirmWorkspaceQuit, installCloseGuard, installQuitShutdown, prepareQuit } = await import("@main/bootstrap");
+const { UserWorkWrites } = await import("@main/quit-save");
 
 function fakeWindow() {
   const send = vi.fn();
@@ -287,5 +288,90 @@ describe("Windows session events", () => {
     expect(electron.handlers.has("lifecycle.approveClose")).toBe(false);
     win.emit("session-end", { preventDefault: vi.fn() });
     expect(electron.exit).not.toHaveBeenCalled();
+  });
+});
+
+// Bootstrap's own quit checks, with the workspace question and the not-saved question as the only
+// stubs: a question answers itself with its cancel choice when the session ends, as the dialogs do.
+function installPreparedQuit({ windowless = false } = {}) {
+  electron.state.window = null;
+  const exitState = { reason: "unknown" };
+  const userWork = new UserWorkWrites();
+  const logger = { info: vi.fn(), error: vi.fn() };
+  const stop = vi.fn(async () => true);
+  let answerWorkspace: ((go: boolean) => void) | null = null;
+  const confirmWorkspace = vi.fn(() => new Promise<boolean>((resolve) => { answerWorkspace = resolve; }));
+  const askNotSaved = vi.fn(async () => "cancel" as const);
+  const reasonAtStop: string[] = [];
+  const quit = installQuitShutdown({
+    prepare: () => prepareQuit({ userWork, exitState, sessionEnding: () => quit.sessionEnding(), confirmWorkspace, askNotSaved, logger }),
+    // A renderer confirmation goes on with the quit; the windowless dialog gives its cancel choice.
+    answerForSessionEnd: () => answerWorkspace?.(!windowless),
+    stop: async () => { reasonAtStop.push(exitState.reason); return stop(); },
+    sessionEnded: vi.fn()
+  });
+  return { exitState, userWork, logger, confirmWorkspace, askNotSaved, quit, reasonAtStop, answer: (go: boolean) => answerWorkspace?.(go) };
+}
+
+describe("bootstrap's quit checks", () => {
+  it("on macOS logout, an OS quit asking about the workspace goes on when the power-off notice follows, recorded as a system shutdown", async () => {
+    const { quit, confirmWorkspace, askNotSaved, reasonAtStop } = installPreparedQuit();
+    electron.quit();
+    expect(confirmWorkspace).toHaveBeenCalledOnce();
+    quit.endSession();
+    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    expect(askNotSaved).not.toHaveBeenCalled();
+    expect(reasonAtStop).toEqual(["system-shutdown"]);
+  });
+
+  it("with no main window, the session end cancels the workspace dialog and the quit still goes on", async () => {
+    const { quit, reasonAtStop } = installPreparedQuit({ windowless: true });
+    electron.quit();
+    quit.endSession();
+    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    expect(reasonAtStop).toEqual(["system-shutdown"]);
+  });
+
+  it("asks nothing when the session is already ending", async () => {
+    const { quit, confirmWorkspace, askNotSaved, userWork } = installPreparedQuit();
+    let finish!: () => void;
+    void userWork.run({ kind: "settings" }, () => new Promise<void>((resolve) => { finish = resolve; }));
+    quit.endSession();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(confirmWorkspace).not.toHaveBeenCalled();
+    finish();
+    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    expect(askNotSaved).not.toHaveBeenCalled();
+  });
+
+  it("records an ordinary quit as the user's, and a declined one as no quit, keeping no failure for later", async () => {
+    const { exitState, userWork, answer, reasonAtStop } = installPreparedQuit();
+    electron.quit();
+    expect(exitState.reason).toBe("user-quit");
+    answer(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(exitState.reason).toBe("unknown");
+    await userWork.run({ kind: "settings" }, async () => { throw new Error("disk full"); }).catch(() => undefined);
+    expect(userWork.unsaved().failed).toEqual([]);
+
+    electron.quit();
+    answer(true);
+    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    expect(reasonAtStop).toEqual(["user-quit"]);
+  });
+
+  it("keeps FotoReady open when the checks themselves fail, unless the session is ending", async () => {
+    const { confirmWorkspace, logger, quit } = installPreparedQuit();
+    const cause = new Error("cannot present");
+    confirmWorkspace.mockRejectedValueOnce(cause);
+    electron.quit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(logger.error).toHaveBeenCalledWith("quitting could not check the user's work", { mod: "main.quit", err: cause });
+    expect(electron.state.exits).toBe(0);
+
+    confirmWorkspace.mockRejectedValueOnce(cause);
+    electron.quit();
+    quit.endSession();
+    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
   });
 });

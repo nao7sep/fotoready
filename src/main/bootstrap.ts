@@ -216,26 +216,14 @@ export async function bootstrap(): Promise<void> {
   // temporary files may remain), lands the last UI state write, and closes the workers and the
   // records reader, each stage within its bound.
   const quit = installQuitShutdown({
-    prepare: async () => {
-      userWork.beginQuit();
-      let go = false;
-      try {
-        if (quit.sessionEnding()) exitState.reason = "system-shutdown";
-        else if (exitState.reason !== "window-close") exitState.reason = "user-quit";
-        if (!quit.sessionEnding() && !(await confirmWorkspaceQuit(mainGuard, projectSession, askDiscardWorkspace)) && !quit.sessionEnding()) return false;
-        go = await saveUserWorkBeforeQuit(userWork, askNotSaved, quit.sessionEnding, logger);
-        return go;
-      } catch (error) {
-        logger.error("quitting could not check the user's work", { mod: "main.quit", err: error });
-        go = quit.sessionEnding();
-        return go;
-      } finally {
-        if (!go) {
-          userWork.endQuit();
-          exitState.reason = "unknown";
-        }
-      }
-    },
+    prepare: () => prepareQuit({
+      userWork,
+      exitState,
+      sessionEnding: () => quit.sessionEnding(),
+      confirmWorkspace: () => confirmWorkspaceQuit(mainGuard, projectSession, askDiscardWorkspace),
+      askNotSaved,
+      logger
+    }),
     answerForSessionEnd: () => {
       cancelOpenMessageDialogs();
       mainGuard?.answerForSessionEnd();
@@ -329,6 +317,43 @@ export async function bootstrap(): Promise<void> {
     if (mainWindow && !mainWindow.isDestroyed()) revealWindow(mainWindow);
     else recreateWindow();
   });
+}
+
+/**
+ * Exported for tests. The checks every quit passes before any window closes: the workspace discard
+ * question, then the save of the user's own work. An ending session asks nothing, and a question
+ * already open when the session starts ending lets the quit go on whatever its answer. Resolves
+ * false when the user keeps FotoReady open. Never rejects.
+ */
+export async function prepareQuit({ userWork, exitState, sessionEnding, confirmWorkspace, askNotSaved, logger }: {
+  userWork: UserWorkWrites;
+  exitState: ExitState;
+  sessionEnding(): boolean;
+  confirmWorkspace(): Promise<boolean>;
+  askNotSaved(unsaved: UserWork[]): Promise<QuitChoice>;
+  logger: Pick<AppLogger, "info" | "error">;
+}): Promise<boolean> {
+  userWork.beginQuit();
+  let go = false;
+  try {
+    if (exitState.reason !== "window-close") exitState.reason = "user-quit";
+    if (!sessionEnding() && !(await confirmWorkspace()) && !sessionEnding()) return false;
+    go = await saveUserWorkBeforeQuit(userWork, askNotSaved, sessionEnding, logger);
+    return go;
+  } catch (error) {
+    logger.error("quitting could not check the user's work", { mod: "main.quit", err: error });
+    go = sessionEnding();
+    return go;
+  } finally {
+    if (!go) {
+      userWork.endQuit();
+      exitState.reason = "unknown";
+    } else if (sessionEnding()) {
+      // Also when the session began ending while an ordinary quit was asking: macOS can send its
+      // quit before its power-off notice.
+      exitState.reason = "system-shutdown";
+    }
+  }
 }
 
 // How long quitting waits, after the user's own work (QUIT_SAVE_MS), for in-flight saves to stop

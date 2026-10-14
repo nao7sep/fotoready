@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiKeyStore, apiKeyEnvVar } from "@adapters/api-keys";
 import type { Logger } from "@shared/types/log";
+import { asPlatform, fileHandlePrototype } from "../helpers/platform";
 
 const GEMINI_ENV = apiKeyEnvVar("gemini"); // "GEMINI_API_KEY"
 const isPosix = process.platform !== "win32";
@@ -217,6 +218,24 @@ describe("ApiKeyStore", () => {
     await store.set("gemini", "stored-key");
     const mode = fs.statSync(filePath).mode & 0o777;
     expect(mode).toBe(0o600);
+  });
+
+  it("on Windows, stores and reads a key without inspecting or repairing POSIX modes", async () => {
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    fs.writeFileSync(filePath, `${JSON.stringify({ formatVersion: 1, keys: {} })}\n`);
+    if (isPosix) fs.chmodSync(filePath, 0o644);
+    const handleChmod = vi.spyOn(await fileHandlePrototype(), "chmod");
+    try {
+      await asPlatform("win32", async () => {
+        const store = new ApiKeyStore(filePath, logger);
+        await store.resolve("gemini");
+        if (isPosix) expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
+        await store.set("gemini", "stored-key");
+        expect(await new ApiKeyStore(filePath, logger).resolve("gemini")).toBe("stored-key");
+      });
+    } finally { handleChmod.mockRestore(); }
+    expect(handleChmod).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it.runIf(isPosix)("warns and tightens a group/world-readable secrets file back to 0600 on read", async () => {

@@ -46,6 +46,7 @@ import { useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingTarget } from "./utils/editing-target";
+import { chordBelongsToTextField, modifierLabel } from "./utils/platform-keys";
 import { closeConfirmation } from "./close-confirmation";
 import { isComposingKeyboardEvent } from "./utils/ime-guard";
 import {
@@ -75,9 +76,7 @@ function App(): React.JSX.Element {
   const confirmer = useConfirmer();
   const { t, text } = useI18n();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  // Live UI shows the running platform's single modifier word, never the combined
-  // "Cmd/Ctrl" (keyboard-shortcut-conventions) — same resolution the shortcuts modal uses.
-  const mod = systemInfo && systemInfo.platform !== "darwin" ? "Ctrl" : "Cmd";
+  const mod = modifierLabel(systemInfo?.platform ?? null);
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [uiState, setUiState] = useState<UiState | null>(null);
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
@@ -278,19 +277,7 @@ function App(): React.JSX.Element {
       // A chord pressed while an IME candidate is pending belongs to the composition; stand down
       // until it commits, rather than firing on a not-yet-committed candidate (text-input-ime).
       if (isComposingKeyboardEvent(event)) return;
-      const isMac = !systemInfo || systemInfo.platform === "darwin";
-      // On macOS, Ctrl inside a text field belongs to the text system whatever
-      // the key is, so the Ctrl half of a dual-bound chord stands down there —
-      // one blanket test, no per-chord key list (keyboard-shortcut-conventions).
-      // The Cmd half is the binding and always fires.
-      if (
-        isMac &&
-        event.ctrlKey &&
-        !event.metaKey &&
-        isTextEditingTarget(event.target)
-      ) {
-        return;
-      }
+      if (chordBelongsToTextField(systemInfo?.platform ?? null, event, isTextEditingTarget(event.target))) return;
       const mod = (event.metaKey || event.ctrlKey) && !event.altKey;
       if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();

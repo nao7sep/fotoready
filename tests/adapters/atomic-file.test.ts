@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { atomicWriteFile, temporaryPathFor } from "@adapters/atomic-file";
+import { asPlatform } from "../helpers/platform";
 
 const isPosix = process.platform !== "win32";
 
@@ -171,5 +172,26 @@ describe("atomicWriteFile", () => {
     await atomicWriteFile(filePath, "secret", { mode: 0o600 });
 
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe("atomicWriteFile on Windows", () => {
+  let tmpDir: string;
+  beforeEach(() => { tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-atomic-win-")); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("writes and repeats a write without applying POSIX modes, which Windows does not use", async () => {
+    const filePath = path.join(tmpDir, "secrets.json");
+    const chmod = vi.spyOn(fsp, "chmod");
+    await asPlatform("win32", async () => {
+      await atomicWriteFile(filePath, "key", { mode: 0o600 });
+      await atomicWriteFile(filePath, "key", { mode: 0o600 });
+      await atomicWriteFile(filePath, "new key", { mode: 0o600 });
+    });
+    expect(chmod).not.toHaveBeenCalled();
+    expect(await fsp.readFile(filePath, "utf8")).toBe("new key");
   });
 });

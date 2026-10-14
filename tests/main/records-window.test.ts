@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RECORDS_WINDOW_MIN_HEIGHT, RECORDS_WINDOW_MIN_WIDTH } from "@shared/layout/records-metrics";
 import { RECORDS_CHANGED_CHANNEL } from "@shared/records";
+import { asPlatform } from "../helpers/platform";
 
 class FakeWebContents extends EventEmitter {
   url = "";
@@ -196,12 +197,6 @@ describe("platform window persistence", () => {
     ["linux", false],
   ] as const)("persists bounds and the supported display mode on %s", async (platform, displayMode) => {
     const { buildRecordsWindowOptions } = await import("@main/records-window");
-    const descriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
-    try {
-      Object.defineProperty(process, "platform", { ...descriptor, value: platform });
-      expect(buildRecordsWindowOptions("Records", "/tmp/preload.mjs").windowStatePersistence).toEqual({ bounds: true, displayMode });
-    } finally {
-      Object.defineProperty(process, "platform", descriptor);
-    }
+    await asPlatform(platform, () => expect(buildRecordsWindowOptions("Records", "/tmp/preload.mjs").windowStatePersistence).toEqual({ bounds: true, displayMode }));
   });
 });

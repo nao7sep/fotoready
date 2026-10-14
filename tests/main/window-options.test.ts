@@ -5,6 +5,7 @@ import {
   computeMinWindowHeight,
   computeMinWindowWidth
 } from "@shared/layout/workspace-metrics";
+import { asPlatform } from "../helpers/platform";
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
 // Mock the surface it touches so buildWindowOptions can be exercised directly.
@@ -63,12 +64,6 @@ describe("platform window persistence", () => {
     ["linux", false],
   ] as const)("persists bounds and the supported display mode on %s", async (platform, displayMode) => {
     const { buildWindowOptions } = await import("@main/bootstrap");
-    const descriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
-    try {
-      Object.defineProperty(process, "platform", { ...descriptor, value: platform });
-      expect(buildWindowOptions("/tmp/preload.mjs").windowStatePersistence).toEqual({ bounds: true, displayMode });
-    } finally {
-      Object.defineProperty(process, "platform", descriptor);
-    }
+    await asPlatform(platform, () => expect(buildWindowOptions("/tmp/preload.mjs").windowStatePersistence).toEqual({ bounds: true, displayMode }));
   });
 });

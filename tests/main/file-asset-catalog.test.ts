@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Logger } from "@shared/types/log";
+import { asPlatform, fileHandlePrototype } from "../helpers/platform";
 
 vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
 
@@ -84,5 +85,23 @@ describe("importDirectoryAssets", () => {
     expect(result!.status).toBe("imported");
     expect(stat.mtime.toISOString()).toBe(modified.toISOString());
     if (process.platform !== "win32") expect(stat.mode & 0o777).toBe(0o640);
+  });
+
+  it("on Windows, imports without applying POSIX modes, keeping bytes and modified time", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
+    roots.push(root);
+    const source = path.join(root, "warm.cube");
+    fs.writeFileSync(source, "LUT_3D_SIZE 2\n");
+    const modified = new Date("2024-03-04T05:06:07.000Z");
+    fs.utimesSync(source, modified, modified);
+    const handleChmod = vi.spyOn(await fileHandlePrototype(), "chmod");
+
+    const [result] = await asPlatform("win32", () => importDirectoryAssets([source], path.join(root, "library"), [".cube"]))
+      .finally(() => handleChmod.mockRestore());
+
+    expect(result!.status).toBe("imported");
+    expect(handleChmod).not.toHaveBeenCalled();
+    expect(fs.readFileSync(result!.entry.path, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(fs.statSync(result!.entry.path).mtime.toISOString()).toBe(modified.toISOString());
   });
 });

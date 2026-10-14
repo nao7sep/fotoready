@@ -26,8 +26,7 @@ import {
   interfaceLanguage,
   mainTranslator,
 } from "@main/i18n";
-
-const onMac = process.platform === "darwin";
+import { asPlatform } from "../helpers/platform";
 
 beforeEach(async () => {
   electron.preferred = ["pl-PL", "de-AT", "en-US"];
@@ -66,18 +65,25 @@ describe("macOS's own menu items", () => {
     expect(appKitLanguages("zh-Hans")).toEqual(["zh-Hans"]);
   });
 
-  it.runIf(onMac)("writes the entry for a chosen language and removes it for System", async () => {
+  it("writes the entry for a chosen language and removes it for System", () => asPlatform("darwin", async () => {
     await changeLanguagePreference("ko");
     expect(electron.defaults.get("AppleLanguages")).toEqual(["ko"]);
     await changeLanguagePreference("system");
     expect(electron.defaults.has("AppleLanguages")).toBe(false);
-  });
+  }));
 
-  it.runIf(onMac)("reads the computer's own list, not the entry an earlier launch wrote", async () => {
+  it("reads the computer's own list, not the entry an earlier launch wrote", () => asPlatform("darwin", async () => {
     electron.defaults.set("AppleLanguages", ["ko"]);
     await detectComputerLanguage();
     expect(electron.defaults.has("AppleLanguages")).toBe(false);
     await applyLanguagePreference("ko");
     expect(electron.defaults.get("AppleLanguages")).toEqual(["ko"]);
-  });
+  }));
+
+  it.each(["win32", "linux"] as const)("writes no entry on %s, which has no AppKit", (platform) => asPlatform(platform, async () => {
+    electron.defaults.set("Unrelated", ["kept"]);
+    await changeLanguagePreference("ko");
+    await changeLanguagePreference("system");
+    expect([...electron.defaults.keys()]).toEqual(["Unrelated"]);
+  }));
 });

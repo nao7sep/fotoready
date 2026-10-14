@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { moveOutputFile } from "@main/move-output-file";
+import { asPlatform, fileHandlePrototype } from "../helpers/platform";
 
 let root: string;
 let source: string;
@@ -100,6 +101,20 @@ describe("output file publication", () => {
     const stat = await fs.stat(destination);
     expect(stat.mtime.toISOString()).toBe(modified.toISOString());
     if (process.platform !== "win32") expect(stat.mode & 0o777).toBe(0o640);
+    expect(await fs.readdir(root)).toEqual(["destination.jpg"]);
+  });
+
+  it("on Windows, copies and publishes without applying POSIX modes, keeping bytes and modified time", async () => {
+    vi.spyOn(fs, "link").mockRejectedValue(Object.assign(new Error("links unsupported"), { code: "ENOTSUP" }));
+    const modified = new Date("2024-03-04T05:06:07.000Z");
+    await fs.utimes(source, modified, modified);
+    const chmod = vi.spyOn(fs, "chmod");
+    const handleChmod = vi.spyOn(await fileHandlePrototype(), "chmod");
+    expect(await asPlatform("win32", () => moveOutputFile(source, destination))).toEqual([]);
+    expect(chmod).not.toHaveBeenCalled();
+    expect(handleChmod).not.toHaveBeenCalled();
+    expect(await fs.readFile(destination, "utf8")).toBe("complete image bytes");
+    expect((await fs.stat(destination)).mtime.toISOString()).toBe(modified.toISOString());
     expect(await fs.readdir(root)).toEqual(["destination.jpg"]);
   });
 

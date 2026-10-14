@@ -37,7 +37,6 @@ import type { Logger } from "@shared/types/log";
 
 const MARKER = "obf:";
 const SECRETS_FILE_MODE = 0o600;
-const ENFORCE_FILE_MODE = process.platform !== "win32";
 
 const KEY_ID_RE = /^[a-z0-9]+(\.[a-z0-9]+)*$/;
 
@@ -205,7 +204,7 @@ export class ApiKeyStore {
   // is unconditional whenever the file is found group/world-readable, so a file
   // re-widened after the first warning still gets tightened back.
   private async warnIfInsecureMode(file: FileHandle): Promise<void> {
-    if (!ENFORCE_FILE_MODE) return;
+    if (process.platform === "win32") return;
     let stat: Awaited<ReturnType<typeof fs.stat>>;
     try {
       stat = await file.stat();

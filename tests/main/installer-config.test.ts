@@ -1,3 +1,4 @@
+import path from "node:path";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LANGUAGES } from "@shared/i18n/languages";
@@ -69,5 +70,17 @@ describe("packaged license texts", () => {
         );
       }
     }
+  });
+});
+
+// exiftool-vendored spawns ExifTool from disk, which cannot happen inside app.asar: Perl scripts on
+// macOS and Linux, its own executable on Windows.
+describe("ExifTool in the packaged app", () => {
+  it("keeps every platform's ExifTool delivery unpacked", () => {
+    const unpacked = (file: string): boolean => packageJson.build.asarUnpack.some((glob: string) => path.matchesGlob(file, glob));
+    expect(unpacked("node_modules/exiftool-vendored.pl/bin/exiftool")).toBe(true);
+    expect(unpacked("node_modules/exiftool-vendored.pl/bin/lib/Image/ExifTool.pm")).toBe(true);
+    expect(unpacked("node_modules/exiftool-vendored.exe/bin/exiftool.exe")).toBe(true);
+    expect(unpacked("node_modules/exiftool-vendored/dist/ExifTool.js")).toBe(false);
   });
 });

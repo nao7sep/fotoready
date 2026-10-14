@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveStorageRoot } from "@main/storage-root";
 import { DATA_DIR_NAME } from "@shared/constants";
+import { asPlatform } from "../helpers/platform";
 
 const ENV_VAR = "FOTOREADY_DATA_DIR";
 
@@ -108,4 +109,12 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
       expect(fs.statSync(root).mode & 0o777).toBe(0o700);
     }
   );
+
+  it.skipIf(process.platform === "win32")("leaves an existing root's permissions to Windows' own model there", async () => {
+    const target = path.join(tmpBase, "windows-root");
+    fs.mkdirSync(target, { mode: 0o755 });
+    process.env[ENV_VAR] = target;
+    const root = await asPlatform("win32", () => resolveStorageRoot(DATA_DIR_NAME, []));
+    expect(fs.statSync(root).mode & 0o777).toBe(0o755);
+  });
 });

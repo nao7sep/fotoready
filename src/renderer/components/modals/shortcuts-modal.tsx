@@ -2,6 +2,7 @@ import React from "react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { ModalShell } from "./modal-shell";
 import { useI18n } from "@renderer/i18n/I18nContext";
+import { modifierLabel } from "@renderer/utils/platform-keys";
 import type { Translator } from "@shared/i18n/translate";
 
 type ShortcutItem = {
@@ -103,10 +104,8 @@ interface Props {
 }
 
 export function ShortcutsModal({ systemInfo, onClose }: Props): React.JSX.Element {
-  // Convention is Cmd-first / Mac-first: default to "Cmd" until the platform is
-  // known, switching to "Ctrl" only once we positively detect a non-macOS host.
   const { t } = useI18n();
-  const mod = systemInfo && systemInfo.platform !== "darwin" ? "Ctrl" : "Cmd";
+  const mod = modifierLabel(systemInfo?.platform ?? null);
   const sections = buildSections(mod, t);
   const split = balancedSplit(sections.map(sectionWeight));
   const columns = [sections.slice(0, split), sections.slice(split)];

@@ -16,6 +16,8 @@ class FakeWebContents extends EventEmitter {
 class FakeWindow extends EventEmitter {
   static created: FakeWindow[] = [];
   static loadFailure: Error | null = null;
+  static focused: FakeWindow | null = null;
+  static getFocusedWindow = () => FakeWindow.focused;
   options: Record<string, unknown>;
   webContents = new FakeWebContents();
   destroyed = false;
@@ -35,9 +37,15 @@ class FakeWindow extends EventEmitter {
     this.visible = true;
     this.calls.push("show");
   };
-  focus = () => void this.calls.push("focus");
+  focus = () => {
+    FakeWindow.focused = this;
+    this.calls.push("focus");
+  };
+  isFocused = () => FakeWindow.focused === this;
   close = () => {
+    this.emit("close");
     this.destroyed = true;
+    if (FakeWindow.focused === this) FakeWindow.focused = null;
     this.emit("closed");
   };
   destroy = () => {
@@ -73,6 +81,7 @@ const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 beforeEach(() => {
   FakeWindow.created = [];
   FakeWindow.loadFailure = null;
+  FakeWindow.focused = null;
   recovery.names = [];
   vi.clearAllMocks();
 });
@@ -126,6 +135,39 @@ describe("openRecordsWindow", () => {
 
     expect(FakeWindow.created).toHaveLength(1);
     expect(win!.calls).toEqual(["restore", "show", "focus"]);
+  });
+
+  it("hands focus back to the window it was opened from when it closes with focus", async () => {
+    const { openRecordsWindow } = await import("@main/records-window");
+    const main = new FakeWindow({});
+    FakeWindow.focused = main;
+    await openRecordsWindow({ title: "Records", logger });
+    const records = FakeWindow.created.at(-1)!;
+    records.focus();
+    main.calls = [];
+
+    records.close();
+    expect(main.calls).toEqual(["focus"]);
+  });
+
+  it("leaves focus alone when it closes without focus, or after its opener has gone", async () => {
+    const { openRecordsWindow } = await import("@main/records-window");
+    const main = new FakeWindow({});
+    const other = new FakeWindow({});
+    FakeWindow.focused = main;
+    await openRecordsWindow({ title: "Records", logger });
+    other.focus();
+    main.calls = [];
+    FakeWindow.created.at(-1)!.close();
+    expect(main.calls).toEqual([]);
+
+    FakeWindow.focused = main;
+    await openRecordsWindow({ title: "Records", logger });
+    const records = FakeWindow.created.at(-1)!;
+    records.focus();
+    main.destroyed = true;
+    records.close();
+    expect(main.calls).toEqual([]);
   });
 
   it("opens a new window once the last one has closed", async () => {

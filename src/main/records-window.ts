@@ -19,6 +19,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The Records window shows records.sqlite3. It is a durable secondary window with its own placement
 // (window-conventions, Placement), and there is only ever one: opening it again brings it forward.
 let recordsWindow: BrowserWindow | null = null;
+// The window Records was last opened from, which gets focus back when Records closes
+// (window-conventions, Background visibility and activation).
+let recordsOpener: BrowserWindow | null = null;
 
 export function buildRecordsWindowOptions(title: string, preloadPath: string): BrowserWindowConstructorOptions {
   return {
@@ -63,16 +66,27 @@ export function closeRecordsWindow(): void {
 }
 
 export async function openRecordsWindow({ title, logger }: { title: string; logger: Logger }): Promise<void> {
+  const opener = BrowserWindow.getFocusedWindow();
   if (recordsWindow !== null && !recordsWindow.isDestroyed()) {
+    if (opener !== recordsWindow) recordsOpener = opener ?? recordsOpener;
     revealWindow(recordsWindow);
     return;
   }
+  recordsOpener = opener;
 
   const options = buildRecordsWindowOptions(title, path.join(__dirname, "../preload/index.mjs"));
   const win = createWindowWithUsablePersistedBounds("records", () => new BrowserWindow(options));
   recordsWindow = win;
+  // Closing Records while it has focus hands focus back to the window it was opened from, rather
+  // than to whichever window the OS ranks next.
+  let focusedAtClose = false;
+  win.on("close", () => { focusedAtClose = win.isFocused(); });
   win.once("closed", () => {
-    if (recordsWindow === win) recordsWindow = null;
+    if (recordsWindow !== win) return;
+    recordsWindow = null;
+    const back = recordsOpener;
+    recordsOpener = null;
+    if (focusedAtClose && back !== null && !back.isDestroyed()) back.focus();
   });
   configureWindowMinimum(win, () => ({ width: RECORDS_WINDOW_MIN_WIDTH, height: RECORDS_WINDOW_MIN_HEIGHT }),
     (error) => logger.warn("window minimum could not be updated", { mod: "main.window", window: "records", err: error }));

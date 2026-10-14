@@ -516,11 +516,19 @@ export class ProjectSession {
     void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });
   }
 
-  async addOp(taskId: string, opType: string): Promise<ProjectSessionSnapshot> {
+  /**
+   * Adds a step at the end of the task. A LUT, stamp or image watermark is added with the file the
+   * user already chose (`sourcePath`), since such a step does nothing without one.
+   */
+  async addOp(taskId: string, opType: string, sourcePath?: string): Promise<ProjectSessionSnapshot> {
     const task = this.editableTask(taskId);
     const definition = getOpDefinition(opType);
     if (!definition) {
       throw new Error(`Unknown op: ${opType}`);
+    }
+    const sourceKey = opType === "lut" ? "cubePath" : opType === "stamp" || opType === "watermark-image" ? "assetPath" : null;
+    if (sourcePath !== undefined && (sourceKey === null || typeof sourcePath !== "string" || !sourcePath.trim())) {
+      throw new Error(`A ${opType} step cannot be added with a file.`);
     }
     // Resolved before the edit is recorded, so a default naming an unset variable leaves the task unchanged.
     const defaultWatermark = opType === "watermark-image" && this.settings.defaultWatermarkImage.trim()
@@ -529,6 +537,7 @@ export class ProjectSession {
     const pipeline = task.pipeline;
 
     const params = structuredClone(definition.defaultParams);
+    if (sourceKey !== null && sourcePath !== undefined) params[sourceKey] = sourcePath;
     if (defaultWatermark && typeof params.assetPath === "string" && !params.assetPath) {
       params.assetPath = defaultWatermark;
     }

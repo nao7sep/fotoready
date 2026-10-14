@@ -55,6 +55,36 @@ describe("a new image watermark op with a default watermark", () => {
   });
 });
 
+describe("a step added with the file the user chose", () => {
+  it("starts an image watermark or stamp from that image, sized by its shape, over any default", async () => {
+    await sharp({ create: { width: 8, height: 2, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } })
+      .png()
+      .toFile(path.join(home, "marks", "wide.png"));
+    const { session, task } = arrange("marks/logo.png");
+    await session.addOp(task.id, "watermark-image", path.join(home, "marks", "wide.png"));
+    await session.addOp(task.id, "stamp", path.join(home, "marks", "wide.png"));
+    for (const op of task.pipeline.ops) {
+      expect(op.params.assetPath).toBe(path.join(home, "marks", "wide.png"));
+      expect((op.params.width as number) / (op.params.height as number)).toBeCloseTo(4, 1);
+    }
+  });
+
+  it("starts a LUT from its cube, as one undoable step", async () => {
+    const { session, task } = arrange("");
+    await session.addOp(task.id, "lut", "/luts/warm.cube");
+    expect(task.pipeline.ops.map((op) => [op.type, op.params.cubePath])).toEqual([["lut", "/luts/warm.cube"]]);
+    session.undoTaskEdit(task.id);
+    expect(session.snapshot().project.tasks[0]!.pipeline.ops).toEqual([]);
+  });
+
+  it("refuses a file for a step that takes none, or an empty one, leaving the task unchanged", async () => {
+    const { session, task } = arrange("");
+    await expect(session.addOp(task.id, "crop", "/marks/logo.png")).rejects.toThrow("cannot be added with a file");
+    await expect(session.addOp(task.id, "lut", " ")).rejects.toThrow("cannot be added with a file");
+    expect(task.pipeline.ops).toEqual([]);
+  });
+});
+
 function arrange(defaultWatermarkImage: string): { session: ProjectSession; task: Task } {
   const session = new ProjectSession(
     { ...defaultGlobalSettings(), defaultWatermarkImage },

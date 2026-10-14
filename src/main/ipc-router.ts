@@ -311,7 +311,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("task.saveAll", "info", async () => publishResult(ctx.projectSession.enqueueSaveAll()));
   handle("task.cancel", "info", async (_event, taskId: string) => publishResult(ctx.projectSession.cancelTask(taskId)));
   handle("task.cancelAll", "info", async () => publishResult(ctx.projectSession.cancelAll()));
-  handle("task.addOp", "info", async (_event, taskId: string, opType: string) => publishResult(ctx.projectSession.addOp(taskId, opType)));
+  handle("task.addOp", "info", async (_event, taskId: string, opType: string, sourcePath?: string) => publishResult(ctx.projectSession.addOp(taskId, opType, sourcePath)));
   handle("task.removeOp", "info", async (_event, taskId: string, opId: string) => publishResult(ctx.projectSession.removeOp(taskId, opId)));
   handle("task.moveOp", "info", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
   handle("task.setOpEnabled", "info", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));

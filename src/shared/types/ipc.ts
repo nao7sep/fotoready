@@ -260,7 +260,8 @@ export type FotoReadyApi = {
     saveAll(): Promise<ProjectSnapshot>;
     cancel(taskId: string): Promise<ProjectSnapshot>;
     cancelAll(): Promise<ProjectSnapshot>;
-    addOp(taskId: string, opType: string): Promise<ProjectSnapshot>;
+    /** `sourcePath` is the file a LUT, stamp or image watermark is added with. */
+    addOp(taskId: string, opType: string, sourcePath?: string): Promise<ProjectSnapshot>;
     removeOp(taskId: string, opId: string): Promise<ProjectSnapshot>;
     moveOp(taskId: string, opId: string, toIndex: number): Promise<ProjectSnapshot>;
     setOpEnabled(taskId: string, opId: string, enabled: boolean): Promise<ProjectSnapshot>;

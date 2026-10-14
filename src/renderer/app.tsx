@@ -60,6 +60,8 @@ import {
   type OriginalImportFeedback,
 } from "./original-import-feedback";
 import { PathLabel } from "./components/path-label";
+import { LutPickerModal, StampPickerModal } from "./components/modals/asset-picker-modal";
+import { sourceToChooseFirst } from "./ops/add-op-source";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -83,6 +85,8 @@ function App(): React.JSX.Element {
   const [opCatalog, setOpCatalog] = useState<OpCatalogItem[]>([]);
   const [lutEntries, setLutEntries] = useState<LutEntry[]>([]);
   const [stampEntries, setStampEntries] = useState<StampEntry[]>([]);
+  // The LUT or stamp picker opened by adding a step, before the step exists.
+  const [addOpPicker, setAddOpPicker] = useState<{ opType: string; taskId: string } | null>(null);
   const [startupStatus, setStartupStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [startupFailure, setStartupFailure] = useState<Message | null>(null);
   const [shellFailures, setShellFailures] = useState<OwnedFailures>({});
@@ -584,9 +588,27 @@ function App(): React.JSX.Element {
     await refreshProject(await api.task.cancelAll());
   }
 
-  async function addOp(opType: string): Promise<void> {
-    if (!activeTask) return;
-    const snapshot = await api.task.addOp(activeTask.id, opType);
+  /** Adds a step, first asking for its file when it needs one; a cancelled choice adds nothing. */
+  async function requestAddOp(opType: string): Promise<void> {
+    if (!activeTask || !settings) return;
+    const taskId = activeTask.id;
+    const source = sourceToChooseFirst(opType, settings.defaultWatermarkImage);
+    if (source === "lut") {
+      await reloadLuts();
+      setAddOpPicker({ opType, taskId });
+    } else if (source === "stamp") {
+      await reloadStamps();
+      setAddOpPicker({ opType, taskId });
+    } else if (source === "image-file") {
+      const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg", "webp"] });
+      if (picked) await addOp(taskId, opType, picked);
+    } else {
+      await addOp(taskId, opType);
+    }
+  }
+
+  async function addOp(taskId: string, opType: string, sourcePath?: string): Promise<void> {
+    const snapshot = await api.task.addOp(taskId, opType, sourcePath);
     await refreshProject(snapshot);
     const addedOpId = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.at(-1)?.id ?? null;
     selectOp(addedOpId);
@@ -1041,7 +1063,7 @@ function App(): React.JSX.Element {
             outputFailures={visibleOutputFailures}
             onDismissFailure={(key) => dismissOwnedFailure(setOpsFailures, key)}
             onSelectOp={selectOp}
-            onAddOp={(opType) => void runOwnedAction({ action: () => addOp(opType), fields: { opType }, key: taskOwnedKey("ops:add"), operation: "operation add failed", setFailures: setOpsFailures, userMessage: message("failure.addOp") })}
+            onAddOp={(opType) => void runOwnedAction({ action: () => requestAddOp(opType), fields: { opType }, key: taskOwnedKey("ops:add"), operation: "operation add failed", setFailures: setOpsFailures, userMessage: message("failure.addOp") })}
             onClearVision={() => void runOwnedAction({ action: clearVision, key: taskOwnedKey("output:vision-result"), operation: "vision result clear failed", setFailures: setOpsFailures, userMessage: message("failure.clearVision") })}
             onGenerateDescriptionChange={(value) => void runOwnedAction({ action: () => setGenerateDescription(value), key: taskOwnedKey("output:description-toggle"), operation: "description setting update failed", setFailures: setOpsFailures, userMessage: message("failure.descriptionToggle") })}
             onGenerateSlugChange={(value) => void runOwnedAction({ action: () => setGenerateSlug(value), key: taskOwnedKey("output:slug-toggle"), operation: "slug setting update failed", setFailures: setOpsFailures, userMessage: message("failure.slugToggle") })}
@@ -1104,6 +1126,29 @@ function App(): React.JSX.Element {
         />
       ) : null}
 
+      {addOpPicker?.opType === "lut" && settings ? (
+        <LutPickerModal
+          luts={lutEntries}
+          previewLongEdge={settings.assetPickerPreviewLongEdge}
+          selectedPath=""
+          strength={1}
+          targetOpId={null}
+          taskId={addOpPicker.taskId}
+          onClose={() => setAddOpPicker(null)}
+          onReload={reloadLuts}
+          onUse={async (path) => { if (path) await addOp(addOpPicker.taskId, "lut", path); }}
+        />
+      ) : null}
+      {addOpPicker?.opType === "stamp" && settings ? (
+        <StampPickerModal
+          previewLongEdge={settings.assetPickerPreviewLongEdge}
+          selectedPath=""
+          stamps={stampEntries}
+          onClose={() => setAddOpPicker(null)}
+          onReload={reloadStamps}
+          onUse={async (path) => { if (path) await addOp(addOpPicker.taskId, "stamp", path); }}
+        />
+      ) : null}
       {settingsOpen ? (
         <AppSettingsModal
           apiKeyDraft={apiKeyDraft}

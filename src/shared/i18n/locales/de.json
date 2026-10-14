@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "Verschiebt die ausgewählten importierten Dateien in den Papierkorb des Systems. Eingebaute Elemente sind geschützt.",
 
   "geometry.angle": "Winkel",
-  "geometry.angleStatus": "Winkel: {angle}",
   "geometry.width": "Breite",
   "geometry.height": "Höhe",
   "geometry.opacity": "Deckkraft",

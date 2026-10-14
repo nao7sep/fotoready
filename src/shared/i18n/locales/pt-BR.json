@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "Move os arquivos importados selecionados para a lixeira do sistema. Os itens integrados ficam protegidos.",
 
   "geometry.angle": "Ângulo",
-  "geometry.angleStatus": "Ângulo: {angle}",
   "geometry.width": "Largura",
   "geometry.height": "Altura",
   "geometry.opacity": "Opacidade",

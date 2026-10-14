@@ -29,3 +29,12 @@ describe("identifying text on one line", () => {
     expect(text.textOverflow).toBe("ellipsis");
   });
 });
+
+describe("op card layout", () => {
+  it("never lets a field's own width widen a card, and lines up every slider row in a card", () => {
+    document.body.innerHTML = '<div class="pipeline-op-card"><div class="geometry-controls"><label class="slider-row"><span>X</span><input type="range"><span class="slider-value">2.5%</span></label></div></div>';
+    expect(getComputedStyle(document.querySelector(".pipeline-op-card")!).gridTemplateColumns).toBe("minmax(0, 1fr)");
+    expect(getComputedStyle(document.querySelector(".geometry-controls")!).gridTemplateColumns).toBe("max-content minmax(0, 1fr) max-content");
+    expect(getComputedStyle(document.querySelector(".slider-row")!).gridTemplateColumns).toBe("subgrid");
+  });
+});

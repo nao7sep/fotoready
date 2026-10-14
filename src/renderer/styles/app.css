@@ -1216,9 +1216,22 @@ button.output-badge-label:focus-visible {
   white-space: nowrap;
 }
 
+/* One column for the card's rows, never wider than the card, with the slider
+   rows sharing three tracks so every range starts and ends at the same place:
+   the longest label sets where the ranges begin. */
 .geometry-controls {
   display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   gap: 8px;
+}
+
+.geometry-controls > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.geometry-controls > .slider-row {
+  grid-template-columns: subgrid;
 }
 
 .geometry-toolbar-row {
@@ -1296,18 +1309,11 @@ button.output-badge-label:focus-visible {
   white-space: pre-wrap;
 }
 
-.geometry-range-field {
-  min-width: 0;
-}
-
-.geometry-range-field input[type="range"] {
-  width: 100%;
-}
-
 .geometry-number-field {
   min-width: 0;
 }
 
+/* Preset swatches and the colour picker beside them are one size of disc. */
 .color-swatch {
   width: 24px;
   height: 24px;
@@ -1619,6 +1625,8 @@ button.output-badge-label:focus-visible {
 
 .pipeline-op-card {
   display: grid;
+  /* A field's own width never widens the card past its pane. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--border-color);
@@ -1886,8 +1894,8 @@ button.output-badge-label:focus-visible {
 .conceal-color-row input[type="color"],
 .color-picker-button input[type="color"] {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: 50%;

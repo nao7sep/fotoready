@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "選択した読み込み済みのファイルをシステムのゴミ箱に移動します。内蔵の項目は保護されています。",
 
   "geometry.angle": "角度",
-  "geometry.angleStatus": "角度: {angle}",
   "geometry.width": "幅",
   "geometry.height": "高さ",
   "geometry.opacity": "不透明度",

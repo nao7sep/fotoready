@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "将所选的导入文件移到系统废纸篓。内置项目受保护。",
 
   "geometry.angle": "角度",
-  "geometry.angleStatus": "角度：{angle}",
   "geometry.width": "宽度",
   "geometry.height": "高度",
   "geometry.opacity": "不透明度",

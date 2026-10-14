@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "Перемещает выбранные импортированные файлы в системную корзину. Встроенные элементы защищены.",
 
   "geometry.angle": "Угол",
-  "geometry.angleStatus": "Угол: {angle}",
   "geometry.width": "Ширина",
   "geometry.height": "Высота",
   "geometry.opacity": "Непрозрачность",

@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "Moves the selected imported files to the system trash. Built-in items are protected.",
 
   "geometry.angle": "Angle",
-  "geometry.angleStatus": "Angle: {angle}",
   "geometry.width": "Width",
   "geometry.height": "Height",
   "geometry.opacity": "Opacity",

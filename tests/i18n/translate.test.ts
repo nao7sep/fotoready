@@ -27,9 +27,9 @@ describe("createTranslator", () => {
   });
 
   it("puts markup into placeholders for rich text", () => {
-    const parts = createTranslator("en").rich("geometry.angleStatus", { angle: "+90°" }) as unknown[];
+    const parts = createTranslator("en").rich("crop.aspectStatus", { aspect: "3:2" }) as unknown[];
     const filled = parts.map((part) => (isValidElement(part) ? (part as ReactElement<{ children: unknown }>).props.children : part));
-    expect(filled.join("")).toBe("Angle: +90°");
+    expect(filled.join("")).toBe("Aspect: 3:2");
   });
 
   it("formats percentages and lists for the locale", () => {

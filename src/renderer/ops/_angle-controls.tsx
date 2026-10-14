@@ -15,7 +15,8 @@ export function AngleControl({
   onChange(value: number): void;
   rangeLabel?: string;
 }): React.JSX.Element {
-  const { t, rich } = useI18n();
+  const { t } = useI18n();
+  // The angle is one slider row like the card's others, its value at the end; the steps sit above it.
   return (
     <>
       <div className="geometry-toolbar-row">
@@ -24,11 +25,11 @@ export function AngleControl({
           <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onChange(normalizeAngle(value + 90))}>+90°</button>
           <button className="toolbar-button compact-text" disabled={disabled} type="button" onClick={() => onChange(0)}>{t("common.reset")}</button>
         </div>
-        <span className="geometry-status">{rich("geometry.angleStatus", { angle: <strong>{formatAngle(value)}</strong> })}</span>
       </div>
-      <label className="stacked-field geometry-range-field">
-        {rangeLabel ?? t("geometry.angle")}
+      <label className="slider-row">
+        <span>{rangeLabel ?? t("geometry.angle")}</span>
         <input disabled={disabled} max={180} min={-180} step={1} type="range" value={value} onChange={(event) => onChange(event.currentTarget.valueAsNumber)} />
+        <span className="slider-value">{formatAngle(value)}</span>
       </label>
     </>
   );

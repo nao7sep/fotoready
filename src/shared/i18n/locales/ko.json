@@ -580,7 +580,6 @@
   "shortcuts.gridRemoveDetail": "선택한 가져온 파일을 시스템 휴지통으로 이동합니다. 내장 항목은 보호됩니다.",
 
   "geometry.angle": "각도",
-  "geometry.angleStatus": "각도: {angle}",
   "geometry.width": "너비",
   "geometry.height": "높이",
   "geometry.opacity": "불투명도",

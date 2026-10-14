@@ -1676,8 +1676,9 @@ button.output-badge-label:focus-visible {
 }
 
 /* A card's title identifies it, and its first letters are enough once the ops are
-   familiar: one line, ending in an ellipsis (developer review). */
-.op-card-header .op-card-title {
+   familiar: one line, ending in an ellipsis (developer review). It must outrank
+   `.pipeline-op-card .toggle-row span`, which lets a card's other labels wrap. */
+.pipeline-op-card .op-card-header .op-card-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

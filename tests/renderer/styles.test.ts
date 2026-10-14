@@ -143,7 +143,7 @@ describe("truncation", () => {
     expect(rules.filter((rule) => rule.declarations["text-overflow"] === "ellipsis").map((rule) => rule.selector))
       .toEqual([
         "select", ".status-active-label", ".app-menu button", ".path-head, .path-tail",
-        ".list-row .row-title, .list-row .row-detail", ".preview-name, .preview-facts", ".op-card-header .op-card-title", ".asset-source-value",
+        ".list-row .row-title, .list-row .row-detail", ".preview-name, .preview-facts", ".pipeline-op-card .op-card-header .op-card-title", ".asset-source-value",
         ".records-row-title", ".records-detail-title"
       ]);
     expect(rules.filter((rule) => "-webkit-line-clamp" in rule.declarations).map((rule) => rule.selector))

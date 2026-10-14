@@ -42,6 +42,8 @@ const currentLanguage = vi.fn<FotoReadyApi["language"]["current"]>();
 const log = vi.fn<FotoReadyApi["system"]["log"]>();
 let recordsChanged: (() => void) | null = null;
 let languageChanged: ((language: InterfaceLanguage) => void) | null = null;
+let displayTimeZone = "system";
+let displayTimeZoneChanged: ((zone: string) => void) | null = null;
 const onChanged = vi.fn<FotoReadyApi["records"]["onChanged"]>((listener) => {
   recordsChanged = listener;
   return () => {
@@ -56,6 +58,10 @@ Object.defineProperty(window, "api", {
     records: { page, detail, sources, onChanged },
     state: { get: getState, update },
     system: { log },
+    settings: {
+      get: async () => ({ displayTimeZone }),
+      onDisplayTimeZoneChanged: (listener: (zone: string) => void) => { displayTimeZoneChanged = listener; return () => { displayTimeZoneChanged = null; }; }
+    },
     language: { current: currentLanguage, onChanged: (listener: (language: InterfaceLanguage) => void) => { languageChanged = listener; return () => { languageChanged = null; }; } }
   }
 });
@@ -99,6 +105,7 @@ beforeEach(() => {
   languageChanged = null;
   getState.mockReset().mockResolvedValue({ recordsListWidth: RECORDS_LIST_WIDTH.default } as UiState);
   currentLanguage.mockReset().mockResolvedValue({ language: "en", locale: "en" });
+  displayTimeZone = "system";
   Object.assign(box, { scrollTop: 0, scrollHeight: 1000, clientHeight: 200, shellWidth: 2000 });
   resizeCallbacks.clear();
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -212,6 +219,18 @@ describe("RecordsWindow", () => {
     await scrollTo(800);
     expect(lastQuery().after).toEqual(cursorOf(newest));
   });
+  it("shows times in the display zone, and in a new one as soon as a Save changes it", async () => {
+    const shown = (timeZone: string): string =>
+      new Intl.DateTimeFormat("en", { dateStyle: "short", timeStyle: "medium", timeZone }).format(new Date(call.time));
+    displayTimeZone = "Asia/Tokyo";
+    await mount();
+    const firstTime = (): string | null | undefined => document.querySelector(".records-row-meta span")?.textContent;
+    await vi.waitFor(() => expect(firstTime()).toBe(shown("Asia/Tokyo")));
+
+    await act(async () => displayTimeZoneChanged!("America/New_York"));
+    expect(firstTime()).toBe(shown("America/New_York"));
+  });
+
   it("lists the records newest first in one listbox, with nothing selected yet", async () => {
     await mount();
 

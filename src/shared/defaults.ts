@@ -33,6 +33,7 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
   return {
     language: "system",
     theme: "system",
+    displayTimeZone: "system",
     uiFontFamily: "",
     confirmDeleteOriginals: false,
     confirmDeleteTasks: true,

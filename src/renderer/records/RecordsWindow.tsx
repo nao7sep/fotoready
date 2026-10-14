@@ -26,6 +26,7 @@ import {
 import { useListbox } from "@renderer/components/useListbox";
 import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
 import { api } from "@renderer/ipc/client";
+import { useDisplayTimeZone } from "@renderer/use-display-time-zone";
 import { presentFailure } from "@renderer/present-failure";
 import {
   KIND_LABELS,
@@ -170,7 +171,8 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   }, []);
   const shownListWidth = recordsListDisplayWidth(dragWidth ?? listWidth, shellWidth);
 
-  const timeFormat = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" }), [locale]);
+  const timeZone = useDisplayTimeZone();
+  const timeFormat = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium", timeZone }), [locale, timeZone]);
 
   useEffect(() => {
     document.title = t("records.title");
@@ -471,7 +473,7 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
       />
       <section className="panel records-detail-pane" aria-busy={detail.status === "loading"}>
         {detail.status === "ready" ? (
-          <RecordDetailView record={detail.record} tasks={sources?.tasks ?? []} launchLabel={launchLabel} />
+          <RecordDetailView record={detail.record} tasks={sources?.tasks ?? []} launchLabel={launchLabel} timeZone={timeZone} />
         ) : (
           <p className={`records-note${detail.status === "failed" ? " records-note-error" : ""}`}>
             {detail.status === "failed" ? t("records.detailFailed") : detail.status === "none" ? t("records.noSelection") : null}
@@ -600,11 +602,13 @@ function FilterSelect({
 function RecordDetailView({
   record,
   tasks,
-  launchLabel
+  launchLabel,
+  timeZone
 }: {
   record: RecordDetail;
   tasks: RecordSources["tasks"];
   launchLabel: (session: string) => string;
+  timeZone: string;
 }): React.JSX.Element {
   const { t, number, locale } = useI18n();
   const timeFormat = useMemo(
@@ -616,9 +620,10 @@ function RecordDetailView({
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        fractionalSecondDigits: 3
+        fractionalSecondDigits: 3,
+        timeZone
       }),
-    [locale]
+    [locale, timeZone]
   );
   const secondsFormat = useMemo(
     () =>

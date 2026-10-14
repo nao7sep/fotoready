@@ -1,6 +1,7 @@
 import { MAX_ASSET_PICKER_PREVIEW_LONG_EDGE, MAX_PREVIEW_LONG_EDGE, MAX_VISION_IMAGE_LONG_EDGE, MIN_ASSET_PICKER_PREVIEW_LONG_EDGE } from "../constants";
 import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type MetadataFields } from "../types/settings";
 import { LANGUAGES } from "../i18n/languages";
+import { SYSTEM_TIME_ZONE, isTimeZone } from "../time-zone";
 import { defaultMediaResolutionFor, defaultThinkingFor, supportedModel } from "../ai-models";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
@@ -43,6 +44,11 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     // An invalid language affects only this set.
     language: readValue(source, "language", fallback.language, issues, (value, path) => assertOneOf(value, path, ["system", ...LANGUAGES] as const)),
     theme: readValue(source, "theme", fallback.theme, issues, (value, path) => assertOneOf(value, path, THEME_PREFERENCES)),
+    displayTimeZone: readValue(source, "displayTimeZone", fallback.displayTimeZone, issues, (value, path) => {
+      const zone = assertString(value, path);
+      if (zone !== SYSTEM_TIME_ZONE && !isTimeZone(zone)) throw new Error(`${path} must be "system" or an IANA time zone.`);
+      return zone;
+    }),
     // UI font is free text; blank is allowed and resolves to the built-in default stack at apply time.
     uiFontFamily: readValue(source, "uiFontFamily", fallback.uiFontFamily, issues, assertString),
     confirmDeleteOriginals: readValue(source, "confirmDeleteOriginals", fallback.confirmDeleteOriginals, issues, assertBoolean),

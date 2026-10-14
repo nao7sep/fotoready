@@ -13,10 +13,11 @@ import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
 import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings, type SettingsFile } from "@main/settings-io";
 import { StoreNotWritableError } from "@adapters/json-store";
-import { applyThemePreference } from "@main/theme";
-import { changeLanguagePreference, interfaceLanguage, mainTranslator } from "@main/i18n";
+import { applyThemePreference, osAppearance } from "@main/theme";
+import { changeLanguagePreference, computerInterfaceLanguage, interfaceLanguage, mainTranslator } from "@main/i18n";
 import { installApplicationMenu } from "@main/menu";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
+import { DISPLAY_TIME_ZONE_CHANGED_CHANNEL } from "@shared/time-zone";
 import type { StateCoordinator } from "@main/state-io";
 import type { UserWorkWrites } from "@main/quit-save";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
@@ -209,6 +210,8 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   });
 
   handle("language.current", "debug", async () => interfaceLanguage());
+  // What each System choice resolves to now, for its label in Settings; the zone the renderer reads itself.
+  handle("system.systemChoices", "debug", async () => ({ language: computerInterfaceLanguage(), appearance: await osAppearance() }));
   handle("settings.get", "debug", async () => ctx.settings);
   handle("settings.update", "info", async (_event, draft: unknown) => {
     const submission = ++settingsSubmission;
@@ -216,7 +219,11 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     return ctx.userWork.run({ kind: "settings" }, (retrying) => serializeSettings(async () => {
       if (retrying && !retryIsCurrent()) return ctx.settings;
       const settings = await saveSettings(ctx.settingsFile, draft, ctx.settings, ctx.logger);
+      const zoneChanged = settings.displayTimeZone !== ctx.settings.displayTimeZone;
       Object.assign(ctx.settings, settings);
+      if (zoneChanged) {
+        for (const win of BrowserWindow.getAllWindows()) win.webContents.send(DISPLAY_TIME_ZONE_CHANGED_CHANNEL, settings.displayTimeZone);
+      }
       // Settings apply on Save, the theme and the language included (app-chrome conventions, Theme;
       // localization-conventions). A language change rebuilds the menu bar and reaches every window.
       applyThemePreference(settings.theme);

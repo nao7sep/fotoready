@@ -20,7 +20,7 @@ beforeEach(() => {
   log.mockClear();
   pickDirectory.mockReset();
   pickFile.mockReset();
-  vi.stubGlobal("api", { system: { log, pickDirectory, pickFile } });
+  vi.stubGlobal("api", { system: { log, pickDirectory, pickFile, systemChoices: async () => ({ language: "ja", appearance: "dark" }) } });
   root = createRoot(document.querySelector("#root")!);
 });
 
@@ -37,13 +37,41 @@ describe("AppSettingsModal theme", () => {
 
     const group = [...document.querySelectorAll("fieldset")].find((fieldset) => fieldset.querySelector("legend")?.textContent === "Theme");
     const radios = [...(group?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ?? [])];
-    expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual(["System", "Light", "Dark"]);
+    expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual(["System (Dark)", "Light", "Dark"]);
     expect(new Set(radios.map((radio) => radio.name)).size).toBe(1);
     expect(radios.find((radio) => radio.checked)?.value).toBe("system");
 
     await act(async () => radios[2]!.click());
     expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ theme: "dark" }));
     expect(onSaveSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("AppSettingsModal System entries and time zone", () => {
+  it("shows what System resolves to now for the language and the display zone", async () => {
+    await renderSettings({ initialTab: "app" });
+    const select = (label: string) => document.getElementById(
+      [...document.querySelectorAll("label")].find((candidate) => candidate.textContent === label)!.htmlFor
+    ) as HTMLSelectElement;
+
+    expect(select("Language").options[0]!.textContent).toBe("System (日本語)");
+    const zones = select("Time zone");
+    expect(zones.value).toBe("system");
+    expect(zones.options[0]!.textContent).toBe(`System (${Intl.DateTimeFormat().resolvedOptions().timeZone})`);
+    expect([...zones.options].map((option) => option.value)).toContain("Asia/Tokyo");
+  });
+
+  it("chooses a zone from the list into the draft", async () => {
+    const setSettingsDraft = vi.fn();
+    await renderSettings({ initialTab: "app", setSettingsDraft });
+    const zones = document.getElementById(
+      [...document.querySelectorAll("label")].find((candidate) => candidate.textContent === "Time zone")!.htmlFor
+    ) as HTMLSelectElement;
+    await act(async () => {
+      zones.value = "Europe/Berlin";
+      zones.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(setSettingsDraft).toHaveBeenCalledWith(expect.objectContaining({ displayTimeZone: "Europe/Berlin" }));
   });
 });
 

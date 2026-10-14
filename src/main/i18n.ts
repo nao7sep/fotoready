@@ -110,6 +110,11 @@ export async function changeLanguagePreference(next: LanguagePreference): Promis
 }
 
 /** The language the window speaks and the locale it formats in. */
+/** The language System resolves to: the computer's own, read at launch. */
+export function computerInterfaceLanguage(): Language {
+  return computerLanguage;
+}
+
 export function interfaceLanguage(): InterfaceLanguage {
   return current;
 }

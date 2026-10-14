@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { FotoReadyApi } from "@shared/types/ipc";
 import { WINDOW_ACTIVITY_CHANNEL } from "@shared/window-activity";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
+import { DISPLAY_TIME_ZONE_CHANGED_CHANNEL } from "@shared/time-zone";
 import { RECORDS_CHANGED_CHANNEL } from "@shared/records";
 import { isIpcFailure } from "@shared/ipc-failure";
 
@@ -24,6 +25,7 @@ const api: FotoReadyApi = {
   },
   system: {
     getInfo: () => invoke("system.getInfo"),
+    systemChoices: () => invoke("system.systemChoices"),
     filePathForFile: (file) => webUtils.getPathForFile(file),
     log: (entry) => invoke("system.log", entry),
     openExternal: (url) => invoke("system.openExternal", url),
@@ -34,6 +36,11 @@ const api: FotoReadyApi = {
   },
   settings: {
     get: () => invoke("settings.get"),
+    onDisplayTimeZoneChanged: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, zone: string) => callback(zone);
+      ipcRenderer.on(DISPLAY_TIME_ZONE_CHANGED_CHANNEL, listener);
+      return () => ipcRenderer.off(DISPLAY_TIME_ZONE_CHANGED_CHANNEL, listener);
+    },
     update: (settings) => invoke("settings.update", settings),
     hasGeminiApiKey: () => invoke("settings.hasGeminiApiKey"),
     setGeminiApiKey: (apiKey) => invoke("settings.setGeminiApiKey", apiKey),

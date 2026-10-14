@@ -42,6 +42,10 @@ export type GlobalSettings = {
   // The app theme. The main process hands it to nativeTheme.themeSource at startup and on each
   // Save; nothing in the renderer resolves it.
   theme: ThemePreference;
+  // The zone user-facing times are shown in: "system" (the computer's zone, read at each launch) or
+  // an IANA zone the user chose (timestamp-conventions, Time zones). FotoReady reads no time that
+  // carries no zone, so it has no interpretation zone.
+  displayTimeZone: string;
   // The app's UI (chrome) font family. Family only; blank means the built-in default stack (the
   // app.css `--font-ui` variable). Distinct from `defaultWatermarkTextFontFamily`, which is a
   // content-output font rendered into the saved image — never the UI font.

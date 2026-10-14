@@ -4,7 +4,7 @@ import type { Project } from "./project";
 import type { VisionRunMode } from "./project";
 import type { OpDefinition } from "./op";
 import type { RenameTemplateId } from "../rename-template";
-import type { InterfaceLanguage } from "../i18n/languages";
+import type { InterfaceLanguage, Language } from "../i18n/languages";
 import type { Message } from "../i18n/translate";
 import type { RecordDetail, RecordKind, RecordSources, RecordsPage, RecordsQuery } from "../records";
 
@@ -202,6 +202,8 @@ export type LutPreviewEntry = LutEntry & {
 };
 
 /** A window close or quit asking the renderer's confirmations; both discard the workspace. */
+export type SystemChoices = { language: Language; appearance: "light" | "dark" };
+
 export type CloseRequest = {
   requestId: number;
 };
@@ -221,6 +223,8 @@ export type FotoReadyApi = {
   };
   system: {
     getInfo(): Promise<SystemInfo>;
+    /** What the language and theme System choices resolve to now, for their Settings labels. */
+    systemChoices(): Promise<SystemChoices>;
     filePathForFile(file: File): string;
     log(entry: RendererLogEntry): Promise<void>;
     openExternal(url: string): Promise<void>;
@@ -230,6 +234,8 @@ export type FotoReadyApi = {
     revealInFolder(filePath: string): Promise<void>;
   };
   settings: {
+    /** The display zone a Save changed to, sent to every window. */
+    onDisplayTimeZoneChanged(callback: (zone: string) => void): () => void;
     get(): Promise<GlobalSettings>;
     update(settings: GlobalSettings): Promise<GlobalSettings>;
     hasGeminiApiKey(): Promise<boolean>;

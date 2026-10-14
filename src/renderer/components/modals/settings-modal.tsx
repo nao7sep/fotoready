@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { SystemInfo } from "@shared/types/ipc";
+import type { SystemChoices, SystemInfo } from "@shared/types/ipc";
+import { SYSTEM_TIME_ZONE, computerTimeZone, timeZoneChoices } from "@shared/time-zone";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields, type ThemePreference } from "@shared/types/settings";
 import { cleanMetadataField } from "@shared/text-cleanup";
 import { availableOutputFormats } from "@shared/output-format";
@@ -644,6 +645,19 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
   const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount, t), [cpuCount, t]);
   const themeName = useId();
   const languageId = useId();
+  const timeZoneId = useId();
+  // What each System entry resolves to now, shown beside it (app-chrome conventions, Theme;
+  // timestamp-conventions, Time zones). Until the main process answers, the entries read "System".
+  const [systemChoices, setSystemChoices] = useState<SystemChoices | null>(null);
+  useEffect(() => {
+    let current = true;
+    // A failed read leaves the entries reading "System"; nothing else depends on it.
+    void Promise.resolve()
+      .then(() => window.api.system.systemChoices())
+      .then((choices) => { if (current) setSystemChoices(choices); }, () => undefined);
+    return () => { current = false; };
+  }, []);
+  const zones = useMemo(() => timeZoneChoices(settings.displayTimeZone), [settings.displayTimeZone]);
 
   return (
     <div className="settings-section-stack">
@@ -659,7 +673,9 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
               value={settings.language}
               onChange={(event) => setSettings({ ...settings, language: normalizeLanguagePreference(event.currentTarget.value) })}
             >
-              <option value="system">{t("settings.languageSystem")}</option>
+              <option value="system">
+                {systemChoices ? t("settings.languageSystemResolved", { language: LANGUAGE_NAMES[systemChoices.language] }) : t("settings.languageSystem")}
+              </option>
               {LANGUAGES.map((language) => (
                 <option key={language} value={language} lang={language}>
                   {LANGUAGE_NAMES[language]}
@@ -668,6 +684,18 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
             </select>
           </div>
           <div className="row-detail">{t("settings.languageDetail")}</div>
+          <div className="stacked-field span-two">
+            <label htmlFor={timeZoneId}>{t("settings.timeZone")}</label>
+            <select
+              id={timeZoneId}
+              value={settings.displayTimeZone}
+              onChange={(event) => setSettings({ ...settings, displayTimeZone: event.currentTarget.value })}
+            >
+              <option value={SYSTEM_TIME_ZONE}>{t("settings.timeZoneSystem", { zone: computerTimeZone() })}</option>
+              {zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            </select>
+          </div>
+          <div className="row-detail">{t("settings.timeZoneDetail")}</div>
         </div>
       </section>
 
@@ -688,7 +716,9 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
                     checked={settings.theme === option.value}
                     onChange={() => setSettings({ ...settings, theme: option.value })}
                   />
-                  {t(option.label)}
+                  {option.value === "system" && systemChoices
+                    ? t("settings.themeSystemResolved", { theme: t(systemChoices.appearance === "dark" ? "settings.themeDark" : "settings.themeLight") })
+                    : t(option.label)}
                 </label>
               ))}
             </div>

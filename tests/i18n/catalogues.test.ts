@@ -28,7 +28,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
   de: [
     "common.ok", "renameComplete.name", "privacy.gps", "opName.hsl", "opName.lut", "opPicker.watermarkText",
     "output.format", "output.slug", "settings.tab.app", "settings.prompts", "settings.languageSystem",
-    "settings.themeSystem", "metadataField.copyright", "rename.original", "about.version",
+    "settings.themeSystem", "settings.languageSystemResolved", "settings.themeSystemResolved", "settings.timeZoneSystem", "metadataField.copyright", "rename.original", "about.version",
     "shortcuts.section.app", "geometry.radius", "conceal.ellipse", "crop.original",
     "curves.preset.neutral", "hsl.range.orange", "hsl.range.magenta", "hsl.global", "levels.gamma", "strip.group.gps",
     "records.levelInfo", "records.levelDebug", "records.details",

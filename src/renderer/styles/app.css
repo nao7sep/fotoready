@@ -64,8 +64,9 @@
   --text-disabled-color: #a8a29e;
   --checker-bg: #e5e5e5;
   --brand-primary: #f97316;
-  /* Brand-colored text: the app name in About. */
-  --brand-primary-text: #7c2d12;
+  /* Text links: About's project links. */
+  --link-color: #1d4ed8;
+  --link-hover-color: #1e3a8a;
   /* Text on a brand-primary fill: chips, pills, and badges. */
   --brand-primary-fill-text: #431407;
   /* The originals list lit up as a drop target. */
@@ -156,7 +157,8 @@
     --text-disabled-color: #666666;
     --checker-bg: #121212;
     --brand-primary: #f97316;
-    --brand-primary-text: #fb923c;
+    --link-color: #93c5fd;
+    --link-hover-color: #bfdbfe;
     --brand-primary-fill-text: #431407;
     --brand-primary-soft-bg: #33241a;
     --brand-primary-soft-border: #9a4a1f;
@@ -894,10 +896,12 @@ button.output-badge-label:focus-visible {
   background: var(--header-bg);
 }
 
+/* Pane titles and the add-op palette's group labels are ordinary UI text set
+   bold: weight, not size, sets them apart (developer review). */
 .panel-header h2,
 .op-section h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   letter-spacing: 0;
 }
@@ -1508,7 +1512,10 @@ button.output-badge-label:focus-visible {
   overflow-x: hidden;
 }
 
+/* Ops and Output are titled panes stacked in one column: each takes the same
+   header band as Originals and Tasks, and its content keeps the pane padding. */
 .current-ops-section {
+  display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
@@ -1519,13 +1526,27 @@ button.output-badge-label:focus-visible {
 }
 
 .current-ops-section .panel-owned-failures {
-  margin: 0;
+  margin: 12px 12px 0;
+}
+
+.current-ops-section > .current-ops {
+  padding: 12px;
 }
 
 .output-section {
   flex: 0 0 auto;
-  border-top: 0;
-  border-bottom: 0;
+}
+
+.output-section > .panel-header {
+  border-top: 1px solid var(--border-color);
+}
+
+.output-section > .output-fixed {
+  padding: 12px;
+}
+
+.output-section > .owned-failure-list {
+  margin: 12px 12px 0;
 }
 
 .op-section {
@@ -1675,6 +1696,8 @@ button.output-badge-label:focus-visible {
 .field-grid label,
 .stacked-field {
   display: grid;
+  /* A field stays under its label when a neighbour in the row is taller. */
+  align-content: start;
   gap: 4px;
   color: var(--text-muted-color);
   font-size: 12px;
@@ -1954,6 +1977,13 @@ button.output-badge-label:focus-visible {
   max-height: 85vh;
 }
 
+/* Settings keeps one definite height across its tabs, so switching tabs never
+   resizes the dialog, and it is the tallest form: most tabs are long lists. */
+.settings-modal {
+  height: 90vh;
+  max-height: 90vh;
+}
+
 /* LUTs and stamps are visual libraries: every additional row and column exposes
    more real choices. Give the picker a definite viewport-relative canvas instead
    of leaving its auto-filling grid inside the form-sized Wide modal. */
@@ -2210,6 +2240,12 @@ button.output-badge-label:focus-visible {
   justify-content: flex-end;
   /* Match the header's neutral control edge, as the modal contract requires. */
   border-top: 1px solid var(--button-border);
+}
+
+/* With the title band hidden (About), a lone rule above Close would be the
+   card's only band edge, so the footer goes without one too. */
+.modal-header:has(> .sr-only) ~ .modal-actions {
+  border-top: 0;
 }
 
 /* The confirming button of the dialog that asks is filled, so a solid red marks
@@ -2745,32 +2781,73 @@ button.output-badge-label:focus-visible {
 
 .about-dialog {
   display: grid;
-  gap: 14px;
-}
-
-.about-dialog h3 {
-  margin: 0 0 3px;
-  color: var(--brand-primary-text);
-  font-size: 26px;
-  line-height: 1.15;
+  gap: 16px;
 }
 
 .about-dialog p {
   margin: 0;
-  color: var(--text-color);
-  font-size: 13px;
-  line-height: 1.5;
 }
 
-.about-dialog .about-version {
+.about-identity {
+  display: grid;
+  gap: 2px;
+}
+
+.about-name {
+  color: var(--text-strong-color);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.about-version {
   color: var(--text-muted-color);
-  font-size: 12px;
+}
+
+.about-description {
+  color: var(--text-color);
+  line-height: 1.6;
 }
 
 .about-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
+}
+
+/* A project link reads as a link, not a button: text in the link colour with
+   its external-link mark, underlined on hover. */
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--link-color);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.about-link:hover {
+  color: var(--link-hover-color);
+  text-decoration: underline;
+}
+
+.about-link-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.about-meta {
+  display: grid;
+  gap: 2px;
+  color: var(--text-muted-color);
+  font-size: 12px;
 }
 
 .settings-grid {

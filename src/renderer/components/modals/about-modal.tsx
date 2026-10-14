@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { api } from "@renderer/ipc/client";
 import { ModalShell } from "./modal-shell";
@@ -15,11 +16,12 @@ interface Props {
   onClose(): void;
 }
 
+/** The fleet's About card: name and version, the introduction line, the project links, then copyright and licence. */
 export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
   const { t } = useI18n();
   const [linkFailures, setLinkFailures] = useState<OwnedFailures>({});
 
-  function openProjectPage(key: "repository" | "issues" | "developer", url: string): void {
+  function openProjectPage(key: "repository" | "issues", url: string): void {
     void runOwnedAction({
       action: () => api.system.openExternal(url),
       fields: { url },
@@ -39,17 +41,19 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
       footer={<button className="toolbar-button" type="button" onClick={onClose}>{t("common.close")}</button>}
     >
       <div className="about-dialog">
-        <div>
-          <h3>FotoReady</h3>
+        <div className="about-identity">
+          <p className="about-name">FotoReady</p>
           <p className="about-version">{systemInfo?.version ? t("about.version", { version: systemInfo.version }) : t("about.versionUnknown")}</p>
         </div>
-        <p>{t("about.description")}</p>
+        <p className="about-description">{t("about.description")}</p>
         <div className="about-links">
-          <button className="toolbar-button" type="button" onClick={() => openProjectPage("repository", APP_REPOSITORY_URL)}>
+          <button className="about-link" type="button" onClick={() => openProjectPage("repository", APP_REPOSITORY_URL)}>
             GitHub
+            <ExternalLink className="about-link-icon" aria-hidden="true" />
           </button>
-          <button className="toolbar-button" type="button" onClick={() => openProjectPage("issues", APP_ISSUES_URL)}>
-            {t("about.issues")}
+          <button className="about-link" type="button" onClick={() => openProjectPage("issues", APP_ISSUES_URL)}>
+            {t("about.reportIssue")}
+            <ExternalLink className="about-link-icon" aria-hidden="true" />
           </button>
         </div>
         <OwnedFailureList
@@ -57,20 +61,9 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
           failures={linkFailures}
           onDismiss={(key) => dismissOwnedFailure(setLinkFailures, key)}
         />
-        <div className="settings-summary">
-          <span>{t("about.developer")}</span>
-          <code>Yoshinao Inoguchi</code>
-          <button className="toolbar-button" type="button" onClick={() => openProjectPage("developer", "https://github.com/nao7sep")}>
-            GitHub
-          </button>
-        </div>
-        <div className="settings-summary">
-          <span>{t("about.copyright")}</span>
-          <code>© 2026 Yoshinao Inoguchi</code>
-        </div>
-        <div className="settings-summary">
-          <span>{t("about.license")}</span>
-          <code>GPL-3.0-or-later</code>
+        <div className="about-meta">
+          <p>© 2026 Yoshinao Inoguchi</p>
+          <p>{t("about.license")}</p>
         </div>
       </div>
     </ModalShell>

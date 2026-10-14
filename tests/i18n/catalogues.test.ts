@@ -28,8 +28,8 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
   de: [
     "common.ok", "renameComplete.name", "privacy.gps", "opName.hsl", "opName.lut", "opPicker.watermarkText",
     "output.format", "output.slug", "settings.tab.app", "settings.prompts", "settings.languageSystem",
-    "settings.themeSystem", "metadataField.copyright", "rename.original", "about.version", "about.issues",
-    "about.copyright", "shortcuts.section.app", "geometry.radius", "conceal.ellipse", "crop.original",
+    "settings.themeSystem", "metadataField.copyright", "rename.original", "about.version",
+    "shortcuts.section.app", "geometry.radius", "conceal.ellipse", "crop.original",
     "curves.preset.neutral", "hsl.range.orange", "hsl.range.magenta", "hsl.global", "levels.gamma", "strip.group.gps",
     "records.levelInfo", "records.levelDebug", "records.details",
   ],
@@ -48,7 +48,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
   ],
   it: [
     "common.ok", "topBar.menu", "privacy.gps", "opName.hsl", "opName.lut", "output.slug", "settings.tab.app",
-    "metadataField.copyright", "about.copyright", "shortcuts.section.app", "hsl.range.magenta", "levels.gamma",
+    "metadataField.copyright", "shortcuts.section.app", "hsl.range.magenta", "levels.gamma",
     "strip.group.gps", "nativeMenu.file", "nativeMenu.zoom", "records.levelInfo", "records.levelDebug",
   ],
   "pt-BR": [
@@ -57,7 +57,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "crop.original", "hsl.range.magenta", "strip.group.gps", "nativeMenu.zoom",
   ],
   ru: ["privacy.gps", "opName.hsl", "opName.lut", "strip.group.gps"],
-  ja: ["common.ok", "opName.hsl", "opName.lut", "output.slugPlaceholder", "about.issues", "strip.group.gps"],
+  ja: ["common.ok", "opName.hsl", "opName.lut", "output.slugPlaceholder", "strip.group.gps"],
   ko: ["opName.hsl", "opName.lut", "output.slugPlaceholder", "strip.group.gps"],
   "zh-Hans": ["opName.hsl", "opName.lut", "output.slugPlaceholder", "strip.group.gps"],
 };

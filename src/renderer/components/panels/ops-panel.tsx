@@ -83,8 +83,8 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
     // the editor, so the splitter count is unambiguous.
     <div className="ops-region" style={{ gridTemplateColumns: `minmax(0, 1fr) ${props.addOpsWidth}px` }}>
       <aside className="panel ops-panel ops-edit-pane">
-        <section className={`op-section current-ops-section${Object.keys(panelOpFailures).length > 0 ? " has-owned-failures" : ""}`}>
-          <h3>{t("ops.title")}</h3>
+        <section className={`current-ops-section${Object.keys(panelOpFailures).length > 0 ? " has-owned-failures" : ""}`}>
+          <div className="panel-header"><h2>{t("ops.title")}</h2></div>
           <OwnedFailureList className="panel-owned-failures" failures={panelOpFailures} onDismiss={props.onDismissFailure} />
           <div className="current-ops" ref={currentOpsRef}>
             {activeTask ? (
@@ -124,8 +124,8 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
             ) : <div className="ops-empty">{t("ops.noTask")}</div>}
           </div>
         </section>
-        <section className="op-section output-section">
-          <h3>{t("ops.output")}</h3>
+        <section className="output-section">
+          <div className="panel-header"><h2>{t("ops.output")}</h2></div>
           <OwnedFailureList failures={props.outputFailures} onDismiss={props.onDismissFailure} />
           <div className="output-fixed">
             <OutputControls

@@ -255,7 +255,7 @@ describe("AppSettingsModal Gemini section", () => {
     const select = field.querySelector("select")!;
     expect([...select.options].map((option) => [option.value, option.text])).toEqual([["low", "Low"], ["medium", "Medium"], ["high", "High"], ["ultra_high", "Ultra high"]]);
     expect(select.value).toBe("high");
-    expect(field.querySelector(".field-help")?.textContent).toContain("High is what Gemini uses when no level is sent");
+    expect(field.querySelector(".field-help")?.textContent).toBe("How much detail Gemini reads from each photo; a higher level costs more.");
     await act(async () => {
       select.value = "low";
       select.dispatchEvent(new Event("change", { bubbles: true }));

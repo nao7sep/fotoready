@@ -60,7 +60,7 @@ describe("AboutModal links", () => {
     });
     const buttons = [...document.querySelectorAll<HTMLButtonElement>("button")];
     const github = buttons.find((button) => button.textContent === "GitHub")!;
-    const issues = buttons.find((button) => button.textContent === "Issues")!;
+    const issues = buttons.find((button) => button.textContent === "Report Issue")!;
 
     await act(async () => {
       github.click();

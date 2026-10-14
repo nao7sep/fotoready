@@ -11,7 +11,7 @@ Prebuilt installers and portable builds for macOS (Apple Silicon) and Windows ar
 
 ## Features
 
-- **Stackable, non-destructive edits** — reorderable op cards with live preview, even on large originals
+- **Stackable, non-destructive edits** — reorderable op cards with an instant preview, even on large originals. The preview is deliberately drawn at a reduced size (Settings › App › Performance) so every edit shows at once even on an older computer; the full-resolution image is processed only when you save
 - **Format-aware input and output** — open single-image JPEG, PNG, WebP, AVIF, or TIFF files and save as JPEG, PNG, WebP, AVIF, TIFF, or the supported source format, with per-task encode settings. Animated GIF and HEIC/HEIF input are not supported; convert them first.
 - **Metadata you control** — preserve, strip, or inject editorial/time/GPS fields, with a privacy pill flagging what would survive
 - **Batch rename** — collision-safe templates with per-row slug overrides

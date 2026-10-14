@@ -1977,11 +1977,10 @@ button.output-badge-label:focus-visible {
   max-height: 85vh;
 }
 
-/* Settings keeps one definite height across its tabs, so switching tabs never
-   resizes the dialog, and it is the tallest form: most tabs are long lists. */
+/* Settings is the longest form, so it may grow a little taller than other tall
+   modals; it still fits its content, within the fleet's 84–90vh caps. */
 .settings-modal {
-  height: 90vh;
-  max-height: 90vh;
+  max-height: 88vh;
 }
 
 /* LUTs and stamps are visual libraries: every additional row and column exposes

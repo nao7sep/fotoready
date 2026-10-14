@@ -39,6 +39,12 @@ const TEXTS = ["Watermark", "© Ag", "i"];
 // Small boxes keep the reference search's renders cheap.
 const BOXES = [[60, 20], [40, 13], [24, 24]] as const;
 
+// The first text render in a process pays the platform's font discovery: about a second on a warm
+// font cache, several on a cold one (a fresh CI runner) or while the whole suite runs at once. That
+// cost is the system's, not the fit's, which the tests below bound to five renders, so only this
+// set-up gets the longer limit.
+const TEXT_START_UP_TIMEOUT_MS = 60_000;
+
 type Reference = { text: string; maxWidth: number; maxHeight: number; expected: number; measured: Map<number, Size> };
 
 describe("watermark text fit", () => {
@@ -59,7 +65,7 @@ describe("watermark text fit", () => {
         references.push({ text, maxWidth, maxHeight, expected: await binarySearchFit(render, maxWidth, maxHeight), measured });
       }
     }
-  });
+  }, TEXT_START_UP_TIMEOUT_MS);
 
   it("picks the size a full binary search picks for real text, in a few renders", async () => {
     const defaults = requireOpModule("watermark-text").defaultParams as Params;

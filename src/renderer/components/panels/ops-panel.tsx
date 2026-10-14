@@ -304,7 +304,7 @@ function PipelineOpCard({
             onChange={(event) => onEnabledChange(event.currentTarget.checked)}
             onClick={(event) => event.stopPropagation()}
           />
-          {t("ops.cardTitle", { index: index + 1, name: nameKey ? t(nameKey) : op.type })}
+          <span className="op-card-title">{t("ops.cardTitle", { index: index + 1, name: nameKey ? t(nameKey) : op.type })}</span>
         </label>
         <div className="op-card-actions">
           <button className="icon-button compact" type="button" title={t("ops.moveUp")} disabled={disabled || index === 0} onClick={(event) => {

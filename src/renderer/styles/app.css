@@ -1675,6 +1675,15 @@ button.output-badge-label:focus-visible {
   flex: 1;
 }
 
+/* A card's title identifies it, and its first letters are enough once the ops are
+   familiar: one line, ending in an ellipsis (developer review). */
+.op-card-header .op-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .op-card-actions {
   display: inline-flex;
   align-items: center;

@@ -136,11 +136,10 @@ describe("truncation", () => {
     ) as Record<string, string>
   }));
 
-  it("shortens only identifying text, each with its whole value a click or keypress away", () => {
-    // A select opens its options; menu items fit a cap set for the longest command; the status label
-    // selects its task; the badge's path and the preview name reveal their folder and file; list rows,
-    // a Records row and the Records header name an item whose whole text is in the selected detail;
-    // an asset's name in its card reveals the file, and a picker tile's name reaches its card.
+  it("shortens only identifying text", () => {
+    // Selects, menu items under their cap, the status label, the badge's path, list rows, the preview
+    // toolbar, an op card's asset name, picker tiles and Records rows and headers name their item;
+    // text read whole is never in this list.
     expect(rules.filter((rule) => rule.declarations["text-overflow"] === "ellipsis").map((rule) => rule.selector))
       .toEqual([
         "select", ".status-active-label", ".app-menu button", ".path-head, .path-tail",

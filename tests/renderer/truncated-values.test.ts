@@ -8,9 +8,9 @@ import { defaultUiState } from "@shared/validation/state";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// Values the main window may cut short lead to their complete value by click or keyboard, not only
-// by a hover tooltip (interface-styling-conventions, Labels): the output folder and the selected
-// photo reveal themselves in Finder or Explorer, and the running task selects itself.
+// Values the main window cuts short (interface-styling-conventions, Labels): the output folder keeps
+// its last segment and reveals itself in Finder or Explorer, the selected photo's name gives way to
+// its task state, and the running task selects itself.
 
 Object.defineProperty(globalThis, "ResizeObserver", {
   configurable: true,
@@ -55,20 +55,15 @@ describe("values cut short in the main window", () => {
     expect(badge.querySelector(".path-head")?.textContent).toBe("/fixtures/output/");
   });
 
-  it("reveals the selected photo from its shortened name in the preview toolbar, keeping the task state apart", async () => {
-    const revealInFolder = vi.fn().mockRejectedValueOnce(new Error("ENOENT")).mockResolvedValue(undefined);
-    await mountApp({ revealInFolder, withPhoto: true });
-
+  it("shortens the selected photo's name in the preview toolbar but keeps the task state apart", async () => {
+    await mountApp({ withPhoto: true });
     const name = await vi.waitFor(() => {
-      const button = document.querySelector<HTMLButtonElement>("button.preview-name");
-      expect(button).not.toBeNull();
-      return button!;
+      const element = document.querySelector<HTMLElement>(".preview-name");
+      expect(element?.textContent).toBe(PHOTO_NAME);
+      return element!;
     });
-    expect(name.textContent).toBe(PHOTO_NAME);
+    expect(name.title).toBe(`/fixtures/originals/${PHOTO_NAME}`);
     expect(document.querySelector(".preview-state")?.textContent).toBe("Not saved");
-    await act(async () => name.click());
-    expect(revealInFolder).toHaveBeenCalledWith(`/fixtures/originals/${PHOTO_NAME}`);
-    await vi.waitFor(() => expect(document.querySelector(".editor-panel")?.textContent).toContain("The file could not be shown"));
   });
 
   it("selects the running task from the status bar", async () => {

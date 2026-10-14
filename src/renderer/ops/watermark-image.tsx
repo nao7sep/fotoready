@@ -9,7 +9,6 @@ import type { TaskEditOptions } from "@shared/types/ipc";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
 import { message, type Message } from "@shared/i18n/translate";
-import { AssetSourceValue } from "./_asset-source-value";
 
 export const watermarkImageRenderer = createAssetOverlayRenderer({
   type: "watermark-image",
@@ -25,7 +24,11 @@ export const watermarkImageRenderer = createAssetOverlayRenderer({
 
 function WatermarkSourceField({ assetPath }: { assetPath: string }): React.JSX.Element {
   const { t } = useI18n();
-  return <AssetSourceValue path={assetPath} label={fileLabel(assetPath)} emptyLabel={t("watermarkImage.noneSelected")} />;
+  return (
+    <div className="asset-source-row asset-source-row-value-only">
+      <span className="asset-source-value" title={assetPath}>{fileLabel(assetPath) ?? t("watermarkImage.noneSelected")}</span>
+    </div>
+  );
 }
 
 export function WatermarkSourceAction({

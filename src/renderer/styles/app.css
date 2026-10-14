@@ -1077,8 +1077,7 @@ button.output-badge-label:focus-visible {
   min-width: 0;
 }
 
-/* A row names its item in one line beside the thumbnail; the selected item's
-   name is whole in the preview toolbar's reveal command. */
+/* A row names its item in one line beside the thumbnail. */
 .list-row .row-title,
 .list-row .row-detail {
   overflow: hidden;
@@ -1194,8 +1193,7 @@ button.output-badge-label:focus-visible {
 }
 
 /* One line: the name shrinks first, then its facts; the task's state never
-   shrinks, since the editor relies on it. The name is a button that shows the
-   original in Finder or Explorer, so its whole name is a click or keypress away. */
+   shrinks, since the editor relies on it. */
 .preview-detail {
   flex: 1;
   min-width: 0;
@@ -1216,20 +1214,6 @@ button.output-badge-label:focus-visible {
 
 .preview-name {
   flex: 0 1 auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-
-button.preview-name {
-  cursor: pointer;
-}
-
-button.preview-name:hover {
-  text-decoration: underline;
 }
 
 .preview-facts {
@@ -1859,31 +1843,13 @@ button.preview-name:hover {
   letter-spacing: 0.04em;
 }
 
-/* The chosen asset's name: one line, and a button that shows the file. */
 .asset-source-value {
   min-width: 0;
   overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
   color: var(--text-strong-color);
-  font: inherit;
   font-size: 12px;
-  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-button.asset-source-value {
-  cursor: pointer;
-}
-
-button.asset-source-value:hover {
-  text-decoration: underline;
-}
-
-.asset-source-value.empty {
-  color: var(--text-muted-color);
 }
 
 .asset-source-action-stack {
@@ -2744,8 +2710,7 @@ button.asset-source-value:hover {
   object-fit: contain;
 }
 
-/* Two lines under the tile's fixed-height preview; the chosen asset's name is
-   whole through its op card's reveal command. */
+/* Two lines under the tile's fixed-height preview. */
 .asset-picker-name {
   display: -webkit-box;
   min-width: 0;

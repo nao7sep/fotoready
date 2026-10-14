@@ -128,7 +128,6 @@
   "failure.queueRefresh": "La modifica è stata applicata, ma non è stato possibile aggiornare lo stato della coda. Si aggiornerà alla prossima notifica della coda.",
   "failure.outputFolderChange": "Non è stato possibile cambiare la cartella di uscita. Resta in uso la cartella attuale; riprova.",
   "failure.outputFolderReveal": "Non è stato possibile mostrare la cartella di uscita. Verifica che esista ancora, poi riprova.",
-  "failure.fileReveal": "Non è stato possibile mostrare il file. Verifica che esista ancora, poi riprova.",
   "failure.outputFolderClear": "Non è stato possibile cancellare la cartella di uscita. Resta in uso la cartella attuale; riprova.",
   "failure.removeOriginal": "«{name}» resta nel progetto. Chiudi le app che usano i suoi file, poi riprova.",
   "failure.removeUnknownOriginal": "L’originale resta nel progetto. Chiudi le app che usano i suoi file, poi riprova.",

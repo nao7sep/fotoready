@@ -939,20 +939,9 @@ function App(): React.JSX.Element {
         <section className="editor-panel">
           <div className="preview-toolbar">
             <span className="preview-detail">
-              {activeOriginal ? (
-                <button className="preview-name" type="button" title={activeOriginal.sourcePath} onClick={() => {
-                  const sourcePath = activeOriginal.sourcePath;
-                  void runOwnedAction({
-                    action: () => api.system.revealInFolder(sourcePath),
-                    key: taskOwnedKey("reveal-original"),
-                    operation: "original reveal failed",
-                    setFailures: setEditorFailures,
-                    userMessage: message("failure.fileReveal")
-                  });
-                }}>
-                  {basename(activeOriginal.sourcePath)}
-                </button>
-              ) : <span className="preview-name">{t("editor.noImage")}</span>}
+              <span className="preview-name" title={activeOriginal?.sourcePath}>
+                {activeOriginal ? basename(activeOriginal.sourcePath) : t("editor.noImage")}
+              </span>
               {activeOriginal ? (
                 <span className="preview-facts">
                   {[

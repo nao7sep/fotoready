@@ -1,18 +1,14 @@
 import type { MessageKey } from "@shared/i18n/catalogues";
-import type { CloseRequest } from "@shared/types/ipc";
 
 export type CloseConfirmation = { title: MessageKey; message: MessageKey };
 
 /**
- * What to ask before a close goes ahead, or null when the close loses nothing. Only a close that
- * ends the app discards the workspace and cancels running saves; a macOS window close keeps both,
- * so it needs no confirmation.
+ * What to ask before the main window closes or FotoReady quits, or null when the close loses
+ * nothing. Both discard the workspace and cancel running saves: on macOS the app stays in the Dock
+ * with an empty workspace (developer decision), so the question belongs to the window close.
  */
-export function closeConfirmation(
-  request: Pick<CloseRequest, "endsApp">,
-  workspace: { hasWork: boolean; savesInFlight: boolean },
-): CloseConfirmation | null {
-  if (!request.endsApp || !workspace.hasWork) return null;
+export function closeConfirmation(workspace: { hasWork: boolean; savesInFlight: boolean }): CloseConfirmation | null {
+  if (!workspace.hasWork) return null;
   return {
     title: "confirm.close.title",
     message: workspace.savesInFlight ? "confirm.close.messageWithSaves" : "confirm.close.message",

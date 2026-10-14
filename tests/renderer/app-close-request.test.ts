@@ -50,19 +50,21 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it("rechecks an upgrade received while the old window-close approval is in flight", async () => {
+it("asks before a window close, and rechecks a newer request received while the older approval is in flight", async () => {
   let finishApproval!: () => void;
   let answer!: (allow: boolean) => void;
   const approve = vi.fn(async () => {});
   approve.mockImplementationOnce(() => new Promise<void>((resolve) => { finishApproval = resolve; }));
+  owner.confirm.mockResolvedValueOnce(true);
   owner.confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { answer = resolve; }));
   const request = await mount(approve);
-  await act(async () => request({ endsApp: false, requestId: 1 }));
+  await act(async () => request({ requestId: 1 }));
+  expect(owner.confirm).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "Close and discard the current workspace?" }));
   expect(approve).toHaveBeenCalledWith(true, 1);
-  await act(async () => request({ endsApp: true, requestId: 2 }));
-  expect(owner.confirm).not.toHaveBeenCalled();
+  await act(async () => request({ requestId: 2 }));
+  expect(owner.confirm).toHaveBeenCalledOnce();
   await act(async () => finishApproval());
-  expect(owner.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: "Close and discard the current workspace?" }));
+  expect(owner.confirm).toHaveBeenCalledTimes(2);
   expect(approve).toHaveBeenCalledOnce();
   await act(async () => answer(false));
   expect(approve).toHaveBeenLastCalledWith(false, 2);
@@ -72,7 +74,7 @@ it("answers with cancellation when required renderer confirmation fails", async 
   owner.confirm.mockRejectedValueOnce(new Error("confirmation unavailable"));
   const approve = vi.fn(async () => {});
   const request = await mount(approve);
-  await act(async () => request({ endsApp: true, requestId: 3 }));
+  await act(async () => request({ requestId: 3 }));
   expect(approve).toHaveBeenCalledWith(false, 3);
 });
 
@@ -107,7 +109,7 @@ it("settles a discarded Settings draft before a later ordinary quit", async () =
   expect(owner.confirm).toHaveBeenCalledOnce();
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   owner.confirm.mockClear();
-  await act(async () => request({ endsApp: true, requestId: 4 }));
+  await act(async () => request({ requestId: 4 }));
   expect(owner.confirm).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "Close and discard the current workspace?" }));
   expect(approve).toHaveBeenCalledWith(true, 4);
 });

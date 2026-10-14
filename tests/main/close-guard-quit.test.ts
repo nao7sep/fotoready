@@ -88,9 +88,10 @@ function installApp(save: () => Promise<boolean> = async () => true) {
     sessionEnded
   });
   const logger = { warn: vi.fn() };
-  guard = installCloseGuard(win as never, exitState, quit, logger);
+  const discardWorkspace = vi.fn();
+  guard = installCloseGuard(win as never, exitState, quit, logger, discardWorkspace);
   const approve = (allow: boolean) => electron.handlers.get("lifecycle.approveClose")!({ sender: win }, allow, send.mock.calls.at(-1)?.[1]?.requestId);
-  return { win, send, exitState, stop, quit, approve, logger, sessionEnded };
+  return { win, send, exitState, stop, quit, approve, logger, sessionEnded, discardWorkspace };
 }
 
 beforeEach(() => {
@@ -114,7 +115,7 @@ describe("close guard quit", () => {
 
     electron.quit();
     electron.quit();
-    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { endsApp: true, requestId: 1 });
+    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { requestId: 1 });
 
     await approve(true);
     await vi.waitFor(() => expect(electron.state.exits).toBe(1));
@@ -125,7 +126,7 @@ describe("close guard quit", () => {
     const { win, send, exitState, approve, stop } = installApp();
 
     win.emit("close", { preventDefault() {} });
-    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { endsApp: true, requestId: 1 });
+    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { requestId: 1 });
     expect(exitState.reason).toBe("window-close");
 
     await approve(false);
@@ -151,32 +152,40 @@ describe("close guard quit", () => {
     expect(electron.state.exits).toBe(0);
   });
 
-  it("closes only the window on macOS", async () => {
+  it("on macOS, asks at the window close, then discards the workspace and closes only the window", async () => {
     electron.closeQuits.value = false;
-    const { win, send, approve } = installApp();
+    const { win, send, approve, discardWorkspace } = installApp();
 
     win.emit("close", { preventDefault() {} });
-    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { endsApp: false, requestId: 1 });
+    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { requestId: 1 });
     await approve(true);
+    expect(discardWorkspace).toHaveBeenCalledOnce();
     expect(win.close).toHaveBeenCalledOnce();
     expect(electron.quit).not.toHaveBeenCalled();
   });
 
-  it("on macOS, lets a quit arriving while a window close is asked join that question", async () => {
+  it("on macOS, keeps the window and its workspace when the close is declined", async () => {
     electron.closeQuits.value = false;
-    const { win, send, approve } = installApp();
+    const { win, approve, discardWorkspace } = installApp();
+
+    win.emit("close", { preventDefault() {} });
+    await approve(false);
+    expect(discardWorkspace).not.toHaveBeenCalled();
+    expect(win.close).not.toHaveBeenCalled();
+  });
+
+  it("on macOS, lets a quit arriving while a window close is asked join that question without asking again", async () => {
+    electron.closeQuits.value = false;
+    const { win, send, approve, discardWorkspace } = installApp();
 
     win.emit("close", { preventDefault() {} });
     electron.quit();
-    expect(send).toHaveBeenCalledTimes(2);
-    expect(send).toHaveBeenLastCalledWith("lifecycle.close-requested", { endsApp: true, requestId: 2 });
-    await electron.handlers.get("lifecycle.approveClose")!({ sender: win }, true, 1);
-    await Promise.resolve();
-    expect(electron.state.exits).toBe(0);
+    expect(send).toHaveBeenCalledOnce();
     await approve(true);
 
     await vi.waitFor(() => expect(electron.state.exits).toBe(1));
     expect(win.close).not.toHaveBeenCalled();
+    expect(discardWorkspace).not.toHaveBeenCalled();
   });
 
   it("cancels quit when the renderer closes before answering", async () => {

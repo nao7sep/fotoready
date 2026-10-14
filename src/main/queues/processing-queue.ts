@@ -111,15 +111,19 @@ export class ProcessingQueue {
   }
 
   /**
-   * Stops for quit: cancels every waiting save, aborts the running ones, and waits for their
-   * promises. Rejection can precede physical worker termination and leave a temporary file; the
-   * caller bounds its wait and tears down workers.
+   * Cancels every waiting save, aborts the running ones, and waits for their promises. Rejection can
+   * precede physical worker termination and leave a temporary file. New saves are still taken.
    */
-  async shutdown(): Promise<void> {
-    this.#closed = true;
+  async abortAll(): Promise<void> {
     this.cancelAll();
     for (const controller of this.#active.values()) controller.abort();
     await this.#queue.onIdle();
+  }
+
+  /** Stops for quit as {@link abortAll} does, and takes no new saves; the caller bounds its wait and tears down workers. */
+  async shutdown(): Promise<void> {
+    this.#closed = true;
+    await this.abortAll();
   }
 
   snapshot(project: Project): QueueSnapshot {

@@ -201,9 +201,8 @@ export type LutPreviewEntry = LutEntry & {
   height: number;
 };
 
+/** A window close or quit asking the renderer's confirmations; both discard the workspace. */
 export type CloseRequest = {
-  /** The close ends the app, discarding the workspace and cancelling running saves. */
-  endsApp: boolean;
   requestId: number;
 };
 

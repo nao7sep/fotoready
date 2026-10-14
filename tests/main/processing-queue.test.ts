@@ -101,3 +101,35 @@ describe("ProcessingQueue cancellation", () => {
     await settle();
   });
 });
+
+describe("ProcessingQueue abort", () => {
+  // A processor that runs until its save is aborted, as a real render stops on its signal.
+  function abortableProcessor() {
+    const started: string[] = [];
+    const aborted: string[] = [];
+    const processor: TaskProcessor = async (_project, taskId, _settings, _onUpdate, _pool, _logger, signal) => {
+      started.push(taskId);
+      await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }));
+      aborted.push(taskId);
+    };
+    return { processor, started, aborted };
+  }
+
+  it("aborts the running save, skips the waiting ones, and still takes new saves when the workspace is discarded", async () => {
+    const { processor, started, aborted } = abortableProcessor();
+    const queue = new ProcessingQueue(1, settings, workerPool, undefined, null, processor);
+    void queue.enqueueTask(project, "A");
+    void queue.enqueueTask(project, "B");
+    await settle();
+
+    await queue.abortAll();
+    expect(aborted).toEqual(["A"]);
+    expect(started).toEqual(["A"]);
+
+    void queue.enqueueTask(project, "C");
+    await settle();
+    expect(started).toEqual(["A", "C"]);
+    await queue.shutdown();
+    await expect(queue.enqueueTask(project, "D")).rejects.toThrow("closing");
+  });
+});

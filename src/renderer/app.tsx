@@ -380,7 +380,7 @@ function App(): React.JSX.Element {
           }
         }
 
-        const confirmation = closeConfirmation(pendingCloseRequest.current!, {
+        const confirmation = closeConfirmation({
           hasWork: hasWorkspaceWork(project, queue),
           savesInFlight: queue.queued + queue.processing > 0
         });

@@ -258,7 +258,13 @@ export async function bootstrap(): Promise<void> {
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
-    mainGuard = installCloseGuard(win, exitState, quit, logger);
+    // An approved macOS window close discards the workspace, and FotoReady stays in the Dock empty
+    // (developer decision): the question is asked when the window closes, not at a later quit.
+    mainGuard = installCloseGuard(win, exitState, quit, logger, () => {
+      void projectSession.discardWorkspace().catch((error: unknown) => {
+        logger.error("the workspace could not be discarded when its window closed", { mod: "main.quit", err: error });
+      });
+    });
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -540,32 +546,25 @@ export type CloseGuard = {
 /**
  * Exported for tests. Holds the main window's close for the renderer's confirmations. Off macOS
  * closing the window quits, so the close becomes the quit, and a cancelled quit keeps the window
- * open; on macOS the window closes alone and the app goes on.
+ * open; on macOS an approved close discards the workspace and the app goes on without a window.
  */
-export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl, logger?: Pick<AppLogger, "warn">): CloseGuard {
+export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl, logger?: Pick<AppLogger, "warn">,
+  discardWorkspace: () => void = () => undefined): CloseGuard {
   // An approved macOS window close, which the guard then lets through.
   let closeAllowed = false;
   const presentationFailed = (error: unknown): void => {
     if (logger) logger.warn("the close question could not be presented", { mod: "main.quit", err: error });
     else console.warn("[close] could not present the close question", error);
   };
-  // The question the renderer is answering. A quit arriving while it asks about a window close
-  // joins it, and the answer then goes on with the quit instead of closing the window alone.
+  // The question the renderer is answering. Closing the window and quitting ask the same thing, so
+  // a quit arriving while a window close is asked joins it, and the answer goes on with the quit.
   let requestId = 0;
   let pending: { mode: "window" | "quit"; requestId: number; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
 
   function ask(mode: "window" | "quit"): Promise<boolean> {
     if (pending) {
-      const pendingAnswer = pending.answer;
-      if (mode === "quit" && pending.mode !== "quit") {
-        pending.mode = "quit";
-        pending.requestId = ++requestId;
-        try { win.webContents.send("lifecycle.close-requested", { endsApp: true, requestId }); } catch (error) {
-          presentationFailed(error);
-          answer(false);
-        }
-      }
-      return pendingAnswer;
+      if (mode === "quit") pending.mode = "quit";
+      return pending.answer;
     }
     if (win.webContents.isDestroyed()) return Promise.resolve(false);
     try { revealWindow(win); } catch (error) {
@@ -575,7 +574,7 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
     let resolve!: (allow: boolean) => void;
     const answerPromise = new Promise<boolean>((settle) => { resolve = settle; });
     pending = { mode, requestId: ++requestId, answer: answerPromise, resolve };
-    const request: CloseRequest = { endsApp: mode === "quit" || windowCloseQuits(process.platform), requestId };
+    const request: CloseRequest = { requestId };
     try { win.webContents.send("lifecycle.close-requested", request); } catch (error) {
       presentationFailed(error);
       resolve(false);
@@ -591,6 +590,7 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
     answered.resolve(allow);
     if (allow && answered.mode === "window" && !quit.sessionEnding()) {
       closeAllowed = true;
+      discardWorkspace();
       win.close();
     }
   }

@@ -136,13 +136,28 @@ describe("truncation", () => {
     ) as Record<string, string>
   }));
 
-  it("draws an ellipsis only at the reviewed sites", () => {
-    // The badge reveals its folder, the status label selects its task, a select opens its options and
-    // a Records row shows its text in the detail pane.
+  it("shortens only identifying text, each with its whole value a click or keypress away", () => {
+    // A select opens its options; menu items fit a cap set for the longest command; the status label
+    // selects its task; the badge's path and the preview name reveal their folder and file; list rows,
+    // a Records row and the Records header name an item whose whole text is in the selected detail;
+    // an asset's name in its card reveals the file, and a picker tile's name reaches its card.
     expect(rules.filter((rule) => rule.declarations["text-overflow"] === "ellipsis").map((rule) => rule.selector))
-      .toEqual(["select", ".status-active-label", ".output-badge-text"]);
+      .toEqual([
+        "select", ".status-active-label", ".app-menu button", ".path-head, .path-tail",
+        ".list-row .row-title, .list-row .row-detail", ".preview-name, .preview-facts", ".asset-source-value",
+        ".records-row-title", ".records-detail-title"
+      ]);
     expect(rules.filter((rule) => "-webkit-line-clamp" in rule.declarations).map((rule) => rule.selector))
-      .toEqual([".records-row-text"]);
+      .toEqual([".asset-picker-name", ".records-row-text"]);
+  });
+
+  it("wraps text that is read whole inside a height limit that scrolls", () => {
+    for (const selector of [".vision-description", ".pipeline-op-card .operation-result-content", ".error-strip span", ".asset-file-name-list"]) {
+      const rule = rules.find((candidate) => candidate.selector === selector);
+      expect(rule?.declarations["max-height"], selector).toBeDefined();
+      expect(rule?.declarations["overflow-y"], selector).toBe("auto");
+    }
+    expect(rules.find((rule) => rule.selector === ".modal-message")?.declarations["overflow-wrap"]).toBe("anywhere");
   });
 
   it("never clips a line without a marker", () => {

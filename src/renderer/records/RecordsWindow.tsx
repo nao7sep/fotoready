@@ -667,6 +667,8 @@ function RecordDetailView({
     if (text !== null) blocks.push({ label, text });
   };
   if (record.kind === "log") {
+    // The header names the record in one line; the message is read here, whole.
+    addBlock(t("records.message"), record.message);
     addBlock(t("records.details"), logDetailsText(record.fields, record.taskId));
   } else {
     addBlock(t("records.request"), blockText(record.request));

@@ -8,6 +8,7 @@ import { fileNameFromPath } from "@shared/file-path";
 import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
 import { message, type Message } from "@shared/i18n/translate";
+import { AssetSourceValue } from "./_asset-source-value";
 
 export const stampRenderer = createAssetOverlayRenderer({
   type: "stamp",
@@ -24,11 +25,7 @@ export const stampRenderer = createAssetOverlayRenderer({
 function StampSourceField({ ctx, params }: Pick<OpCardProps<AssetOverlayParams>, "ctx" | "params">): React.JSX.Element {
     const { t } = useI18n();
     const selected = ctx.stamps.find((stamp) => stamp.path === params.assetPath) ?? null;
-    return (
-      <div className="asset-source-row asset-source-row-value-only">
-        <span className="asset-source-value" title={selected?.path ?? params.assetPath}>{selected?.name ?? fileLabel(params.assetPath) ?? t("stamp.noneSelected")}</span>
-      </div>
-    );
+    return <AssetSourceValue path={selected?.path ?? params.assetPath} label={selected?.name ?? fileLabel(params.assetPath)} emptyLabel={t("stamp.noneSelected")} />;
 }
 
 export function StampSourceAction({ ctx, disabled, onParamsChange, params }: OpCardProps<AssetOverlayParams>): React.JSX.Element {

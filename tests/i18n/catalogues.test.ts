@@ -42,7 +42,7 @@ const SAME_AS_ENGLISH: Partial<Record<Language, readonly string[]>> = {
     "common.ok", "topBar.menu", "privacy.gps", "opName.lut", "opPicker.watermarkImage", "output.format",
     "output.description", "output.slug", "settings.avifEffort", "settings.prompts", "settings.confirmations",
     "metadataField.source", "metadataField.description", "metadataSummary.latitude", "metadataSummary.longitude",
-    "metadataSummary.altitude", "rename.original", "about.version", "geometry.angle", "conceal.rectangle",
+    "metadataSummary.altitude", "rename.original", "about.version", "records.message", "geometry.angle", "conceal.rectangle",
     "conceal.ellipse", "crop.original", "curves.point.other", "hsl.range.orange", "hsl.range.magenta", "hsl.global",
     "levels.gamma", "resize.exact", "strip.group.gps", "nativeMenu.services", "nativeMenu.zoom",
   ],

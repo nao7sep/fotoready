@@ -255,9 +255,11 @@ describe("RecordsWindow", () => {
     await act(async () => options()[1]!.click());
 
     expect(document.querySelector(".records-detail-title")?.textContent).toBe("vision retry");
-    expect(document.querySelector(".records-block pre")?.textContent).toBe(
-      JSON.stringify({ mod: "vision", attempt: 2 }, null, 2)
-    );
+    // The header names the line in one line; its message is read whole in its own block.
+    expect([...document.querySelectorAll(".records-block")].map((block) => [block.querySelector("h3")?.textContent, block.querySelector("pre")?.textContent])).toEqual([
+      ["Message", "vision retry"],
+      ["Details", JSON.stringify({ mod: "vision", attempt: 2 }, null, 2)]
+    ]);
   });
 
   it("leaves out the Details block when no field is left to show", async () => {
@@ -269,7 +271,7 @@ describe("RecordsWindow", () => {
     await act(async () => options()[1]!.click());
 
     expect(document.querySelector(".records-detail-title")?.textContent).toBe("vision retry");
-    expect(document.querySelectorAll(".records-block")).toHaveLength(0);
+    expect([...document.querySelectorAll(".records-block h3")].map((label) => label.textContent)).toEqual(["Message"]);
   });
 
   it("moves the selection with the arrow keys", async () => {

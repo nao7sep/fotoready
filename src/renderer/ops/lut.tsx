@@ -5,6 +5,7 @@ import { OperationResult } from "@renderer/components/operation-result";
 import { presentFailure } from "@renderer/present-failure";
 import { fileNameFromPath } from "@shared/file-path";
 import type { OpCardProps, OpRenderer } from "./op-renderer";
+import { AssetSourceValue } from "./_asset-source-value";
 import { message, type Message } from "@shared/i18n/translate";
 
 type LutParams = { cubePath: string; strength: number };
@@ -36,9 +37,7 @@ export function LutCard({ params, disabled, ctx, onParamChange }: OpCardProps<Lu
 
   return (
     <div className="geometry-controls">
-      <div className="asset-source-row asset-source-row-value-only">
-        <span className="asset-source-value" title={selected?.path ?? params.cubePath}>{selected?.name ?? fileLabel(params.cubePath) ?? t("lut.noneSelected")}</span>
-      </div>
+      <AssetSourceValue path={selected?.path ?? params.cubePath} label={selected?.name ?? fileLabel(params.cubePath)} emptyLabel={t("lut.noneSelected")} />
       <button className="toolbar-button" disabled={disabled || reloadBusy} type="button" onClick={() => void openPicker()}>{t("lut.choose")}</button>
       {reloadFailure ? (
         <OperationResult

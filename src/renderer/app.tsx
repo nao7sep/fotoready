@@ -59,6 +59,7 @@ import {
   settleOriginalImportFeedback,
   type OriginalImportFeedback,
 } from "./original-import-feedback";
+import { PathLabel } from "./components/path-label";
 import "./styles/app.css";
 
 const initialQueueSnapshot: QueueSnapshot = {
@@ -825,7 +826,7 @@ function App(): React.JSX.Element {
                 userMessage: message("failure.outputFolderReveal")
               });
             }}>
-              <span className="output-badge-text">{t("topBar.output", { folder: outputDirLabel })}</span>
+              <PathLabel className="output-badge-text" template={(folder) => t("topBar.output", { folder })} path={project.outputDir} />
             </button>
           ) : (
             <span className="output-badge-label">
@@ -937,21 +938,32 @@ function App(): React.JSX.Element {
 
         <section className="editor-panel">
           <div className="preview-toolbar">
-            <span className="preview-detail" title={activeOriginal?.sourcePath ?? ""}>
-              {activeOriginal ? basename(activeOriginal.sourcePath) : t("editor.noImage")}
+            <span className="preview-detail">
               {activeOriginal ? (
-                <em>
+                <button className="preview-name" type="button" title={activeOriginal.sourcePath} onClick={() => {
+                  const sourcePath = activeOriginal.sourcePath;
+                  void runOwnedAction({
+                    action: () => api.system.revealInFolder(sourcePath),
+                    key: taskOwnedKey("reveal-original"),
+                    operation: "original reveal failed",
+                    setFailures: setEditorFailures,
+                    userMessage: message("failure.fileReveal")
+                  });
+                }}>
+                  {basename(activeOriginal.sourcePath)}
+                </button>
+              ) : <span className="preview-name">{t("editor.noImage")}</span>}
+              {activeOriginal ? (
+                <span className="preview-facts">
                   {[
                     `${activeOriginal.width}×${activeOriginal.height}`,
                     outputFormatName(t, activeOriginal.format),
                     ...(hasJpegEstimate && activeOriginal.jpegQualityEstimate !== null ? [t("editor.assumedJpegQuality", { quality: activeOriginal.jpegQualityEstimate })] : []),
-                    ...(activeTask ? [
-                      t("editor.outputFormat", { format: outputFormatName(t, resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format)) }),
-                      t(taskStateLabel(activeTask, queue))
-                    ] : [])
+                    ...(activeTask ? [t("editor.outputFormat", { format: outputFormatName(t, resolveOutputFormat(activeTask.pipeline.output.format, activeOriginal.format)) })] : [])
                   ].join(" · ")}
-                </em>
+                </span>
               ) : null}
+              {activeOriginal && activeTask ? <span className="preview-state">{t(taskStateLabel(activeTask, queue))}</span> : null}
             </span>
             {activeTask?.status === "not-saved" ? (
               <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => saveTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("save"), operation: "task save failed", setFailures: setEditorFailures, userMessage: message("failure.saveTask") })}>

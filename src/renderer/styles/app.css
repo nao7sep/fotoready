@@ -575,8 +575,11 @@ button:focus-visible {
   right: 12px;
   z-index: 10;
   display: grid;
+  /* As wide as its longest item up to a cap that fits every command in every
+     interface language; an item never wraps (composite-control-conventions). */
+  width: max-content;
   min-width: 200px;
-  max-width: calc(100vw - 24px);
+  max-width: min(360px, calc(100vw - 24px));
   padding: 4px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -593,7 +596,9 @@ button:focus-visible {
   background: transparent;
   text-align: left;
   font-size: 13px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Items touch, so a ring outside one would sit under the next item's hover
@@ -720,11 +725,32 @@ button.output-badge-label:focus-visible {
 }
 
 .output-badge-text {
-  display: block;
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+
+/* A path keeps its final segment and loses its middle: the folders before the
+   last one shrink first, then the last one itself (interface-styling-conventions,
+   Labels). */
+.path-head,
+.path-tail {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.path-head {
+  flex: 0 1000 auto;
+}
+
+.path-tail {
+  flex: 0 1 auto;
+}
+
+.path-fixed {
+  flex: none;
 }
 
 .output-badge-button {
@@ -1051,6 +1077,15 @@ button.output-badge-label:focus-visible {
   min-width: 0;
 }
 
+/* A row names its item in one line beside the thumbnail; the selected item's
+   name is whole in the preview toolbar's reveal command. */
+.list-row .row-title,
+.list-row .row-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .thumb {
   width: 42px;
   height: 42px;
@@ -1158,24 +1193,56 @@ button.output-badge-label:focus-visible {
   color: var(--text-soft-color);
 }
 
-/* The file name and the task's state wrap onto a second line rather than truncate: the state is
-   evidence the editor relies on, and the bar grows by a line only for long names. */
+/* One line: the name shrinks first, then its facts; the task's state never
+   shrinks, since the editor relies on it. The name is a button that shows the
+   original in Finder or Explorer, so its whole name is a click or keypress away. */
 .preview-detail {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 8px;
-  overflow-wrap: anywhere;
+  gap: 8px;
   color: var(--text-strong-color);
   font-size: 13px;
 }
 
-.preview-detail em {
-  font-style: normal;
+.preview-name,
+.preview-facts {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-name {
+  flex: 0 1 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.preview-name {
+  cursor: pointer;
+}
+
+button.preview-name:hover {
+  text-decoration: underline;
+}
+
+.preview-facts {
+  flex: 0 1000 auto;
   font-size: 11px;
   color: var(--text-muted-color);
+}
+
+.preview-state {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted-color);
+  white-space: nowrap;
 }
 
 .geometry-controls {
@@ -1386,6 +1453,8 @@ button.output-badge-label:focus-visible {
 .error-strip span {
   flex: 1 1 320px;
   min-width: 0;
+  max-height: 7.5em;
+  overflow-y: auto;
   overflow-wrap: anywhere;
   line-height: 1.35;
   padding: 5px 0;
@@ -1610,6 +1679,12 @@ button.output-badge-label:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* A card's error is read whole: it wraps in full and scrolls past a height limit. */
+.pipeline-op-card .operation-result-content {
+  max-height: 7.5em;
+  overflow-y: auto;
+}
+
 .pipeline-op-card .toggle-row span,
 .pipeline-op-card .stacked-field,
 .pipeline-op-card label:not(.slider-row) {
@@ -1784,11 +1859,31 @@ button.output-badge-label:focus-visible {
   letter-spacing: 0.04em;
 }
 
+/* The chosen asset's name: one line, and a button that shows the file. */
 .asset-source-value {
   min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--text-strong-color);
+  font: inherit;
   font-size: 12px;
-  overflow-wrap: anywhere;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.asset-source-value {
+  cursor: pointer;
+}
+
+button.asset-source-value:hover {
+  text-decoration: underline;
+}
+
+.asset-source-value.empty {
+  color: var(--text-muted-color);
 }
 
 .asset-source-action-stack {
@@ -2014,6 +2109,7 @@ button.output-badge-label:focus-visible {
 .modal-message {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.5;
 }
 
@@ -2031,9 +2127,12 @@ button.output-badge-label:focus-visible {
 }
 
 .asset-file-name-list {
+  max-height: 10em;
   margin: 0;
   padding-left: 20px;
+  overflow-y: auto;
   white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .asset-file-name-list li + li {
@@ -2648,8 +2747,14 @@ button.output-badge-label:focus-visible {
   object-fit: contain;
 }
 
+/* Two lines under the tile's fixed-height preview; the chosen asset's name is
+   whole through its op card's reveal command. */
 .asset-picker-name {
+  display: -webkit-box;
   min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--text-strong-color);
   font-size: 12px;
   font-weight: 600;
@@ -2674,9 +2779,13 @@ button.output-badge-label:focus-visible {
   color: var(--text-disabled-color);
 }
 
+/* Read whole, so it wraps in full and scrolls past a height limit rather than
+   pushing the ops list away. */
 .vision-description {
   display: grid;
   gap: 8px;
+  max-height: 12em;
+  overflow-y: auto;
   padding: 10px 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -3175,9 +3284,11 @@ kbd {
 }
 
 .records-row-title {
+  overflow: hidden;
   color: var(--text-strong-color);
   font: 600 12px var(--font-mono);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .records-row.active .records-row-title {
@@ -3209,18 +3320,18 @@ kbd {
 }
 
 /* The header holds the record's whole message, so it grows with it. */
+/* The header names the record in one line; a log's message is read whole in
+   the detail body below it. */
 .records-detail-header {
-  height: auto;
-  min-height: 36px;
-  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
 }
 
 .records-detail-title {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .records-detail-chips {

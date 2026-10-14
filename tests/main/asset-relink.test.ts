@@ -15,7 +15,8 @@ describe("relocating imported stamps", () => {
   it("keeps a supported imported format before a same-stem built-in alias", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-relink-"));
     roots.push(root);
-    const source = path.join(root, "heart.webp");
+    // The built-in heart ships as WebP, so an imported PNG of the same stem is a distinct file.
+    const source = path.join(root, "heart.png");
     await fs.writeFile(source, "distinct imported stamp");
     const bundledStamps = path.resolve("resources/stamps");
     const oldFolder = path.join(root, "old-library");
@@ -26,7 +27,7 @@ describe("relocating imported stamps", () => {
     const pipeline = defaultPipeline();
     pipeline.ops.push({ id: "stamp", type: "stamp", enabled: true, params: { ...getOpModule("stamp")!.defaultParams, assetPath: imported.entry.path } });
     const relinked = await relinkMissingAssets(pipeline, { bundledStamps, importedStamps: currentFolder, bundledLuts: null, importedLuts: null });
-    expect(relinked.ops[0].params.assetPath).toBe(path.join(currentFolder, "heart.webp"));
+    expect(relinked.ops[0].params.assetPath).toBe(path.join(currentFolder, "heart.png"));
     expect(await fs.readFile(String(relinked.ops[0].params.assetPath), "utf8")).toBe("distinct imported stamp");
   });
 });

@@ -137,7 +137,7 @@ describe("task sidecar import", () => {
     expect(matchingTaskSidecar({ ...original, sourceHash: "source-hash", sourcePath: path.join(root, "renamed.png") }, loaded)?.path).toBe(sidecarPath);
   });
 
-  it("loads a stamp saved under another install as the current built-in and leaves a missing imported stamp as saved", async () => {
+  it("loads a stamp saved under another install, in the built-ins' earlier PNG format, as the current built-in and leaves a missing imported stamp as saved", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
     roots.push(root);
     const sidecarPath = path.join(root, "photo.json");
@@ -163,7 +163,7 @@ describe("task sidecar import", () => {
 
     expect(result.rejected).toEqual([]);
     expect(result.loaded[0]!.sidecar.task.pipeline.ops.map((op) => op.params.assetPath)).toEqual([
-      path.join(bundledStampsDir, "heart.png"),
+      path.join(bundledStampsDir, "heart.webp"),
       path.join(root, "gone", "my-own.png"),
     ]);
   });

@@ -37,7 +37,7 @@ function original(over: Partial<Original> = {}): Original {
 
 describe("defaultQualityForFormat", () => {
   it("uses the configured webp/avif qualities", () => {
-    expect(defaultQualityForFormat("webp", settings(), "jpeg", "auto")).toBe(90);
+    expect(defaultQualityForFormat("webp", settings(), "jpeg", "auto")).toBe(85);
     expect(defaultQualityForFormat("avif", settings(), "jpeg", "auto")).toBe(75);
   });
 
@@ -60,7 +60,7 @@ describe("defaultQualityForFormat", () => {
 
   it("resolves an 'original' format through the source format", () => {
     // original + webp source resolves to webp.
-    expect(defaultQualityForFormat("original", settings(), "webp", "auto")).toBe(90);
+    expect(defaultQualityForFormat("original", settings(), "webp", "auto")).toBe(85);
   });
 });
 
@@ -76,7 +76,7 @@ describe("defaultTaskOutput", () => {
   it("derives quality from an explicit default output format", () => {
     const result = defaultTaskOutput(settings({ defaultOutputFormat: "webp" }), "jpeg", defaultOutputSettings());
     expect(result.format).toBe("webp");
-    expect(result.quality).toBe(90);
+    expect(result.quality).toBe(85);
   });
 });
 
@@ -91,7 +91,7 @@ describe("nextTaskOutput", () => {
   it("changing format to webp recomputes quality and leaves flatten alone", () => {
     const result = nextTaskOutput(output({ format: "jpeg", flattenTransparency: false }), "format", "webp", settings(), "jpeg");
     expect(result.format).toBe("webp");
-    expect(result.quality).toBe(90);
+    expect(result.quality).toBe(85);
     expect(result.flattenTransparency).toBe(false);
   });
 

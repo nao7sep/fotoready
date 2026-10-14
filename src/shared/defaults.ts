@@ -38,9 +38,10 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     confirmDeleteTasks: true,
     confirmDeleteOutputFiles: true,
     defaultOutputFormat: "original",
-    // sharp's own defaults are WebP 80 and AVIF 50; these sit higher to keep publishing quality on the
-    // safe side, and the user sets their own in Settings (developer decision).
-    defaultWebpQuality: 90,
+    // The reference encoders default to WebP 75 (libwebp) and AVIF 60 (libavif's avifenc), and sharp to
+    // 80 and 50. These sit above the reference defaults to keep publishing quality on the safe side, and
+    // the user sets their own in Settings (developer decision).
+    defaultWebpQuality: 85,
     defaultAvifQuality: 75,
     defaultPngPalette: false,
     defaultGenerateDescription: true,

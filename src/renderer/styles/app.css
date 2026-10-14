@@ -2072,13 +2072,6 @@ button.asset-source-value:hover {
   max-height: 85vh;
 }
 
-/* Settings takes one definite height (developer review). Its page grows from a
-   zero basis to fill the body, so as a cap alone 85vh was never reached: the
-   dialog sat at the page's 360px floor on every tab. 85vh is inside the
-   fleet's 84–90vh range. */
-.settings-modal {
-  height: 85vh;
-}
 
 /* LUTs and stamps are visual libraries: every additional row and column exposes
    more real choices. Give the picker a definite viewport-relative canvas instead
@@ -2235,9 +2228,13 @@ button.asset-source-value:hover {
   box-shadow: var(--button-shadow);
 }
 
+/* Settings fits each tab's content within the tall-modal cap, so a tab with a
+   few controls gives a short dialog on a tall screen (developer decision). The
+   page's own height is its basis: grown from zero, it sat at a fixed floor on
+   every tab. */
 .settings-page {
-  flex: 1 1 0;
-  min-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 

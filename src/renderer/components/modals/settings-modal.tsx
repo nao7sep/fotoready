@@ -150,7 +150,6 @@ export function AppSettingsModal({
       title={t("settings.title")}
       size="default"
       tall
-      surfaceClassName="settings-modal"
       closeDisabled={saving}
       onClose={onClose}
       footer={

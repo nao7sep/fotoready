@@ -14,11 +14,18 @@ const RESOLVED_KEYS = [
 ] as const;
 
 describe("choices that name what they resolve to", () => {
-  it("write the word, a space and the value in plain parentheses, in every language", async () => {
+  it("write the word and the value in brackets that follow each language's punctuation", async () => {
+    // Japanese and Chinese use full-width brackets and Korean attaches them, all without a space;
+    // the other languages write a space and plain parentheses.
+    const forms: Partial<Record<string, RegExp>> = {
+      ja: /^\S+（\{\w+\}）$/,
+      "zh-Hans": /^\S+（\{\w+\}）$/,
+      ko: /^\S+\(\{\w+\}\)$/
+    };
     for (const language of LANGUAGES) {
       const catalogue = await loadCatalogue(language) as Record<string, unknown>;
       for (const key of RESOLVED_KEYS) {
-        expect(catalogue[key], `${language} ${key}`).toMatch(/^\S.*\S \(\{\w+\}\)$/);
+        expect(catalogue[key], `${language} ${key}`).toMatch(forms[language] ?? /^\S.*\S \(\{\w+\}\)$/);
       }
     }
   });

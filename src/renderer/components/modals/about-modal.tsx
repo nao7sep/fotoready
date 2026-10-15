@@ -61,10 +61,7 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
           failures={linkFailures}
           onDismiss={(key) => dismissOwnedFailure(setLinkFailures, key)}
         />
-        <div className="about-meta">
-          <p>© 2026 Yoshinao Inoguchi</p>
-          <p>{t("about.license")}</p>
-        </div>
+        <p className="about-meta">© 2026 Yoshinao Inoguchi{" · "}{t("about.license")}</p>
       </div>
     </ModalShell>
   );

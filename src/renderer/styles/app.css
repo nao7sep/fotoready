@@ -2882,8 +2882,6 @@ button.output-badge-label:focus-visible {
 }
 
 .about-meta {
-  display: grid;
-  gap: 2px;
   color: var(--text-muted-color);
   font-size: 12px;
 }

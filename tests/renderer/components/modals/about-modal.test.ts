@@ -29,6 +29,15 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+describe("AboutModal copyright", () => {
+  it("shows copyright and licence on one line", async () => {
+    await act(async () => {
+      root.render(createElement(AboutModal, { systemInfo: null, onClose: () => undefined }));
+    });
+    expect(document.querySelector(".about-meta")?.textContent).toBe("© 2026 Yoshinao Inoguchi · GNU GPL v3 or later");
+  });
+});
+
 describe("AboutModal links", () => {
   it("keeps hostile bridge diagnostics out of the retained modal result", async () => {
     mocks.openExternal.mockRejectedValue(new Error(

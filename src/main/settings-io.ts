@@ -10,13 +10,14 @@ import { cleanMetadataField, multiline, singleLine } from "@shared/text-cleanup"
 import { setAsideStore, StoreNotWritableError } from "@adapters/json-store";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
+import { automaticWorkerPoolSize } from "@shared/worker-pool";
 
 function defaults(): GlobalSettings {
   return defaultGlobalSettings(null);
 }
 
 export function resolveWorkerPoolSize(workerPoolSize: number | null): number {
-  return workerPoolSize ?? Math.min(8, os.cpus().length);
+  return workerPoolSize ?? automaticWorkerPoolSize(os.cpus().length);
 }
 
 /** `config.json` as this session holds it. */

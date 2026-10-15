@@ -54,7 +54,7 @@ describe("AppSettingsModal System entries and time zone", () => {
       [...document.querySelectorAll("label")].find((candidate) => candidate.textContent === label)!.htmlFor
     ) as HTMLSelectElement;
 
-    expect(select("Language").options[0]!.textContent).toBe("System (日本語)");
+    expect(select("Language").options[0]!.textContent).toBe("System (Japanese)");
     const zones = select("Time zone");
     expect(zones.value).toBe("system");
     expect(zones.options[0]!.textContent).toBe(`System (${Intl.DateTimeFormat().resolvedOptions().timeZone})`);

@@ -89,3 +89,12 @@ export type InterfaceLanguage = {
   language: Language;
   locale: string;
 };
+
+/**
+ * A language's name in the interface language, for a value shown inside a choice such as
+ * "System (Japanese)" (localization-conventions, Translation). The picker's own list names each
+ * language in itself instead (LANGUAGE_NAMES).
+ */
+export function languageNameIn(interfaceLanguage: Language, language: Language): string {
+  return new Intl.DisplayNames([interfaceLanguage], { type: "language" }).of(language) ?? LANGUAGE_NAMES[language];
+}

@@ -15,7 +15,8 @@ import { OperationResult } from "../operation-result";
 import { presentFailure } from "../../present-failure";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import type { MessageKey } from "@shared/i18n/catalogues";
-import { LANGUAGE_NAMES, LANGUAGES, normalizeLanguagePreference } from "@shared/i18n/languages";
+import { LANGUAGE_NAMES, LANGUAGES, languageNameIn, normalizeLanguagePreference } from "@shared/i18n/languages";
+import { automaticWorkerPoolSize } from "@shared/worker-pool";
 import { message, type Message, type Translator } from "@shared/i18n/translate";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
@@ -640,7 +641,7 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
 }
 
 function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const cpuCount = systemInfo?.cpuCount ?? 8;
   const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount, t), [cpuCount, t]);
   const themeName = useId();
@@ -674,7 +675,7 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
               onChange={(event) => setSettings({ ...settings, language: normalizeLanguagePreference(event.currentTarget.value) })}
             >
               <option value="system">
-                {systemChoices ? t("settings.languageSystemResolved", { language: LANGUAGE_NAMES[systemChoices.language] }) : t("settings.languageSystem")}
+                {systemChoices ? t("settings.languageSystemResolved", { language: languageNameIn(language, systemChoices.language) }) : t("settings.languageSystem")}
               </option>
               {LANGUAGES.map((language) => (
                 <option key={language} value={language} lang={language}>
@@ -994,7 +995,7 @@ function buildConcurrencyOptions(cpuCount: number, t: Translator["t"]): Array<{ 
   }
   if (cpuCount > 2) values.add(cpuCount);
   return [
-    { value: "auto", label: t("settings.concurrentSavesAutomatic", { count: cpuCount }) },
+    { value: "auto", label: t("settings.concurrentSavesAutomatic", { count: automaticWorkerPoolSize(cpuCount) }) },
     ...Array.from(values).sort((left, right) => left - right).map((value) => ({ value: String(value), label: String(value) }))
   ];
 }

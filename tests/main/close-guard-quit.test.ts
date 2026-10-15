@@ -22,7 +22,7 @@ const electron = vi.hoisted(() => {
     if (emit("will-quit")) return;
     state.exits += 1;
   });
-  return { listeners, handlers, state, quit, exit: vi.fn(), closeQuits: { value: true } };
+  return { listeners, handlers, state, quit, exit: vi.fn() };
 });
 
 // bootstrap.ts statically imports electron, which is unavailable under vitest's node environment.
@@ -50,8 +50,6 @@ vi.mock("electron", async () => {
   };
 });
 
-// Whether closing the last window quits: off macOS it does, on macOS the app goes on.
-vi.mock("@main/window-close", () => ({ windowCloseQuits: () => electron.closeQuits.value }));
 
 const { confirmWorkspaceQuit, installCloseGuard, installQuitShutdown, prepareQuit } = await import("@main/bootstrap");
 const { UserWorkWrites } = await import("@main/quit-save");
@@ -88,10 +86,9 @@ function installApp(save: () => Promise<boolean> = async () => true) {
     sessionEnded
   });
   const logger = { warn: vi.fn() };
-  const discardWorkspace = vi.fn();
-  guard = installCloseGuard(win as never, exitState, quit, logger, discardWorkspace);
+  guard = installCloseGuard(win as never, exitState, quit, logger);
   const approve = (allow: boolean) => electron.handlers.get("lifecycle.approveClose")!({ sender: win }, allow, send.mock.calls.at(-1)?.[1]?.requestId);
-  return { win, send, exitState, stop, quit, approve, logger, sessionEnded, discardWorkspace };
+  return { win, send, exitState, stop, quit, approve, logger, sessionEnded };
 }
 
 beforeEach(() => {
@@ -100,7 +97,6 @@ beforeEach(() => {
   electron.listeners.clear();
   electron.handlers.clear();
   electron.state.exits = 0;
-  electron.closeQuits.value = true;
   electron.quit.mockClear();
 });
 
@@ -122,7 +118,7 @@ describe("close guard quit", () => {
     expect(send).toHaveBeenCalledOnce();
   });
 
-  it("turns closing the window off macOS into the quit, which a declined confirmation cancels", async () => {
+  it("turns closing the window into the quit, which a declined confirmation cancels", async () => {
     const { win, send, exitState, approve, stop } = installApp();
 
     win.emit("close", { preventDefault() {} });
@@ -152,32 +148,10 @@ describe("close guard quit", () => {
     expect(electron.state.exits).toBe(0);
   });
 
-  it("on macOS, asks at the window close, then discards the workspace and closes only the window", async () => {
-    electron.closeQuits.value = false;
-    const { win, send, approve, discardWorkspace } = installApp();
+  it("quits when the window closes on every platform, asking once however often it is closed", async () => {
+    const { win, send, approve } = installApp();
 
     win.emit("close", { preventDefault() {} });
-    expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { requestId: 1 });
-    await approve(true);
-    expect(discardWorkspace).toHaveBeenCalledOnce();
-    expect(win.close).toHaveBeenCalledOnce();
-    expect(electron.quit).not.toHaveBeenCalled();
-  });
-
-  it("on macOS, keeps the window and its workspace when the close is declined", async () => {
-    electron.closeQuits.value = false;
-    const { win, approve, discardWorkspace } = installApp();
-
-    win.emit("close", { preventDefault() {} });
-    await approve(false);
-    expect(discardWorkspace).not.toHaveBeenCalled();
-    expect(win.close).not.toHaveBeenCalled();
-  });
-
-  it("on macOS, lets a quit arriving while a window close is asked join that question without asking again", async () => {
-    electron.closeQuits.value = false;
-    const { win, send, approve, discardWorkspace } = installApp();
-
     win.emit("close", { preventDefault() {} });
     electron.quit();
     expect(send).toHaveBeenCalledOnce();
@@ -185,7 +159,6 @@ describe("close guard quit", () => {
 
     await vi.waitFor(() => expect(electron.state.exits).toBe(1));
     expect(win.close).not.toHaveBeenCalled();
-    expect(discardWorkspace).not.toHaveBeenCalled();
   });
 
   it("cancels quit when the renderer closes before answering", async () => {
@@ -217,6 +190,12 @@ describe("close guard quit", () => {
     };
     await expect(confirmWorkspaceQuit(null, session as never, ask)).resolves.toBe(false);
     expect(ask).toHaveBeenCalledWith(true);
+    const describing = {
+      snapshot: () => ({ project: { originals: [{}], tasks: [{ visionRunning: true }] } }),
+      queueSnapshot: () => ({ total: 1, queued: 0, processing: 0 }),
+    };
+    await confirmWorkspaceQuit(null, describing as never, ask);
+    expect(ask).toHaveBeenLastCalledWith(true);
     ask.mockRejectedValueOnce(new Error("cannot present"));
     await expect(confirmWorkspaceQuit(null, session as never, ask)).rejects.toThrow("cannot present");
     expect(electron.state.exits).toBe(0);

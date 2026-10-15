@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "次のファイルをシステムのゴミ箱に移動します。ゴミ箱から元に戻せます:\n\n{paths}",
   "confirm.close.title": "FotoReady を閉じますか？",
   "confirm.close.message": "現在のワークスペースを破棄して閉じますか？",
-  "confirm.close.messageWithSaves": "現在の作業領域を破棄して閉じますか？ 進行中の保存はキャンセルされます。未完成の一時ファイルが残る場合があります。",
+  "confirm.close.messageWithSaves": "現在の作業領域を破棄して閉じますか？ 進行中の保存と説明の生成はキャンセルされます。未完成の一時ファイルが残る場合があります。",
   "quit.notSaved.title": "変更が保存されていません",
   "quit.notSaved.message": "FotoReady は一部の変更の保存を完了できませんでした。今終了すると、それらの変更は失われます。",
   "quit.notSaved.detail": "保存されていないもの：{items}",

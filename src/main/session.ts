@@ -453,26 +453,6 @@ export class ProjectSession {
   }
 
   /**
-   * Discards the workspace when its window closes on macOS and FotoReady stays running: the next
-   * window starts empty. Waiting saves and descriptions are cancelled and running saves aborted, as
-   * at quit; a description already running finishes into its saved output's sidecar, which the
-   * discard leaves on disk like every saved file.
-   */
-  async discardWorkspace(): Promise<void> {
-    const discarded = this.#project;
-    this.#project = createEmptyProject(this.settings.defaultOutputDirectory.trim() || null);
-    this.#activeTaskId = null;
-    for (const task of discarded.tasks) {
-      this.#taskUndoHistory.delete(task.id);
-      this.#lastTaskUndoHistoryGroup.delete(task.id);
-      this.#previewService.invalidateTask(task.id);
-    }
-    this.visionQueue.cancelAll();
-    await this.emitSnapshot();
-    await this.processingQueue.abortAll();
-  }
-
-  /**
    * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are
    * aborted. Worker termination can outlive rejection and leave a temporary file; the caller
    * bounds its wait and worker teardown.

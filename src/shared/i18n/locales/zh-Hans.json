@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "以下文件将被移到系统废纸篓，可以从那里恢复：\n\n{paths}",
   "confirm.close.title": "关闭 FotoReady？",
   "confirm.close.message": "要关闭并放弃当前工作区吗？",
-  "confirm.close.messageWithSaves": "关闭并放弃当前工作区？正在进行的保存将被取消；未完成的临时文件可能会保留。",
+  "confirm.close.messageWithSaves": "关闭并放弃当前工作区？正在进行的保存和描述生成将被取消；未完成的临时文件可能会保留。",
   "quit.notSaved.title": "更改未保存",
   "quit.notSaved.message": "FotoReady 未能完成保存你的部分更改。如果现在退出，这些更改将会丢失。",
   "quit.notSaved.detail": "未保存：{items}",

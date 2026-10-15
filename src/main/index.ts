@@ -5,7 +5,6 @@ import { bootstrap, recordStartupFailure } from "./bootstrap";
 import { notifyNewerFormat, notifySettingsQuarantineFailure, notifyStartupFailure } from "./startup-dialog";
 import { SettingsQuarantineError } from "./settings-io";
 import { NewerFormatError } from "@shared/format-versions";
-import { windowCloseQuits } from "./window-close";
 
 // One instance only: the project lives in memory per process, so a second instance has nothing to
 // offer and would overwrite the first one's settings with its own stale copy. A second launch hands
@@ -28,8 +27,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+// The app ends with its main window on every platform (window-conventions); this covers a window
+// that closes without passing its close guard, such as a failed startup's.
 app.on("window-all-closed", () => {
-  if (windowCloseQuits(process.platform)) {
-    app.quit();
-  }
+  app.quit();
 });

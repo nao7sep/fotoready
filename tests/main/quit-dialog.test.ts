@@ -17,7 +17,7 @@ describe("the quit question about unsaved work", () => {
   it("confirms workspace discard through the existing standalone dialog with safe cancellation", async () => {
     await expect(askDiscardWorkspace(true)).resolves.toBe(true);
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
-      message: expect.stringContaining("Saves still in progress are cancelled"),
+      message: expect.stringContaining("Saves and descriptions still in progress are cancelled"),
       buttons: ["Cancel", "Close"], defaultId: 0, cancelId: 0, destructiveId: 1,
     }));
     showPlainMessageDialog.mockResolvedValueOnce(0);

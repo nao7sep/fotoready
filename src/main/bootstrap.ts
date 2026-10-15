@@ -19,7 +19,7 @@ import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { nowIso } from "@shared/time";
-import { notifyStartupFailure, showSettingsNotice } from "./startup-dialog";
+import { showSettingsNotice } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
 import {
   computeFirstRunWindowHeight,
@@ -33,7 +33,6 @@ import { applyThemePreference, followOsThemeChanges, windowBackground } from "./
 import { applyLanguagePreference, detectComputerLanguage, mainTranslator, setLanguageFailureReporter } from "./i18n";
 import { installApplicationMenu } from "./menu";
 import { revealWindow } from "./reveal-window";
-import { windowCloseQuits } from "./window-close";
 import type { CloseRequest } from "@shared/types/ipc";
 import { createRecordsReader } from "./records-reader";
 import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
@@ -73,9 +72,8 @@ export function buildWindowOptions(
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Shared across the app's lifetime (and across windows, since macOS keeps the
-// process alive after the last window closes). The quit records why the app is
-// shutting down, and its stop reads it. "unknown" means the app went down
+// Shared across the app's lifetime. The quit records why the app is shutting
+// down, and its stop reads it. "unknown" means the app went down
 // without passing through a recognized quit path (e.g. an external signal) —
 // distinct from a deliberate user quit.
 export type ExitState = { reason: string };
@@ -258,13 +256,7 @@ export async function bootstrap(): Promise<void> {
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
-    // An approved macOS window close discards the workspace, and FotoReady stays in the Dock empty
-    // (developer decision): the question is asked when the window closes, not at a later quit.
-    mainGuard = installCloseGuard(win, exitState, quit, logger, () => {
-      void projectSession.discardWorkspace().catch((error: unknown) => {
-        logger.error("the workspace could not be discarded when its window closed", { mod: "main.quit", err: error });
-      });
-    });
+    mainGuard = installCloseGuard(win, exitState, quit, logger);
 
     // Defense in depth: the renderer only loads local content and routes every external link through
     // system.openExternal, so it never legitimately opens a window or navigates to another origin.
@@ -298,30 +290,10 @@ export async function bootstrap(): Promise<void> {
 
   await createWindow();
 
-  const recreateWindow = (): void => {
-    void createWindow().catch(async (error) => {
-      logger.error("failed to recreate the renderer window", { mod: "main", err: error });
-      try {
-        await notifyStartupFailure();
-      } catch (dialogError) {
-        logger.error("could not show renderer recovery dialog", { mod: "main", err: dialogError });
-      } finally {
-        app.exit(1);
-      }
-    });
-  };
-
-  // macOS keeps the process running after the window closes; recreate only the
-  // window when the user re-activates, never re-run the init above.
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length !== 0) return;
-    recreateWindow();
-  });
-
-  // A second launch exits at once (see index.ts); this instance answers by coming forward.
+  // A second launch exits at once (see index.ts); this instance answers by coming forward. Closing
+  // the main window quits on every platform, so there is no windowless app to reopen.
   app.on("second-instance", () => {
     if (mainWindow && !mainWindow.isDestroyed()) revealWindow(mainWindow);
-    else recreateWindow();
   });
 }
 
@@ -544,28 +516,21 @@ export type CloseGuard = {
 };
 
 /**
- * Exported for tests. Holds the main window's close for the renderer's confirmations. Off macOS
- * closing the window quits, so the close becomes the quit, and a cancelled quit keeps the window
- * open; on macOS an approved close discards the workspace and the app goes on without a window.
+ * Exported for tests. Holds the main window's close for the renderer's confirmations. Closing the
+ * main window quits on every platform (window-conventions), so the close becomes the quit, and a
+ * cancelled quit keeps the window open.
  */
-export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl, logger?: Pick<AppLogger, "warn">,
-  discardWorkspace: () => void = () => undefined): CloseGuard {
-  // An approved macOS window close, which the guard then lets through.
-  let closeAllowed = false;
+export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit: QuitControl, logger?: Pick<AppLogger, "warn">): CloseGuard {
   const presentationFailed = (error: unknown): void => {
     if (logger) logger.warn("the close question could not be presented", { mod: "main.quit", err: error });
     else console.warn("[close] could not present the close question", error);
   };
-  // The question the renderer is answering. Closing the window and quitting ask the same thing, so
-  // a quit arriving while a window close is asked joins it, and the answer goes on with the quit.
+  // The question the renderer is answering; a quit arriving meanwhile joins it.
   let requestId = 0;
-  let pending: { mode: "window" | "quit"; requestId: number; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
+  let pending: { requestId: number; answer: Promise<boolean>; resolve(allow: boolean): void } | null = null;
 
-  function ask(mode: "window" | "quit"): Promise<boolean> {
-    if (pending) {
-      if (mode === "quit") pending.mode = "quit";
-      return pending.answer;
-    }
+  function ask(): Promise<boolean> {
+    if (pending) return pending.answer;
     if (win.webContents.isDestroyed()) return Promise.resolve(false);
     try { revealWindow(win); } catch (error) {
       presentationFailed(error);
@@ -573,7 +538,7 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
     }
     let resolve!: (allow: boolean) => void;
     const answerPromise = new Promise<boolean>((settle) => { resolve = settle; });
-    pending = { mode, requestId: ++requestId, answer: answerPromise, resolve };
+    pending = { requestId: ++requestId, answer: answerPromise, resolve };
     const request: CloseRequest = { requestId };
     try { win.webContents.send("lifecycle.close-requested", request); } catch (error) {
       presentationFailed(error);
@@ -588,22 +553,13 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
     pending = null;
     if (!answered) return;
     answered.resolve(allow);
-    if (allow && answered.mode === "window" && !quit.sessionEnding()) {
-      closeAllowed = true;
-      discardWorkspace();
-      win.close();
-    }
   }
 
   win.on("close", (event) => {
-    if (closeAllowed || quit.approved() || quit.sessionEnding()) return;
+    if (quit.approved() || quit.sessionEnding()) return;
     event.preventDefault();
-    if (windowCloseQuits(process.platform)) {
-      exitState.reason = "window-close";
-      app.quit();
-      return;
-    }
-    void ask("window");
+    exitState.reason = "window-close";
+    app.quit();
   });
 
   // Windows ends a session through the main window only, and never with a quit event. The query
@@ -629,7 +585,7 @@ export function installCloseGuard(win: BrowserWindow, exitState: ExitState, quit
   });
 
   return {
-    confirmQuit: () => ask("quit"),
+    confirmQuit: () => ask(),
     answerForSessionEnd: () => answer(true)
   };
 }
@@ -644,5 +600,5 @@ export async function confirmWorkspaceQuit(
   const project = session.snapshot().project;
   const queue = session.queueSnapshot();
   if (project.originals.length === 0 && project.tasks.length === 0 && queue.total === 0) return true;
-  return ask(queue.queued + queue.processing > 0);
+  return ask(queue.queued + queue.processing > 0 || project.tasks.some((task) => task.visionRunning));
 }

@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Questi file verranno spostati nel cestino di sistema, da cui potrai ripristinarli:\n\n{paths}",
   "confirm.close.title": "Chiudere FotoReady?",
   "confirm.close.message": "Chiudere e scartare lo spazio di lavoro attuale?",
-  "confirm.close.messageWithSaves": "Chiudere e scartare l’area di lavoro corrente? I salvataggi in corso verranno annullati; potrebbero rimanere file temporanei incompleti.",
+  "confirm.close.messageWithSaves": "Chiudere e scartare l’area di lavoro corrente? I salvataggi e le descrizioni in corso verranno annullati; potrebbero rimanere file temporanei incompleti.",
   "quit.notSaved.title": "Modifiche non salvate",
   "quit.notSaved.message": "FotoReady non è riuscito a completare il salvataggio di alcune modifiche. Se esci ora, andranno perse.",
   "quit.notSaved.detail": "Non salvato: {items}",

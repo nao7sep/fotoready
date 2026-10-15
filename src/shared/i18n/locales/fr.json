@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Ces fichiers seront placés dans la corbeille du système, d’où ils pourront être restaurés\u00a0:\n\n{paths}",
   "confirm.close.title": "Fermer FotoReady\u00a0?",
   "confirm.close.message": "Fermer et abandonner l’espace de travail actuel\u00a0?",
-  "confirm.close.messageWithSaves": "Fermer et abandonner l’espace de travail actuel ? Les enregistrements en cours seront annulés ; des fichiers temporaires incomplets peuvent subsister.",
+  "confirm.close.messageWithSaves": "Fermer et abandonner l’espace de travail actuel ? Les enregistrements et les descriptions en cours seront annulés ; des fichiers temporaires incomplets peuvent subsister.",
   "quit.notSaved.title": "Modifications non enregistrées",
   "quit.notSaved.message": "FotoReady n’a pas pu terminer l’enregistrement de certaines de vos modifications. Si vous quittez maintenant, elles seront perdues.",
   "quit.notSaved.detail": "Non enregistré\u00a0: {items}",

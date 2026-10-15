@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Estes arquivos serão movidos para a lixeira do sistema e poderão ser restaurados de lá:\n\n{paths}",
   "confirm.close.title": "Fechar o FotoReady?",
   "confirm.close.message": "Fechar e descartar o espaço de trabalho atual?",
-  "confirm.close.messageWithSaves": "Fechar e descartar o espaço de trabalho atual? Os salvamentos em andamento serão cancelados; arquivos temporários incompletos podem permanecer.",
+  "confirm.close.messageWithSaves": "Fechar e descartar o espaço de trabalho atual? Os salvamentos e as descrições em andamento serão cancelados; arquivos temporários incompletos podem permanecer.",
   "quit.notSaved.title": "Alterações não salvas",
   "quit.notSaved.message": "O FotoReady não conseguiu terminar de salvar algumas das suas alterações. Se você encerrar agora, elas serão perdidas.",
   "quit.notSaved.detail": "Não salvo: {items}",

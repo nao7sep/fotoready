@@ -387,7 +387,8 @@ function App(): React.JSX.Element {
 
         const confirmation = closeConfirmation({
           hasWork: hasWorkspaceWork(project, queue),
-          savesInFlight: queue.queued + queue.processing > 0
+          // Running work the quit stops: saves, and descriptions being generated (unsaved-edits-conventions).
+          savesInFlight: queue.queued + queue.processing > 0 || Boolean(project?.tasks.some((task) => task.visionRunning))
         });
         if (confirmation) {
           await approve(await confirmer.confirm({

@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Diese Dateien werden in den Papierkorb des Systems verschoben und können dort wiederhergestellt werden:\n\n{paths}",
   "confirm.close.title": "FotoReady schließen?",
   "confirm.close.message": "Schließen und den aktuellen Arbeitsbereich verwerfen?",
-  "confirm.close.messageWithSaves": "Das aktuelle Projekt schließen und verwerfen? Laufende Speichervorgänge werden abgebrochen; unvollständige temporäre Dateien können zurückbleiben.",
+  "confirm.close.messageWithSaves": "Das aktuelle Projekt schließen und verwerfen? Laufende Speichervorgänge und Beschreibungen werden abgebrochen; unvollständige temporäre Dateien können zurückbleiben.",
   "quit.notSaved.title": "Änderungen nicht gespeichert",
   "quit.notSaved.message": "FotoReady konnte einige Ihrer Änderungen nicht fertig speichern. Wenn Sie jetzt beenden, gehen sie verloren.",
   "quit.notSaved.detail": "Nicht gespeichert: {items}",

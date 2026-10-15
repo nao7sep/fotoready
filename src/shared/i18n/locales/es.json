@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "Estos archivos se moverán a la papelera del sistema y podrás restaurarlos desde allí:\n\n{paths}",
   "confirm.close.title": "¿Cerrar FotoReady?",
   "confirm.close.message": "¿Cerrar y descartar el espacio de trabajo actual?",
-  "confirm.close.messageWithSaves": "¿Cerrar y descartar el espacio de trabajo actual? Se cancelarán los guardados en curso; pueden quedar archivos temporales sin terminar.",
+  "confirm.close.messageWithSaves": "¿Cerrar y descartar el espacio de trabajo actual? Se cancelarán los guardados y las descripciones en curso; pueden quedar archivos temporales sin terminar.",
   "quit.notSaved.title": "Cambios sin guardar",
   "quit.notSaved.message": "FotoReady no pudo terminar de guardar algunos de tus cambios. Si sales ahora, se perderán.",
   "quit.notSaved.detail": "Sin guardar: {items}",

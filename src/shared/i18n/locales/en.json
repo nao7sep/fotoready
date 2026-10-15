@@ -110,7 +110,7 @@
   "confirm.trashOutput.message": "These files will be moved to the system trash and can be restored from there:\n\n{paths}",
   "confirm.close.title": "Close FotoReady?",
   "confirm.close.message": "Close and discard the current workspace?",
-  "confirm.close.messageWithSaves": "Close and discard the current workspace? Saves still in progress are cancelled; unfinished temporary files may remain.",
+  "confirm.close.messageWithSaves": "Close and discard the current workspace? Saves and descriptions still in progress are cancelled; unfinished temporary files may remain.",
   "quit.notSaved.title": "Changes not saved",
   "quit.notSaved.message": "FotoReady could not finish saving some of your changes. If you quit now, they will be lost.",
   "quit.notSaved.detail": "Not saved: {items}",

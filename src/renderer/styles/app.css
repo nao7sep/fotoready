@@ -1117,34 +1117,28 @@ button.output-badge-label:focus-visible {
   color: var(--text-muted-color);
 }
 
-.status-dot {
-  flex: 0 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .row-checkbox {
   flex: 0 0 auto;
 }
 
-.status-dot.state-not-saved {
+/* A task's state word, coloured by kind; waiting and working states keep the row's own colour. */
+.task-state.state-not-saved {
   color: var(--idle-text);
 }
 
-.status-dot.state-saved {
+.task-state.state-saved {
   color: var(--saved-text);
 }
 
-.status-dot.state-description-generated {
+.task-state.state-description-generated {
   color: var(--info-text);
 }
 
-.status-dot.state-slug-generated {
-  color: var(--accent-bg);
+.task-state.state-slug-generated {
+  color: var(--accent-soft-text);
 }
 
-.status-dot.state-error {
+.task-state.state-error {
   color: var(--danger-text);
 }
 

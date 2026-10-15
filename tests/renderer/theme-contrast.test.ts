@@ -50,7 +50,11 @@ const STATUS: ReadonlyArray<[string, string]> = [
   ["--warning-text", "--warning-soft-bg"]
 ];
 
+// A task's state word on the Tasks list and on its selected row.
+const TASK_STATE_TEXT = ["--idle-text", "--saved-text", "--info-text", "--accent-soft-text", "--danger-text"];
+
 const TEXT_PAIRS: ReadonlyArray<[string, string]> = [
+  ...TASK_STATE_TEXT.flatMap((text): Array<[string, string]> => [[text, "--surface-bg"], [text, "--brand-secondary-soft-bg"]]),
   ...["--text-color", "--text-strong-color", "--text-muted-color"].flatMap((ink): Array<[string, string]> => SURFACES.map((surface) => [ink, surface])),
   ["--text-soft-color", "--app-bg"],
   ["--text-soft-color", "--surface-bg"],

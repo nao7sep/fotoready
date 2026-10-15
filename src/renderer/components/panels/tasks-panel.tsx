@@ -1,5 +1,5 @@
 import React from "react";
-import { AlignLeft, Circle, CircleCheck, Clock, LoaderCircle, Pencil, Save, Tag, TriangleAlert, X } from "lucide-react";
+import { Pencil, Save, X } from "lucide-react";
 import type { PrivacyWarning, QueueSnapshot } from "@shared/types/ipc";
 import type { Original, Task } from "@shared/types/project";
 import { taskStateLabel, taskVisualState } from "@renderer/task-visual-state";
@@ -58,10 +58,12 @@ export function TasksPanel({
             onClick={() => onSelect(task.id)}
             {...listbox.getOptionProps(task.id)}
           >
-            <span className={`status-dot state-${taskVisualState(task)}`} aria-hidden="true"><StatusIndicator task={task} /></span>
             <span className="task-copy">
               <span className="row-title">{taskLabel(task, originals)}</span>
-              <span className="row-detail">{t("tasks.opCount", { count: task.pipeline.ops.length })} · {t(taskStateLabel(task, queue))}</span>
+              {/* The state is told in words, coloured by kind; no icon repeats it. */}
+              <span className="row-detail">
+                {t("tasks.opCount", { count: task.pipeline.ops.length })} · <span className={`task-state state-${taskVisualState(task)}`}>{t(taskStateLabel(task, queue))}</span>
+              </span>
             </span>
             {privacyWarnings[task.id] ? <PrivacyPill warning={privacyWarnings[task.id]} /> : null}
           </button>
@@ -114,31 +116,6 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
       <h2>{title}</h2>
     </div>
   );
-}
-
-/**
- * The mark on a task row says what the task IS, in a shape that can be named without
- * a legend: nothing written yet, written, written with a description, written with a
- * slug, waiting, working, or wrong. It previously drew one circled dot for all four
- * result states and left the colour to tell them apart, which at this size read as a
- * clock face and said nothing; the row's own wording ("4 ops · Saved") stays the
- * spoken truth, and the colour still reinforces the shape.
- */
-function StatusIndicator({ task }: { task: Task }): React.JSX.Element {
-  const size = 14;
-  if (task.error) return <TriangleAlert size={size} />;
-  if (task.visionRunning || task.status === "processing") return <LoaderCircle size={size} />;
-  if (task.status === "queued") return <Clock size={size} />;
-  switch (taskVisualState(task)) {
-    case "slug-generated":
-      return <Tag size={size} />;
-    case "description-generated":
-      return <AlignLeft size={size} />;
-    case "saved":
-      return <CircleCheck size={size} />;
-    default:
-      return <Circle size={size} />;
-  }
 }
 
 function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string }>): string {

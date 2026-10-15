@@ -377,10 +377,8 @@ function RenamePreviewRow({
   return (
     <div className={`rename-preview-row ${item.status}${showSlugEditor ? "" : " no-side"}`} key={item.taskId}>
       <div className="rename-preview-main">
-        <span className={`rename-preview-state state-${visualState}`}>
-          <span className={`rename-preview-dot state-${visualState}`} aria-hidden="true" />
-          <span>{stateText}</span>
-        </span>
+        {/* The state is told in words, coloured by kind; no mark repeats it. */}
+        <span className={`rename-preview-state state-${visualState}`}>{stateText}</span>
         <span className="rename-preview-title" title={item.proposedPath ?? ""}>{item.proposedName ?? (item.status === "not-saved" ? t("rename.notSavedYet") : t(item.issue ? renameIssueLabel(item.issue) : "rename.unavailable"))}</span>
         <span className="rename-preview-meta" title={item.currentPath ?? ""}>
           <span className="rename-preview-meta-label">{t("rename.current")}</span>

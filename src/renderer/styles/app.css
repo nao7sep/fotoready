@@ -2382,9 +2382,6 @@ button.output-badge-label:focus-visible {
 }
 
 .rename-preview-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   min-width: 0;
   color: var(--text-muted-color);
   font-size: 12px;
@@ -2408,36 +2405,6 @@ button.output-badge-label:focus-visible {
 
 .rename-preview-state.state-slug-generated {
   color: var(--accent-soft-text);
-}
-
-/* A colour swatch rather than a mark: at this size no glyph or icon is legible, so the
-   state is carried by colour on a drawn circle. */
-.rename-preview-dot {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.rename-preview-dot.state-slug-generated {
-  color: var(--accent-bg);
-}
-
-.rename-preview-dot.state-not-saved {
-  color: var(--idle-text);
-}
-
-.rename-preview-dot.state-saved {
-  color: var(--saved-text);
-}
-
-.rename-preview-dot.state-description-generated {
-  color: var(--info-text);
-}
-
-.rename-preview-dot.state-error {
-  color: var(--danger-text);
 }
 
 .rename-preview-meta {

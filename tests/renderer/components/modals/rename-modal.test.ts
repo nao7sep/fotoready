@@ -206,6 +206,16 @@ describe("RenameModal while a description runs", () => {
   });
 });
 
+describe("RenameModal preview rows", () => {
+  it("tells each row's state in words alone, with no mark repeating it", async () => {
+    await renderModal({ onPreview: async () => readyPreview });
+    await vi.waitFor(() => expect(document.body.textContent).toContain("photo-ready.jpg"));
+    const state = document.querySelector(".rename-preview-state")!;
+    expect(state.children).toHaveLength(0);
+    expect(state.textContent).not.toBe("");
+  });
+});
+
 describe("RenameModal authored slug lifetime", () => {
   it("retains an uncommitted slug through a held snapshot refresh", async () => {
     await renderModal({ onPreview: async () => readyPreview });

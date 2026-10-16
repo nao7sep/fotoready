@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape, assertRecord, clamp01 } from "./_shared";
+import { applyPixels, assertFiniteNumber, assertParamsShape, assertRecord, clamp01 } from "./_shared";
 
 export const HSL_RANGES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;
 export type HslRange = (typeof HSL_RANGES)[number];
@@ -31,27 +31,24 @@ const hslModule: OpModule<HslParams> = {
     const record = assertParamsShape(value, HSL_KEYS, "hsl.params");
     return Object.fromEntries(HSL_KEYS.map((range) => [range, validateRange(record[range], `hsl.params.${range}`)])) as HslParams;
   },
-  async apply(image, params) {
-    const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    if (info.width <= 0 || info.height <= 0) return image;
-
-    const globalAdjustment = params.all ?? zeroAdjustment;
-    for (let offset = 0; offset < raw.length; offset += 4) {
-      const hsl = rgbToHsl(raw[offset], raw[offset + 1], raw[offset + 2]);
-      const bandAdjustment = getBlendedBandAdjustment(hsl.h, params);
-      const bandInfluence = smoothstep(clamp01(hsl.s / 0.2));
-      const adjustment = combineAdjustments(globalAdjustment, scaleAdjustment(bandAdjustment, bandInfluence));
-      if (!adjustment || (adjustment.hue === 0 && adjustment.sat === 0 && adjustment.lum === 0)) continue;
-      const rgb = hslToRgb(wrapHue(hsl.h + adjustment.hue), clamp01(hsl.s * (1 + adjustment.sat)), clamp01(hsl.l + adjustment.lum));
-      raw[offset] = rgb.r;
-      raw[offset + 1] = rgb.g;
-      raw[offset + 2] = rgb.b;
-    }
-
-    const sharpImpl = (await import("sharp")).default;
-    return sharpImpl(raw, { raw: { width: info.width, height: info.height, channels: 4 } });
-  }
+  transformPixels: transformHsl,
+  apply: applyPixels(transformHsl)
 };
+
+function transformHsl(raw: Buffer, params: HslParams): void {
+  const globalAdjustment = params.all ?? zeroAdjustment;
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    const hsl = rgbToHsl(raw[offset], raw[offset + 1], raw[offset + 2]);
+    const bandAdjustment = getBlendedBandAdjustment(hsl.h, params);
+    const bandInfluence = smoothstep(clamp01(hsl.s / 0.2));
+    const adjustment = combineAdjustments(globalAdjustment, scaleAdjustment(bandAdjustment, bandInfluence));
+    if (!adjustment || (adjustment.hue === 0 && adjustment.sat === 0 && adjustment.lum === 0)) continue;
+    const rgb = hslToRgb(wrapHue(hsl.h + adjustment.hue), clamp01(hsl.s * (1 + adjustment.sat)), clamp01(hsl.l + adjustment.lum));
+    raw[offset] = rgb.r;
+    raw[offset + 1] = rgb.g;
+    raw[offset + 2] = rgb.b;
+  }
+}
 
 function validateRange(value: unknown, path: string): HslAdjustment {
   const record = assertRecord(value, path);

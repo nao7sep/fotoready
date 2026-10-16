@@ -4,17 +4,19 @@ import type { Metadata } from "sharp";
 import { detectFormat } from "./format";
 import type { Image } from "./image";
 
-// Hard upper bound on decoded pixels. Sharp's default of 268M pixels is too low for
-// modern phone cameras but unbounded decoding lets a malformed or hostile file OOM
-// the worker. 1 Gpix covers any realistic photo (~30000x30000) while still failing
-// fast on absurd inputs.
-export const MAX_INPUT_PIXELS = 1_000_000_000;
+// No pixel limit (volume-handling-conventions, no fixed caps). The image library checks its limit
+// against the size a file's own header states, so a limit guards only against a size, never against
+// a file that lies; a photo too large for the machine fails inside the save, which contains it.
+export const NO_PIXEL_LIMIT = { limitInputPixels: false } as const;
 
+/**
+ * The source image ready to edit. The image library reads the file itself, so a save never holds the
+ * whole file in memory beside the decoded pixels (volume-handling-conventions, Data size).
+ */
 export async function decodeImage(sourcePath: string): Promise<{ image: Image }> {
-  const bytes = await fs.readFile(sourcePath);
-  const { format, metadata } = await inspectSourceImage(bytes);
+  const { format, metadata } = await inspectSourceImage(await readHead(sourcePath), sourcePath);
 
-  const normalized = sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().toColorspace("srgb");
+  const normalized = sharp(sourcePath, NO_PIXEL_LIMIT).rotate().toColorspace("srgb");
   const normalizedMetadata = await normalized.metadata();
   const width = normalizedMetadata.width ?? metadata.width ?? 0;
   const height = normalizedMetadata.height ?? metadata.height ?? 0;
@@ -37,8 +39,24 @@ const READABLE_BUT_UNWRITABLE: Record<string, string> = {
   heic: "HEIC/HEIF"
 };
 
-export async function inspectSourceImage(bytes: Buffer): Promise<{ format: string; metadata: Metadata }> {
-  const format = detectFormat(bytes);
+/** The first bytes of a file, enough for its format's signature. */
+async function readHead(sourcePath: string): Promise<Buffer> {
+  const file = await fs.open(sourcePath, "r");
+  try {
+    const head = Buffer.alloc(32);
+    const { bytesRead } = await file.read(head, 0, head.length, 0);
+    return head.subarray(0, bytesRead);
+  } finally {
+    await file.close();
+  }
+}
+
+/**
+ * Checks that an image is one FotoReady edits: `head` is at least the file's first bytes, for its
+ * format's signature, and `source` is its path or its whole bytes, for the image library.
+ */
+export async function inspectSourceImage(head: Buffer, source: Buffer | string = head): Promise<{ format: string; metadata: Metadata }> {
+  const format = detectFormat(head);
   if (format === "unknown") {
     throw new Error("Unsupported image format. Convert the source image to JPEG, PNG, WebP, AVIF, or TIFF and retry.");
   }
@@ -51,13 +69,9 @@ export async function inspectSourceImage(bytes: Buffer): Promise<{ format: strin
 
   let metadata: Metadata;
   try {
-    const source = sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS });
-    metadata = await source.metadata();
+    metadata = await sharp(source, NO_PIXEL_LIMIT).metadata();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (/pixel limit/i.test(message)) {
-      throw new Error(`This ${format.toUpperCase()} image is too large to open (over ~1 gigapixel). Resize or crop it externally and retry.`);
-    }
     throw new Error(`Couldn't decode this ${format.toUpperCase()} image. ${message}`);
   }
 

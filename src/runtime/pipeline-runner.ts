@@ -111,17 +111,36 @@ async function applyPipelineOps(
   let work = image;
   let workWidth = width;
   let workHeight = height;
+  const sharpImpl = (await import("sharp")).default;
+  // A stretch of consecutive per-pixel ops shares one full-frame RGBA buffer, changed in place, so a
+  // save holds one copy for them all instead of making one per op (volume-handling-conventions).
+  let pixels: Buffer | null = null;
+  const settlePixels = (): void => {
+    if (pixels === null) return;
+    work = sharpImpl(pixels, { raw: { width: workWidth, height: workHeight, channels: 4 } });
+    pixels = null;
+  };
 
   for (const op of pipeline.ops) {
     if (!op.enabled) continue;
     const module = getOpModule(op.type);
     if (!module || module.metadataOnly || !module.apply) continue;
+    const opCtx = { sourceWidth: workWidth, sourceHeight: workHeight, resolveLut: ctx.resolveLut };
 
-    const result = await module.apply(work, op.params, {
-      sourceWidth: workWidth,
-      sourceHeight: workHeight,
-      resolveLut: ctx.resolveLut
-    });
+    if (module.transformPixels) {
+      if (pixels === null) {
+        const { data, info } = await work.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        if (info.width <= 0 || info.height <= 0) continue;
+        pixels = data;
+        workWidth = info.width;
+        workHeight = info.height;
+      }
+      await module.transformPixels(pixels, op.params, opCtx);
+      continue;
+    }
+
+    settlePixels();
+    const result = await module.apply(work, op.params, opCtx);
 
     if (isImageFrame(result)) {
       work = result.image;
@@ -132,6 +151,7 @@ async function applyPipelineOps(
     }
   }
 
+  settlePixels();
   return { image: work, width: workWidth, height: workHeight };
 }
 

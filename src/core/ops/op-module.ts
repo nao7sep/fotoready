@@ -28,6 +28,12 @@ export type OpModule<P extends Record<string, unknown> = Record<string, unknown>
   metadataOnly?: boolean;
   validate(params: unknown): P;
   apply?: (image: sharp.Sharp, params: P, ctx: OpApplyContext) => Promise<sharp.Sharp | ImageFrame> | sharp.Sharp | ImageFrame;
+  /**
+   * A per-pixel op's change to a full-frame RGBA buffer, in place. The pipeline runs a stretch of
+   * consecutive such ops over one buffer instead of each making its own full-size copy
+   * (volume-handling-conventions, Data size); `apply` wraps it for single-op paths.
+   */
+  transformPixels?: (raw: Buffer, params: P, ctx: OpApplyContext) => Promise<void> | void;
   /** Metadata-only ops mutate the running decision instead of touching pixels. */
   contributeMetadata?: (params: P, decision: MetadataDecision) => void;
 };

@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertFiniteNumber, assertParamsShape, materialize, validateOptionalSamplePoint } from "./_shared";
+import { applyPixels, assertFiniteNumber, assertParamsShape, validateOptionalSamplePoint } from "./_shared";
 
 type WhiteBalanceParams = {
   temperature: number;
@@ -21,12 +21,19 @@ const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
       samplePoint: validateOptionalSamplePoint(record.samplePoint, "white-balance.params.samplePoint")
     };
   },
-  async apply(image, params) {
-    const red = 1 + params.temperature / 500;
-    const blue = 1 - params.temperature / 500;
-    const green = 1 + params.tint / 700;
-    return materialize(image.linear([red, green, blue], [0, 0, 0]));
-  }
+  // A per-channel gain, applied in the shared per-pixel pass rather than as its own full-frame render.
+  transformPixels: transformWhiteBalance,
+  apply: applyPixels(transformWhiteBalance)
 };
+
+function transformWhiteBalance(raw: Buffer, params: WhiteBalanceParams): void {
+  const gains = [1 + params.temperature / 500, 1 + params.tint / 700, 1 - params.temperature / 500];
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      // Truncated, as the image library's own linear step rounded it, so saved pixels are unchanged.
+      raw[offset + channel] = Math.min(255, Math.floor(raw[offset + channel] * gains[channel]!));
+    }
+  }
+}
 
 registerOp(whiteBalanceModule);

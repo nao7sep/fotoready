@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { AssetThumbnail } from "@shared/types/ipc";
-import { MAX_INPUT_PIXELS } from "@runtime/decode";
+import { NO_PIXEL_LIMIT } from "@runtime/decode";
 
 const MAX_THUMBNAIL_CACHE_ENTRIES = 512;
 
@@ -66,7 +66,7 @@ async function renderThumbnail(assetPath: string, longEdge: number): Promise<Ass
   // stamp is visible inside the 1:1 preview cell. `fit: "contain"` keeps the art's aspect ratio
   // and pads to a square, so a tall stamp like the cat fills the cell without being cropped —
   // regardless of how the cell's <img> is sized.
-  const { data, info } = await sharp(assetPath, { limitInputPixels: MAX_INPUT_PIXELS })
+  const { data, info } = await sharp(assetPath, NO_PIXEL_LIMIT)
     .resize({ width: longEdge, height: longEdge, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 }, withoutEnlargement: !isSvg })
     .ensureAlpha()
     .png()

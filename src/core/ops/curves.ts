@@ -1,6 +1,6 @@
 import type { OpModule } from "./op-module";
 import { registerOp } from "./registry";
-import { assertArray, assertFiniteNumber, assertParamsShape } from "./_shared";
+import { applyPixels, assertArray, assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type CurvesParams = {
   rgb: Array<[number, number]>;
@@ -28,21 +28,18 @@ const curvesModule: OpModule<CurvesParams> = {
     }
     return { rgb: points };
   },
-  async apply(image, params) {
-    const lut = curveLookup(params.rgb);
-    const { data: raw, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    if (info.width <= 0 || info.height <= 0) return image;
-
-    for (let offset = 0; offset < raw.length; offset += 4) {
-      raw[offset] = lut[raw[offset]];
-      raw[offset + 1] = lut[raw[offset + 1]];
-      raw[offset + 2] = lut[raw[offset + 2]];
-    }
-
-    const sharpImpl = (await import("sharp")).default;
-    return sharpImpl(raw, { raw: { width: info.width, height: info.height, channels: 4 } });
-  }
+  transformPixels: transformCurves,
+  apply: applyPixels(transformCurves)
 };
+
+function transformCurves(raw: Buffer, params: CurvesParams): void {
+  const lut = curveLookup(params.rgb);
+  for (let offset = 0; offset < raw.length; offset += 4) {
+    raw[offset] = lut[raw[offset]];
+    raw[offset + 1] = lut[raw[offset + 1]];
+    raw[offset + 2] = lut[raw[offset + 2]];
+  }
+}
 
 function curveLookup(points: Array<[number, number]>): Uint8Array {
   const sorted = [...points].sort((a, b) => a[0] - b[0]);

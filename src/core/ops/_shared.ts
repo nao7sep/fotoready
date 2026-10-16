@@ -1,4 +1,5 @@
 import type * as sharp from "sharp";
+import type { OpApplyContext } from "./op-module";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, assertString, assertNonEmptyString } from "@shared/validation/common";
 import { clamp, clamp01 } from "@shared/numeric";
 
@@ -24,6 +25,17 @@ export async function materialize(image: sharp.Sharp): Promise<{ image: sharp.Sh
   const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const next = sharpImpl(data, { raw: { width: info.width, height: info.height, channels: 4 } });
   return { image: next, width: info.width, height: info.height };
+}
+
+/** An op's `apply` built from its in-place `transformPixels`: one full-frame RGBA buffer, changed and wrapped. */
+export function applyPixels<P>(transform: (raw: Buffer, params: P, ctx: OpApplyContext) => Promise<void> | void) {
+  return async (image: sharp.Sharp, params: P, ctx: OpApplyContext): Promise<sharp.Sharp> => {
+    const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (info.width <= 0 || info.height <= 0) return image;
+    await transform(data, params, ctx);
+    const sharpImpl = (await import("sharp")).default;
+    return sharpImpl(data, { raw: { width: info.width, height: info.height, channels: 4 } });
+  };
 }
 
 /**

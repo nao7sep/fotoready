@@ -8,7 +8,7 @@ import type { LutEntry, LutPreviewEntry, OriginalThumbnail, PreviewRenderOptions
 import { getOpModule } from "@core/ops/catalog";
 import { loadCubeLut } from "@adapters/cube-loader";
 import { runPipeline, runPipelineFromRaw } from "@runtime/pipeline-runner";
-import { MAX_INPUT_PIXELS } from "@runtime/decode";
+import { NO_PIXEL_LIMIT } from "@runtime/decode";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 type PreviewBitmap = {
@@ -98,7 +98,7 @@ export class PreviewService {
   }
 
   async #renderOriginalThumbnail(original: Original, longEdge: number): Promise<OriginalThumbnail> {
-    const image = sharp(original.sourcePath, { limitInputPixels: MAX_INPUT_PIXELS }).rotate();
+    const image = sharp(original.sourcePath, NO_PIXEL_LIMIT).rotate();
     const metadata = await image.metadata();
     const bytes = await image
       .resize({ width: longEdge, height: longEdge, fit: "cover" })

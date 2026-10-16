@@ -4,12 +4,13 @@
 // when asked; nothing waits or is refused because memory looks short.
 
 /**
- * The memory a save of a photo this size needs at its peak. A 60 MP save measured about 3.1 full
- * RGBA copies of the photo (its decode, the shared per-pixel buffer and the encode), so 3.5 leaves a
- * margin without holding back ordinary photos.
+ * The memory a save of a photo this size needs at its peak, in full RGBA copies of the photo. Eight
+ * 60 MP saves at once with colour adjustments, a rotation, a text watermark and a stamp measured
+ * about 3.8 each (the decode, the shared per-pixel buffer, each geometry or overlay render and the
+ * encode), so 4 covers a heavy recipe without holding back ordinary photos.
  */
 export function saveCost(width: number, height: number): number {
-  return Math.max(1, width * height) * 4 * 3.5;
+  return Math.max(1, width * height) * 4 * 4;
 }
 
 /**

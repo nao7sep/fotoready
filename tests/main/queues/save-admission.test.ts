@@ -6,9 +6,9 @@ const SIXTY_MP = saveCost(9504, 6336);
 const TWELVE_MP = saveCost(4032, 3024);
 
 describe("how many saves run at once", () => {
-  it("costs a photo about three and a half full copies of its pixels", () => {
-    expect(SIXTY_MP / GB).toBeCloseTo(0.79, 2);
-    expect(TWELVE_MP / GB).toBeCloseTo(0.16, 2);
+  it("costs a photo about four full copies of its pixels", () => {
+    expect(SIXTY_MP / GB).toBeCloseTo(0.9, 2);
+    expect(TWELVE_MP / GB).toBeCloseTo(0.18, 2);
   });
 
   it("always starts the first save, even one larger than the machine's share", () => {
@@ -22,9 +22,10 @@ describe("how many saves run at once", () => {
   });
 
   it("runs large photos only as many at once as half the machine's memory holds", () => {
-    // On an 8 GB machine, five 60 MP saves fit in its 4 GB share; a sixth waits.
-    expect(canStartSave(Array.from({ length: 4 }, () => SIXTY_MP), SIXTY_MP, 10, 8 * GB)).toBe(true);
-    expect(canStartSave(Array.from({ length: 5 }, () => SIXTY_MP), SIXTY_MP, 10, 8 * GB)).toBe(false);
+    // On an 8 GB machine, four 60 MP saves fit in its 4 GB share; a fifth waits.
+    expect(canStartSave(Array.from({ length: 3 }, () => SIXTY_MP), SIXTY_MP, 10, 8 * GB)).toBe(true);
+    expect(canStartSave(Array.from({ length: 4 }, () => SIXTY_MP), SIXTY_MP, 10, 8 * GB)).toBe(false);
     expect(canStartSave(Array.from({ length: 9 }, () => SIXTY_MP), SIXTY_MP, 10, 24 * GB)).toBe(true);
+    expect(canStartSave(Array.from({ length: 9 }, () => SIXTY_MP), SIXTY_MP, 12, 16 * GB)).toBe(false);
   });
 });

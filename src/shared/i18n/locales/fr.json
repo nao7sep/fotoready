@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "Définit la taille des vignettes des sélecteurs de LUT et de stickers. Des valeurs plus petites affichent plus de choix sur les écrans compacts.",
   "settings.previewDebounce": "Délai de mise à jour de l’aperçu (ms)",
   "settings.previewDebounceDetail": "Temps d’attente après la dernière modification avant de refaire le rendu de l’aperçu. Des valeurs élevées réduisent les calculs pendant le glissement des curseurs\u00a0; des valeurs basses rendent la réaction plus immédiate.",
-  "settings.concurrentSaves": "Enregistrements simultanés",
-  "settings.concurrentSavesDetail": { "one": "«\u00a0Automatique\u00a0» utilise le nombre de processeurs de cet ordinateur pour choisir à l’exécution un nombre raisonnable de workers. Cet ordinateur indique actuellement {count} cœur logique.", "many": "«\u00a0Automatique\u00a0» utilise le nombre de processeurs de cet ordinateur pour choisir à l’exécution un nombre raisonnable de workers. Cet ordinateur indique actuellement {count} de cœurs logiques.", "other": "«\u00a0Automatique\u00a0» utilise le nombre de processeurs de cet ordinateur pour choisir à l’exécution un nombre raisonnable de workers. Cet ordinateur indique actuellement {count} cœurs logiques." },
-  "settings.concurrentSavesAutomatic": "Automatique ({count})",
   "settings.confirmations": "Confirmations",
   "settings.confirmRemoveOriginals": "Demander avant de retirer des originaux de l’application",
   "settings.confirmDeleteTasks": "Demander avant de supprimer des tâches de l’application",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady n’a pas pu créer le format de sortie choisi. Choisissez un autre format ou ajustez la tâche avant d’enregistrer de nouveau.",
   "processingError.io": "FotoReady n’a pas pu écrire les fichiers de sortie. Vérifiez que le dossier de sortie est disponible, puis réessayez.",
   "processingError.metadata": "L’image a été préparée, mais ses métadonnées n’ont pas pu être écrites. Vérifiez le dossier de sortie, puis réessayez.",
+  "processingError.memory": "La mémoire était insuffisante pour enregistrer cette photo. Fermez d’autres apps, ou recadrez-la ou redimensionnez-la d’abord, puis enregistrez-la de nouveau.",
 
   "nativeMenu.about": "À propos de {app}",
   "nativeMenu.services": "Services",

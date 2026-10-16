@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "Legt die Größe der Miniaturen in der LUT- und Stickerauswahl fest. Kleinere Werte zeigen auf kompakten Bildschirmen mehr Auswahlmöglichkeiten.",
   "settings.previewDebounce": "Verzögerung der Vorschau-Aktualisierung (ms)",
   "settings.previewDebounceDetail": "So lange wird nach der letzten Bearbeitung gewartet, bevor die Vorschau neu erstellt wird. Höhere Werte vermeiden unnötige Arbeit beim Ziehen von Reglern; niedrigere reagieren unmittelbarer.",
-  "settings.concurrentSaves": "Gleichzeitige Speichervorgänge",
-  "settings.concurrentSavesDetail": { "one": "„Automatisch“ wählt anhand der CPU-Anzahl dieses Computers zur Laufzeit eine sinnvolle Anzahl von Workern. Dieser Computer meldet derzeit {count} logischen Kern.", "other": "„Automatisch“ wählt anhand der CPU-Anzahl dieses Computers zur Laufzeit eine sinnvolle Anzahl von Workern. Dieser Computer meldet derzeit {count} logische Kerne." },
-  "settings.concurrentSavesAutomatic": "Automatisch ({count})",
   "settings.confirmations": "Bestätigungen",
   "settings.confirmRemoveOriginals": "Vor dem Entfernen von Originalen aus der App nachfragen",
   "settings.confirmDeleteTasks": "Vor dem Löschen von Aufgaben aus der App nachfragen",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady konnte das gewählte Ausgabeformat nicht erzeugen. Wählen Sie ein anderes Format oder passen Sie die Aufgabe an, bevor Sie erneut speichern.",
   "processingError.io": "FotoReady konnte die Ausgabedateien nicht schreiben. Prüfen Sie, ob der Ausgabeordner verfügbar ist, und versuchen Sie es dann erneut.",
   "processingError.metadata": "Das Bild wurde erstellt, aber seine Metadaten konnten nicht geschrieben werden. Prüfen Sie den Ausgabeordner und versuchen Sie es dann erneut.",
+  "processingError.memory": "Für das Speichern dieses Fotos war nicht genug Arbeitsspeicher frei. Schließen Sie andere Apps oder schneiden Sie das Foto zu bzw. verkleinern Sie es, und speichern Sie dann erneut.",
 
   "nativeMenu.about": "Über {app}",
   "nativeMenu.services": "Dienste",

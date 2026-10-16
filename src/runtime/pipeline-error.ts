@@ -9,6 +9,7 @@ export type PipelineErrorCategory =
   | "encode"   // producing the output image bytes failed
   | "io"       // a filesystem / syscall error (disk full, locked file, permissions)
   | "metadata" // writing metadata to the saved file failed
+  | "memory"   // the machine ran out of memory for this image, in any phase
   | "unknown"; // uncategorized
 
 export class PipelineError extends Error {
@@ -55,6 +56,7 @@ export function isRetryableCategory(category: PipelineErrorCategory): boolean {
   switch (category) {
     case "io":
     case "metadata":
+    case "memory":
     case "unknown":
       return true;
     case "decode":
@@ -72,9 +74,28 @@ export function isRetryableCategory(category: PipelineErrorCategory): boolean {
 export function asPipelineError(error: unknown, phase: PipelineErrorCategory): PipelineError {
   if (error instanceof PipelineError) return error;
   const message = error instanceof Error ? error.message : String(error);
-  const category: PipelineErrorCategory =
-    FILE_ACCESS_PHASES.has(phase) && isRetryableIoError(error) ? "io" : phase;
+  const category: PipelineErrorCategory = isMemoryFailure(error)
+    ? "memory"
+    : FILE_ACCESS_PHASES.has(phase) && isRetryableIoError(error) ? "io" : phase;
   const pipelineError = new PipelineError(category, message, { cause: error });
   if (error instanceof Error && error.stack) pipelineError.stack = error.stack;
   return pipelineError;
+}
+
+// Node's structured codes for running out of memory, in a buffer allocation or a whole worker.
+const MEMORY_CODES = new Set(["ERR_MEMORY_ALLOCATION_FAILED", "ERR_WORKER_OUT_OF_MEMORY", "ENOMEM"]);
+
+/**
+ * Whether a failure means the machine ran out of memory for this image (volume-handling-conventions,
+ * containment). Node's failures carry a code; the image library reports allocation failure only in
+ * its message, so that text is matched here as the one exception to category-from-structure.
+ */
+export function isMemoryFailure(error: unknown): boolean {
+  for (let current: unknown = error, depth = 0; current && depth < 5; current = (current as { cause?: unknown }).cause, depth += 1) {
+    const code = (current as NodeJS.ErrnoException).code;
+    if (typeof code === "string" && MEMORY_CODES.has(code)) return true;
+    const text = current instanceof Error ? current.message : typeof current === "string" ? current : "";
+    if (/out of memory|cannot allocate memory|array buffer allocation failed|bad_alloc/i.test(text)) return true;
+  }
+  return false;
 }

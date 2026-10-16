@@ -29,7 +29,7 @@ export function defaultPipeline(): Pipeline {
   };
 }
 
-export function defaultGlobalSettings(workerPoolSize: number | null = null): GlobalSettings {
+export function defaultGlobalSettings(): GlobalSettings {
   return {
     language: "system",
     theme: "system",
@@ -77,7 +77,6 @@ export function defaultGlobalSettings(workerPoolSize: number | null = null): Glo
     defaultWatermarkTextFontFamily: DEFAULT_TEXT_WATERMARK_FONT_FAMILY,
     writeSoftwareTag: true,
     writeModifyDate: true,
-    workerPoolSize,
     previewLongEdge: 1024,
     assetPickerPreviewLongEdge: DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE,
     previewDebounceMs: 150

@@ -14,7 +14,7 @@ import { resolveOutputFormat, outputFormatExtension } from "@shared/output-forma
 import { writeTaskSidecarFile } from "@main/task-sidecar";
 import { resolveProjectOutputDir } from "@main/output-paths";
 import type { AppLogger } from "@main/logger";
-import { PipelineError, isRetryableCategory } from "@runtime/pipeline-error";
+import { PipelineError, isMemoryFailure, isRetryableCategory } from "@runtime/pipeline-error";
 import { message, type Message } from "@shared/i18n/translate";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
 
@@ -208,6 +208,7 @@ function taskError(error: unknown): TaskError {
   // Errors without a category (filesystem failures setting up the output path, internal
   // invariants) default to retryable — they are transient or harmless to re-attempt.
   const retryable = error instanceof PipelineError ? isRetryableCategory(error.category) : true;
+  // Memory can also run out in the image worker itself, outside a pipeline phase.
   return {
     stage: "processing",
     message: processingFailureMessage(error),
@@ -220,6 +221,9 @@ function taskError(error: unknown): TaskError {
 function processingFailureMessage(error: unknown): Message {
   if (error instanceof PathVariableError) {
     return message("failure.withReason", { failure: message("processingError.io"), reason: pathVariableReason(error) });
+  }
+  if (isMemoryFailure(error)) {
+    return message("processingError.memory");
   }
   if (!(error instanceof PipelineError)) {
     return message("processingError.generic");
@@ -235,6 +239,8 @@ function processingFailureMessage(error: unknown): Message {
       return message("processingError.io");
     case "metadata":
       return message("processingError.metadata");
+    case "memory":
+      return message("processingError.memory");
     case "unknown":
       return message("processingError.generic");
   }

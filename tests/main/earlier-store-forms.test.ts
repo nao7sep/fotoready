@@ -68,7 +68,7 @@ describe("stores written by v0.1.0", () => {
     expect(task).toMatchObject({ generateDescription: true, generateSlug: true, customSlug: null });
   });
 
-  it("loads v0.1.0's config.json as it is, then writes the marker and drops the retired key at the next save", async () => {
+  it("loads v0.1.0's config.json as it is, then writes the marker and drops the retired keys at the next save", async () => {
     const root = await tempRoot();
     const settingsPath = path.join(root, "config.json");
     const text = await fs.readFile(path.join(FIXTURES, "config.json"), "utf8");
@@ -83,10 +83,13 @@ describe("stores written by v0.1.0", () => {
     await saveSettings(loaded.file, { ...loaded.settings, defaultAvifQuality: 55 }, loaded.settings);
     const saved = await fs.readFile(settingsPath, "utf8");
     expect(saved.startsWith('{\n  "formatVersion": 1,')).toBe(true);
-    const { formatVersion: _marker, model, ...sets } = JSON.parse(saved) as Record<string, unknown>;
-    const { model: oldModel, ...oldSets } = JSON.parse(text) as Record<string, unknown>;
+    const { formatVersion: _marker, model, workerPoolSize, ...sets } = JSON.parse(saved) as Record<string, unknown>;
+    const { model: oldModel, workerPoolSize: oldWorkerPoolSize, ...oldSets } = JSON.parse(text) as Record<string, unknown>;
     expect(oldModel).toBe("gemini-3-flash-preview");
+    expect(oldWorkerPoolSize).toBeNull();
+    // Both retired keys go at the next save: v0.1.0's model, and the Concurrent saves setting.
     expect(model).toBeUndefined();
+    expect(workerPoolSize).toBeUndefined();
     expect(sets).toEqual({ ...oldSets, defaultAvifQuality: 55 });
   });
 

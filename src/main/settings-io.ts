@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
 import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson } from "@shared/format-versions";
@@ -10,14 +9,9 @@ import { cleanMetadataField, multiline, singleLine } from "@shared/text-cleanup"
 import { setAsideStore, StoreNotWritableError } from "@adapters/json-store";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
-import { automaticWorkerPoolSize } from "@shared/worker-pool";
 
 function defaults(): GlobalSettings {
-  return defaultGlobalSettings(null);
-}
-
-export function resolveWorkerPoolSize(workerPoolSize: number | null): number {
-  return workerPoolSize ?? automaticWorkerPoolSize(os.cpus().length);
+  return defaultGlobalSettings();
 }
 
 /** `config.json` as this session holds it. */
@@ -54,7 +48,9 @@ export class SettingsQuarantineError extends Error {
  * Keys an earlier FotoReady stored that no build reads, dropped at the next save; every other
  * unknown key is kept. `model` was v0.1.0's one model id, now `gemini.description` and `gemini.slug`.
  */
-const RETIRED_SETTINGS_KEYS: readonly string[] = ["model"];
+// `workerPoolSize` was the Concurrent saves setting: the number of saves at once now follows the
+// machine and each photo's size (volume-handling-conventions; developer decision).
+const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize"];
 
 /**
  * Store-recovery outcomes, decided once at load (developer decisions): a file that cannot be read

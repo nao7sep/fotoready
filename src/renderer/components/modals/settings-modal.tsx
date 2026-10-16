@@ -16,8 +16,7 @@ import { presentFailure } from "../../present-failure";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import type { MessageKey } from "@shared/i18n/catalogues";
 import { LANGUAGE_NAMES, LANGUAGES, languageNameIn, normalizeLanguagePreference } from "@shared/i18n/languages";
-import { automaticWorkerPoolSize } from "@shared/worker-pool";
-import { message, type Message, type Translator } from "@shared/i18n/translate";
+import { message, type Message } from "@shared/i18n/translate";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
 
@@ -642,8 +641,6 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
 
 function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemInfo: SystemInfo | null }): React.JSX.Element {
   const { t, language } = useI18n();
-  const cpuCount = systemInfo?.cpuCount ?? 8;
-  const concurrencyOptions = useMemo(() => buildConcurrencyOptions(cpuCount, t), [cpuCount, t]);
   const themeName = useId();
   const languageId = useId();
   const timeZoneId = useId();
@@ -765,14 +762,6 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
             onChange={(value) => setSettings({ ...settings, previewDebounceMs: value })}
           />
           <div className="row-detail">{t("settings.previewDebounceDetail")}</div>
-          <SelectField
-            className="span-two"
-            label={t("settings.concurrentSaves")}
-            options={concurrencyOptions}
-            value={settings.workerPoolSize === null ? "auto" : String(settings.workerPoolSize)}
-            onChange={(value) => setSettings({ ...settings, workerPoolSize: value === "auto" ? null : Number(value) })}
-          />
-          <div className="row-detail">{t("settings.concurrentSavesDetail", { count: cpuCount })}</div>
         </div>
       </section>
 
@@ -984,20 +973,6 @@ function getNumberFieldIssue(value: string, min: number, max: number): "whole-nu
   if (parsed === null) return "whole-number";
   if (parsed < min || parsed > max) return "out-of-range";
   return null;
-}
-
-function buildConcurrencyOptions(cpuCount: number, t: Translator["t"]): Array<{ value: string; label: string }> {
-  const values = new Set<number>([1]);
-  let current = 1;
-  while (current < cpuCount) {
-    current *= 2;
-    values.add(Math.min(current, cpuCount));
-  }
-  if (cpuCount > 2) values.add(cpuCount);
-  return [
-    { value: "auto", label: t("settings.concurrentSavesAutomatic", { count: automaticWorkerPoolSize(cpuCount) }) },
-    ...Array.from(values).sort((left, right) => left - right).map((value) => ({ value: String(value), label: String(value) }))
-  ];
 }
 
 function validModelSettings(settings: GlobalSettings): boolean {

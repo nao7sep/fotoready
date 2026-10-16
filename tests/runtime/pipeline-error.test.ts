@@ -113,3 +113,17 @@ describe("asPipelineError", () => {
     expect(wrapped.message).toBe("plain string failure");
   });
 });
+
+describe("running out of memory", () => {
+  it("is recognised from the image library's message, Node's codes, and a cause", async () => {
+    const { isMemoryFailure, asPipelineError, isRetryableCategory } = await import("@runtime/pipeline-error");
+    expect(isMemoryFailure(new Error("vips_malloc: out of memory"))).toBe(true);
+    expect(isMemoryFailure(new RangeError("Array buffer allocation failed"))).toBe(true);
+    expect(isMemoryFailure(Object.assign(new Error("worker died"), { code: "ERR_WORKER_OUT_OF_MEMORY" }))).toBe(true);
+    expect(isMemoryFailure(new Error("render failed", { cause: Object.assign(new Error("x"), { code: "ENOMEM" }) }))).toBe(true);
+    expect(isMemoryFailure(new Error("unsupported image format"))).toBe(false);
+    const wrapped = asPipelineError(new Error("vips_malloc: out of memory"), "process");
+    expect(wrapped.category).toBe("memory");
+    expect(isRetryableCategory(wrapped.category)).toBe(true);
+  });
+});

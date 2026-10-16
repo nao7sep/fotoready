@@ -92,7 +92,7 @@ export type GlobalSettings = {
   visionInitialBackoffMs: number;
   writeSoftwareTag: boolean;
   writeModifyDate: boolean;
-  workerPoolSize: number | null;
+
   previewLongEdge: number;
   assetPickerPreviewLongEdge: number;
   previewDebounceMs: number;

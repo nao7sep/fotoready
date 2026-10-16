@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "Define o tamanho das miniaturas nos seletores de LUTs e figurinhas. Valores menores mostram mais opções em telas compactas.",
   "settings.previewDebounce": "Espera para atualizar a prévia (ms)",
   "settings.previewDebounceDetail": "Tempo de espera após a última edição antes de gerar a prévia de novo. Valores altos reduzem o trabalho ao arrastar controles deslizantes; valores baixos respondem mais rápido.",
-  "settings.concurrentSaves": "Salvamentos simultâneos",
-  "settings.concurrentSavesDetail": { "one": "Automático usa a quantidade de CPUs deste computador para escolher, durante a execução, um número razoável de processos. Este computador informa no momento {count} núcleo lógico.", "many": "Automático usa a quantidade de CPUs deste computador para escolher, durante a execução, um número razoável de processos. Este computador informa no momento {count} de núcleos lógicos.", "other": "Automático usa a quantidade de CPUs deste computador para escolher, durante a execução, um número razoável de processos. Este computador informa no momento {count} núcleos lógicos." },
-  "settings.concurrentSavesAutomatic": "Automático ({count})",
   "settings.confirmations": "Confirmações",
   "settings.confirmRemoveOriginals": "Confirmar antes de remover originais do aplicativo",
   "settings.confirmDeleteTasks": "Confirmar antes de apagar tarefas do aplicativo",
@@ -743,6 +740,7 @@
   "processingError.encode": "O FotoReady não conseguiu criar o formato de saída escolhido. Escolha outro formato ou ajuste a tarefa antes de salvar de novo.",
   "processingError.io": "O FotoReady não conseguiu gravar os arquivos de saída. Verifique se a pasta de saída está disponível e tente novamente.",
   "processingError.metadata": "A imagem foi preparada, mas os metadados não puderam ser gravados. Verifique a pasta de saída e tente novamente.",
+  "processingError.memory": "Não havia memória suficiente para salvar esta foto. Feche outros aplicativos ou recorte ou redimensione a foto primeiro e salve novamente.",
 
   "nativeMenu.about": "Sobre o {app}",
   "nativeMenu.services": "Serviços",

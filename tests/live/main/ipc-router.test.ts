@@ -25,6 +25,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { TaskSidecar } from "@shared/task-sidecar";
 import type { OriginalImportResult } from "@shared/types/ipc";
 import type { Task } from "@shared/types/project";
+import os from "node:os";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 const CACHE = join(REPO, "node_modules", ".cache", "fotoready-live");
@@ -81,7 +82,7 @@ async function startApp(home: string) {
   const { createLogger } = await import("@main/logger");
   const { createRecordsStore, droppedRecordsRow, fallbackFile } = await import("@main/records-store");
   const { startStoreWriter } = await import("@main/store-writer");
-  const { loadSettings, resolveWorkerPoolSize } = await import("@main/settings-io");
+  const { loadSettings } = await import("@main/settings-io");
   const { createStateCoordinator, loadState } = await import("@main/state-io");
   const { registerIpcHandlers } = await import("@main/ipc-router");
   const { setBackupWriter } = await import("@main/backup-store");
@@ -107,9 +108,9 @@ async function startApp(home: string) {
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
-  const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
-  const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
-  const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
+  const cores = Math.max(1, os.cpus().length);
+  const pipelineWorkerPool = new PipelineWorkerPool(cores);
+  const processingQueue = new ProcessingQueue(cores, settings, pipelineWorkerPool, logger);
   const userWork = new UserWorkWrites();
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
   processingQueue.setUpdateListener(() => projectSession.emitSnapshot());

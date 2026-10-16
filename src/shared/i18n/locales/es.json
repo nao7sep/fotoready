@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "Define el tamaño de las miniaturas en los selectores de LUT y stickers. Los valores más pequeños muestran más opciones en pantallas compactas.",
   "settings.previewDebounce": "Espera para actualizar la vista previa (ms)",
   "settings.previewDebounceDetail": "Tiempo de espera después de la última edición antes de volver a generar la vista previa. Los valores altos reducen el trabajo al arrastrar controles deslizantes; los bajos responden de inmediato.",
-  "settings.concurrentSaves": "Guardados simultáneos",
-  "settings.concurrentSavesDetail": { "one": "Automático usa la cantidad de CPU de este equipo para elegir un número razonable de procesos en tiempo de ejecución. Este equipo informa actualmente {count} núcleo lógico.", "many": "Automático usa la cantidad de CPU de este equipo para elegir un número razonable de procesos en tiempo de ejecución. Este equipo informa actualmente {count} de núcleos lógicos.", "other": "Automático usa la cantidad de CPU de este equipo para elegir un número razonable de procesos en tiempo de ejecución. Este equipo informa actualmente {count} núcleos lógicos." },
-  "settings.concurrentSavesAutomatic": "Automático ({count})",
   "settings.confirmations": "Confirmaciones",
   "settings.confirmRemoveOriginals": "Confirmar antes de quitar originales de la aplicación",
   "settings.confirmDeleteTasks": "Confirmar antes de eliminar tareas de la aplicación",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady no pudo crear el formato de salida elegido. Elige otro formato o ajusta la tarea antes de volver a guardar.",
   "processingError.io": "FotoReady no pudo escribir los archivos de salida. Comprueba que la carpeta de salida esté disponible y vuelve a intentarlo.",
   "processingError.metadata": "La imagen se preparó, pero no se pudieron escribir sus metadatos. Revisa la carpeta de salida y vuelve a intentarlo.",
+  "processingError.memory": "No había memoria suficiente para guardar esta foto. Cierra otras aplicaciones o recórtala o redimensiónala primero y vuelve a guardarla.",
 
   "nativeMenu.about": "Acerca de {app}",
   "nativeMenu.services": "Servicios",

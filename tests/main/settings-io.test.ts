@@ -12,7 +12,7 @@ const ENV_VAR = "FOTOREADY_DATA_DIR";
 const prevHome = process.env[ENV_VAR];
 let dir: string;
 const settingsPath = () => path.join(dir, "config.json");
-const defaults = () => defaultGlobalSettings(null);
+const defaults = () => defaultGlobalSettings();
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-settings-"));

@@ -90,7 +90,6 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     visionInitialBackoffMs: readValue(source, "visionInitialBackoffMs", fallback.visionInitialBackoffMs, issues, wholeNumber("visionInitialBackoffMs")),
     writeSoftwareTag: readValue(source, "writeSoftwareTag", fallback.writeSoftwareTag, issues, assertBoolean),
     writeModifyDate: readValue(source, "writeModifyDate", fallback.writeModifyDate, issues, assertBoolean),
-    workerPoolSize: readValue(source, "workerPoolSize", fallback.workerPoolSize, issues, validateWorkerPoolSize),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, wholeNumber("previewLongEdge")),
     assetPickerPreviewLongEdge: readValue(source, "assetPickerPreviewLongEdge", fallback.assetPickerPreviewLongEdge, issues, wholeNumber("assetPickerPreviewLongEdge")),
     previewDebounceMs: readValue(source, "previewDebounceMs", fallback.previewDebounceMs, issues, wholeNumber("previewDebounceMs"))
@@ -168,11 +167,6 @@ function validateMetadataFields(value: unknown, path: string): MetadataFields {
     fields[key] = assertString(record[key], `${path}.${key}`);
   }
   return fields;
-}
-
-function validateWorkerPoolSize(value: unknown, path: string): number | null {
-  if (value === null) return null;
-  return assertFiniteNumber(value, path, { integer: true, min: 1, max: 512 });
 }
 
 export function assertModelEndpoint(value: unknown, field: string): string {

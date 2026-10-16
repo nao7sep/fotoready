@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "Sets the thumbnail size for LUT and stamp picker modals. Smaller values fit more choices on compact screens.",
   "settings.previewDebounce": "Preview update debounce (ms)",
   "settings.previewDebounceDetail": "Wait this long after the latest edit before re-rendering the preview. Higher values reduce churn while dragging sliders; lower values feel more immediate.",
-  "settings.concurrentSaves": "Concurrent saves",
-  "settings.concurrentSavesDetail": { "one": "Automatic uses this computer’s CPU count to choose a sensible worker count at runtime. This computer currently reports {count} logical core.", "other": "Automatic uses this computer’s CPU count to choose a sensible worker count at runtime. This computer currently reports {count} logical cores." },
-  "settings.concurrentSavesAutomatic": "Automatic ({count})",
   "settings.confirmations": "Confirmations",
   "settings.confirmRemoveOriginals": "Confirm before removing originals from the app",
   "settings.confirmDeleteTasks": "Confirm before deleting tasks from the app",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady could not create the selected output format. Choose another format or adjust the task before saving again.",
   "processingError.io": "FotoReady could not write the output files. Check that the output folder is available, then retry.",
   "processingError.metadata": "The image was prepared, but its metadata could not be written. Check the output folder, then retry.",
+  "processingError.memory": "There wasn’t enough memory to save this photo. Close other apps, or crop or resize it first, then save again.",
 
   "nativeMenu.about": "About {app}",
   "nativeMenu.services": "Services",

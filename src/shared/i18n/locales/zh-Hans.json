@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "设置 LUT 和贴纸选择器中缩略图的大小。数值越小，小屏幕上能放下的选项越多。",
   "settings.previewDebounce": "预览更新的等待时间（毫秒）",
   "settings.previewDebounceDetail": "在最后一次编辑后等待这么久再重新生成预览。数值越大，拖动滑块时的重复计算越少；数值越小，响应越即时。",
-  "settings.concurrentSaves": "同时进行的保存",
-  "settings.concurrentSavesDetail": { "other": "“自动”会根据这台电脑的 CPU 数量，在运行时选择合适的工作进程数。这台电脑目前报告有 {count} 个逻辑核心。" },
-  "settings.concurrentSavesAutomatic": "自动（{count}）",
   "settings.confirmations": "确认",
   "settings.confirmRemoveOriginals": "从应用中移除原图前先确认",
   "settings.confirmDeleteTasks": "从应用中删除任务前先确认",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady 无法创建所选的输出格式。请选择其他格式或调整任务后再保存。",
   "processingError.io": "FotoReady 无法写入输出文件。请确认输出文件夹可用，然后重试。",
   "processingError.metadata": "图像已准备好，但无法写入其元数据。请检查输出文件夹，然后重试。",
+  "processingError.memory": "内存不足，无法保存这张照片。请关闭其他应用，或先裁剪或缩小这张照片，然后再次保存。",
 
   "nativeMenu.about": "关于 {app}",
   "nativeMenu.services": "服务",

@@ -1,5 +1,6 @@
 import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
@@ -7,7 +8,7 @@ import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { createRecordsStore, droppedRecordsRow, fallbackFile, writeFallbackRecord } from "./records-store";
 import { startStoreWriter } from "./store-writer";
 import { jsonSafe } from "./json-safe";
-import { loadSettings, resolveWorkerPoolSize } from "./settings-io";
+import { loadSettings } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers, type IpcWork } from "./ipc-router";
 import { setBackupWriter } from "./backup-store";
@@ -145,9 +146,10 @@ export async function bootstrap(): Promise<void> {
   const userWork = new UserWorkWrites();
   if (settingsNotice) await showSettingsNotice(logger, settingsNotice);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
-  const workerPoolSize = resolveWorkerPoolSize(settings.workerPoolSize);
-  const pipelineWorkerPool = new PipelineWorkerPool(workerPoolSize);
-  const processingQueue = new ProcessingQueue(workerPoolSize, settings, pipelineWorkerPool, logger);
+  // One image worker per core; how many saves run at once also follows each photo's size (save-admission.ts).
+  const cores = Math.max(1, os.cpus().length);
+  const pipelineWorkerPool = new PipelineWorkerPool(cores);
+  const processingQueue = new ProcessingQueue(cores, settings, pipelineWorkerPool, logger);
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
   // A folder setting naming an unset variable leaves that kind of asset unrelinked; its listing reports the problem.
   const folderOrNull = (resolve: () => string): string | null => { try { return resolve(); } catch { return null; } };
@@ -186,7 +188,7 @@ export async function bootstrap(): Promise<void> {
       defaultOutputFormat: settings.defaultOutputFormat,
       descriptionModel: settings["gemini.description"],
       slugModel: settings["gemini.slug"],
-      workerPoolSize,
+      cores,
       visionConcurrency: settings.visionConcurrency,
       previewLongEdge: settings.previewLongEdge,
       lutFolder: settings.lutFolder,

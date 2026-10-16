@@ -12,7 +12,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import type { Original } from "@shared/types/project";
 
 function settings(over: Partial<GlobalSettings> = {}): GlobalSettings {
-  return { ...defaultGlobalSettings(null), ...over };
+  return { ...defaultGlobalSettings(), ...over };
 }
 
 function output(over: Partial<TaskOutput> = {}): TaskOutput {

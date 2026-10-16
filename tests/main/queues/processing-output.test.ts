@@ -82,6 +82,27 @@ describe("processTask output publication", () => {
   });
 });
 
+describe("processTask out of memory", () => {
+  it.each([
+    ["the image library", () => new Error("vips_malloc: out of memory")],
+    ["a worker that ran out of memory", () => Object.assign(new Error("Worker terminated due to reaching memory limit"), { code: "ERR_WORKER_OUT_OF_MEMORY" })]
+  ])("stops the save, removes its partial file and says what to do when %s runs out", async (_where, failure) => {
+    const { project, task } = arrange();
+    const pool = {
+      async process(input: { outputPath: string }) {
+        await fs.writeFile(input.outputPath, "partial");
+        throw failure();
+      }
+    } as unknown as PipelineWorkerPool;
+
+    await processTask(project, task.id, defaultGlobalSettings(), undefined, pool);
+
+    expect(task.status).toBe("error");
+    expect(task.error).toMatchObject({ message: message("processingError.memory"), retryable: true });
+    expect(await fs.readdir(dir)).toEqual([]);
+  });
+});
+
 describe("processTask status times", () => {
   it("changes the task's status, not its modified time, whether the save succeeds or fails", async () => {
     const saved = arrange();

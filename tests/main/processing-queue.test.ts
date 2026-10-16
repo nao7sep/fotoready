@@ -133,3 +133,46 @@ describe("ProcessingQueue abort", () => {
     await expect(queue.enqueueTask(project, "D")).rejects.toThrow("closing");
   });
 });
+
+describe("ProcessingQueue admission", () => {
+  it("holds a large save until memory allows, and starts it when the one before finishes", async () => {
+    const { processor, started, release } = controllableProcessor();
+    const big = { width: 9504, height: 6336 };
+    const photos = {
+      tasks: ["A", "B"].map((id) => ({ id, originalId: id })),
+      originals: ["A", "B"].map((id) => ({ id, ...big })),
+      outputDir: null
+    } as unknown as Project;
+    // Two 60 MP saves need about 1.6 GB, more than half of a 2 GB machine.
+    const queue = new ProcessingQueue(8, settings, workerPool, undefined, null, processor, 2 * 2 ** 30);
+    void queue.enqueueTask(photos, "A");
+    void queue.enqueueTask(photos, "B");
+    await settle();
+    expect(started).toEqual(["A"]);
+    release("A");
+    await settle();
+    expect(started).toEqual(["A", "B"]);
+    release("B");
+    await settle();
+  });
+
+  it("lets a cancelled save waiting at the front stop holding back the ones behind it", async () => {
+    const { processor, started, release } = controllableProcessor();
+    const photos = {
+      tasks: ["A", "B", "C"].map((id) => ({ id, originalId: id })),
+      originals: ["A", "B", "C"].map((id) => ({ id, width: 9504, height: 6336 })),
+      outputDir: null
+    } as unknown as Project;
+    const queue = new ProcessingQueue(8, settings, workerPool, undefined, null, processor, 2 * 2 ** 30);
+    void queue.enqueueTask(photos, "A");
+    void queue.enqueueTask(photos, "B");
+    void queue.enqueueTask(photos, "C");
+    await settle();
+    queue.cancelTask("B");
+    release("A");
+    await settle();
+    expect(started).toEqual(["A", "C"]);
+    release("C");
+    await settle();
+  });
+});

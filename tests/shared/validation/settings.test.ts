@@ -58,12 +58,6 @@ describe("normalizeGlobalSettings", () => {
     expect(settings.jpegQualityMode).toBe("auto");
   });
 
-  it("accepts a null worker pool size", () => {
-    const { settings, issues } = normalizeGlobalSettings({ ...fallback, workerPoolSize: null }, fallback);
-    expect(settings.workerPoolSize).toBeNull();
-    expect(issues).toEqual([]);
-  });
-
   it("keeps known editable metadata fields and drops unknown keys", () => {
     const { settings, issues } = normalizeGlobalSettings(
       { ...fallback, injectFields: { author: "Jane", bogus: "x" } },

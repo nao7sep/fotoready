@@ -401,9 +401,6 @@
   "settings.assetPreviewSizeDetail": "LUT とスタンプの選択画面のサムネイルの大きさを決めます。小さい値ほど、狭い画面でも多くの候補が収まります。",
   "settings.previewDebounce": "プレビュー更新の待ち時間(ミリ秒)",
   "settings.previewDebounceDetail": "最後の編集からこの時間が経ってからプレビューを描き直します。大きい値ほどスライダー操作中の再描画が減り、小さい値ほど反応が速くなります。",
-  "settings.concurrentSaves": "同時に行う保存",
-  "settings.concurrentSavesDetail": { "other": "「自動」は、このコンピューターの CPU 数から、実行時に適切なワーカー数を選びます。このコンピューターの論理コア数は現在 {count} です。" },
-  "settings.concurrentSavesAutomatic": "自動（{count}）",
   "settings.confirmations": "確認",
   "settings.confirmRemoveOriginals": "元画像をアプリから取り除く前に確認する",
   "settings.confirmDeleteTasks": "タスクをアプリから削除する前に確認する",
@@ -743,6 +740,7 @@
   "processingError.encode": "FotoReady は選択した出力形式を作成できませんでした。別の形式を選ぶかタスクを調整してから、もう一度保存してください。",
   "processingError.io": "FotoReady は出力ファイルを書き込めませんでした。出力フォルダーが使えることを確認してから、再試行してください。",
   "processingError.metadata": "画像は用意できましたが、メタデータを書き込めませんでした。出力フォルダーを確認してから、再試行してください。",
+  "processingError.memory": "この写真を保存するためのメモリーが足りませんでした。ほかのアプリを終了するか、先に写真を切り抜くか縮小してから、もう一度保存してください。",
 
   "nativeMenu.about": "{app} について",
   "nativeMenu.services": "サービス",

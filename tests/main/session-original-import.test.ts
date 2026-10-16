@@ -33,6 +33,19 @@ function session() {
 }
 
 describe("ProjectSession original import results", () => {
+  it("records a portrait phone photo at its upright size, not the size it is stored at", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-original-"));
+    roots.push(root);
+    const imagePath = path.join(root, "portrait.jpg");
+    await sharp({ create: { width: 300, height: 200, channels: 3, background: "red" } }).jpeg().withMetadata({ orientation: 6 }).toFile(imagePath);
+    const project = session().value;
+
+    await project.addOriginals([imagePath]);
+
+    const [original] = project.snapshot().project.originals;
+    expect([original!.width, original!.height]).toEqual([200, 300]);
+  });
+
   it("serializes simultaneous imports and reports repeated content as information", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-original-"));
     roots.push(root);

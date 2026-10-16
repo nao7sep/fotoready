@@ -9,7 +9,7 @@ import type { Original, Project, Task, VisionResult } from "@shared/types/projec
 import { sha256BytesYielding } from "@runtime/hash";
 import { LatestOnly } from "./latest-only";
 import type { AssetFolders } from "./asset-relink";
-import { inspectSourceImage } from "@runtime/decode";
+import { inspectSourceImage, uprightSize } from "@runtime/decode";
 import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
@@ -882,8 +882,7 @@ async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: bool
     format,
     jpegQualityEstimate,
     metadataSummary,
-    width: metadata.width ?? 0,
-    height: metadata.height ?? 0,
+    ...uprightSize(metadata),
     addedAt: nowIso()
   };
 }

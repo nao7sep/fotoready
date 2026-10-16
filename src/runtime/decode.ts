@@ -17,9 +17,7 @@ export async function decodeImage(sourcePath: string): Promise<{ image: Image }>
   const { format, metadata } = await inspectSourceImage(await readHead(sourcePath), sourcePath);
 
   const normalized = sharp(sourcePath, NO_PIXEL_LIMIT).rotate().toColorspace("srgb");
-  const normalizedMetadata = await normalized.metadata();
-  const width = normalizedMetadata.width ?? metadata.width ?? 0;
-  const height = normalizedMetadata.height ?? metadata.height ?? 0;
+  const { width, height } = uprightSize(metadata);
 
   return {
     image: { sharp: normalized, width, height, format }
@@ -38,6 +36,18 @@ const READABLE_BUT_UNWRITABLE: Record<string, string> = {
   gif: "GIF",
   heic: "HEIC/HEIF"
 };
+
+/**
+ * The size the photo has once turned upright by its orientation tag, which is the size every edit
+ * and the saved image see. The image library's own width and height are the stored, unturned size,
+ * so a portrait phone photo would otherwise be measured on its side.
+ */
+export function uprightSize(metadata: Pick<Metadata, "width" | "height" | "autoOrient">): { width: number; height: number } {
+  return {
+    width: metadata.autoOrient?.width ?? metadata.width ?? 0,
+    height: metadata.autoOrient?.height ?? metadata.height ?? 0
+  };
+}
 
 /** The first bytes of a file, enough for its format's signature. */
 async function readHead(sourcePath: string): Promise<Buffer> {

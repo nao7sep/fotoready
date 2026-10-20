@@ -25,7 +25,7 @@ it.each([false, true])("stops only its disposable runtime (ignores SIGTERM: %s)"
   try {
     await Promise.all([owned.waitReady(), unrelated.waitReady()]);
     const commandOptions = { timeout: 30_000, killSignal: "SIGKILL" as const };
-    const { stdout } = await exec(process.execPath, [helper, "stop", "electron", "FotoReady", "FotoReady"], commandOptions);
+    const { stdout } = await exec(process.execPath, [helper, "stop"], commandOptions);
     expect(stdout).toContain(`pid ${owned.child.pid}`);
     await owned.waitClosed();
     if (process.platform !== "win32") {
@@ -33,7 +33,7 @@ it.each([false, true])("stops only its disposable runtime (ignores SIGTERM: %s)"
     }
     expect(unrelated.child.exitCode).toBeNull();
     expect(unrelated.child.signalCode).toBeNull();
-    const second = await exec(process.execPath, [helper, "stop", "electron", "FotoReady", "FotoReady"], commandOptions);
+    const second = await exec(process.execPath, [helper, "stop"], commandOptions);
     expect(second.stdout).toBe("");
   } finally {
     await Promise.all([owned.stop(), unrelated.stop()]);

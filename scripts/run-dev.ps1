@@ -60,7 +60,7 @@ try {
 
     Write-Step "Replacing any existing FotoReady runtime"
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop", "electron", "FotoReady", "FotoReady")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", "127.0.0.1", "23339")
 
     Write-Step "Installing dependencies"
@@ -91,7 +91,7 @@ catch {
 finally {
     & node $runtimeHelper is-owner $runtimeToken *> $null
     if ($LASTEXITCODE -eq 0) {
-        & node $runtimeHelper stop-if-owner $runtimeToken electron "FotoReady" "FotoReady" *> $null
+        & node $runtimeHelper stop-if-owner $runtimeToken *> $null
         Read-Host "Press Enter to close" | Out-Null
     }
 }

@@ -25,7 +25,11 @@ function underRoot(value) {
   return candidate === root || candidate.startsWith(`${root}/`) || candidate.includes(`${root}/`);
 }
 
-export function ownsProcess(processInfo, identity) {
+// The app these launchers start: the Electron dev runtime from this repository, or the packaged app.
+const APP_LABEL = "FotoReady";
+const APP_EXECUTABLE = "FotoReady";
+
+export function ownsProcess(processInfo) {
   const executable = normalized(processInfo.executablePath);
   const command = normalized(processInfo.commandLine);
   const combined = `${executable}\n${command}`;
@@ -39,35 +43,12 @@ export function ownsProcess(processInfo, identity) {
     return true;
   }
 
-  const executableName = identity.executable.toLowerCase();
-  const macBundleExecutable = `/${identity.label.toLowerCase()}.app/contents/macos/${executableName}`;
-  const windowsExecutable = `/${executableName}.exe`;
-  if (identity.kind === "electron") {
-    return combined.includes("/node_modules/.bin/electron-vite")
-      || combined.includes("/node_modules/electron-vite/")
-      || combined.includes("/node_modules/electron/dist/")
-      || combined.includes(macBundleExecutable)
-      || combined.includes(windowsExecutable);
-  }
-  if (identity.kind === "tauri") {
-    return combined.includes("/node_modules/.bin/tauri")
-      || combined.includes("/node_modules/@tauri-apps/cli/")
-      || combined.includes("/node_modules/.bin/vite")
-      || combined.includes("/node_modules/vite/")
-      || combined.includes(`/target/debug/${executableName}`)
-      || combined.includes(`/target/release/${executableName}`)
-      || combined.includes(macBundleExecutable);
-  }
-  if (identity.kind === "web") {
-    return combined.includes("/node_modules/.bin/vite")
-      || combined.includes("/node_modules/.bin/tsx")
-      || combined.includes("/node_modules/.bin/concurrently")
-      || combined.includes("/node_modules/vite/")
-      || combined.includes("/node_modules/tsx/")
-      || combined.includes("/node_modules/concurrently/")
-      || combined.includes("/scripts/run-dev.ts");
-  }
-  throw new Error(`Unknown runtime identity: ${identity.kind}`);
+  const executableName = APP_EXECUTABLE.toLowerCase();
+  return combined.includes("/node_modules/.bin/electron-vite")
+    || combined.includes("/node_modules/electron-vite/")
+    || combined.includes("/node_modules/electron/dist/")
+    || combined.includes(`/${APP_LABEL.toLowerCase()}.app/contents/macos/${executableName}`)
+    || combined.includes(`/${executableName}.exe`);
 }
 
 function parsePosixProcesses(stdout) {
@@ -166,14 +147,14 @@ export async function releaseRuntime(token) {
   return true;
 }
 
-async function stopRuntime(identity) {
+async function stopRuntime() {
   const initial = await listProcesses();
   const excluded = ancestorsOf(initial, process.pid);
-  const ownedRoots = initial.filter((item) => !excluded.has(item.pid) && ownsProcess(item, identity)).map((item) => item.pid);
+  const ownedRoots = initial.filter((item) => !excluded.has(item.pid) && ownsProcess(item)).map((item) => item.pid);
   if (ownedRoots.length === 0) return;
 
   const initialTargets = descendantsOf(initial, ownedRoots);
-  process.stdout.write(`Stopping the existing ${identity.label} runtime (pid ${ownedRoots.join(", ")}).\n`);
+  process.stdout.write(`Stopping the existing ${APP_LABEL} runtime (pid ${ownedRoots.join(", ")}).\n`);
 
   if (process.platform === "win32") {
     for (const pid of ownedRoots) {
@@ -198,7 +179,7 @@ async function stopRuntime(identity) {
 
   const current = await listProcesses();
   const currentOwnedRoots = current
-    .filter((item) => initialTargets.has(item.pid) && !excluded.has(item.pid) && ownsProcess(item, identity))
+    .filter((item) => initialTargets.has(item.pid) && !excluded.has(item.pid) && ownsProcess(item))
     .map((item) => item.pid);
   const forceTargets = descendantsOf(current, currentOwnedRoots);
   if (process.platform === "win32") {
@@ -248,8 +229,6 @@ async function waitForHttp(url, timeoutMilliseconds) {
 async function waitForExecutable(executablePath, timeoutMilliseconds) {
   const expected = normalized(resolve(executablePath));
   const repoRelativeExpected = normalized(relative(REPO_ROOT, expected));
-  const targetMarker = expected.lastIndexOf("/target/");
-  const targetRelativeExpected = targetMarker >= 0 ? expected.slice(targetMarker + 1) : "";
   const deadline = Date.now() + timeoutMilliseconds;
   while (Date.now() < deadline) {
     const processes = await listProcesses();
@@ -258,11 +237,7 @@ async function waitForExecutable(executablePath, timeoutMilliseconds) {
       const executable = normalized(item.executablePath);
       const command = normalized(item.commandLine);
       if (executable === expected || command === expected || command.startsWith(expected + " ")) return true;
-      const relativeMatch = command === repoRelativeExpected
-        || command.startsWith(repoRelativeExpected + " ")
-        || (targetRelativeExpected && (
-          command === targetRelativeExpected || command.startsWith(targetRelativeExpected + " ")
-        ));
+      const relativeMatch = command === repoRelativeExpected || command.startsWith(repoRelativeExpected + " ");
       if (!relativeMatch) return false;
       let parent = byPid.get(item.parentPid);
       while (parent) {
@@ -275,16 +250,6 @@ async function waitForExecutable(executablePath, timeoutMilliseconds) {
     await delay(100);
   }
   throw new Error(`${executablePath} did not start within ${timeoutMilliseconds} ms.`);
-}
-
-function parseIdentity(args) {
-  const kind = args.shift();
-  const label = args.shift();
-  const executable = args.shift();
-  if (!["electron", "tauri", "web"].includes(kind) || !label || !executable) {
-    throw new Error("Expected runtime identity: <electron|tauri|web> <label> <executable-name>.");
-  }
-  return { kind, label, executable };
 }
 
 async function main(args) {
@@ -308,15 +273,14 @@ async function main(args) {
     return;
   }
   if (command === "stop") {
-    await stopRuntime(parseIdentity(args));
+    await stopRuntime();
     return;
   }
   if (command === "stop-if-owner") {
     const token = args.shift();
-    if (!token) throw new Error("Expected stop-if-owner <token> <identity...>.");
-    const identity = parseIdentity(args);
+    if (!token) throw new Error("Expected stop-if-owner <token>.");
     if (!await isRuntimeOwner(token)) return;
-    await stopRuntime(identity);
+    await stopRuntime();
     await releaseRuntime(token);
     return;
   }

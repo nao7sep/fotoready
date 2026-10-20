@@ -50,7 +50,7 @@ try {
 
     $builtAt = (Get-Item $exePath).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
     & node $runtimeHelper claim $runtimeToken
-    & node $runtimeHelper stop electron "FotoReady" "FotoReady"
+    & node $runtimeHelper stop
     if ($LASTEXITCODE -ne 0) { throw "Could not replace the existing FotoReady runtime." }
     Write-Step "Launching the existing packaged app (built: $builtAt)"
     Write-Host "If you changed source since then, run rebuild instead."

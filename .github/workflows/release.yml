@@ -1,6 +1,6 @@
 name: Release
 
-# Per the app-release-conventions: test → package → attach to a DRAFT release.
+# Test → package → attach to a DRAFT release.
 # CI stays minimal — the packaging complexity lives in the inline electron-builder
 # config (package.json "build") and the `dist` npm script. Nothing is published
 # automatically; a draft is created for the pushed tag, verified, then published by

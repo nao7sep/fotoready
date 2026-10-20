@@ -2486,9 +2486,8 @@ button.output-badge-label:focus-visible {
 /* The dismiss X sits on the first text line: a top-aligned flex row (never a
    fixed top/right offset that only approximates it), with the button nudged
    down by --op-result-dismiss-offset so it centres on that line whether the
-   message is one line or wraps to several. Same recipe as every other
-   dismiss control in the app (see xalign.md): derive the offset from the
-   line height the message already has, not a chosen number — `1lh` on the
+   message is one line or wraps to several. The offset comes from the line
+   height the message already has, not a chosen number — `1lh` on the
    button resolves to its own computed line-height, which equals the
    message's (the button uses `font: inherit`, and line-height inherits with
    it), so the message's own font/line-height/padding are untouched. */

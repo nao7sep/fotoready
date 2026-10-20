@@ -17,7 +17,7 @@ interface Props {
   onClose(): void;
 }
 
-/** The fleet's About card: name and version, the introduction line, the project links, then copyright and licence. */
+/** The About card: name and version, the introduction line, the project links, then copyright and licence. */
 export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
   const { t } = useI18n();
   const [linkFailures, setLinkFailures] = useState<OwnedFailures>({});

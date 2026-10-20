@@ -3,7 +3,7 @@ import path from "node:path";
 import { message, type Message } from "@shared/i18n/translate";
 
 // The one place a path the user configured (a settings field, FOTOREADY_DATA_DIR)
-// is expanded and made absolute, per the storage-path-conventions.
+// is expanded and made absolute, so every such path follows the same rules.
 
 /** A configured path names an environment variable that is not set or is empty. */
 export class PathVariableError extends Error {

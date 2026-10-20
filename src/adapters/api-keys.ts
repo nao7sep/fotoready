@@ -6,14 +6,13 @@ import type { Logger } from "@shared/types/log";
 
 /**
  * API key storage and resolution — the secret store at ~/.fotoready/api-keys.json,
- * separate from settings. This is the fleet api-key-storage-conventions realized
- * for fotoready.
+ * separate from settings.
  *
  * fotoready uses a single key today (`"gemini"` → GEMINI_API_KEY), but the
- * store is the generic, id-addressed form so its contract matches every other
- * app in the fleet.
+ * store is id-addressed, so another provider or purpose is a new id rather than
+ * a new store.
  *
- * Contract (api-key-storage-conventions):
+ * Contract:
  *   - A key id is one flat lowercase string (`gemini`, or `provider.purpose` such
  *     as `gemini.vision`); its environment variable is the id uppercased, dots to
  *     underscores, suffixed "_API_KEY". Stored ids are matched case-insensitively;

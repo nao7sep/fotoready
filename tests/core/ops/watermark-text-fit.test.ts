@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { fitLargestFontSize, renderTrimmedTextBitmap } from "@core/ops/watermark-text";
 import { requireOpModule } from "@core/ops/registry";
-import { warmTextRendering } from "../../setup/warm-text-rendering";
+import { warmTextRendering } from "../../helpers/warm-text-rendering";
 
 type Params = Parameters<typeof renderTrimmedTextBitmap>[0];
 type Size = { width: number; height: number };

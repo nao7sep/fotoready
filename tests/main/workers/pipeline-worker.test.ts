@@ -10,7 +10,7 @@ import { defaultOutputSettings } from "@shared/defaults";
 import type { OpInstance } from "@shared/types/op";
 import type { OutputSettings, Pipeline } from "@shared/types/pipeline";
 import type { WorkerResult } from "@runtime/image";
-import { warmTextRendering } from "../../setup/warm-text-rendering";
+import { warmTextRendering } from "../../helpers/warm-text-rendering";
 
 // The worker entry the pool runs, called in process: decode, the ops, encode,
 // and the result contract the main process reads. The photo is four solid

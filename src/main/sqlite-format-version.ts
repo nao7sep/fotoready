@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { NewerFormatError } from "../shared/format-versions.ts";
 
-// Store recovery conventions for the SQLite stores. The store writer and the records reader load this
+// Format version checks for the SQLite stores. The store writer and the records reader load this
 // module on worker threads under Node's TypeScript stripping in the tests, so it imports only relative
 // `.ts` files and uses only erasable syntax.
 

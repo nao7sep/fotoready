@@ -323,7 +323,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("task.moveOp", "info", async (_event, taskId: string, opId: string, toIndex: number) => publishResult(ctx.projectSession.moveOp(taskId, opId, toIndex)));
   handle("task.setOpEnabled", "info", async (_event, taskId: string, opId: string, enabled: boolean) => publishResult(ctx.projectSession.setOpEnabled(taskId, opId, enabled)));
   // Op-parameter and output edits stream from slider drags (many per second) —
-  // developer-only debug per the volume rules; the saved result is logged at info.
+  // logged at debug so a drag cannot flood the log; the saved result is logged at info.
   handle("task.updateOpParam", "debug", async (_event, taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions) =>
     publishResult(ctx.projectSession.updateOpParam(taskId, opId, key, value, options))
   );

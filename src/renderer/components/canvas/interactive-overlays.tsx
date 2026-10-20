@@ -11,7 +11,7 @@ const MIN_STAGE_SIZE = 12;
 
 /**
  * Set the canvas cursor for the draggable region: the open hand at rest, the
- * closed hand while moving it (per the cursor conventions' drag rule). Konva
+ * closed hand while moving it, so the pointer says what a drag will do. Konva
  * draws to a canvas, so the cursor lives on the stage's container element, not
  * on the node — there is no CSS selector to hang it on.
  */

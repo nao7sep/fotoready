@@ -8,9 +8,8 @@ import { readFileSync } from "node:fs";
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 // Tests live under tests/, mirroring the src/ layout, so src/ stays pure shipped code and the
-// production typecheck (tsc over src/**) doesn't see test files. The alias map mirrors
-// electron.vite.config.ts / tsconfig.json so tests import modules by the same @-aliases the
-// app uses.
+// production typecheck (tsc over src/**) doesn't see test files. Tests import modules by the same
+// @-aliases the app uses; an alias missing here fails the first test that imports through it.
 const alias = {
   "@shared": resolve("src/shared"),
   "@core": resolve("src/core"),
@@ -35,7 +34,7 @@ export default defineConfig({
     include: ["tests/**/*.test.{ts,tsx}"],
     // data-dir-isolation: every test writes under its own throwaway storage root.
     // rendered-keys: every spec that mounts the interface also fails if a catalogue key reaches
-    // the screen (localization-conventions, Gates).
+    // the screen, where a raw key would stand in for a missing translation.
     setupFiles: ["tests/setup/data-dir-isolation.ts", "tests/setup/rendered-keys.ts"],
     // Outside Electron, the electron package's entry only returns its binary's path, and when the
     // binary is missing (any fresh `npm ci`, CI included) it downloads it from every worker at once.

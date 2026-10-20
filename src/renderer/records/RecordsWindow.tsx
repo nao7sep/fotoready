@@ -159,7 +159,7 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   const shellRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Pane sizing: window-conventions. The display follows the window; only a drag changes the intent.
+  // Pane sizing: the display follows the window; only a drag changes the intended width.
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return;
@@ -291,7 +291,7 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
     // The selection is compared by its key, not by the object holding it.
   }, [selectedKey]);
 
-  // Loading more: composite-control-conventions, Integration Points. A failed page is read again
+  // Loading more: the next page loads as the list's end is reached, and a failed page is read again
   // when the end is reached again.
   const loadMore = (): void => {
     if (list.status !== "ready" || !list.more || fetchingMore.current) return;
@@ -358,7 +358,7 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
     scrollRef.current = element;
   }, [listboxRef]);
 
-  // Drag intent: window-conventions, Content-based minimum size. Only the drag's end is saved.
+  // Drag intent: a drag shows its width live, and only its end is saved as the intended width.
   const commitListWidth = (width: number): void => {
     setListWidth(width);
     setDragWidth(null);

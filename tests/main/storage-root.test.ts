@@ -73,9 +73,8 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
   it("hard-errors on a reference to an unset $VAR, naming the variable (never a literal $VAR directory)", () => {
     process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_UNSET";
     // A literal `$VAR` path segment would be a silent misconfiguration — the
-    // app would create a directory literally named "$FOTOREADY_ROOT_TEST_UNSET".
-    // Per the storage-path-conventions (and the mumbler/tapebox reference
-    // shape), this is a reported startup error instead.
+    // app would create a directory literally named "$FOTOREADY_ROOT_TEST_UNSET",
+    // so it is a reported startup error instead.
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
     expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/not set/);

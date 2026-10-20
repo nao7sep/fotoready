@@ -9,7 +9,11 @@ function cannotLink(error: unknown): boolean {
   return ["EXDEV", "EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL"].includes((error as NodeJS.ErrnoException).code ?? "");
 }
 
-/** Output publication follows storage-path and content-lifecycle conventions. */
+/**
+ * Publishes a staged output at its final path without ever replacing a file already there, keeping
+ * the source's permissions and modified time. A hard link publishes atomically; where the volume
+ * cannot link, a private copy is published by link or, failing that, by an exclusively created file.
+ */
 export async function moveOutputFile(from: string, to: string, logger?: Logger): Promise<MoveCleanupFailure[]> {
   const failures: MoveCleanupFailure[] = [];
   try {

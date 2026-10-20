@@ -1,10 +1,6 @@
-// Whitespace cleanup for stored and displayed text — the per-app realization of
-// the fleet text-cleanup conventions. There is no shared package; these are the
-// canonical algorithms copied verbatim, with their behavior pinned by
-// tests/shared/text-cleanup.test.ts.
+// Whitespace cleanup for stored and displayed text.
 //
-// Cleanup runs at commit/blur/display time, NEVER mid-edit (per the text-input
-// IME conventions): formatting a field while the user types — or composes with
+// Cleanup runs at commit/blur/display time, NEVER mid-edit: formatting a field while the user types — or composes with
 // an IME — tears the value out from under them. Callers apply these on blur or
 // at the point a raw value is written into output, not in a keystroke handler.
 //

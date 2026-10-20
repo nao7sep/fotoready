@@ -12,8 +12,7 @@ import { useImeGuard, type ImeCompositionProps } from "@renderer/utils/ime-guard
  *
  * The external value is adopted when the field identity changes (switching
  * task/op/field) or when this field is not the one being edited, so the async
- * echo of the user's own typing never snaps the field back mid-edit. See the
- * text input and IME conventions.
+ * echo of the user's own typing never snaps the field back mid-edit.
  */
 export function useDraftField<T extends HTMLInputElement | HTMLTextAreaElement>(
   external: string,

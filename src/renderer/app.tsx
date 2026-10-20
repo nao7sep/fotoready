@@ -13,6 +13,7 @@ import type { InterfaceLanguage } from "@shared/i18n/languages";
 import { message, type Message } from "@shared/i18n/translate";
 import { loadCatalogue, type MessageKey } from "@shared/i18n/catalogues";
 import { APP_NAME } from "@shared/constants";
+import { applyLayoutVariables } from "@renderer/layout/layout-variables";
 import { resolveOutputFormat } from "@shared/output-format";
 import { outputFormatName } from "./output-format-name";
 import { pipelineForPreview } from "@shared/preview-pipeline";
@@ -1431,6 +1432,7 @@ function LocalizedRoot(): React.JSX.Element | null {
   );
 }
 
+applyLayoutVariables(document.documentElement);
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <LocalizedRoot />

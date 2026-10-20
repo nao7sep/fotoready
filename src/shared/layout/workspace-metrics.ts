@@ -1,7 +1,8 @@
 // Single source of truth for the workspace's pane minimums, splitter width, and fixed-chrome
-// heights, plus the pure functions that derive the window's minimum size from them. Per the
-// window-chrome conventions, the window minimum is the SUM of the pane minimums plus the splitters
-// plus the fixed chrome — never a hand-typed literal that silently drifts when a pane changes.
+// heights, plus the pure functions that derive the window's minimum size from them. The window
+// minimum is the SUM of the pane minimums plus the splitters plus the fixed chrome, so it follows
+// a pane's change instead of drifting from it. The stylesheet takes these lengths from the
+// variables the renderer sets on the document root (layout-variables.ts), so it repeats none.
 //
 // Consumed by both sides of the app: the main process reads it to size the BrowserWindow's
 // minWidth/minHeight (src/main/bootstrap.ts), and the renderer reads it to clamp splitter drags
@@ -45,14 +46,13 @@ export const PANE_MAXES: Record<WorkspacePaneKey, number> = {
   addOps: 360
 };
 
-/** Width (px) of a workspace splitter. Mirrors `.workspace-splitter` in app.css. */
+/** Width (px) of a workspace splitter. */
 export const SPLITTER_WIDTH = 6;
 
 /**
  * Fixed-chrome heights (px), reserved before the resizable content and counted toward the window
- * minimum so they are never the element clipped when space runs short. Each value mirrors a row in
- * app.css: `.app-shell` top row (`topBar`), `.preview-toolbar` (`previewToolbar`), and `.app-shell`
- * bottom row (`statusBar`).
+ * minimum so they are never the element clipped when space runs short: the top bar, the preview
+ * toolbar above the editor, and the status bar.
  */
 export const CHROME = {
   topBar: 48,

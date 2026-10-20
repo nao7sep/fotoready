@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { applyLayoutVariables } from "@renderer/layout/layout-variables";
 
 // Every color pair the stylesheet draws keeps high contrast in both themes, by this app's own
 // floor: 4.5:1 for text, 3:1 for a field's outline and for focus, selection, and status marks.
@@ -178,12 +179,27 @@ describe("theme token contrast", () => {
   });
 
   it("references only defined tokens", () => {
-    // The asset picker sets its preview size inline from Settings at runtime, and the Records window
-    // its list pane's displayed width.
+    // The asset picker sets its preview size inline from Settings at runtime, the Records window
+    // its list pane's displayed width, and startup the layout lengths.
     const defined = new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1])
-      .concat("--asset-picker-preview-size", "--records-list-width"));
+      .concat("--asset-picker-preview-size", "--records-list-width", ...layoutVariables().keys()));
     for (const [, token] of css.matchAll(/var\((--[a-z0-9-]+)/g)) {
       expect(defined.has(token), `${token} is defined`).toBe(true);
     }
   });
+
+  it("uses every layout length startup sets, and defines none of them itself", () => {
+    const used = new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map((match) => match[1]));
+    const declared = new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1]));
+    for (const name of layoutVariables().keys()) {
+      expect(used.has(name), `${name} is used`).toBe(true);
+      expect(declared.has(name), `${name} is left to startup`).toBe(false);
+    }
+  });
 });
+
+function layoutVariables(): Map<string, string> {
+  const set = new Map<string, string>();
+  applyLayoutVariables({ style: { setProperty: (name: string, value: string) => void set.set(name, value) } } as unknown as HTMLElement);
+  return set;
+}

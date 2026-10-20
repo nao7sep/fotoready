@@ -3,6 +3,7 @@ import { api } from "@renderer/ipc/client";
 import { ErrorBoundary } from "@renderer/components/error-boundary";
 import { denyUnhandledExternalDrop } from "@renderer/external-file-drop";
 import { installWindowActivityState } from "@renderer/window-activity";
+import { applyLayoutVariables } from "@renderer/layout/layout-variables";
 import { RecordsApp } from "./RecordsWindow";
 import "../styles/app.css";
 
@@ -11,6 +12,7 @@ import "../styles/app.css";
 window.addEventListener("dragover", denyUnhandledExternalDrop);
 window.addEventListener("drop", denyUnhandledExternalDrop);
 installWindowActivityState(api.lifecycle.onWindowActivityChanged, document.documentElement);
+applyLayoutVariables(document.documentElement);
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

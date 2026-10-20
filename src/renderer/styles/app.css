@@ -6,14 +6,13 @@
   --font-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Menlo", "Consolas", monospace;
   font-family: var(--font-ui);
-  /* Control anatomy, shared by both themes: 30px standard controls, 26px
-     compact ones (chips, inline actions), 24px quiet icon actions on a card or
-     row; one 8px gap between controls that sit together; corners that grow
-     with the surface. */
-  --control-h: 30px;
+  /* Control anatomy, shared by both themes: standard controls (--control-h)
+     and the one gap between controls that sit together (--control-gap), both
+     set from the layout constants at startup; 26px compact ones (chips, inline
+     actions), 24px quiet icon actions on a card or row; corners that grow with
+     the surface. */
   --control-h-sm: 26px;
   --control-h-xs: 24px;
-  --control-gap: 8px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
@@ -345,12 +344,12 @@ button {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr) 32px;
+  grid-template-rows: var(--top-bar-height) minmax(0, 1fr) var(--status-bar-height);
   height: 100%;
 }
 
 .app-shell.has-shell-result {
-  grid-template-rows: 48px auto minmax(0, 1fr) 32px;
+  grid-template-rows: var(--top-bar-height) auto minmax(0, 1fr) var(--status-bar-height);
 }
 
 .app-shell-result-stack {
@@ -588,7 +587,7 @@ button:focus-visible {
 }
 
 .app-menu button {
-  min-height: 30px;
+  min-height: var(--control-h);
   padding: 4px 10px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -791,15 +790,16 @@ button.output-badge-label:focus-visible {
   min-width: 0;
   display: grid;
   /* Static fallback before useWorkspaceLayout sets the inline template. Side panes are originals,
-     tasks, and the single Ops region (the two ops halves folded into one 480px track), with the
-     editor as the fill pane carrying its own minimum (minmax(360px, 1fr)) so widening a side pane
-     can never squeeze it out. */
-  grid-template-columns: 160px 6px 200px 6px minmax(360px, 1fr) 6px 480px;
+     tasks, and the single Ops region (the two ops halves folded into one track), with the editor
+     as the fill pane carrying its own minimum so widening a side pane can never squeeze it out. */
+  grid-template-columns:
+    var(--originals-default-width) var(--splitter-width) var(--tasks-default-width) var(--splitter-width)
+    minmax(var(--editor-min-width), 1fr) var(--splitter-width) var(--ops-default-width);
 }
 
 .workspace-splitter {
-  min-width: 6px;
-  width: 6px;
+  min-width: var(--splitter-width);
+  width: var(--splitter-width);
   height: 100%;
   padding: 0;
   border: 0;
@@ -1165,7 +1165,7 @@ button.output-badge-label:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
+  min-height: var(--preview-toolbar-height);
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--surface-bg);
@@ -3135,12 +3135,11 @@ kbd {
 
 /* ── Records window ───────────────────────────────────────
    The list pane (filters above the record list), the splitter and the detail pane, edge to edge
-   like the main workspace. Sizes mirror src/shared/layout/records-metrics.ts; the list's width is
-   set inline from its displayed width. */
+   like the main workspace. The list's width is set inline from its displayed width. */
 .records-shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: var(--records-list-width) 6px minmax(0, 1fr);
+  grid-template-columns: var(--records-list-width) var(--splitter-width) minmax(0, 1fr);
 }
 
 .records-detail-pane {
@@ -3151,7 +3150,7 @@ kbd {
   flex: 0 0 auto;
   display: grid;
   gap: var(--control-gap);
-  padding: 10px;
+  padding: var(--records-filters-padding);
   border-bottom: 1px solid var(--border-color);
 }
 

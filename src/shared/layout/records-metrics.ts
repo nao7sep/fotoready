@@ -1,8 +1,9 @@
-// The Records window's layout (window-conventions, Content-based minimum size): a list pane the user
-// can widen (filters above the record list), a splitter, and the detail pane, which takes the rest.
-// Each value mirrors a `.records-*` rule in src/renderer/styles/app.css; when one changes, change the
-// rule beside it and the window minimum below follows.
+// The Records window's layout: a list pane the user can widen (filters above the record list), a
+// splitter, and the detail pane, which takes the rest. The window's minimum is derived from the
+// panes' content, and the stylesheet takes the lengths it shares with them from the variables the
+// renderer sets on the document root, so the two cannot drift.
 
+import { CONTROL_GAP, CONTROL_HEIGHT } from "./controls";
 import { SPLITTER_WIDTH } from "./workspace-metrics";
 
 /** The list pane's bounds and opening width. `min` still fits two filter selects side by side. */
@@ -11,11 +12,14 @@ export const RECORDS_LIST_WIDTH = { min: 320, default: 380, max: 640 } as const;
 /** The detail pane's minimum: its header's title and level marks, and the field grid below. */
 export const RECORDS_DETAIL_MIN_WIDTH = 420;
 
+/** The padding around the filter band's controls. */
+export const RECORDS_FILTERS_PADDING = 10;
+
 /**
- * The filter band: 10px padding above and below a search field and two rows of selects (three 30px
- * controls, 8px apart), and the line below it. Mirrors `.records-filters`.
+ * The filter band: its padding above and below a search field and two rows of selects (three
+ * controls, a control gap apart), and the line below it.
  */
-export const RECORDS_FILTERS_HEIGHT = 10 * 2 + 30 * 3 + 8 * 2 + 1;
+export const RECORDS_FILTERS_HEIGHT = RECORDS_FILTERS_PADDING * 2 + CONTROL_HEIGHT * 3 + CONTROL_GAP * 2 + 1;
 
 /** The record list's smallest useful height: a few rows. */
 export const RECORDS_LIST_MIN_HEIGHT = 160;

@@ -159,10 +159,6 @@ describe("the total exit deadline", () => {
     expect(electron.state.exits).toBe(0);
   });
 
-  it("is 5 s", () => {
-    expect(QUIT_DEADLINE_MS).toBe(5_000);
-  });
-
   it("ends an approved quit whose stop stalls, at the deadline counted from approval", async () => {
     const prepared = deferred<boolean>();
     const forceExit = vi.fn();

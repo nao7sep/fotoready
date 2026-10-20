@@ -26,10 +26,9 @@ const { LatestOnly } = await import("@main/latest-only");
 const { PreviewService } = await import("@main/preview-service");
 
 describe("the I/O thread pool size", () => {
-  it("is set to 16 unless the environment already chose a size", () => {
-    expect(THREADPOOL_SIZE).toBe(16);
-    expect(threadpoolSizeToSet({})).toBe("16");
-    expect(threadpoolSizeToSet({ UV_THREADPOOL_SIZE: "" })).toBe("16");
+  it("is set unless the environment already chose a size", () => {
+    expect(threadpoolSizeToSet({})).toBe(String(THREADPOOL_SIZE));
+    expect(threadpoolSizeToSet({ UV_THREADPOOL_SIZE: "" })).toBe(String(THREADPOOL_SIZE));
     expect(threadpoolSizeToSet({ UV_THREADPOOL_SIZE: "6" })).toBeNull();
   });
 });

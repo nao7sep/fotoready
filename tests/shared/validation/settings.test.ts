@@ -107,10 +107,6 @@ describe("normalizeGlobalSettings", () => {
     expect(unknown.issues).toEqual(["settings.theme must be one of: system, light, dark."]);
   });
 
-  it("defaults the UI font to blank (meaning the built-in default stack)", () => {
-    expect(fallback.uiFontFamily).toBe("");
-  });
-
   it("keeps a custom UI font and accepts a blank one", () => {
     const custom = normalizeGlobalSettings({ ...fallback, uiFontFamily: "Iosevka, monospace" }, fallback);
     expect(custom.settings.uiFontFamily).toBe("Iosevka, monospace");

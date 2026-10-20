@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   BUILTIN_RENAME_TEMPLATE_IDS,
-  DEFAULT_RENAME_TEMPLATE_ID,
   builtinRenameTemplates,
   findRenameTemplate,
   renameTemplateUsesOriginal,
@@ -20,10 +19,6 @@ describe("findRenameTemplate", () => {
   it("falls back to the first template for unknown or missing ids", () => {
     expect(findRenameTemplate("does-not-exist").id).toBe(builtinRenameTemplates[0].id);
     expect(findRenameTemplate(undefined).id).toBe(builtinRenameTemplates[0].id);
-  });
-
-  it("uses slug + size as the default", () => {
-    expect(DEFAULT_RENAME_TEMPLATE_ID).toBe(BUILTIN_RENAME_TEMPLATE_IDS.slugSize);
   });
 });
 

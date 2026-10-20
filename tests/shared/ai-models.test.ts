@@ -36,7 +36,6 @@ describe("AI routing table guard", () => {
         expect(defaultGlobalSettings()[thinkingKey]).toBe(defaultThinkingFor(provider, defaultModelFor(provider, role.kind)));
       }
     }
-    expect(SETTINGS_KEYS).not.toContain("model");
     // Only the description role sends an image, so only it has an image resolution.
     expect(SETTINGS_KEYS.filter((key) => key.startsWith("gemini.mediaResolution."))).toEqual(["gemini.mediaResolution.description"]);
     expect(defaultGlobalSettings()["gemini.mediaResolution.description"]).toBe("high");

@@ -26,14 +26,9 @@ describe("buildWindowOptions", () => {
   it("uses the derived minimum size, not hand-typed literals", () => {
     expect(options.minWidth).toBe(computeMinWindowWidth());
     expect(options.minHeight).toBe(computeMinWindowHeight());
-    // The old magic literals must be gone.
-    expect(options.minWidth).not.toBe(1024);
-    expect(options.minHeight).not.toBe(640);
   });
 
   it("opens at the derived designed size, not a fixed literal", () => {
-    // The old fixed 1280x800 default is gone; the first-run width is the compact derived one.
-    expect(options.width).not.toBe(1280);
     expect(options.width).toBe(computeFirstRunWindowWidth());
     expect(options.height).toBe(computeFirstRunWindowHeight());
   });

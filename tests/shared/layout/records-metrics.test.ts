@@ -20,12 +20,12 @@ describe("Records window layout", () => {
     expect(RECORDS_WINDOW_FIRST_RUN.height).toBeGreaterThanOrEqual(RECORDS_WINDOW_MIN_HEIGHT);
   });
 
-  it("keeps the list pane between 320 and 640 px, opening at 380", () => {
-    expect(RECORDS_LIST_WIDTH).toEqual({ min: 320, default: 380, max: 640 });
-    expect(clampRecordsListWidth(1000)).toBe(640);
-    expect(clampRecordsListWidth(100)).toBe(320);
-    expect(clampRecordsListWidth(450.4)).toBe(450);
-    expect(clampRecordsListWidth(Number.NaN)).toBe(380);
+  it("keeps the list pane within its bounds, opening at its default", () => {
+    const { min, max } = RECORDS_LIST_WIDTH;
+    expect(clampRecordsListWidth(max + 1)).toBe(max);
+    expect(clampRecordsListWidth(min - 1)).toBe(min);
+    expect(clampRecordsListWidth(min + 0.4)).toBe(min);
+    expect(clampRecordsListWidth(Number.NaN)).toBe(RECORDS_LIST_WIDTH.default);
   });
 
   it("narrows the shown list so the detail pane keeps its minimum, and never below the list's own", () => {

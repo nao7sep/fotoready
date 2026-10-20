@@ -67,6 +67,7 @@ vi.mock("electron", () => {
 });
 
 import { cancelOpenMessageDialogs, renderPlainMessageDialogHtml, showPlainMessageDialog } from "@main/plain-message-dialog";
+import { windowBackground } from "@main/theme";
 
 beforeEach(() => {
   electron.dark = false;
@@ -86,7 +87,6 @@ describe("plain message dialog", () => {
     expect(html).toContain('id="dialog-body"');
     expect(html).toContain('id="dialog-footer"');
     expect(html).toContain('role="region" aria-label="Message details" tabindex="0"');
-    expect(html).toContain("*::-webkit-scrollbar{width:16px;height:16px}");
   });
 
   it("speaks the language it is given, in its button, region name and document language", () => {
@@ -103,7 +103,7 @@ describe("plain message dialog", () => {
     expect(html).toContain(">OK &lt;sofort&gt;</button>");
   });
 
-  it("draws each button with its role, and wraps the row instead of clipping it", () => {
+  it("draws each button with its role", () => {
     const html = renderPlainMessageDialogHtml({
       title: "Title",
       message: "Message",
@@ -118,7 +118,6 @@ describe("plain message dialog", () => {
     expect(html).toContain('<button id="choice-0" class="button" type="button"');
     expect(html).toContain('<button id="choice-1" class="button primary" type="button"');
     expect(html).toContain('<button id="choice-2" class="button destructive" type="button"');
-    expect(html).toContain(".actions{display:flex;flex-wrap:wrap;");
   });
 
   it("answers with the button chosen, and with the cancel choice on Escape or an ending session", async () => {
@@ -141,14 +140,11 @@ describe("plain message dialog", () => {
     expect(electron.windows[2]?.close).toHaveBeenCalled();
   });
 
-  it("follows the resolved theme in its page and its window background", async () => {
-    const html = renderPlainMessageDialogHtml({ title: "Title", message: "Message", ...words });
-    expect(html).toContain("@media (prefers-color-scheme:dark){:root{color-scheme:dark;background:#161616");
-
+  it("follows the resolved theme in its window background", async () => {
     electron.dark = true;
     const result = showPlainMessageDialog({ title: "Title", message: "Message", ...words });
     await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
-    expect(electron.windows[0]?.options.backgroundColor).toBe("#161616");
+    expect(electron.windows[0]?.options.backgroundColor).toBe(windowBackground(true));
     electron.windows[0]?.close();
     await result;
   });

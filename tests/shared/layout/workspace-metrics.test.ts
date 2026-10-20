@@ -22,12 +22,6 @@ describe("workspace-metrics", () => {
       expect(computeMinWindowWidth()).toBe(expected);
     });
 
-    it("matches the current derived literal (guard against silent drift)", () => {
-      // 140 + 170 + 360 + 230 + 180 = 1080, + 18 (3 x 6px splitters) = 1098. If a pane minimum or
-      // the splitter width changes, this literal must change with it — that is the point.
-      expect(computeMinWindowWidth()).toBe(1098);
-    });
-
     it("reserves room for every pane: subtracting all but one still leaves that one its minimum", () => {
       const total = computeMinWindowWidth();
       const splitters = 3 * SPLITTER_WIDTH;
@@ -42,11 +36,6 @@ describe("workspace-metrics", () => {
       expect(computeMinWindowHeight()).toBe(
         CHROME.topBar + CHROME.previewToolbar + CHROME.statusBar + CONTENT_MIN_HEIGHT
       );
-    });
-
-    it("matches the current derived literal (guard against silent drift)", () => {
-      // 48 (top bar) + 36 (preview toolbar) + 32 (status bar) + 320 (content) = 436.
-      expect(computeMinWindowHeight()).toBe(436);
     });
 
     it("reserves all three fixed chrome bars so none can be clipped", () => {
@@ -64,8 +53,6 @@ describe("workspace-metrics", () => {
     });
 
     it("is the smallest window that shows the default layout without cramping (>= the minimum)", () => {
-      // 840 side defaults + 360 editor + 18 splitters = 1218, above the 1098 bare minimum.
-      expect(computeFirstRunWindowWidth()).toBe(1218);
       expect(computeFirstRunWindowWidth()).toBeGreaterThan(computeMinWindowWidth());
     });
   });

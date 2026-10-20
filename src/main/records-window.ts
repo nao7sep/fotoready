@@ -1,6 +1,5 @@
 import { app, BrowserWindow, type BrowserWindowConstructorOptions } from "electron";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   RECORDS_WINDOW_FIRST_RUN,
   RECORDS_WINDOW_MIN_HEIGHT,
@@ -14,7 +13,6 @@ import { configureWindowActivity } from "./window-activity";
 import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The Records window shows records.sqlite3. It is a durable secondary window with its own placement
 // (window-conventions, Placement), and there is only ever one: opening it again brings it forward.
@@ -74,7 +72,7 @@ export async function openRecordsWindow({ title, logger }: { title: string; logg
   }
   recordsOpener = opener;
 
-  const options = buildRecordsWindowOptions(title, path.join(__dirname, "../preload/index.mjs"));
+  const options = buildRecordsWindowOptions(title, path.join(import.meta.dirname, "../preload/index.mjs"));
   const win = createWindowWithUsablePersistedBounds("records", () => new BrowserWindow(options));
   recordsWindow = win;
   // Closing Records while it has focus hands focus back to the window it was opened from, rather
@@ -107,7 +105,7 @@ export async function openRecordsWindow({ title, logger }: { title: string; logg
     if (rendererUrl) {
       await win.loadURL(new URL("records.html", `${rendererUrl}/`).toString());
     } else {
-      await win.loadFile(path.join(__dirname, "../renderer/records.html"));
+      await win.loadFile(path.join(import.meta.dirname, "../renderer/records.html"));
     }
   } catch (error) {
     win.destroy();

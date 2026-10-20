@@ -1,19 +1,16 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Piscina from "piscina";
 import { nanoid } from "nanoid";
 import type { Pipeline } from "@shared/types/pipeline";
 import type { WorkerJob, WorkerResult } from "@runtime/image";
 import { PipelineError } from "@runtime/pipeline-error";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 export class PipelineWorkerPool {
   #pool: Piscina;
 
   constructor(workerPoolSize: number) {
     this.#pool = new Piscina({
-      filename: path.join(__dirname, "workers/pipeline-worker.js"),
+      filename: path.join(import.meta.dirname, "workers/pipeline-worker.js"),
       maxThreads: Math.max(1, workerPoolSize)
     });
   }

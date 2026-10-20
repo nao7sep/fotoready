@@ -2,7 +2,6 @@ import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { createRecordsStore, droppedRecordsRow, fallbackFile, writeFallbackRecord } from "./records-store";
@@ -71,7 +70,6 @@ export function buildWindowOptions(
   };
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Shared across the app's lifetime. The quit records why the app is shutting
 // down, and its stop reads it. "unknown" means the app went down
@@ -243,7 +241,7 @@ export async function bootstrap(): Promise<void> {
   followOsShutdown(quit);
 
   const createWindow = async (): Promise<void> => {
-    const options = buildWindowOptions(path.join(__dirname, "../preload/index.mjs"));
+    const options = buildWindowOptions(path.join(import.meta.dirname, "../preload/index.mjs"));
     const win = createWindowWithUsablePersistedBounds("main", () => new BrowserWindow(options));
     mainWindow = win;
     // The Records window belongs to this window's workspace and closes with it, so the app's own
@@ -279,7 +277,7 @@ export async function bootstrap(): Promise<void> {
       if (rendererUrl) {
         await win.loadURL(rendererUrl);
       } else {
-        await win.loadFile(path.join(__dirname, "../renderer/index.html"));
+        await win.loadFile(path.join(import.meta.dirname, "../renderer/index.html"));
       }
     } catch (error) {
       logger.error("failed to load the renderer window", { mod: "main", err: error });

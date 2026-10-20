@@ -1,3 +1,4 @@
+import { AUTO_TONE_CLIP_LIMITS } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
 
@@ -14,8 +15,8 @@ export const autoToneModule: OpModule<AutoToneParams> = {
   validate(value) {
     const record = assertParamsShape(value, ["shadowClip", "highlightClip"], "auto-tone.params");
     return {
-      shadowClip: assertFiniteNumber(record.shadowClip, "auto-tone.params.shadowClip", { min: 0, max: 10 }),
-      highlightClip: assertFiniteNumber(record.highlightClip, "auto-tone.params.highlightClip", { min: 0, max: 10 })
+      shadowClip: assertFiniteNumber(record.shadowClip, "auto-tone.params.shadowClip", AUTO_TONE_CLIP_LIMITS),
+      highlightClip: assertFiniteNumber(record.highlightClip, "auto-tone.params.highlightClip", AUTO_TONE_CLIP_LIMITS)
     };
   },
   apply(image, params) {

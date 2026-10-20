@@ -1,3 +1,4 @@
+import { MIN_BLUR_SIGMA } from "@shared/op-limits";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import type { OpRenderer } from "./op-renderer";
 
@@ -10,7 +11,7 @@ export const unsharpMaskRenderer: OpRenderer<UnsharpMaskParams> = {
       <div className="geometry-controls">
         <label className="slider-row">
           <span>{t("geometry.radius")}</span>
-          <input disabled={disabled} max={10} min={0.3} step={0.1} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />
+          <input disabled={disabled} max={10} min={MIN_BLUR_SIGMA} step={0.1} type="range" value={params.radius} onChange={(e) => onParamChange("radius", e.currentTarget.valueAsNumber)} />
           <span className="slider-value">{params.radius.toFixed(1)}</span>
         </label>
         <label className="slider-row">

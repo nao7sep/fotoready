@@ -1,3 +1,4 @@
+import { MIN_BLUR_SIGMA } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
 
@@ -21,7 +22,7 @@ export const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
   apply(image, params) {
     if (params.amount <= 0) return image;
     return image.sharpen({
-      sigma: Math.max(0.3, params.radius),
+      sigma: Math.max(MIN_BLUR_SIGMA, params.radius),
       m1: params.amount
     });
   }

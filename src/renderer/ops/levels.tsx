@@ -1,10 +1,10 @@
+import { CHANNEL_LIMITS, MIN_LEVEL_SPAN } from "@shared/op-limits";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import type { OpRenderer } from "./op-renderer";
 
 type LevelsParams = { blackPoint: number; whitePoint: number; gamma: number };
 
-const MIN_LEVEL_SPAN = 1;
-const DEFAULT_LEVELS: LevelsParams = { blackPoint: 0, whitePoint: 255, gamma: 1 };
+const DEFAULT_LEVELS: LevelsParams = { blackPoint: CHANNEL_LIMITS.min, whitePoint: CHANNEL_LIMITS.max, gamma: 1 };
 
 export const levelsRenderer: OpRenderer<LevelsParams> = {
   Card({ params, disabled, onParamChange, onParamsChange }) {
@@ -22,8 +22,8 @@ export const levelsRenderer: OpRenderer<LevelsParams> = {
           <span>{t("levels.blackPoint")}</span>
           <input
             disabled={disabled}
-            max={Math.max(0, params.whitePoint - MIN_LEVEL_SPAN)}
-            min={0}
+            max={Math.max(CHANNEL_LIMITS.min, params.whitePoint - MIN_LEVEL_SPAN)}
+            min={CHANNEL_LIMITS.min}
             step={1}
             type="range"
             value={params.blackPoint}
@@ -35,8 +35,8 @@ export const levelsRenderer: OpRenderer<LevelsParams> = {
           <span>{t("levels.whitePoint")}</span>
           <input
             disabled={disabled}
-            max={255}
-            min={Math.min(255, params.blackPoint + MIN_LEVEL_SPAN)}
+            max={CHANNEL_LIMITS.max}
+            min={Math.min(CHANNEL_LIMITS.max, params.blackPoint + MIN_LEVEL_SPAN)}
             step={1}
             type="range"
             value={params.whitePoint}

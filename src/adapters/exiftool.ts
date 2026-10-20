@@ -19,8 +19,9 @@ import { exiftool, type WriteTags } from "exiftool-vendored";
 import type { CaptureTimeField, LocationField, SourceMetadataSummary } from "@shared/types/project";
 import type { MetadataFields, MetadataStripMode } from "@shared/types/settings";
 import type { Logger } from "@shared/types/log";
+import { APP_NAME } from "@shared/constants";
 
-const APP_SOFTWARE_TAG = "FotoReady";
+const APP_SOFTWARE_TAG = APP_NAME;
 
 // Every tag that records when the photo was taken or digitized, in any group: EXIF, IPTC and XMP
 // (as Lightroom, Photo Mechanic and news workflows write it), the GPS fix time, and PNG's creation

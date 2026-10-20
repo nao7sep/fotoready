@@ -1,8 +1,7 @@
+import { ANGLE_LIMITS, HSL_AMOUNT_LIMITS, HSL_RANGES, type HslRange } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { applyPixels, assertFiniteNumber, assertParamsShape, assertRecord, clamp01 } from "./_shared";
 
-export const HSL_RANGES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;
-export type HslRange = (typeof HSL_RANGES)[number];
 const HSL_KEYS = ["all", ...HSL_RANGES] as const;
 type HslKey = (typeof HSL_KEYS)[number];
 const HUE_CENTERS: ReadonlyArray<{ range: HslRange; hue: number }> = [
@@ -52,9 +51,9 @@ function transformHsl(raw: Buffer, params: HslParams): void {
 function validateRange(value: unknown, path: string): HslAdjustment {
   const record = assertRecord(value, path);
   return {
-    hue: assertFiniteNumber(record.hue, `${path}.hue`, { min: -180, max: 180 }),
-    sat: assertFiniteNumber(record.sat, `${path}.sat`, { min: -1, max: 1 }),
-    lum: assertFiniteNumber(record.lum, `${path}.lum`, { min: -1, max: 1 })
+    hue: assertFiniteNumber(record.hue, `${path}.hue`, ANGLE_LIMITS),
+    sat: assertFiniteNumber(record.sat, `${path}.sat`, HSL_AMOUNT_LIMITS),
+    lum: assertFiniteNumber(record.lum, `${path}.lum`, HSL_AMOUNT_LIMITS)
   };
 }
 

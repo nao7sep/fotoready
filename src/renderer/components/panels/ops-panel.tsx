@@ -1,3 +1,4 @@
+import { OUTPUT_QUALITY_LIMITS } from "@shared/op-limits";
 import React, { useEffect, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem, StampEntry, TaskEditOptions, VisionRunMode } from "@shared/types/ipc";
@@ -515,8 +516,8 @@ function OutputControls({
           <span>{t("output.quality")}</span>
           <input
             disabled={outputDisabled || !task || (resolvedFormat === "jpeg" && jpegQualityMode === "auto")}
-            max={100}
-            min={1}
+            max={OUTPUT_QUALITY_LIMITS.max}
+            min={OUTPUT_QUALITY_LIMITS.min}
             step={1}
             type="range"
             value={qualityValue}

@@ -1,3 +1,4 @@
+import { MIN_BLUR_SIGMA } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared";
@@ -28,7 +29,7 @@ export const blurModule: OpModule<BlurParams> = {
         rect,
         ctx.sourceWidth,
         ctx.sourceHeight,
-        (regionImage) => regionImage.blur(Math.max(0.3, params.radius))
+        (regionImage) => regionImage.blur(Math.max(MIN_BLUR_SIGMA, params.radius))
       );
     }));
     return applyComposite(image, overlays);

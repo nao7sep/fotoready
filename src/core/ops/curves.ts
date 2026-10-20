@@ -1,3 +1,4 @@
+import { CHANNEL_LIMITS } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { applyPixels, assertArray, assertFiniteNumber, assertParamsShape } from "./_shared";
 
@@ -18,8 +19,8 @@ export const curvesModule: OpModule<CurvesParams> = {
         throw new Error(`curves.params.rgb[${index}] must contain two numeric values.`);
       }
       return [
-        assertFiniteNumber(tuple[0], `curves.params.rgb[${index}][0]`, { min: 0, max: 255 }),
-        assertFiniteNumber(tuple[1], `curves.params.rgb[${index}][1]`, { min: 0, max: 255 })
+        assertFiniteNumber(tuple[0], `curves.params.rgb[${index}][0]`, CHANNEL_LIMITS),
+        assertFiniteNumber(tuple[1], `curves.params.rgb[${index}][1]`, CHANNEL_LIMITS)
       ] as [number, number];
     });
     if (points.length < 2) {

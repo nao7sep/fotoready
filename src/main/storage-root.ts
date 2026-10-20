@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DATA_DIR_ENV_VAR } from "@shared/constants";
 import { PathVariableError, resolveConfiguredPath } from "./configured-path";
 
-// Resolves the single storage root per the storage-path conventions. The root
+// Resolves the single storage root, the one place app data lives. The root
 // is the FOTOREADY_DATA_DIR override when it is set and non-empty (its value is
 // expanded for `~` and environment references, then made absolute against the
 // HOME directory — never the working directory), otherwise the default
@@ -14,7 +15,6 @@ import { PathVariableError, resolveConfiguredPath } from "./configured-path";
 // exercised directly in tests by setting FOTOREADY_DATA_DIR, which is the one
 // supported relocation seam.
 
-const DATA_DIR_ENV_VAR = "FOTOREADY_DATA_DIR";
 
 /**
  * The override expanded and made absolute against the HOME directory through the

@@ -2,10 +2,17 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { LANGUAGES, type Language } from "@shared/i18n/languages";
+import { APP_NAME } from "@shared/constants";
 
 const packageJson = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 );
+
+describe("app identity", () => {
+  it("packages the app under the name it shows", () => {
+    expect(packageJson.build.productName).toBe(APP_NAME);
+  });
+});
 
 // The installer and the macOS bundle speak the app's interface languages
 // (localization-conventions): English first, as the installer's fallback.

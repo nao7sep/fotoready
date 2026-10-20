@@ -1,3 +1,4 @@
+import { ANGLE_LIMITS } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { assertFiniteNumber, assertNonEmptyString, assertParamsShape, materialize } from "./_shared";
 
@@ -14,7 +15,7 @@ export const rotateModule: OpModule<RotateParams> = {
   validate(value) {
     const record = assertParamsShape(value, ["degrees", "fillColor"], "rotate.params");
     return {
-      degrees: assertFiniteNumber(record.degrees, "rotate.params.degrees", { min: -180, max: 180 }),
+      degrees: assertFiniteNumber(record.degrees, "rotate.params.degrees", ANGLE_LIMITS),
       fillColor: assertNonEmptyString(record.fillColor, "rotate.params.fillColor")
     };
   },

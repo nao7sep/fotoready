@@ -1,3 +1,4 @@
+import { WHITE_BALANCE_LIMITS } from "@shared/op-limits";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import { Circle } from "react-konva";
 import { clamp } from "@shared/numeric";
@@ -21,8 +22,8 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
           <span>{t("whiteBalance.temperature")}</span>
           <input
             disabled={disabled}
-            max={100}
-            min={-100}
+            max={WHITE_BALANCE_LIMITS.max}
+            min={WHITE_BALANCE_LIMITS.min}
             step={1}
             type="range"
             value={params.temperature}
@@ -34,8 +35,8 @@ export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
           <span>{t("whiteBalance.tint")}</span>
           <input
             disabled={disabled}
-            max={100}
-            min={-100}
+            max={WHITE_BALANCE_LIMITS.max}
+            min={WHITE_BALANCE_LIMITS.min}
             step={1}
             type="range"
             value={params.tint}

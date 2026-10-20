@@ -1,3 +1,4 @@
+import { WHITE_BALANCE_LIMITS } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { applyPixels, assertFiniteNumber, assertParamsShape, validateOptionalSamplePoint } from "./_shared";
 
@@ -15,8 +16,8 @@ export const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
   validate(value) {
     const record = assertParamsShape(value, ["temperature", "tint", "samplePoint"], "white-balance.params");
     return {
-      temperature: assertFiniteNumber(record.temperature, "white-balance.params.temperature", { min: -100, max: 100 }),
-      tint: assertFiniteNumber(record.tint, "white-balance.params.tint", { min: -100, max: 100 }),
+      temperature: assertFiniteNumber(record.temperature, "white-balance.params.temperature", WHITE_BALANCE_LIMITS),
+      tint: assertFiniteNumber(record.tint, "white-balance.params.tint", WHITE_BALANCE_LIMITS),
       samplePoint: validateOptionalSamplePoint(record.samplePoint, "white-balance.params.samplePoint")
     };
   },

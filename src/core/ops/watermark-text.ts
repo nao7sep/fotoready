@@ -1,3 +1,4 @@
+import { ANGLE_LIMITS } from "@shared/op-limits";
 import type * as sharp from "sharp";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import type { OpModule } from "./op-module";
@@ -83,7 +84,7 @@ export const watermarkTextModule: OpModule<WatermarkTextParams> = {
       y: assertFiniteNumber(record.y, "watermark-text.params.y", { min: 0, max: 1 }),
       w: assertFiniteNumber(record.w, "watermark-text.params.w", { min: 0, max: 1, minExclusive: true }),
       h: assertFiniteNumber(record.h, "watermark-text.params.h", { min: 0, max: 1, minExclusive: true }),
-      rotation: assertFiniteNumber(record.rotation, "watermark-text.params.rotation", { min: -180, max: 180 }),
+      rotation: assertFiniteNumber(record.rotation, "watermark-text.params.rotation", ANGLE_LIMITS),
       opacity: assertFiniteNumber(record.opacity, "watermark-text.params.opacity", { min: 0, max: 1 }),
       fontFamily: assertNonEmptyString(record.fontFamily, "watermark-text.params.fontFamily"),
       color: assertNonEmptyString(record.color, "watermark-text.params.color"),

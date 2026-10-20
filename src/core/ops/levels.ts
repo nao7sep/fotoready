@@ -1,3 +1,4 @@
+import { CHANNEL_LIMITS, LEVELS_GAMMA_LIMITS, MIN_LEVEL_SPAN } from "@shared/op-limits";
 import type { OpModule } from "./op-module";
 import { applyPixels, assertFiniteNumber, assertParamsShape } from "./_shared";
 
@@ -11,18 +12,18 @@ export const levelsModule: OpModule<LevelsParams> = {
   type: "levels",
   category: "Tone",
   previewBehavior: "show-output",
-  defaultParams: { blackPoint: 0, whitePoint: 255, gamma: 1 },
+  defaultParams: { blackPoint: CHANNEL_LIMITS.min, whitePoint: CHANNEL_LIMITS.max, gamma: 1 },
   validate(value) {
     const record = assertParamsShape(value, ["blackPoint", "whitePoint", "gamma"], "levels.params");
-    const blackPoint = assertFiniteNumber(record.blackPoint, "levels.params.blackPoint", { integer: true, min: 0, max: 254 });
-    const whitePoint = assertFiniteNumber(record.whitePoint, "levels.params.whitePoint", { integer: true, min: 1, max: 255 });
-    if (whitePoint <= blackPoint) {
+    const blackPoint = assertFiniteNumber(record.blackPoint, "levels.params.blackPoint", { integer: true, min: CHANNEL_LIMITS.min, max: CHANNEL_LIMITS.max - MIN_LEVEL_SPAN });
+    const whitePoint = assertFiniteNumber(record.whitePoint, "levels.params.whitePoint", { integer: true, min: CHANNEL_LIMITS.min + MIN_LEVEL_SPAN, max: CHANNEL_LIMITS.max });
+    if (whitePoint - blackPoint < MIN_LEVEL_SPAN) {
       throw new Error("levels.params.whitePoint must be greater than levels.params.blackPoint.");
     }
     return {
       blackPoint,
       whitePoint,
-      gamma: assertFiniteNumber(record.gamma, "levels.params.gamma", { min: 0.25, max: 4 })
+      gamma: assertFiniteNumber(record.gamma, "levels.params.gamma", LEVELS_GAMMA_LIMITS)
     };
   },
   transformPixels: transformLevels,

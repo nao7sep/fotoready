@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { APP_NAME } from "@shared/constants";
 import { ExternalLink } from "lucide-react";
 import type { SystemInfo } from "@shared/types/ipc";
 import { api } from "@renderer/ipc/client";
@@ -42,7 +43,7 @@ export function AboutModal({ systemInfo, onClose }: Props): React.JSX.Element {
     >
       <div className="about-dialog">
         <div className="about-identity">
-          <p className="about-name">FotoReady</p>
+          <p className="about-name">{APP_NAME}</p>
           <p className="about-version">{systemInfo?.version ? t("about.version", { version: systemInfo.version }) : t("about.versionUnknown")}</p>
         </div>
         <p className="about-description">{t("about.description")}</p>

@@ -2,8 +2,9 @@ import { encodedFormats } from "./output-format";
 import type { EncodedOutputFormat } from "./types/pipeline";
 
 export const APP_NAME = "FotoReady";
-export const APP_ID = "com.fotoready.desktop";
 export const DATA_DIR_NAME = ".fotoready";
+/** Relocates the data folder; tests point it at a throwaway folder. */
+export const DATA_DIR_ENV_VAR = "FOTOREADY_DATA_DIR";
 export const TASK_SIDECAR_SUFFIX = ".json";
 export const MAX_RESIZE_DIMENSION = 8192;
 export const MAX_RESIZE_PIXELS = 40_000_000;

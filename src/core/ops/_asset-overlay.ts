@@ -1,3 +1,4 @@
+import { ANGLE_LIMITS } from "@shared/op-limits";
 import type * as sharp from "sharp";
 import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
 import type { OpType } from "@shared/op-types";
@@ -28,7 +29,7 @@ export function validateAssetOverlayParams(value: unknown, path: string): AssetO
     flipHorizontal: record.flipHorizontal === undefined ? false : assertBoolean(record.flipHorizontal, `${path}.flipHorizontal`),
     flipVertical: record.flipVertical === undefined ? false : assertBoolean(record.flipVertical, `${path}.flipVertical`),
     opacity: assertFiniteNumber(record.opacity, `${path}.opacity`, { min: 0, max: 1 }),
-    rotation: assertFiniteNumber(record.rotation, `${path}.rotation`, { min: -180, max: 180 })
+    rotation: assertFiniteNumber(record.rotation, `${path}.rotation`, ANGLE_LIMITS)
   };
 }
 

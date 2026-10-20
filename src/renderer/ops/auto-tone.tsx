@@ -1,3 +1,4 @@
+import { AUTO_TONE_CLIP_LIMITS } from "@shared/op-limits";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
@@ -24,8 +25,8 @@ export const autoToneRenderer: OpRenderer<AutoToneParams> = {
           <span>{t("autoTone.clipShadows")}</span>
           <input
             disabled={disabled}
-            max={10}
-            min={0}
+            max={AUTO_TONE_CLIP_LIMITS.max}
+            min={AUTO_TONE_CLIP_LIMITS.min}
             step={0.05}
             type="range"
             value={params.shadowClip}
@@ -37,8 +38,8 @@ export const autoToneRenderer: OpRenderer<AutoToneParams> = {
           <span>{t("autoTone.clipHighlights")}</span>
           <input
             disabled={disabled}
-            max={10}
-            min={0}
+            max={AUTO_TONE_CLIP_LIMITS.max}
+            min={AUTO_TONE_CLIP_LIMITS.min}
             step={0.05}
             type="range"
             value={params.highlightClip}

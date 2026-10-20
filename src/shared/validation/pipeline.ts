@@ -1,3 +1,4 @@
+import { OUTPUT_QUALITY_LIMITS } from "@shared/op-limits";
 import { encodedFormats } from "../output-format";
 import type { OutputSettings } from "../types/pipeline";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord } from "./common";
@@ -34,7 +35,7 @@ function validateOutputQuality(value: unknown, path: string): OutputSettings["qu
   if (typeof value === "string") {
     return assertOneOf(value, path, qualityKeywords);
   }
-  return assertFiniteNumber(value, path, { integer: true, min: 1, max: 100 });
+  return assertFiniteNumber(value, path, { integer: true, ...OUTPUT_QUALITY_LIMITS });
 }
 
 function isOutputSettingKey(key: string): key is keyof OutputSettings {

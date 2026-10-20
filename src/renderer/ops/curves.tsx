@@ -1,3 +1,4 @@
+import { CHANNEL_LIMITS } from "@shared/op-limits";
 import { useI18n } from "@renderer/i18n/I18nContext";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
 import type { OpRenderer } from "./op-renderer";
@@ -46,8 +47,8 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
               <span>{t("curves.input")}</span>
               <input
                 disabled={disabled}
-                max={255}
-                min={0}
+                max={CHANNEL_LIMITS.max}
+                min={CHANNEL_LIMITS.min}
                 step={1}
                 type="range"
                 value={point[0]}
@@ -59,8 +60,8 @@ export const curvesRenderer: OpRenderer<CurvesParams> = {
               <span>{t("curves.output")}</span>
               <input
                 disabled={disabled}
-                max={255}
-                min={0}
+                max={CHANNEL_LIMITS.max}
+                min={CHANNEL_LIMITS.min}
                 step={1}
                 type="range"
                 value={point[1]}

@@ -9,10 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-APP_NAME="FotoReady"
 RUNTIME_HELPER="$SCRIPT_DIR/launcher-runtime.mjs"
 RUNTIME_TOKEN="run-built-$$-$(date +%s)-$RANDOM"
-OUT_DIR="release"
 
 log_step() {
   printf '\n==> %s\n' "$1"
@@ -38,9 +36,9 @@ cd "$REPO_DIR"
 
 # No build here: this launcher must start instantly. If there is no usable bundle
 # yet, stop and point at rebuild rather than launching something stale or empty.
-APP_BUNDLE="$(find "$OUT_DIR" -maxdepth 2 -name "$APP_NAME.app" -type d 2>/dev/null | head -1 || true)"
-if [[ -z "$APP_BUNDLE" || ! -d "$APP_BUNDLE/Contents/MacOS" ]]; then
-  echo "No packaged app found ($OUT_DIR/mac*/$APP_NAME.app is missing) — run rebuild first."
+APP_BUNDLE="$(node "$RUNTIME_HELPER" packaged-app)"
+if [[ -z "$APP_BUNDLE" ]]; then
+  echo "No packaged app found — run rebuild first."
   exit 1
 fi
 
@@ -53,4 +51,4 @@ log_step "Launching the existing packaged app (built: $built_at)"
 echo "If you changed source since then, run rebuild instead."
 
 open -n "$APP_BUNDLE"
-node "$RUNTIME_HELPER" wait-process "$APP_BUNDLE/Contents/MacOS/FotoReady" 30000
+node "$RUNTIME_HELPER" wait-packaged-app

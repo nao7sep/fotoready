@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { resolve } from "node:path";
 import { CONTENT_SECURITY_POLICY } from "./scripts/content-security-policy";
+import { DEV_HOST, DEV_PORT } from "./scripts/dev-server.mjs";
 
 // Injects the production CSP as a <meta> tag into the built renderer HTML. Build-only: the dev
 // server is left without a CSP so Vite HMR (inline scripts, eval, the websocket) keeps working.
@@ -62,8 +63,8 @@ export default defineConfig({
   renderer: {
     root: resolve("src/renderer"),
     server: {
-      host: "127.0.0.1",
-      port: 23339,
+      host: DEV_HOST,
+      port: DEV_PORT,
       strictPort: true
     },
     resolve: {

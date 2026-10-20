@@ -50,9 +50,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
 $runtimeToken = [guid]::NewGuid().ToString("N")
-$appName = "FotoReady"
-$outDir = "release"
-$exePath = Join-Path $repoDir "$outDir/win-unpacked/$appName.exe"
 
 try {
     Set-Utf8Console
@@ -64,13 +61,6 @@ try {
     Write-Step "Installing dependencies"
     Invoke-Native -FilePath "npm" -ArgumentList @("install")
 
-    # npm install skips the Electron binary if the package is already at the locked version.
-    Write-Step "Verifying Electron binary"
-    if (-not (Test-Path "node_modules/electron/path.txt")) {
-        Write-Host "Electron binary missing; downloading..."
-        Invoke-Native -FilePath "node" -ArgumentList @("node_modules/electron/install.js")
-    }
-
     # Windows locks the packaged executable while it runs, so replacement must
     # happen before cleaning the package directory.
     Write-Step "Replacing any existing FotoReady runtime"
@@ -80,33 +70,24 @@ try {
     # Remove stale output so a build that fails to emit a file can't be masked by
     # a leftover artifact from a previous run.
     Write-Step "Cleaning previous build"
-    if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
-    if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "clean-build")
 
-    # The release build type-checks the shipped sources (main/preload + renderer);
-    # the dev server skips this entirely. Tests are checked separately and are not
-    # part of the release build, so they are not gated here.
-    Write-Step "Type-checking production sources (node + web)"
-    Invoke-Native -FilePath "node_modules/.bin/tsc.cmd" -ArgumentList @("--noEmit", "-p", "tsconfig.node.json")
-    Invoke-Native -FilePath "node_modules/.bin/tsc.cmd" -ArgumentList @("--noEmit", "-p", "tsconfig.web.json")
+    # The package script type-checks the shipped sources (main/preload + renderer), builds the
+    # production bundle and packages the unpacked app only, no installer. The dev server skips the
+    # type check entirely, and tests are a separate gate. Packaging gives the app its own identity
+    # (correct name and icon) instead of running under the generic Electron runtime.
+    Write-Step "Building and packaging the app"
+    Invoke-Native -FilePath "npm" -ArgumentList @("run", "package")
 
-    Write-Step "Building production bundle"
-    Invoke-Native -FilePath "node_modules/.bin/electron-vite.cmd" -ArgumentList @("build")
-
-    # Package the built output into a real app bundle — the unpacked app only, no
-    # installer. This is what gives the app its own identity (correct name and
-    # icon) instead of running under the generic Electron runtime.
-    Write-Step "Packaging the app bundle"
-    Invoke-Native -FilePath "node_modules/.bin/electron-builder.cmd" -ArgumentList @("--dir")
-
-    if (-not (Test-Path $exePath)) {
-        throw "Packaging did not produce $appName.exe under $outDir/win-unpacked/."
+    $exePath = & node $runtimeHelper packaged-app
+    if (-not $exePath) {
+        throw "Packaging did not produce the app executable."
     }
 
     # GUI app: launch non-blocking via Start-Process.
     Write-Step "Launching the packaged app"
     Start-Process -FilePath $exePath | Out-Null
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-process", $exePath, "30000")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-packaged-app")
 }
 catch {
     Write-Host ""

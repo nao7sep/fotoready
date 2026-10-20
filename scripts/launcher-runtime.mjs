@@ -1,11 +1,14 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import { DEV_HOST, DEV_PORT } from "./dev-server.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -25,9 +28,39 @@ function underRoot(value) {
   return candidate === root || candidate.startsWith(`${root}/`) || candidate.includes(`${root}/`);
 }
 
-// The app these launchers start: the Electron dev runtime from this repository, or the packaged app.
-const APP_LABEL = "FotoReady";
-const APP_EXECUTABLE = "FotoReady";
+const DEV_URL = `http://${DEV_HOST}:${DEV_PORT}`;
+const DEV_START_TIMEOUT_MS = 60_000;
+const PACKAGED_START_TIMEOUT_MS = 30_000;
+
+let packagingCache;
+
+// The packaged app's name and output folder, as electron-builder reads them from package.json.
+function packaging() {
+  if (!packagingCache) {
+    const { build } = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+    packagingCache = { name: build.productName, output: join(REPO_ROOT, build.directories.output) };
+  }
+  return packagingCache;
+}
+
+// What run-built and rebuild launch: the .app bundle on macOS, the unpacked executable on Windows.
+function packagedApp() {
+  const { name, output } = packaging();
+  if (process.platform === "win32") {
+    const exe = join(output, "win-unpacked", `${name}.exe`);
+    return existsSync(exe) ? exe : null;
+  }
+  if (!existsSync(output)) return null;
+  for (const entry of readdirSync(output, { withFileTypes: true })) {
+    const bundle = join(output, entry.name, `${name}.app`);
+    if (entry.isDirectory() && existsSync(join(bundle, "Contents", "MacOS"))) return bundle;
+  }
+  return null;
+}
+
+function packagedExecutable(app) {
+  return process.platform === "win32" ? app : join(app, "Contents", "MacOS", packaging().name);
+}
 
 export function ownsProcess(processInfo) {
   const executable = normalized(processInfo.executablePath);
@@ -43,12 +76,12 @@ export function ownsProcess(processInfo) {
     return true;
   }
 
-  const executableName = APP_EXECUTABLE.toLowerCase();
+  const name = packaging().name.toLowerCase();
   return combined.includes("/node_modules/.bin/electron-vite")
     || combined.includes("/node_modules/electron-vite/")
     || combined.includes("/node_modules/electron/dist/")
-    || combined.includes(`/${APP_LABEL.toLowerCase()}.app/contents/macos/${executableName}`)
-    || combined.includes(`/${executableName}.exe`);
+    || combined.includes(`/${name}.app/contents/macos/${name}`)
+    || combined.includes(`/${name}.exe`);
 }
 
 function parsePosixProcesses(stdout) {
@@ -154,7 +187,7 @@ async function stopRuntime() {
   if (ownedRoots.length === 0) return;
 
   const initialTargets = descendantsOf(initial, ownedRoots);
-  process.stdout.write(`Stopping the existing ${APP_LABEL} runtime (pid ${ownedRoots.join(", ")}).\n`);
+  process.stdout.write(`Stopping the existing ${packaging().name} runtime (pid ${ownedRoots.join(", ")}).\n`);
 
   if (process.platform === "win32") {
     for (const pid of ownedRoots) {
@@ -266,12 +299,6 @@ async function main(args) {
     if (!await isRuntimeOwner(token)) process.exitCode = 3;
     return;
   }
-  if (command === "release-if-owner") {
-    const token = args.shift();
-    if (!token) throw new Error("Expected release-if-owner <token>.");
-    await releaseRuntime(token);
-    return;
-  }
   if (command === "stop") {
     await stopRuntime();
     return;
@@ -284,28 +311,37 @@ async function main(args) {
     await releaseRuntime(token);
     return;
   }
-  if (command === "check-endpoint") {
-    const host = args.shift();
-    const port = Number(args.shift());
-    if (!host || !Number.isInteger(port)) throw new Error("Expected check-endpoint <host> <port>.");
-    await assertEndpointAvailable(host, port);
+  if (command === "dev-url") {
+    process.stdout.write(`${DEV_URL}\n`);
     return;
   }
-  if (command === "wait-http") {
-    const url = args.shift();
-    const timeout = Number(args.shift() ?? "60000");
-    if (!url || !Number.isFinite(timeout)) throw new Error("Expected wait-http <url> [timeout-ms].");
-    await waitForHttp(url, timeout);
+  if (command === "check-dev-endpoint") {
+    await assertEndpointAvailable(DEV_HOST, DEV_PORT);
     return;
   }
-  if (command === "wait-process") {
-    const executablePath = args.shift();
-    const timeout = Number(args.shift() ?? "30000");
-    if (!executablePath || !Number.isFinite(timeout)) throw new Error("Expected wait-process <executable-path> [timeout-ms].");
-    await waitForExecutable(executablePath, timeout);
+  if (command === "wait-dev-runtime") {
+    await waitForHttp(DEV_URL, DEV_START_TIMEOUT_MS);
+    // The electron package's main export is the path of its binary.
+    await waitForExecutable(createRequire(join(REPO_ROOT, "package.json"))("electron"), DEV_START_TIMEOUT_MS);
     return;
   }
-  throw new Error("Expected one of: claim, is-owner, release-if-owner, stop, stop-if-owner, check-endpoint, wait-http, wait-process.");
+  if (command === "clean-build") {
+    await rm(join(REPO_ROOT, "out"), { recursive: true, force: true });
+    await rm(packaging().output, { recursive: true, force: true });
+    return;
+  }
+  if (command === "packaged-app") {
+    const app = packagedApp();
+    if (app) process.stdout.write(`${app}\n`);
+    return;
+  }
+  if (command === "wait-packaged-app") {
+    const app = packagedApp();
+    if (!app) throw new Error("No packaged app to wait for.");
+    await waitForExecutable(packagedExecutable(app), PACKAGED_START_TIMEOUT_MS);
+    return;
+  }
+  throw new Error("Expected one of: claim, is-owner, stop, stop-if-owner, dev-url, check-dev-endpoint, wait-dev-runtime, clean-build, packaged-app, wait-packaged-app.");
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";

@@ -49,7 +49,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
 $runtimeToken = [guid]::NewGuid().ToString("N")
-$rendererUrl = "http://127.0.0.1:23339"
 
 try {
     Set-Utf8Console
@@ -61,7 +60,7 @@ try {
     Write-Step "Replacing any existing FotoReady runtime"
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-endpoint", "127.0.0.1", "23339")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-dev-endpoint")
 
     Write-Step "Installing dependencies"
     Invoke-Native -FilePath "npm" -ArgumentList @("install")
@@ -75,9 +74,8 @@ try {
 
     Write-Step "Starting FotoReady in development mode"
     $devProcess = Start-Process -FilePath (Get-Command "npm.cmd").Source -ArgumentList @("run", "dev") -NoNewWindow -PassThru
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-http", $rendererUrl, "60000")
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-process", (Join-Path $repoDir "node_modules/electron/dist/electron.exe"), "60000")
-    Write-Step "FotoReady is ready at $rendererUrl"
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-dev-runtime")
+    Write-Step "FotoReady is ready at $(& node $runtimeHelper dev-url)"
     $devProcess.WaitForExit()
     if ($devProcess.ExitCode -notin @(0, 130, -1073741510)) {
         throw "FotoReady development runtime failed with exit code $($devProcess.ExitCode)."

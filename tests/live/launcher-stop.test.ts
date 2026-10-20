@@ -14,9 +14,12 @@ it.each([false, true])("stops only its disposable runtime (ignores SIGTERM: %s)"
   const scripts = path.join(dir, "scripts");
   await fs.mkdir(scripts);
   const helper = path.join(scripts, "launcher-runtime.mjs");
-  // The script derives ownership from its own repository root. Copying it confines
-  // the stop command to this fixture, even if the developer has FotoReady running.
+  // The script derives ownership from its own repository root and the app's name from that root's
+  // package.json. Copying them confines the stop command to this fixture, even if the developer has
+  // FotoReady running.
   await fs.copyFile(new URL("../../scripts/launcher-runtime.mjs", import.meta.url), helper);
+  await fs.copyFile(new URL("../../scripts/dev-server.mjs", import.meta.url), path.join(scripts, "dev-server.mjs"));
+  await fs.copyFile(new URL("../../package.json", import.meta.url), path.join(dir, "package.json"));
   const code = "process.stdout.write('ready\\n'); setInterval(() => {}, 1000)";
   const ownedCode = (ignoreTerm ? "process.on('SIGTERM', () => {}); " : "") + code;
   const launcher = process.platform === "win32" ? "run-dev.ps1" : "run-dev.command";

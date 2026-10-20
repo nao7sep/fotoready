@@ -28,9 +28,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
 $runtimeToken = [guid]::NewGuid().ToString("N")
-$appName = "FotoReady"
-$outDir = "release"
-$exePath = Join-Path $repoDir "$outDir/win-unpacked/$appName.exe"
 
 try {
     Set-Utf8Console
@@ -44,8 +41,9 @@ try {
     # No build here: this launcher must start instantly. If there is no usable
     # bundle yet, stop and point at rebuild rather than launching something stale
     # or empty.
-    if (-not (Test-Path $exePath)) {
-        throw "No packaged app found ($outDir/win-unpacked/$appName.exe is missing). Run rebuild first."
+    $exePath = & node $runtimeHelper packaged-app
+    if (-not $exePath) {
+        throw "No packaged app found. Run rebuild first."
     }
 
     $builtAt = (Get-Item $exePath).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
@@ -57,7 +55,7 @@ try {
 
     # GUI app: launch non-blocking via Start-Process.
     Start-Process -FilePath $exePath | Out-Null
-    & node $runtimeHelper wait-process $exePath 30000
+    & node $runtimeHelper wait-packaged-app
     if ($LASTEXITCODE -ne 0) { throw "FotoReady did not start." }
 }
 catch {

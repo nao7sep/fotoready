@@ -10,7 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_HELPER="$SCRIPT_DIR/launcher-runtime.mjs"
 RUNTIME_TOKEN="run-dev-$$-$(date +%s)-$RANDOM"
-RENDERER_URL="http://127.0.0.1:23339"
 
 log_step() {
   printf '\n==> %s\n' "$1"
@@ -52,7 +51,7 @@ cd "$REPO_DIR"
 log_step "Replacing any existing FotoReady runtime"
 node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
 node "$RUNTIME_HELPER" stop
-node "$RUNTIME_HELPER" check-endpoint 127.0.0.1 23339
+node "$RUNTIME_HELPER" check-dev-endpoint
 
 log_step "Installing dependencies"
 npm install
@@ -67,7 +66,6 @@ fi
 log_step "Starting FotoReady in development mode"
 npm run dev &
 DEV_PID=$!
-node "$RUNTIME_HELPER" wait-http "$RENDERER_URL" 60000
-node "$RUNTIME_HELPER" wait-process "$REPO_DIR/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" 60000
-log_step "FotoReady is ready at $RENDERER_URL"
+node "$RUNTIME_HELPER" wait-dev-runtime
+log_step "FotoReady is ready at $(node "$RUNTIME_HELPER" dev-url)"
 wait "$DEV_PID"

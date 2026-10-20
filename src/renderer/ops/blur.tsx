@@ -7,7 +7,6 @@ import { ConcealOverlay } from "./_conceal-overlay";
 type BlurParams = { rects: ConcealRegion[]; radius: number };
 
 export const blurRenderer: OpRenderer<BlurParams> = {
-  type: "blur",
   Card(props) {
     const { params, disabled, onParamChange } = props;
     const { t } = useI18n();

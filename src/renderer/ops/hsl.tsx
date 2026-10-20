@@ -18,7 +18,6 @@ type HslRange = (typeof HSL_RANGES)[number]["id"];
 type HslParams = Record<HslRange, HslAdjustment>;
 
 export const hslRenderer: OpRenderer<HslParams> = {
-  type: "hsl",
   Card({ params, disabled, onParamsChange }) {
     const { t, percent } = useI18n();
     const signedPercent = (value: number): string => `${value > 0 ? "+" : ""}${percent(value / 100)}`;

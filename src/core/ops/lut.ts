@@ -1,6 +1,5 @@
 import type { OpModule } from "./op-module";
 import { sampleCubeLut } from "@runtime/lut-cube";
-import { registerOp } from "./registry";
 import { applyPixels, assertFiniteNumber, assertParamsShape, assertString } from "./_shared";
 import type { OpApplyContext } from "./op-module";
 
@@ -9,7 +8,7 @@ type LutParams = {
   strength: number;
 };
 
-const lutModule: OpModule<LutParams> = {
+export const lutModule: OpModule<LutParams> = {
   type: "lut",
   category: "Effects",
   previewBehavior: "show-output",
@@ -44,5 +43,3 @@ async function transformLut(raw: Buffer, params: LutParams, ctx: OpApplyContext)
     raw[offset + 2] = Math.max(0, Math.min(255, Math.round((b + (sampled[2] - b) * params.strength) * 255)));
   }
 }
-
-registerOp(lutModule);

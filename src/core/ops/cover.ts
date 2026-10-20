@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import { applyComposite, assertFiniteNumber, assertNonEmptyString, assertParamsShape } from "./_shared";
 import { fillOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
@@ -10,7 +9,7 @@ type CoverParams = {
   opacity: number;
 };
 
-const coverModule: OpModule<CoverParams> = {
+export const coverModule: OpModule<CoverParams> = {
   type: "cover",
   category: "Conceal",
   previewBehavior: "show-output",
@@ -34,7 +33,6 @@ const coverModule: OpModule<CoverParams> = {
   }
 };
 
-registerOp(coverModule);
 
 function rgbaFromColor(color: string, opacity: number): string {
   const normalized = color.trim();

@@ -1,5 +1,4 @@
 import type * as sharp from "sharp";
-import { registerOp } from "./registry";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import type { OpModule } from "./op-module";
 import { applyComposite, applyTransformedOverlay, assertFiniteNumber, assertNonEmptyString, assertParamsShape, escapeXml } from "./_shared";
@@ -40,7 +39,7 @@ const MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES = 256;
 const fittedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
 const renderedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
 
-const watermarkTextModule: OpModule<WatermarkTextParams> = {
+export const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
   category: "Watermark",
   previewBehavior: "show-output",
@@ -147,7 +146,6 @@ const watermarkTextModule: OpModule<WatermarkTextParams> = {
   }
 };
 
-registerOp(watermarkTextModule);
 
 async function fitTextBitmap(params: WatermarkTextParams, maxWidth: number, maxHeight: number): Promise<TrimmedTextBitmap> {
   const cacheKey = `${textBitmapStyleKey(params)}|fit|${maxWidth}x${maxHeight}`;

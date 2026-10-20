@@ -15,7 +15,6 @@ const autoTonePresets = [
 ] as const;
 
 export const autoToneRenderer: OpRenderer<AutoToneParams> = {
-  type: "auto-tone",
   Card({ params, disabled, onParamsChange }) {
     const { t, percent } = useI18n();
     const formatClip = (value: number): string => percent(value / 100, 2);

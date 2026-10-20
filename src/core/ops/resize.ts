@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { MAX_RESIZE_DIMENSION, MAX_RESIZE_PIXELS } from "@shared/constants";
 import { assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, materialize } from "./_shared";
 
@@ -13,7 +12,7 @@ type ResizeParams = {
   interpolation: string;
 };
 
-const resizeModule: OpModule<ResizeParams> = {
+export const resizeModule: OpModule<ResizeParams> = {
   type: "resize",
   category: "Geometry",
   previewBehavior: "show-output",
@@ -45,7 +44,6 @@ const resizeModule: OpModule<ResizeParams> = {
   }
 };
 
-registerOp(resizeModule);
 
 function assertAllowedResizeKeys(record: Record<string, unknown>): void {
   for (const key of Object.keys(record)) {

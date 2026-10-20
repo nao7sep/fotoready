@@ -4,7 +4,6 @@ import type { OpRenderer } from "./op-renderer";
 type UnsharpMaskParams = { radius: number; amount: number };
 
 export const unsharpMaskRenderer: OpRenderer<UnsharpMaskParams> = {
-  type: "unsharp-mask",
   Card({ params, disabled, onParamChange }) {
     const { t } = useI18n();
     return (

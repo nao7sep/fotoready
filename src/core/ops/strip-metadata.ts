@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertArray, assertOneOf, assertParamsShape } from "./_shared";
 import { METADATA_KEEP_GROUPS, type MetadataStripMode } from "@shared/types/settings";
 
@@ -7,7 +6,7 @@ type StripMetadataParams = {
   keep: MetadataStripMode;
 };
 
-const stripMetadataModule: OpModule<StripMetadataParams> = {
+export const stripMetadataModule: OpModule<StripMetadataParams> = {
   type: "strip-metadata",
   category: "Metadata",
   previewBehavior: "show-output",
@@ -27,5 +26,3 @@ const stripMetadataModule: OpModule<StripMetadataParams> = {
     decision.keep = params.keep;
   }
 };
-
-registerOp(stripMetadataModule);

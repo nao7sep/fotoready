@@ -1,8 +1,7 @@
 import { DEFAULT_ASSET_OVERLAY_WIDTH, type AssetOverlayParams } from "@shared/asset-overlay";
-import { registerOp } from "./registry";
 import { createAssetOverlayModule } from "./_asset-overlay";
 
-registerOp(createAssetOverlayModule({
+export const watermarkImageModule = createAssetOverlayModule({
   type: "watermark-image",
   category: "Watermark",
   defaultParams: {
@@ -17,4 +16,4 @@ registerOp(createAssetOverlayModule({
     opacity: 0.7,
     rotation: 0
   } satisfies AssetOverlayParams
-}));
+});

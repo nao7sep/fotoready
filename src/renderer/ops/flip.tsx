@@ -7,7 +7,6 @@ type FlipParams = {
 };
 
 export const flipRenderer: OpRenderer<FlipParams> = {
-  type: "flip",
   Card({ params, disabled, onParamChange }) {
     const { t } = useI18n();
     return (

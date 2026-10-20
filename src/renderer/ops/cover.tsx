@@ -7,7 +7,6 @@ import { ConcealOverlay } from "./_conceal-overlay";
 type CoverParams = { rects: ConcealRegion[]; color: string; opacity: number };
 
 export const coverRenderer: OpRenderer<CoverParams> = {
-  type: "cover",
   Card(props) {
     const { params, disabled, onParamChange } = props;
     const { t, percent } = useI18n();

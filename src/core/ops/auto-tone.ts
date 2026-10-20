@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type AutoToneParams = {
@@ -7,7 +6,7 @@ type AutoToneParams = {
   highlightClip: number;
 };
 
-const autoToneModule: OpModule<AutoToneParams> = {
+export const autoToneModule: OpModule<AutoToneParams> = {
   type: "auto-tone",
   category: "Tone",
   previewBehavior: "show-output",
@@ -27,5 +26,3 @@ const autoToneModule: OpModule<AutoToneParams> = {
     });
   }
 };
-
-registerOp(autoToneModule);

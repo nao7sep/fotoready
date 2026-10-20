@@ -1,12 +1,11 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type DenoiseParams = {
   strength: number;
 };
 
-const denoiseModule: OpModule<DenoiseParams> = {
+export const denoiseModule: OpModule<DenoiseParams> = {
   type: "denoise",
   category: "Effects",
   previewBehavior: "show-output",
@@ -22,5 +21,3 @@ const denoiseModule: OpModule<DenoiseParams> = {
     return image.median(Math.max(1, Math.round(params.strength * 7)));
   }
 };
-
-registerOp(denoiseModule);

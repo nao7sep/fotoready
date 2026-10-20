@@ -10,7 +10,6 @@ import { message, type Message } from "@shared/i18n/translate";
 type LutParams = { cubePath: string; strength: number };
 
 export const lutRenderer: OpRenderer<LutParams> = {
-  type: "lut",
   Card: LutCard
 };
 

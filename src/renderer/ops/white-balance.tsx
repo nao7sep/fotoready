@@ -10,7 +10,6 @@ type WhiteBalanceParams = {
 };
 
 export const whiteBalanceRenderer: OpRenderer<WhiteBalanceParams> = {
-  type: "white-balance",
   consumesImageClick: true,
   Card({ params, disabled, onParamsChange }) {
     const { t } = useI18n();

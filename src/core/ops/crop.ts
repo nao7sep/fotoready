@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape, materialize } from "./_shared";
 import { cropExtractRegion } from "./_crop-region";
 
@@ -13,7 +12,7 @@ type CropParams = {
   aspectLock: CropAspectLock;
 };
 
-const cropModule: OpModule<CropParams> = {
+export const cropModule: OpModule<CropParams> = {
   type: "crop",
   category: "Geometry",
   previewBehavior: "show-input",
@@ -39,5 +38,3 @@ function validateAspectLock(value: unknown): CropAspectLock {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
   throw new Error('crop.params.aspectLock must be null, a non-empty string (e.g. "1:1"), or a positive number.');
 }
-
-registerOp(cropModule);

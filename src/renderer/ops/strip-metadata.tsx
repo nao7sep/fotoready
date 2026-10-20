@@ -15,7 +15,6 @@ const keepGroupLabels: Record<MetadataKeepGroup, { label: MessageKey; empty: Mes
 };
 
 export const stripMetadataRenderer: OpRenderer<StripMetadataParams> = {
-  type: "strip-metadata",
   Card({ params, disabled, ctx, onParamChange }) {
     const { t } = useI18n();
     const keep = Array.isArray(params.keep) ? params.keep : [];

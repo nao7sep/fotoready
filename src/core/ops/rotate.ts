@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertFiniteNumber, assertNonEmptyString, assertParamsShape, materialize } from "./_shared";
 
 type RotateParams = {
@@ -7,7 +6,7 @@ type RotateParams = {
   fillColor: string;
 };
 
-const rotateModule: OpModule<RotateParams> = {
+export const rotateModule: OpModule<RotateParams> = {
   type: "rotate",
   category: "Geometry",
   previewBehavior: "show-output",
@@ -23,5 +22,3 @@ const rotateModule: OpModule<RotateParams> = {
     return materialize(image.rotate(params.degrees, { background: params.fillColor }));
   }
 };
-
-registerOp(rotateModule);

@@ -1,6 +1,5 @@
 import sharp from "sharp";
 import { expect, it } from "vitest";
-import "@core/ops/catalog";
 import { requireOpModule } from "@core/ops/registry";
 import { materialize } from "@core/ops/_shared";
 

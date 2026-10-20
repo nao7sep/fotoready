@@ -18,14 +18,12 @@ import type { OpCardContext, OpRenderer, OverlayContext } from "./op-renderer";
 type AssetOverlayCardProps = Parameters<NonNullable<OpRenderer<AssetOverlayParams>["Card"]>>[0];
 
 export function createAssetOverlayRenderer(definition: {
-  type: string;
   color: string;
   flipControlsPlacement?: "after-source" | "after-angle";
   renderSourceAction(props: AssetOverlayCardProps): React.ReactNode;
   renderSourceField(props: AssetOverlayCardProps): React.ReactNode;
 }): OpRenderer<AssetOverlayParams> {
   return {
-    type: definition.type,
     Card(props) {
       const [sourceSelections, setSourceSelections] = useState(0);
       const aspectRatio = useLocalAssetAspectRatio(props.params.assetPath, props.ctx.stamps, sourceSelections);

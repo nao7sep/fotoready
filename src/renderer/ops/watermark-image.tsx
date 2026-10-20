@@ -11,7 +11,6 @@ import { presentFailure } from "@renderer/present-failure";
 import { message, type Message } from "@shared/i18n/translate";
 
 export const watermarkImageRenderer = createAssetOverlayRenderer({
-  type: "watermark-image",
   color: "#60a5fa",
   flipControlsPlacement: "after-angle",
   renderSourceField({ params }) {

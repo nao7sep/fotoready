@@ -18,7 +18,7 @@ export type ImageFrame = {
 /**
  * The unit of plug-and-play for an op. Everything the pipeline runner and the validator
  * need lives here. The renderer-side companion (card + overlay) lives at
- * `@renderer/ops/<name>.tsx` and is bridged via the shared `type` string.
+ * `@renderer/ops/<name>.tsx`, keyed by the same op type.
  *
  * Metadata-only ops (strip-metadata, inject-metadata) skip `apply` — they participate in
  * the post-render metadata stage instead, via the helpers each module exports.

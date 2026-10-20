@@ -165,7 +165,7 @@ function App(): React.JSX.Element {
   const apiKeyDirty = apiKeyDraft.trim().length > 0 || apiKeyClearRequested;
   const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
   const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning);
-  const opCatalogByType = useMemo(() => new Map(opCatalog.map((item) => [item.type, item])), [opCatalog]);
+  const opCatalogByType = useMemo(() => new Map<string, (typeof opCatalog)[number]>(opCatalog.map((item) => [item.type, item])), [opCatalog]);
   const previewConfig = useMemo(() => {
     if (!activeTask) return null;
     const selectedOp = selectedOpId ? activeTask.pipeline.ops.find((op) => op.id === selectedOpId) ?? null : null;

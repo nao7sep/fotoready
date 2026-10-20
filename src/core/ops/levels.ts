@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { applyPixels, assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type LevelsParams = {
@@ -8,7 +7,7 @@ type LevelsParams = {
   gamma: number;
 };
 
-const levelsModule: OpModule<LevelsParams> = {
+export const levelsModule: OpModule<LevelsParams> = {
   type: "levels",
   category: "Tone",
   previewBehavior: "show-output",
@@ -39,7 +38,6 @@ function transformLevels(raw: Buffer, params: LevelsParams): void {
   }
 }
 
-registerOp(levelsModule);
 
 function applyLevelsValue(value: number, blackPoint: number, inputSpan: number, gamma: number): number {
   const normalized = Math.max(0, Math.min(1, (value - blackPoint) / inputSpan));

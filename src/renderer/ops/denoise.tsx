@@ -4,7 +4,6 @@ import type { OpRenderer } from "./op-renderer";
 type DenoiseParams = { strength: number };
 
 export const denoiseRenderer: OpRenderer<DenoiseParams> = {
-  type: "denoise",
   Card({ params, disabled, onParamChange }) {
     const { t, percent } = useI18n();
     return (

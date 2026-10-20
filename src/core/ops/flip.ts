@@ -1,6 +1,5 @@
 import { assertBoolean } from "@shared/validation/common";
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertParamsShape, materialize } from "./_shared";
 
 type FlipParams = {
@@ -8,7 +7,7 @@ type FlipParams = {
   vertical: boolean;
 };
 
-const flipModule: OpModule<FlipParams> = {
+export const flipModule: OpModule<FlipParams> = {
   type: "flip",
   category: "Geometry",
   previewBehavior: "show-output",
@@ -27,5 +26,3 @@ const flipModule: OpModule<FlipParams> = {
     return materialize(next);
   }
 };
-
-registerOp(flipModule);

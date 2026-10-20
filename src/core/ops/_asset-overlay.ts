@@ -1,5 +1,6 @@
 import type * as sharp from "sharp";
 import { clampAssetOverlay, type AssetOverlayParams } from "@shared/asset-overlay";
+import type { OpType } from "@shared/op-types";
 import type { OpCategory } from "@shared/types/op";
 import { assertBoolean } from "@shared/validation/common";
 import { NO_PIXEL_LIMIT } from "@runtime/decode";
@@ -32,7 +33,7 @@ export function validateAssetOverlayParams(value: unknown, path: string): AssetO
 }
 
 export function createAssetOverlayModule(definition: {
-  type: string;
+  type: OpType;
   category: OpCategory;
   defaultParams: AssetOverlayParams;
 }): OpModule<AssetOverlayParams> {

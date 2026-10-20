@@ -8,7 +8,6 @@ import { formatPercent, fractionToPercentSteps, percentStepsToFraction } from ".
 type MosaicParams = { rects: ConcealRegion[]; blockSize: number };
 
 export const mosaicRenderer: OpRenderer<MosaicParams> = {
-  type: "mosaic",
   Card(props) {
     const { params, disabled, onParamChange } = props;
     const { t, percent } = useI18n();

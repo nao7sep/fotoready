@@ -21,7 +21,6 @@ function cropAspectOptionLabel(id: CropAspectOptionId, t: Translator["t"]): stri
 }
 
 export const cropRenderer: OpRenderer<CropParams> = {
-  type: "crop",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const { t, rich } = useI18n();
     const originalAspectRatio = ctx.originalSize ? ctx.originalSize.width / Math.max(1, ctx.originalSize.height) : null;

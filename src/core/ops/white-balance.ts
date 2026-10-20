@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { applyPixels, assertFiniteNumber, assertParamsShape, validateOptionalSamplePoint } from "./_shared";
 
 type WhiteBalanceParams = {
@@ -8,7 +7,7 @@ type WhiteBalanceParams = {
   samplePoint: [number, number] | null;
 };
 
-const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
+export const whiteBalanceModule: OpModule<WhiteBalanceParams> = {
   type: "white-balance",
   category: "Tone",
   previewBehavior: "show-output",
@@ -35,5 +34,3 @@ function transformWhiteBalance(raw: Buffer, params: WhiteBalanceParams): void {
     }
   }
 }
-
-registerOp(whiteBalanceModule);

@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { DEFAULT_CONCEAL_REGION, type ConcealRegion } from "@shared/types/conceal";
 import { applyComposite, assertFiniteNumber, assertParamsShape } from "./_shared";
 import { compositeMaskedOverlayFromConcealRegion, validateConcealRegionList } from "./_conceal-shapes";
@@ -10,7 +9,7 @@ type MosaicParams = {
   blockSize: number;
 };
 
-const mosaicModule: OpModule<MosaicParams> = {
+export const mosaicModule: OpModule<MosaicParams> = {
   type: "mosaic",
   category: "Conceal",
   previewBehavior: "show-output",
@@ -39,7 +38,6 @@ const mosaicModule: OpModule<MosaicParams> = {
   }
 };
 
-registerOp(mosaicModule);
 
 async function pixelateRegion(
   regionImage: sharp.Sharp,

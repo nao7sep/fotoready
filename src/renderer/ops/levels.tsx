@@ -7,7 +7,6 @@ const MIN_LEVEL_SPAN = 1;
 const DEFAULT_LEVELS: LevelsParams = { blackPoint: 0, whitePoint: 255, gamma: 1 };
 
 export const levelsRenderer: OpRenderer<LevelsParams> = {
-  type: "levels",
   Card({ params, disabled, onParamChange, onParamsChange }) {
     const { t, rich } = useI18n();
     const gammaSliderValue = gammaToSliderValue(params.gamma);

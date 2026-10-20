@@ -11,7 +11,8 @@
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getOpRenderer, listOpRenderers, type OverlayContext } from "@renderer/ops";
+import { getOpRenderer, type OverlayContext } from "@renderer/ops";
+import { OP_TYPES } from "@shared/op-types";
 import { getOpDefinition } from "@core/ops/catalog";
 import { DEFAULT_CONCEAL_REGION } from "@shared/types/conceal";
 
@@ -48,13 +49,13 @@ beforeEach(() => {
 
 describe("op overlays on a task that refuses edits", () => {
   it("draws no handle for any op", () => {
-    const overlays = listOpRenderers().filter((renderer) => renderer.Overlay);
+    const overlays = OP_TYPES.filter((type) => getOpRenderer(type)?.Overlay);
     expect(overlays.length).toBeGreaterThan(0);
 
-    for (const renderer of overlays) {
-      const markup = overlayMarkup(renderer.type, false);
-      expect(markup, `${renderer.type} handle`).not.toContain("draggable");
-      expect(markup, `${renderer.type} anchors`).not.toContain("<transformer");
+    for (const type of overlays) {
+      const markup = overlayMarkup(type, false);
+      expect(markup, `${type} handle`).not.toContain("draggable");
+      expect(markup, `${type} anchors`).not.toContain("<transformer");
     }
   });
 

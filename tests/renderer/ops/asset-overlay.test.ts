@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe("mounted asset aspect controls", () => {
-  const renderer = createAssetOverlayRenderer({ type: "stamp", color: "blue",
+  const renderer = createAssetOverlayRenderer({ color: "blue",
     renderSourceField: () => null,
     renderSourceAction: (props) => createElement("button", { onClick: () => void props.onParamsChange({ assetPath: props.params.assetPath }) }, "Select source")
   });

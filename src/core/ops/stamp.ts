@@ -1,8 +1,7 @@
 import { DEFAULT_ASSET_OVERLAY_WIDTH, type AssetOverlayParams } from "@shared/asset-overlay";
-import { registerOp } from "./registry";
 import { createAssetOverlayModule } from "./_asset-overlay";
 
-registerOp(createAssetOverlayModule({
+export const stampModule = createAssetOverlayModule({
   type: "stamp",
   category: "Conceal",
   defaultParams: {
@@ -17,4 +16,4 @@ registerOp(createAssetOverlayModule({
     opacity: 1,
     rotation: 0
   } satisfies AssetOverlayParams
-}));
+});

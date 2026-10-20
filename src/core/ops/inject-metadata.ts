@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertParamsShape, assertRecord, assertString } from "./_shared";
 import { EDITABLE_METADATA_FIELDS, type MetadataFields } from "@shared/types/settings";
 
@@ -7,7 +6,7 @@ type InjectMetadataParams = {
   fields: MetadataFields;
 };
 
-const injectMetadataModule: OpModule<InjectMetadataParams> = {
+export const injectMetadataModule: OpModule<InjectMetadataParams> = {
   type: "inject-metadata",
   category: "Metadata",
   previewBehavior: "show-output",
@@ -30,5 +29,3 @@ const injectMetadataModule: OpModule<InjectMetadataParams> = {
     decision.inject = { ...decision.inject, ...params.fields };
   }
 };
-
-registerOp(injectMetadataModule);

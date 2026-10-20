@@ -64,11 +64,10 @@ export type ImageClickHandler<P extends Record<string, unknown>> = (
 
 /**
  * Renderer-side companion to the main-side OpModule. Each op type owns one of these,
- * colocated in `@renderer/ops/<type>.tsx`. The catalog (`@renderer/ops/index.tsx`)
- * imports all renderers; ops-panel and editor-canvas look them up by op.type.
+ * colocated in `@renderer/ops/<type>.tsx` and keyed by its type in the renderer catalog;
+ * ops-panel and editor-canvas look them up by op.type.
  */
 export type OpRenderer<P extends Record<string, unknown> = Record<string, unknown>> = {
-  type: string;
   Card: React.FC<OpCardProps<P>>;
   Overlay?: React.FC<OpOverlayProps<P>>;
   /** True if this op handles raw image clicks (e.g. white-balance sample point). */

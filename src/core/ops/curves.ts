@@ -1,12 +1,11 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { applyPixels, assertArray, assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type CurvesParams = {
   rgb: Array<[number, number]>;
 };
 
-const curvesModule: OpModule<CurvesParams> = {
+export const curvesModule: OpModule<CurvesParams> = {
   type: "curves",
   category: "Tone",
   previewBehavior: "show-output",
@@ -62,5 +61,3 @@ function curveLookup(points: Array<[number, number]>): Uint8Array {
   }
   return lut;
 }
-
-registerOp(curvesModule);

@@ -9,7 +9,6 @@ import type { OpRenderer } from "./op-renderer";
 type InjectMetadataParams = { fields: MetadataFields };
 
 export const injectMetadataRenderer: OpRenderer<InjectMetadataParams> = {
-  type: "inject-metadata",
   Card({ params, disabled, ctx, onParamChange }) {
     const { t } = useI18n();
     const fields = params.fields ?? {};

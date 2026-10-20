@@ -68,7 +68,6 @@ const BORDER_SWATCH_LABELS: Record<SwatchKey, MessageKey> = {
 };
 
 export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
-  type: "watermark-text",
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const { t, percent } = useI18n();
     const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);

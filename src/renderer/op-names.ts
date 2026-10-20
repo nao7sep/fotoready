@@ -1,9 +1,9 @@
 import type { MessageKey } from "@shared/i18n/catalogues";
+import { isOpType, type OpType } from "@shared/op-types";
 import type { OpCategory } from "@shared/types/op";
 
-// An op's name is interface text, looked up by its type. A type without an entry shows as its id;
-// the i18n gate checks that every registered op has a name and every picker label is used.
-export const OP_NAME_LABELS: Readonly<Record<string, MessageKey>> = {
+// An op's name is interface text, looked up by its type.
+const OP_NAME_LABELS: Readonly<Record<OpType, MessageKey>> = {
   "auto-tone": "opName.autoTone",
   blur: "opName.blur",
   cover: "opName.cover",
@@ -27,7 +27,7 @@ export const OP_NAME_LABELS: Readonly<Record<string, MessageKey>> = {
 };
 
 // The shorter names the add-op palette uses where its section heading already says the rest.
-export const OP_PICKER_LABELS: Readonly<Record<string, MessageKey>> = {
+const OP_PICKER_LABELS: Readonly<Partial<Record<OpType, MessageKey>>> = {
   "inject-metadata": "opPicker.injectMetadata",
   "strip-metadata": "opPicker.stripMetadata",
   "watermark-image": "opPicker.watermarkImage",
@@ -43,12 +43,13 @@ const CATEGORY_LABELS: Record<OpCategory, MessageKey> = {
   Metadata: "ops.category.metadata"
 };
 
+// A saved recipe can name a type this version does not know; it shows as its id.
 export function opNameLabel(type: string): MessageKey | null {
-  return OP_NAME_LABELS[type] ?? null;
+  return isOpType(type) ? OP_NAME_LABELS[type] : null;
 }
 
-export function opPickerLabel(type: string): MessageKey | null {
-  return OP_PICKER_LABELS[type] ?? OP_NAME_LABELS[type] ?? null;
+export function opPickerLabel(type: OpType): MessageKey {
+  return OP_PICKER_LABELS[type] ?? OP_NAME_LABELS[type];
 }
 
 export function opCategoryLabel(category: OpCategory): MessageKey {

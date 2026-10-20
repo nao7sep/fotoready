@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import "@core/ops/catalog"; // side-effect: registers every op module
+import { OP_TYPES } from "@shared/op-types";
 import { listOpModules, requireOpModule } from "@core/ops/registry";
 
 const modules = listOpModules();
@@ -9,9 +9,8 @@ function paramsFor(type: string): Record<string, unknown> {
 }
 
 describe("op validate() — every registered op", () => {
-  it("registers the full catalog", () => {
-    // Guards against a module dropping out of the catalog's side-effect imports.
-    expect(modules.length).toBe(20);
+  it("files each module under its own type", () => {
+    expect(modules.map((module) => module.type)).toEqual([...OP_TYPES]);
   });
 
   for (const module of modules) {

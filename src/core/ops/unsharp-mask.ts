@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { assertFiniteNumber, assertParamsShape } from "./_shared";
 
 type UnsharpMaskParams = {
@@ -7,7 +6,7 @@ type UnsharpMaskParams = {
   amount: number;
 };
 
-const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
+export const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
   type: "unsharp-mask",
   category: "Effects",
   previewBehavior: "show-output",
@@ -27,5 +26,3 @@ const unsharpMaskModule: OpModule<UnsharpMaskParams> = {
     });
   }
 };
-
-registerOp(unsharpMaskModule);

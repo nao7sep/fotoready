@@ -17,7 +17,6 @@ const rotateFillSwatches = [
 ] as const satisfies ReadonlyArray<{ value: string; label: MessageKey; style: React.CSSProperties }>;
 
 export const rotateRenderer: OpRenderer<RotateParams> = {
-  type: "rotate",
   Card({ params, disabled, onParamChange }) {
     const { t } = useI18n();
     return (

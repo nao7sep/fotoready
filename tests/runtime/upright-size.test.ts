@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import "@core/ops/catalog";
 import { requireOpModule } from "@core/ops/registry";
 import { decodeImage } from "@runtime/decode";
 import { runPipeline } from "@runtime/pipeline-runner";

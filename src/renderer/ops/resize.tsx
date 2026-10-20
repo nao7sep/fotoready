@@ -16,7 +16,6 @@ const resizeModeOptions: ReadonlyArray<{ id: ResizeUiMode; label: MessageKey }> 
 const resizePresets = [200, 256, 400, 512, 800, 1024, 1280, 1600, 1920, 2048, 2560, 3200, 3840] as const;
 
 export const resizeRenderer: OpRenderer<ResizeParams> = {
-  type: "resize",
   Card({ params, disabled, onParamChange, onParamsChange }) {
     const { t, rich } = useI18n();
     const activeMode = toUiMode(params.mode);

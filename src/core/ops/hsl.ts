@@ -1,5 +1,4 @@
 import type { OpModule } from "./op-module";
-import { registerOp } from "./registry";
 import { applyPixels, assertFiniteNumber, assertParamsShape, assertRecord, clamp01 } from "./_shared";
 
 export const HSL_RANGES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"] as const;
@@ -22,7 +21,7 @@ type HslParams = Record<HslKey, HslAdjustment>;
 
 const zeroAdjustment: HslAdjustment = { hue: 0, sat: 0, lum: 0 };
 
-const hslModule: OpModule<HslParams> = {
+export const hslModule: OpModule<HslParams> = {
   type: "hsl",
   category: "Tone",
   previewBehavior: "show-output",
@@ -152,5 +151,3 @@ function hueToRgb(p: number, q: number, tValue: number): number {
 function wrapHue(value: number): number {
   return ((value % 360) + 360) % 360;
 }
-
-registerOp(hslModule);

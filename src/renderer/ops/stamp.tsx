@@ -10,7 +10,6 @@ import { presentFailure } from "@renderer/present-failure";
 import { message, type Message } from "@shared/i18n/translate";
 
 export const stampRenderer = createAssetOverlayRenderer({
-  type: "stamp",
   color: "#38bdf8",
   flipControlsPlacement: "after-source",
   renderSourceField({ ctx, params }) {

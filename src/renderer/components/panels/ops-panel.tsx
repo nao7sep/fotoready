@@ -7,6 +7,7 @@ import type { GlobalSettings } from "@shared/types/settings";
 import { DEFAULT_ASSET_PICKER_PREVIEW_LONG_EDGE } from "@shared/constants";
 import { availableOutputFormats, formatLabel, resolveOutputFormat } from "@shared/output-format";
 import type { OpCategory } from "@shared/types/op";
+import type { OpType } from "@shared/op-types";
 import { isTaskEditable } from "@shared/task-editing";
 import { getOpRenderer } from "@renderer/ops";
 import { taskVisualState } from "@renderer/task-visual-state";
@@ -166,9 +167,8 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   );
 }
 
-function pickerName(type: string, t: Translator["t"]): string {
-  const key = opPickerLabel(type);
-  return key ? t(key) : type;
+function pickerName(type: OpType, t: Translator["t"]): string {
+  return t(opPickerLabel(type));
 }
 
 function sortOpsForSection(

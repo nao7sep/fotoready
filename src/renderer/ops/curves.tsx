@@ -17,7 +17,6 @@ const curvePresets: ReadonlyArray<{ id: string; label: MessageKey; rgb: CurvePoi
 ];
 
 export const curvesRenderer: OpRenderer<CurvesParams> = {
-  type: "curves",
   Card({ params, disabled, onParamChange }) {
     const { t, rich } = useI18n();
     const points = params.rgb.length >= 2 ? params.rgb : defaultCurve;

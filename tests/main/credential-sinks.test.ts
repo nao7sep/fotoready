@@ -73,7 +73,7 @@ describe.each([
       throw rawFailure;
     }));
     const provider = new GeminiVisionProvider(FAKE_KEY, "https://models.example", (call) => records.writeProviderCall({ ...call, taskId: "task-1", provider: "gemini" }));
-    const options = { model: "gemini-3.8-flash", thinking: null, mediaResolution: "high" as const, descriptionPrompt: "Describe", timeoutMs: 5_000, maxRetries: 0, initialBackoffMs: 1 };
+    const options = { model: "gemini-3.8-flash", thinking: null, mediaResolution: "high" as const, descriptionPrompt: "Describe", timeoutMs: 5_000 };
     const image = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const, width: 4, height: 3, sourcePath: path.join(root, "photo.jpg") };
 
     await expect(provider.describeImage(image, options)).resolves.toBe(`A harbor. Echo: ${FAKE_KEY}`);

@@ -32,9 +32,13 @@ export type SentImageSummary = {
 
 export type VisionCallOptions = {
   timeoutMs: number;
-  maxRetries: number;
-  initialBackoffMs: number;
 };
+
+// The app's resend policy is fixed in code: three attempts in all, with doubling backoff from one
+// second, each wait capped at 30 seconds. Gemini's errors do not expose Retry-After to honour.
+export const VISION_ATTEMPTS = 3;
+const INITIAL_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 30_000;
 
 export type VisionDescribeOptions = VisionCallOptions & {
   model: string;
@@ -235,7 +239,7 @@ export class GeminiVisionProvider {
       config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
     };
     const recordedRequest = { ...request, contents: recordedParts };
-    return callWithRetry(opts, async (attempt) => {
+    return callWithRetry(async (attempt) => {
       const time = nowIso();
       const startedAt = performance.now();
       const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall(geminiDiagnostic({
@@ -255,19 +259,17 @@ export class GeminiVisionProvider {
   }
 }
 
-async function callWithRetry<T>(opts: VisionCallOptions, fn: (attempt: number) => Promise<T>): Promise<T> {
-  const attempts = Math.max(1, opts.maxRetries + 1);
+async function callWithRetry<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  for (let attempt = 0; attempt < VISION_ATTEMPTS; attempt++) {
     try {
       return await fn(attempt + 1);
     } catch (error) {
       lastError = error;
-      if (attempt === attempts - 1 || !isRetryable(error)) {
+      if (attempt === VISION_ATTEMPTS - 1 || !isRetryable(error)) {
         throw error;
       }
-      const delay = backoffDelayMs(opts.initialBackoffMs, attempt);
-      await sleep(delay);
+      await sleep(backoffDelayMs(attempt));
     }
   }
   throw lastError;
@@ -279,10 +281,10 @@ function isRetryable(error: unknown): boolean {
   return isRecord(cause) && ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"].includes(String(cause.code));
 }
 
-function backoffDelayMs(initial: number, attempt: number): number {
-  const base = initial * Math.pow(2, attempt);
-  const jitter = Math.random() * initial;
-  return Math.min(30000, base + jitter);
+function backoffDelayMs(attempt: number): number {
+  const base = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+  const jitter = Math.random() * INITIAL_BACKOFF_MS;
+  return Math.min(MAX_BACKOFF_MS, base + jitter);
 }
 
 function sleep(ms: number): Promise<void> {

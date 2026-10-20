@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@google/genai";
-import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
+import { GeminiVisionProvider, VISION_ATTEMPTS, type GeminiCall } from "@adapters/gemini";
 import { SUPPORTED_MODELS } from "@shared/ai-models";
 import { visionError } from "@main/queues/vision";
 
 const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
-const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, mediaResolution: "high" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000, maxRetries: 10, initialBackoffMs: 0 };
+const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, mediaResolution: "high" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000 };
 const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const, width: 1024, height: 768, sourcePath: "/out/harbor-k3Jq9xZa.jpg" };
 /** What a record keeps of the image sent: a summary, never the bytes (an approved departure). */
 const sentImage = {
@@ -162,8 +162,11 @@ describe("Gemini calls are handed over for recording", () => {
   });
 
   it("hands over every attempt whole: the request as sent and the response or failure", async () => {
+    vi.useFakeTimers();
     fetchMock.mockImplementationOnce(async () => fail(503)).mockImplementation(async () => ok());
-    await expect(run({ maxRetries: 1 })).resolves.toBe("A mug.");
+    const work = run();
+    await vi.runAllTimersAsync();
+    await expect(work).resolves.toBe("A mug.");
     expect(recordCall).toHaveBeenCalledTimes(2);
     const [first, second] = recordCall.mock.calls.map(([call]) => call);
     const sent = {
@@ -184,10 +187,13 @@ describe("Gemini calls are handed over for recording", () => {
 });
 
 describe("Gemini resend policy", () => {
-  it.each([408, 429, 503])("resends %s up to the retry setting", async (status) => {
+  it.each([408, 429, 503])("resends %s up to the attempt cap", async (status) => {
+    vi.useFakeTimers();
     fetchMock.mockImplementation(async () => fail(status));
-    await expect(run({ maxRetries: 5 })).rejects.toBeInstanceOf(ApiError);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    const work = run().catch((error: unknown) => error);
+    await vi.runAllTimersAsync();
+    expect(await work).toBeInstanceOf(ApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(VISION_ATTEMPTS);
   });
 
   it.each([400, 404, 500, 502, 504])("returns %s to the waiting user without resending", async (status) => {
@@ -197,8 +203,11 @@ describe("Gemini resend policy", () => {
   });
 
   it.each(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"])("retries the unsent connection failure %s", async (code) => {
+    vi.useFakeTimers();
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed", { cause: { code } })).mockImplementation(async () => ok());
-    await expect(run()).resolves.toBe("A mug.");
+    const work = run();
+    await vi.runAllTimersAsync();
+    await expect(work).resolves.toBe("A mug.");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

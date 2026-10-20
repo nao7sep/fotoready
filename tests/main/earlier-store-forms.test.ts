@@ -83,13 +83,13 @@ describe("stores written by v0.1.0", () => {
     await saveSettings(loaded.file, { ...loaded.settings, defaultAvifQuality: 55 }, loaded.settings);
     const saved = await fs.readFile(settingsPath, "utf8");
     expect(saved.startsWith('{\n  "formatVersion": 1,')).toBe(true);
-    const { formatVersion: _marker, model, workerPoolSize, ...sets } = JSON.parse(saved) as Record<string, unknown>;
-    const { model: oldModel, workerPoolSize: oldWorkerPoolSize, ...oldSets } = JSON.parse(text) as Record<string, unknown>;
-    expect(oldModel).toBe("gemini-3-flash-preview");
-    expect(oldWorkerPoolSize).toBeNull();
-    // Both retired keys go at the next save: v0.1.0's model, and the Concurrent saves setting.
-    expect(model).toBeUndefined();
-    expect(workerPoolSize).toBeUndefined();
+    const { formatVersion: _marker, ...sets } = JSON.parse(saved) as Record<string, unknown>;
+    const old = JSON.parse(text) as Record<string, unknown>;
+    // The retired keys go at the next save: v0.1.0's model, the Concurrent saves setting, and the
+    // Gemini resend settings that became fixed policy.
+    const retired = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs"];
+    for (const key of retired) expect(old).toHaveProperty(key);
+    const oldSets = Object.fromEntries(Object.entries(old).filter(([key]) => !retired.includes(key)));
     expect(sets).toEqual({ ...oldSets, defaultAvifQuality: 55 });
   });
 

@@ -510,8 +510,6 @@ function VisionTab({
           <NumberField label={t("settings.visionLongEdge")} {...SETTING_BOUNDS.preResizeLongEdge} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
           <NumberField label={t("settings.visionConcurrency")} {...SETTING_BOUNDS.visionConcurrency} value={settings.visionConcurrency} onChange={(value) => setSettings({ ...settings, visionConcurrency: value })} />
           <NumberField label={t("settings.visionTimeout")} {...SETTING_BOUNDS.visionTimeoutMs} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
-          <NumberField label={t("settings.visionMaxRetries")} {...SETTING_BOUNDS.visionMaxRetries} value={settings.visionMaxRetries} onChange={(value) => setSettings({ ...settings, visionMaxRetries: value })} />
-          <NumberField label={t("settings.visionBackoff")} {...SETTING_BOUNDS.visionInitialBackoffMs} value={settings.visionInitialBackoffMs} onChange={(value) => setSettings({ ...settings, visionInitialBackoffMs: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"

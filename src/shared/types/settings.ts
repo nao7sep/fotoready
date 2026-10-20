@@ -88,8 +88,6 @@ export type GlobalSettings = {
   visionSlugPrompt: string;
   visionConcurrency: number;
   visionTimeoutMs: number;
-  visionMaxRetries: number;
-  visionInitialBackoffMs: number;
   writeSoftwareTag: boolean;
   writeModifyDate: boolean;
 

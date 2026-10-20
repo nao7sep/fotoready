@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "Lado maior da imagem analisada",
   "settings.visionConcurrency": "Solicitações de análise simultâneas",
   "settings.visionTimeout": "Tempo limite da solicitação (ms)",
-  "settings.visionMaxRetries": "Máximo de novas tentativas em caso de falha",
-  "settings.visionBackoff": "Espera inicial antes de tentar de novo (ms)",
   "settings.generateDescriptionDefault": "Gerar a descrição das novas tarefas depois de salvar",
   "settings.generateSlugDefault": "Gerar o slug das novas tarefas depois de salvar",
   "settings.prompts": "Prompts",

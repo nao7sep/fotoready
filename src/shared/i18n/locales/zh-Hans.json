@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "分析图像的长边",
   "settings.visionConcurrency": "同时进行的分析请求",
   "settings.visionTimeout": "请求超时（毫秒）",
-  "settings.visionMaxRetries": "失败时最多重试次数",
-  "settings.visionBackoff": "首次重试前的等待时间（毫秒）",
   "settings.generateDescriptionDefault": "新任务保存后生成描述",
   "settings.generateSlugDefault": "新任务保存后生成别名",
   "settings.prompts": "提示词",

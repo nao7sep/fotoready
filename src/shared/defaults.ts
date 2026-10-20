@@ -68,8 +68,6 @@ export function defaultGlobalSettings(): GlobalSettings {
     visionSlugPrompt: defaultVisionSlugPrompt,
     visionConcurrency: 3,
     visionTimeoutMs: 60000,
-    visionMaxRetries: 3,
-    visionInitialBackoffMs: 1000,
     defaultOutputDirectory: "",
     lutFolder: "",
     stampFolder: "",

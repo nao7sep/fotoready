@@ -6,7 +6,7 @@ import { GeminiVisionProvider } from "@adapters/gemini";
 const response = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
 const text = (value: string, finishReason?: string) => response({ candidates: [{ ...(finishReason ? { finishReason } : {}), content: { parts: [{ text: value }] } }] });
 
-const CALL = { timeoutMs: 1000, maxRetries: 0, initialBackoffMs: 1 };
+const CALL = { timeoutMs: 1000 };
 const describeImage = () => new GeminiVisionProvider("fake-provider-key", "https://models.example", () => {}).describeImage(
   { imageBytes: Buffer.from("x"), mimeType: "image/jpeg", width: 1, height: 1, sourcePath: "/out/photo.jpg" },
   { ...CALL, model: "gemini-3.8-flash", thinking: "medium", mediaResolution: "high", descriptionPrompt: "p" });

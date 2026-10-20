@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "解析用画像の長辺",
   "settings.visionConcurrency": "同時に送る解析リクエスト",
   "settings.visionTimeout": "リクエストのタイムアウト(ミリ秒)",
-  "settings.visionMaxRetries": "失敗時の最大再試行回数",
-  "settings.visionBackoff": "最初の再試行までの待ち時間(ミリ秒)",
   "settings.generateDescriptionDefault": "新しいタスクで、保存後に説明文を生成する",
   "settings.generateSlugDefault": "新しいタスクで、保存後にスラッグを生成する",
   "settings.prompts": "プロンプト",

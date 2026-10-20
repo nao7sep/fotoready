@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "Lato lungo dell’immagine analizzata",
   "settings.visionConcurrency": "Richieste di analisi simultanee",
   "settings.visionTimeout": "Timeout della richiesta (ms)",
-  "settings.visionMaxRetries": "Tentativi massimi in caso di errore",
-  "settings.visionBackoff": "Attesa iniziale prima di un nuovo tentativo (ms)",
   "settings.generateDescriptionDefault": "Genera una descrizione per le nuove attività dopo il salvataggio",
   "settings.generateSlugDefault": "Genera uno slug per le nuove attività dopo il salvataggio",
   "settings.prompts": "Prompt",

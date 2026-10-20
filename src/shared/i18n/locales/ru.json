@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "Длинная сторона изображения для анализа",
   "settings.visionConcurrency": "Одновременные запросы анализа",
   "settings.visionTimeout": "Тайм-аут запроса (мс)",
-  "settings.visionMaxRetries": "Максимум повторов при сбое",
-  "settings.visionBackoff": "Начальная пауза перед повтором (мс)",
   "settings.generateDescriptionDefault": "Создавать описание для новых задач после сохранения",
   "settings.generateSlugDefault": "Создавать ярлык для новых задач после сохранения",
   "settings.prompts": "Промпты",

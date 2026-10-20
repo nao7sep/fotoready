@@ -50,7 +50,7 @@ export class SettingsQuarantineError extends Error {
  */
 // `workerPoolSize` was the Concurrent saves setting: the number of saves at once now follows the
 // machine and each photo's size (volume-handling-conventions; developer decision).
-const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize"];
+const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs"];
 
 /**
  * Store-recovery outcomes, decided once at load (developer decisions): a file that cannot be read

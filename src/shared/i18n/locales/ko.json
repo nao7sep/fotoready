@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "분석용 이미지의 긴 변",
   "settings.visionConcurrency": "동시 분석 요청 수",
   "settings.visionTimeout": "요청 제한 시간(ms)",
-  "settings.visionMaxRetries": "실패 시 최대 재시도 횟수",
-  "settings.visionBackoff": "첫 재시도 전 대기 시간(ms)",
   "settings.generateDescriptionDefault": "새 작업을 저장한 뒤 설명 생성",
   "settings.generateSlugDefault": "새 작업을 저장한 뒤 슬러그 생성",
   "settings.prompts": "프롬프트",

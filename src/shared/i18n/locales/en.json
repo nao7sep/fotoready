@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "Vision image long edge",
   "settings.visionConcurrency": "Concurrent vision requests",
   "settings.visionTimeout": "Request timeout (ms)",
-  "settings.visionMaxRetries": "Max retries on failure",
-  "settings.visionBackoff": "Initial retry backoff (ms)",
   "settings.generateDescriptionDefault": "Generate description for new tasks after save",
   "settings.generateSlugDefault": "Generate slug for new tasks after save",
   "settings.prompts": "Prompts",

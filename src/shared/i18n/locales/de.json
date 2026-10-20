@@ -353,8 +353,6 @@
   "settings.visionLongEdge": "Lange Kante des Analysebilds",
   "settings.visionConcurrency": "Gleichzeitige Analyseanfragen",
   "settings.visionTimeout": "Zeitlimit der Anfrage (ms)",
-  "settings.visionMaxRetries": "Maximale Wiederholungen bei Fehlern",
-  "settings.visionBackoff": "Erste Wartezeit vor einer Wiederholung (ms)",
   "settings.generateDescriptionDefault": "Für neue Aufgaben nach dem Speichern eine Beschreibung erzeugen",
   "settings.generateSlugDefault": "Für neue Aufgaben nach dem Speichern einen Slug erzeugen",
   "settings.prompts": "Prompts",

@@ -193,9 +193,7 @@ export class VisionQueue {
       this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, descriptionModel: settings["gemini.description"], slugModel: settings["gemini.slug"] });
 
       const callOptions = {
-        timeoutMs: settings.visionTimeoutMs,
-        maxRetries: settings.visionMaxRetries,
-        initialBackoffMs: settings.visionInitialBackoffMs
+        timeoutMs: settings.visionTimeoutMs
       };
       const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"], (call) =>
         this.records?.writeProviderCall({ ...call, taskId: task.id, provider: "gemini" }));

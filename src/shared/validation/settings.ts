@@ -19,8 +19,6 @@ export const SETTING_BOUNDS = {
   preResizeLongEdge: { min: 128, max: MAX_VISION_IMAGE_LONG_EDGE },
   visionConcurrency: { min: 1, max: 32 },
   visionTimeoutMs: { min: 1000, max: 600000 },
-  visionMaxRetries: { min: 0, max: 10 },
-  visionInitialBackoffMs: { min: 0, max: 30000 },
   previewLongEdge: { min: 320, max: MAX_PREVIEW_LONG_EDGE },
   assetPickerPreviewLongEdge: { min: MIN_ASSET_PICKER_PREVIEW_LONG_EDGE, max: MAX_ASSET_PICKER_PREVIEW_LONG_EDGE },
   previewDebounceMs: { min: 0, max: 2000 }
@@ -86,8 +84,6 @@ export function normalizeGlobalSettings(input: unknown, fallback: GlobalSettings
     visionSlugPrompt: readValue(source, "visionSlugPrompt", fallback.visionSlugPrompt, issues, assertNonEmptyString),
     visionConcurrency: readValue(source, "visionConcurrency", fallback.visionConcurrency, issues, wholeNumber("visionConcurrency")),
     visionTimeoutMs: readValue(source, "visionTimeoutMs", fallback.visionTimeoutMs, issues, wholeNumber("visionTimeoutMs")),
-    visionMaxRetries: readValue(source, "visionMaxRetries", fallback.visionMaxRetries, issues, wholeNumber("visionMaxRetries")),
-    visionInitialBackoffMs: readValue(source, "visionInitialBackoffMs", fallback.visionInitialBackoffMs, issues, wholeNumber("visionInitialBackoffMs")),
     writeSoftwareTag: readValue(source, "writeSoftwareTag", fallback.writeSoftwareTag, issues, assertBoolean),
     writeModifyDate: readValue(source, "writeModifyDate", fallback.writeModifyDate, issues, assertBoolean),
     previewLongEdge: readValue(source, "previewLongEdge", fallback.previewLongEdge, issues, wholeNumber("previewLongEdge")),

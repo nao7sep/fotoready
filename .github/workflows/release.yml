@@ -34,7 +34,9 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-      - run: npm install --global npm@12.2.0
+      - name: Install the npm version package.json names
+        shell: bash
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
       - run: npm ci
       - name: Verify tag matches package version
         if: github.ref_type == 'tag'
@@ -60,7 +62,9 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-      - run: npm install --global npm@12.2.0
+      - name: Install the npm version package.json names
+        shell: bash
+        run: npm install --global "$(node -p "require('./package.json').packageManager")"
       - run: npm ci
 
       # One command: electron-vite build + electron-builder for the host OS.

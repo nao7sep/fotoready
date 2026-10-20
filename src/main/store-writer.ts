@@ -7,7 +7,8 @@ import { settleWithin } from "./quit-save";
 /**
  * How many records may wait while the writer is busy. A healthy store keeps up with every record the
  * app makes; this bound only matters while the store is locked or stalled, when records beyond it are
- * dropped and their count is recorded once the writer catches up (developer decision).
+ * dropped and their count is recorded once the writer catches up, so a stalled store cannot grow
+ * memory without limit.
  */
 export const MAX_PENDING_RECORDS = 2_000;
 

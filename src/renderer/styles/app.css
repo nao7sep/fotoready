@@ -2194,7 +2194,7 @@ button.output-badge-label:focus-visible {
 }
 
 /* Settings fits each tab's content within the tall-modal cap, so a tab with a
-   few controls gives a short dialog on a tall screen (developer decision). The
+   few controls gives a short dialog on a tall screen instead of a mostly empty one. The
    page's own height is its basis: grown from zero, it sat at a fixed floor on
    every tab. */
 .settings-page {

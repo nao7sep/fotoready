@@ -26,8 +26,8 @@ import type { Logger } from "@shared/types/log";
  *     real protection.
  *   - On read: a group/world-readable file is warned about once and tightened to
  *     0600 (POSIX only).
- *   - Whether the session may write the file is decided once, by its first read
- *     (store-recovery-conventions; developer decisions): malformed content is moved
+ *   - Whether the session may write the file is decided once, by its first read, so
+ *     a session never overwrites a file it could not read: malformed content is moved
  *     aside to a timestamped neighbour and treated as empty; a file that cannot be
  *     read, cannot be moved aside, or was written by a newer build reads as empty, is
  *     warned about once and left exactly as it is, and storing a key throws

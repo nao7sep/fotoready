@@ -182,8 +182,8 @@ export async function runRename(project: Project, templateId?: RenameTemplateId,
   const completedTaskIds: string[] = [];
   const partialTaskIds: string[] = [];
   const warnings: Message[] = [];
-  // Sidecars are not reread here: editing one outside FotoReady while a session runs is unsupported
-  // (developer decision).
+  // Sidecars are not reread here: editing one outside FotoReady while a session runs is unsupported,
+  // so a rename works from what this session wrote.
   const moveFile = async (from: string, to: string): Promise<void> => {
     for (const failure of await moveOutputFile(from, to, logger)) {
       logger?.warn("output published but move cleanup failed", { mod: "rename", from, to, err: failure.error, cleanupPath: failure.path });

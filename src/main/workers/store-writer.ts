@@ -8,7 +8,7 @@ import { jsonSafe } from "../json-safe.ts";
 import { openRecordsDatabase, type RecordRow, type RecordsDatabase } from "../records-tables.ts";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "../store-writer-protocol.ts";
 
-// The one writer of records.sqlite3 and backups.sqlite3, off the main process (developer decision):
+// The one writer of records.sqlite3 and backups.sqlite3, off the main process:
 // the main process posts each batch and never waits on it, so a locked or stalled store cannot hold up
 // a save, an IPC call or quitting. Batches arrive one at a time and in order, so backup writes for a
 // path apply in save order. The Records window reads through its own worker.

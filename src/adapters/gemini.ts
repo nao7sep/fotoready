@@ -16,8 +16,7 @@ export type VisionDescribeRequest = {
 };
 
 /**
- * What a provider-call record keeps of the image sent, in place of its bytes. An approved departure
- * from data-lifecycle-conventions' "recorded whole" (developer decision): the bytes can be made again
+ * What a provider-call record keeps of the image sent, in place of its bytes: the bytes can be made again
  * from `sourcePath` and the resize settings, the hash identifies exactly what was sent, and keeping
  * them would grow the records by about a photo per description.
  */

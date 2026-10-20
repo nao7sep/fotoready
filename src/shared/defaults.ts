@@ -41,7 +41,7 @@ export function defaultGlobalSettings(): GlobalSettings {
     defaultOutputFormat: "original",
     // The reference encoders default to WebP 75 (libwebp) and AVIF 60 (libavif's avifenc), and sharp to
     // 80 and 50. These sit above the reference defaults to keep publishing quality on the safe side, and
-    // the user sets their own in Settings (developer decision).
+    // the user sets their own in Settings.
     defaultWebpQuality: 85,
     defaultAvifQuality: 75,
     defaultPngPalette: false,

@@ -16,7 +16,7 @@ import { defaultGlobalSettings } from "@shared/defaults";
 // Files exactly as FotoReady v0.1.0 (published 2026-07-07) wrote them, made by running v0.1.0's own
 // `createTaskSidecar`, op catalogue defaults and settings normalization: a sidecar with every op
 // v0.1.0 offered, a settings file holding every set and the retired `model`, and an unmarked key
-// file. They must keep working without a migration step (developer decision).
+// file. They must keep working without a migration step, so the released version's data loads as it is.
 const FIXTURES = path.join(import.meta.dirname, "fixtures", "v0.1.0");
 
 const roots: string[] = [];

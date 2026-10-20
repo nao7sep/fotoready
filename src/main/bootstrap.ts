@@ -239,7 +239,7 @@ export async function bootstrap(): Promise<void> {
 
   // macOS and Linux announce the end of the session here; Windows only through the main window's
   // session events (installCloseGuard). The OS is never asked to wait: saves at logout are
-  // best-effort within the exit deadline (developer decision).
+  // best-effort within the exit deadline, since a held-up restart costs more than an unfinished save.
   followOsShutdown(quit);
 
   const createWindow = async (): Promise<void> => {
@@ -376,7 +376,7 @@ export async function stopAppWork({ logger, exitReason, statePath, stateCoordina
 }
 
 /**
- * One total exit deadline (developer decision): it starts when an ordinary quit is approved, after
+ * One total exit deadline, so quitting always ends within a known time: it starts when an ordinary quit is approved, after
  * any questions and Retry choices, or when the OS session end begins, and a later quit request never
  * extends it. An ending session spends at most QUIT_SAVE_MS of it on the user's own work.
  */

@@ -32,9 +32,9 @@ function buildRecord(level: LogLevel, message: string, fields?: LogFields): LogR
 }
 
 /**
- * Writes each log line as a record (logging-conventions), handed to the store writer without waiting;
- * the writer owns the fallback when the database cannot take it. Lines from just before a crash may
- * be lost (developer decision). Never throws.
+ * Writes each log line as a record, handed to the store writer without waiting; the writer owns the
+ * fallback when the database cannot take it. Lines from just before a crash may be lost, the price of
+ * never making the work that logs wait on the database. Never throws.
  */
 export function createLogger(records: Pick<RecordsStore, "writeLog">, options: CreateLoggerOptions): AppLogger {
   const { debug } = options;

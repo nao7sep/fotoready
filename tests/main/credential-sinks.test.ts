@@ -10,7 +10,8 @@ import { createLogger } from "@main/logger";
 import { createRecordsStore, droppedRecordsRow, fallbackFile } from "@main/records-store";
 import { startStoreWriter } from "@main/store-writer";
 
-// Credentials never reach a persistent, console or event sink (developer decision): a fake key goes
+// Credentials never reach a persistent, console or event sink, where they would outlive the key file
+// or leave the app: a fake key goes
 // through a description, a provider failure and a malformed key file, then every sink is searched for
 // it and for its stored `obf:` form.
 

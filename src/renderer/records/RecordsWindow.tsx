@@ -484,7 +484,7 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   );
 }
 
-/** How far one arrow press moves the divider, as in every Records window (developer decision). */
+/** How far one arrow press moves the divider: a few presses make a visible change, yet it can still be placed closely. */
 const KEY_RESIZE_STEP = 16;
 
 /**

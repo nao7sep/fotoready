@@ -23,7 +23,7 @@ export type AtomicWriteOptions = {
 
 /**
  * The one temporary name a target is staged under: `<stem>-<extension>.tmp` beside it (derived-filename
- * grammar), e.g. `config-json.tmp`. It is fixed rather than random (developer decision): each target has
+ * grammar), e.g. `config-json.tmp`. It is fixed rather than random: each target has
  * one writer at a time (settings, keys and state each serialize their writes, sidecars and outputs go
  * through the output lane, and the single-instance lock excludes a second FotoReady), so a name left
  * by an interrupted write is replaced by the next write instead of accumulating. The extension is the

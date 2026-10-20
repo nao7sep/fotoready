@@ -15,7 +15,8 @@ export type LoadedState = {
 };
 
 /**
- * `state.json` is disposable UI state (developer decision): what cannot be read is replaced by
+ * `state.json` is disposable UI state, so losing it never costs more than a pane width or window
+ * position: what cannot be read is replaced by
  * defaults, in memory only when the file cannot be read or written, so it never stops startup.
  */
 export async function loadState(statePath: string, logger?: AppLogger): Promise<LoadedState> {

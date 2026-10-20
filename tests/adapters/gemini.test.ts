@@ -9,7 +9,7 @@ const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
 const opts = { model: "gemini-3.8-flash", thinking: "medium" as string | null, mediaResolution: "high" as string | null, descriptionPrompt: "Describe", timeoutMs: 60000 };
 const request = { imageBytes: Buffer.from("image"), mimeType: "image/jpeg" as const, width: 1024, height: 768, sourcePath: "/out/harbor-k3Jq9xZa.jpg" };
-/** What a record keeps of the image sent: a summary, never the bytes (an approved departure). */
+/** What a record keeps of the image sent: a summary, never the bytes, which would grow the records by a photo per call. */
 const sentImage = {
   mimeType: "image/jpeg", width: 1024, height: 768, byteSize: 5,
   sha256: createHash("sha256").update(request.imageBytes).digest("hex"), sourcePath: "/out/harbor-k3Jq9xZa.jpg"

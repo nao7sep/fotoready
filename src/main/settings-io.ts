@@ -19,7 +19,7 @@ export type SettingsFile = {
   readonly path: string;
   /**
    * The sets as stored, invalid and unknown ones included: a save writes the user's changed sets over
-   * this map, so nothing the user did not change is erased (developer decision).
+   * this map, so nothing the user did not change is erased.
    */
   stored: Record<string, unknown>;
   /** Whether load allowed this session to write the file; decided once, from the whole read. */
@@ -49,11 +49,12 @@ export class SettingsQuarantineError extends Error {
  * unknown key is kept. `model` was v0.1.0's one model id, now `gemini.description` and `gemini.slug`.
  */
 // `workerPoolSize` was the Concurrent saves setting: the number of saves at once now follows the
-// machine and each photo's size (volume-handling-conventions; developer decision).
+// machine and each photo's size, which a user cannot judge in advance.
 const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs"];
 
 /**
- * Store-recovery outcomes, decided once at load (developer decisions): a file that cannot be read
+ * Store-recovery outcomes, decided once at load so a session never overwrites a file it could not
+ * read correctly: a file that cannot be read
  * for access reasons is left in place, unwritten for the session and reported as such, never as
  * corruption; malformed content is set aside with one notice, and startup stops when that fails; a
  * newer file stops startup and is left exactly as it is. v0.1.0's unmarked file is read as it is.

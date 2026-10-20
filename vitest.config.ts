@@ -58,7 +58,6 @@ export default defineConfig({
         "src/main/bootstrap.ts",
         "src/main/workers/**", // worker-thread entrypoints (run off the main thread)
         "src/preload/**", // contextBridge wiring
-        "src/renderer/main.tsx", // React DOM mount
         "src/**/types/**", // type-only declaration modules
         "**/*.d.ts"
       ]

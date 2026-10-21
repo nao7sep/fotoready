@@ -104,6 +104,7 @@ describe("WatermarkSourceAction", () => {
     await act(async () => document.querySelector<HTMLButtonElement>("button")!.click());
 
     const result = document.querySelector('[role="alert"]');
+    expect(mocks.pickFile).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: params.assetPath }));
     expect(onParamsChange).not.toHaveBeenCalled();
     expect(result?.textContent).toContain("The current watermark is unchanged");
     expect(result?.textContent).not.toMatch(/EACCES|private\/tmp|FOTOREADY_WATERMARK_SENTINEL|invoking remote method/i);

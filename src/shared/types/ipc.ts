@@ -228,9 +228,9 @@ export type FotoReadyApi = {
     filePathForFile(file: File): string;
     log(entry: RendererLogEntry): Promise<void>;
     openExternal(url: string): Promise<void>;
-    pickFile(options: { title: string; extensions: string[] }): Promise<string | null>;
+    pickFile(options: { title: string; extensions: string[]; defaultPath?: string }): Promise<string | null>;
     pickFiles(options: { title: string; extensions: string[] }): Promise<string[]>;
-    pickDirectory(options: { title: string }): Promise<string | null>;
+    pickDirectory(options: { title: string; defaultPath?: string; purpose?: "output" }): Promise<string | null>;
     revealInFolder(filePath: string): Promise<void>;
   };
   settings: {

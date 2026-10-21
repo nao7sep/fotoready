@@ -236,7 +236,7 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
             buttonLabel={t("settings.chooseFolder")}
             emptyLabel={t("settings.sameFolderAsOriginal")}
             label={t("settings.folder")}
-            pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseOutputFolder") })}
+            pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseOutputFolder"), defaultPath: settings.defaultOutputDirectory, purpose: "output" })}
             value={settings.defaultOutputDirectory}
             onChange={(value) => setSettings({ ...settings, defaultOutputDirectory: value })}
           />
@@ -588,7 +588,7 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
           buttonLabel={t("settings.chooseFolder")}
           emptyLabel={lutEmptyLabel}
           label={t("settings.lutFolder")}
-          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseLutFolder") })}
+          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseLutFolder"), defaultPath: settings.lutFolder.trim() ? settings.lutFolder : systemInfo?.lutsDir })}
           value={settings.lutFolder}
           onChange={(value) => setSettings({ ...settings, lutFolder: value })}
         />
@@ -597,7 +597,7 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
           buttonLabel={t("settings.chooseFolder")}
           emptyLabel={stampEmptyLabel}
           label={t("settings.stampFolder")}
-          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseStampFolder") })}
+          pick={async () => window.api.system.pickDirectory({ title: t("dialog.chooseStampFolder"), defaultPath: settings.stampFolder.trim() ? settings.stampFolder : systemInfo?.stampsDir })}
           value={settings.stampFolder}
           onChange={(value) => setSettings({ ...settings, stampFolder: value })}
         />
@@ -611,7 +611,7 @@ function AssetsTab({ settings, setSettings, systemInfo }: SettingsProps & { syst
             buttonLabel={t("settings.chooseFile")}
             emptyLabel={t("settings.noDefaultWatermark")}
             label={t("settings.defaultWatermark")}
-            pick={async () => window.api.system.pickFile({ title: t("dialog.chooseDefaultWatermark"), extensions: ["png", "svg", "webp"] })}
+            pick={async () => window.api.system.pickFile({ title: t("dialog.chooseDefaultWatermark"), extensions: ["png", "svg", "webp"], defaultPath: settings.defaultWatermarkImage })}
             value={settings.defaultWatermarkImage}
             onChange={(value) => setSettings({ ...settings, defaultWatermarkImage: value })}
           />

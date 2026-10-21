@@ -50,7 +50,7 @@ export function WatermarkSourceAction({
 
   async function choose(): Promise<void> {
     try {
-      const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg", "webp"] });
+      const picked = await api.system.pickFile({ title: t("watermarkImage.chooseTitle"), extensions: ["png", "svg", "webp"], defaultPath: params.assetPath });
       if (!picked) return;
       // As the stamp picker does: the patch applies only to the task and values it was made from, and the
       // session refuses it if they changed meanwhile, so a task switch or an edit during the wait is kept.

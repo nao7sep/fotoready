@@ -30,6 +30,12 @@ const ENV_REFERENCE = /\$(\w+)|\$\{(\w+)\}|%(\w+)%/g;
  * absolute path with a variable in its middle, such as `/Volumes/$DRIVE/out`, is taken literally).
  */
 export function resolveConfiguredPath(value: string, base: string): string {
+  const expanded = expandConfiguredPath(value);
+  return path.isAbsolute(expanded) ? expanded : path.resolve(base, expanded);
+}
+
+/** Expands authored expressions without choosing a base for a source-relative value. */
+export function expandConfiguredPath(value: string): string {
   if (path.isAbsolute(value)) return value;
   const homeDir = os.homedir();
   let expanded = value;
@@ -44,7 +50,7 @@ export function resolveConfiguredPath(value: string, base: string): string {
     if (!env) throw new PathVariableError(name, value);
     return env;
   });
-  return path.isAbsolute(expanded) ? expanded : path.resolve(base, expanded);
+  return expanded;
 }
 
 /** The user-facing reason for a PathVariableError, shown beneath the failed operation's own copy. */

@@ -4,6 +4,7 @@ import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultGlobalSettings } from "@shared/defaults";
+import type { FotoReadyApi, SystemInfo } from "@shared/types/ipc";
 import type { GlobalSettings } from "@shared/types/settings";
 import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
 
@@ -11,8 +12,8 @@ import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
 
 let root: Root;
 const log = vi.fn(async () => undefined);
-const pickDirectory = vi.fn<() => Promise<string | null>>();
-const pickFile = vi.fn<(options: { title: string; extensions: string[] }) => Promise<string | null>>();
+const pickDirectory = vi.fn<FotoReadyApi["system"]["pickDirectory"]>();
+const pickFile = vi.fn<FotoReadyApi["system"]["pickFile"]>();
 const hostile = new Error("Error invoking remote method: EACCES /private/tmp/FOTOREADY_SETTINGS_SENTINEL");
 
 beforeEach(() => {
@@ -321,6 +322,50 @@ describe("AppSettingsModal Gemini section", () => {
   });
 });
 
+describe("Settings picker context", () => {
+  it("uses typed output drafts, retains cancellation and reuses literal selections", async () => {
+    const latest = await renderEditableSettings(defaultGlobalSettings());
+    await clickTab("Save");
+    const input = document.querySelector<HTMLInputElement>(".settings-path-row input")!;
+    await typeInto(input, "~/draft-output");
+    pickDirectory.mockResolvedValue(null);
+    await clickButton("Choose folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "~/draft-output", purpose: "output" }));
+    expect(latest().defaultOutputDirectory).toBe("~/draft-output");
+    const picked = "/photos/ $LITERAL %literal% ";
+    pickDirectory.mockResolvedValueOnce(picked);
+    await clickButton("Choose folder");
+    expect(latest().defaultOutputDirectory).toBe(picked);
+    await clickButton("Choose folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: picked }));
+  });
+
+  it("uses current asset drafts and the relocated library defaults", async () => {
+    const latest = await renderEditableSettings({ ...defaultGlobalSettings(), lutFolder: "~/draft-luts", stampFolder: "draft-stamps", defaultWatermarkImage: "~/draft.svg" });
+    await clickTab("Assets");
+    pickDirectory.mockResolvedValue(null);
+    pickFile.mockResolvedValue(null);
+    const choose = async (label: string) => {
+      const input = fieldOf(label).input;
+      await act(async () => input.closest(".stacked-field")!.querySelector<HTMLButtonElement>("button")!.click());
+    };
+    await choose("Imported LUT folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "~/draft-luts" }));
+    await typeInto(fieldOf("Imported stamp folder").input, "new-stamps");
+    await choose("Imported stamp folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "new-stamps" }));
+    await choose("Default image watermark");
+    expect(pickFile).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "~/draft.svg" }));
+    expect(latest().defaultWatermarkImage).toBe("~/draft.svg");
+
+    await renderSettings({ initialTab: "assets", systemInfo: { lutsDir: "/relocated/luts", stampsDir: "/relocated/stamps" } as SystemInfo });
+    await choose("Imported LUT folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "/relocated/luts" }));
+    await choose("Imported stamp folder");
+    expect(pickDirectory).toHaveBeenLastCalledWith(expect.objectContaining({ defaultPath: "/relocated/stamps" }));
+  });
+});
+
 describe("AppSettingsModal failure ownership", () => {
   it("keeps a failed save inside the open modal with authored copy", async () => {
     await renderSettings({ onSaveSettings: vi.fn(async () => { throw hostile; }) });
@@ -409,8 +454,10 @@ async function renderSettings({
   onSaveSettings = vi.fn(async () => undefined),
   onClose = () => undefined,
   settings = defaultGlobalSettings(),
-  setSettingsDraft = vi.fn()
+  setSettingsDraft = vi.fn(),
+  systemInfo = null
 }: {
+  systemInfo?: SystemInfo | null;
   initialTab?: "save" | "app" | "vision" | "assets";
   hasGeminiApiKey?: boolean;
   onSaveSettings?: () => Promise<void>;
@@ -432,7 +479,7 @@ async function renderSettings({
       onSaveSettings,
       settingsDraft: settings,
       setSettingsDraft,
-      systemInfo: null
+      systemInfo
     }));
   });
 }

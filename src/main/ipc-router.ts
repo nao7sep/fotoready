@@ -10,7 +10,7 @@ import type { UiState } from "@shared/types/state";
 import { APP_NAME, IMPORT_FILE_EXTENSIONS } from "@shared/constants";
 import { listOpDefinitions } from "@core/ops/catalog";
 import { readAssetAspectRatio } from "@core/ops/_asset-overlay";
-import type { OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
+import type { FotoReadyApi, OriginalImportIssue, PreviewRenderOptions, RendererLogEntry, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { saveSettings, type SettingsFile } from "@main/settings-io";
 import { StoreNotWritableError } from "@adapters/json-store";
 import { applyThemePreference, osAppearance } from "@main/theme";
@@ -22,7 +22,8 @@ import type { StateCoordinator } from "@main/state-io";
 import type { UserWorkWrites } from "@main/quit-save";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
-import { PathVariableError, pathVariableReason } from "@main/configured-path";
+import { resolveProjectOutputDir } from "@main/output-paths";
+import { expandConfiguredPath, resolveConfiguredPath, PathVariableError, pathVariableReason } from "@main/configured-path";
 import { ipcFailure } from "@shared/ipc-failure";
 import { LibraryFolderError } from "@main/file-asset-catalog";
 import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
@@ -171,12 +172,13 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     }
     await shell.openExternal(target.toString());
   });
-  handle("system.pickFile", "info", async (event, options: { title: string; extensions: string[] }) => {
+  handle("system.pickFile", "info", async (event, options: Parameters<FotoReadyApi["system"]["pickFile"]>[0]) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const { t } = mainTranslator();
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
       properties: ["openFile"],
+      defaultPath: options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath.trim(), os.homedir()) : undefined,
       filters: [
         { name: t("dialog.filterSupported"), extensions: options.extensions },
         { name: t("dialog.filterAll"), extensions: ["*"] }
@@ -199,11 +201,32 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? [] : result.filePaths;
   });
-  handle("system.pickDirectory", "info", async (event, options: { title: string }) => {
+  // Output expressions are relative to a photo, unlike asset settings, which use Home.
+  // Use the active photo or one shared source folder; never invent a base from an arbitrary photo.
+  const outputPickerPath = (value: string | null): string | undefined => {
+    const snapshot = ctx.projectSession.snapshot();
+    const { project, activeTaskId } = snapshot;
+    const task = project.tasks.find((item) => item.id === activeTaskId);
+    const source = project.originals.find((item) => item.id === task?.originalId);
+    const parents = new Set(project.originals.map((item) => path.dirname(item.sourcePath)));
+    const sourcePath = source?.sourcePath ?? (parents.size === 1 ? project.originals[0]?.sourcePath : undefined);
+    if (sourcePath) return resolveProjectOutputDir(value, sourcePath);
+    // Absolute and home/env expressions do not need a source-relative base.
+    const authored = value?.trim();
+    if (authored) {
+      const expanded = expandConfiguredPath(authored);
+      if (path.isAbsolute(expanded)) return expanded;
+    }
+    return undefined;
+  };
+  handle("system.pickDirectory", "info", async (event, options: Parameters<FotoReadyApi["system"]["pickDirectory"]>[0]) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
-      properties: ["openDirectory", "createDirectory"]
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: options.purpose === "output"
+        ? outputPickerPath(options.defaultPath ?? null)
+        : options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath.trim(), os.homedir()) : undefined
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -259,7 +282,8 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
       title: mainTranslator().t("dialog.chooseOutputFolder"),
-      properties: ["openDirectory", "createDirectory"]
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: outputPickerPath(ctx.projectSession.project().outputDir)
     };
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
     if (result.canceled || result.filePaths.length === 0) {

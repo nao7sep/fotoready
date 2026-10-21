@@ -32,7 +32,7 @@ const api: FotoReadyApi = {
     pickFile: (options) => invoke("system.pickFile", options),
     pickFiles: (options) => invoke("system.pickFiles", options),
     pickDirectory: (options) => invoke("system.pickDirectory", options),
-    revealInFolder: (filePath) => invoke("system.revealInFolder", filePath)
+    revealInFolder: (filePath, purpose) => invoke("system.revealInFolder", filePath, purpose)
   },
   settings: {
     get: () => invoke("settings.get"),

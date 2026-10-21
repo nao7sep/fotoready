@@ -41,7 +41,7 @@ describe("values cut short in the main window", () => {
     const badge = document.querySelector<HTMLButtonElement>("button.output-badge-label");
     expect(badge?.textContent).toContain(OUTPUT_DIR);
     await act(async () => badge!.click());
-    expect(revealInFolder).toHaveBeenCalledWith(OUTPUT_DIR);
+    expect(revealInFolder).toHaveBeenCalledWith(OUTPUT_DIR, "output");
     await vi.waitFor(() => expect(shellResults()).toContain("The output folder could not be shown"));
 
     await act(async () => badge!.click());

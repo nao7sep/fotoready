@@ -56,5 +56,5 @@ export async function deleteLuts(filePaths: readonly string[], lutFolder: string
 
 export function resolveLutDir(lutFolder: string, defaultLutDir: string): string {
   const trimmed = lutFolder.trim();
-  return trimmed.length > 0 ? resolveConfiguredPath(trimmed, homedir()) : defaultLutDir;
+  return trimmed.length > 0 ? resolveConfiguredPath(lutFolder, homedir()) : defaultLutDir;
 }

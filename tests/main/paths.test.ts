@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The resolver imports os's default object while the catalogs import the
@@ -35,6 +36,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.mocked(os.homedir).mockReset();
   vi.unstubAllEnvs();
   fs.rmSync(tmpBase, { recursive: true, force: true });
@@ -55,6 +57,17 @@ describe("getAppPaths luts/stamps relocate with FOTOREADY_DATA_DIR", () => {
     const defaultRoot = path.join(tmpHome, ".fotoready");
     expect(paths.lutsDir).toBe(path.join(defaultRoot, "luts"));
     expect(paths.stampsDir).toBe(path.join(defaultRoot, "stamps"));
+  });
+});
+
+describe("getAppPaths bundled assets", () => {
+  it("locates development assets beside the app code regardless of the launch directory", () => {
+    vi.spyOn(process, "cwd").mockReturnValue(tmpBase);
+    const paths = getAppPaths();
+    expect(paths.bundledLutsDir).toBe(fileURLToPath(new URL("../../resources/luts", import.meta.url)));
+    expect(paths.bundledStampsDir).toBe(fileURLToPath(new URL("../../resources/stamps", import.meta.url)));
+    expect(fs.statSync(paths.bundledLutsDir).isDirectory()).toBe(true);
+    expect(fs.statSync(paths.bundledStampsDir).isDirectory()).toBe(true);
   });
 });
 

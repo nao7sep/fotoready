@@ -157,9 +157,10 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const fields = entry.fields && typeof entry.fields === "object" && !Array.isArray(entry.fields) ? entry.fields : {};
     ctx.logger[entry.level](entry.message, { ...fields, source: "renderer" });
   });
-  handle("system.revealInFolder", "info", async (_event, filePath: string) => {
+  handle("system.revealInFolder", "info", async (_event, filePath: string, purpose?: "output") => {
     if (typeof filePath !== "string" || filePath.length === 0) return;
-    const resolved = path.resolve(filePath);
+    const resolved = purpose === "output" ? projectOutputPath(filePath) : path.isAbsolute(filePath) ? path.resolve(filePath) : undefined;
+    if (!resolved) throw new Error("The output folder needs an active photo or a shared source folder to resolve its location.");
     // A missing path rejects, so the caller can say the folder could not be shown instead of
     // the click doing nothing.
     await fs.lstat(resolved);
@@ -178,7 +179,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const dialogOptions: OpenDialogOptions = {
       title: options.title,
       properties: ["openFile"],
-      defaultPath: options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath.trim(), os.homedir()) : undefined,
+      defaultPath: options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath, os.homedir()) : undefined,
       filters: [
         { name: t("dialog.filterSupported"), extensions: options.extensions },
         { name: t("dialog.filterAll"), extensions: ["*"] }
@@ -203,7 +204,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   });
   // Output expressions are relative to a photo, unlike asset settings, which use Home.
   // Use the active photo or one shared source folder; never invent a base from an arbitrary photo.
-  const outputPickerPath = (value: string | null): string | undefined => {
+  const projectOutputPath = (value: string | null): string | undefined => {
     const snapshot = ctx.projectSession.snapshot();
     const { project, activeTaskId } = snapshot;
     const task = project.tasks.find((item) => item.id === activeTaskId);
@@ -212,9 +213,8 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const sourcePath = source?.sourcePath ?? (parents.size === 1 ? project.originals[0]?.sourcePath : undefined);
     if (sourcePath) return resolveProjectOutputDir(value, sourcePath);
     // Absolute and home/env expressions do not need a source-relative base.
-    const authored = value?.trim();
-    if (authored) {
-      const expanded = expandConfiguredPath(authored);
+    if (value) {
+      const expanded = expandConfiguredPath(value);
       if (path.isAbsolute(expanded)) return expanded;
     }
     return undefined;
@@ -225,8 +225,8 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
       title: options.title,
       properties: ["openDirectory", "createDirectory"],
       defaultPath: options.purpose === "output"
-        ? outputPickerPath(options.defaultPath ?? null)
-        : options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath.trim(), os.homedir()) : undefined
+        ? projectOutputPath(options.defaultPath ?? null)
+        : options.defaultPath?.trim() ? resolveConfiguredPath(options.defaultPath, os.homedir()) : undefined
     };
     const result = owner ? await dialog.showOpenDialog(owner, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -283,7 +283,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     const options: OpenDialogOptions = {
       title: mainTranslator().t("dialog.chooseOutputFolder"),
       properties: ["openDirectory", "createDirectory"],
-      defaultPath: outputPickerPath(ctx.projectSession.project().outputDir)
+      defaultPath: projectOutputPath(ctx.projectSession.project().outputDir)
     };
     const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
     if (result.canceled || result.filePaths.length === 0) {

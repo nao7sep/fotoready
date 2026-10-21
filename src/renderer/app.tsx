@@ -843,7 +843,7 @@ function App(): React.JSX.Element {
             <button className="output-badge-label" type="button" title={project.outputDir} onClick={() => {
               const folder = project.outputDir!;
               void runOwnedAction({
-                action: () => api.system.revealInFolder(folder),
+                action: () => api.system.revealInFolder(folder, "output"),
                 key: "output-directory-reveal",
                 operation: "output folder reveal failed",
                 setFailures: setShellFailures,

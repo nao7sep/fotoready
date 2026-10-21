@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DATA_DIR_ENV_VAR } from "@shared/constants";
-import { PathVariableError, resolveConfiguredPath } from "./configured-path";
+import { PathVariableError, expandAuthoredPath } from "./configured-path";
 
 // Resolves the single storage root, the one place app data lives. The root
 // is the FOTOREADY_DATA_DIR override when it is set and non-empty (its value is
@@ -25,7 +25,7 @@ import { PathVariableError, resolveConfiguredPath } from "./configured-path";
  */
 function expandOverride(value: string, homeDir: string): string {
   try {
-    return path.resolve(resolveConfiguredPath(value, homeDir));
+    return path.resolve(homeDir, expandAuthoredPath(value));
   } catch (error) {
     if (!(error instanceof PathVariableError)) throw error;
     throw new Error(

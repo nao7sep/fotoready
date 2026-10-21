@@ -50,6 +50,24 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
     expect(fs.statSync(path.join(root, "logs")).isDirectory()).toBe(true);
   });
 
+  it.each(["$FOTOREADY_ROOT_TEST_SET", "${FOTOREADY_ROOT_TEST_SET}", "%FOTOREADY_ROOT_TEST_SET%"])(
+    "expands %s inside an absolute authored override before creating the root",
+    (reference) => {
+      vi.stubEnv("FOTOREADY_ROOT_TEST_SET", "expanded");
+      process.env[ENV_VAR] = path.join(tmpBase, reference, "profile");
+      const expected = path.join(tmpBase, "expanded", "profile");
+      expect(resolveStorageRoot(DATA_DIR_NAME, ["logs"])).toBe(expected);
+      expect(fs.statSync(path.join(expected, "logs")).isDirectory()).toBe(true);
+      expect(fs.existsSync(path.join(tmpBase, reference))).toBe(false);
+    }
+  );
+
+  it("rejects an unset variable inside an absolute authored override", () => {
+    process.env[ENV_VAR] = path.join(tmpBase, "$FOTOREADY_ROOT_TEST_UNSET", "profile");
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
+    expect(fs.existsSync(path.join(tmpBase, "$FOTOREADY_ROOT_TEST_UNSET"))).toBe(false);
+  });
+
   it("expands a leading ~ in the override against the home directory", () => {
     process.env[ENV_VAR] = "~/.fotoready-test-home-expand";
     const root = resolveStorageRoot(DATA_DIR_NAME, []);

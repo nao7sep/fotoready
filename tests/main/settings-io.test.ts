@@ -87,6 +87,18 @@ describe("the settings format version", () => {
 });
 
 describe("settings by set", () => {
+  it.each(["defaultOutputDirectory", "lutFolder", "stampFolder", "defaultWatermarkImage"] as const)(
+    "preserves literal selected %s through saving, reopening and a whitespace-only filename change",
+    async (key) => {
+      const first = path.join(dir, " $UNSET_SETTINGS %literal%");
+      const selected = `${first} `;
+      await save({ [key]: first });
+      expect((await save({ [key]: selected }))[key]).toBe(selected);
+      expect((await loadSettings(settingsPath())).settings[key]).toBe(selected);
+      expect((await written())[key]).toBe(selected);
+    }
+  );
+
   it("loads built-ins on first run without writing any file", async () => {
     expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), file: { path: settingsPath(), stored: {}, writable: true }, notice: null });
     expect(await fs.readdir(dir)).toEqual([]);

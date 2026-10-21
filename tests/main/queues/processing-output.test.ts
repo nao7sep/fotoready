@@ -30,6 +30,15 @@ afterEach(async () => {
 });
 
 describe("processTask output publication", () => {
+  it("publishes into the literal selected output folder, including trailing spaces", async () => {
+    const { project, task } = arrange();
+    project.outputDir = path.join(dir, " $UNSET_OUTPUT %literal% ");
+    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
+    expect(task.status).toBe("saved");
+    expect(path.dirname(task.output!.stagedPath)).toBe(project.outputDir);
+    expect(await fs.readFile(task.output!.stagedPath, "utf8")).toBe("rendered");
+  });
+
   it("renders and tags the image under a temporary name, then gives it its final name", async () => {
     const { project, task } = arrange();
     const seenAtMetadata: string[][] = [];

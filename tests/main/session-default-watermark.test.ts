@@ -29,10 +29,27 @@ afterEach(async () => {
 });
 
 describe("a new image watermark op with a default watermark", () => {
+  it("keeps a native-picked default output folder in the new workspace", () => {
+    const selected = path.join(home, " selected output ");
+    const session = new ProjectSession(
+      { ...defaultGlobalSettings(), defaultOutputDirectory: selected },
+      null as never, null as never, null as never, "resources/stamps"
+    );
+    expect(session.project().outputDir).toBe(selected);
+  });
+
   it("resolves a relative default against the home folder", async () => {
     const { session, task } = arrange("marks/logo.png");
     await session.addOp(task.id, "watermark-image");
     expect(task.pipeline.ops[0].params.assetPath).toBe(path.join(home, "marks", "logo.png"));
+  });
+
+  it("preserves a native-picked default watermark with trailing spaces", async () => {
+    const picked = path.join(home, "marks", " $UNSET_MARK %literal% ");
+    await fs.copyFile(path.join(home, "marks", "logo.png"), picked);
+    const { session, task } = arrange(picked);
+    await session.addOp(task.id, "watermark-image");
+    expect(task.pipeline.ops[0].params.assetPath).toBe(picked);
   });
 
   it("expands an environment reference in the default", async () => {

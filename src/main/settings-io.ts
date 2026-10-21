@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
 import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson } from "@shared/format-versions";
@@ -94,14 +95,19 @@ export async function loadSettings(settingsPath: string, logger?: AppLogger): Pr
 }
 
 const MULTILINE_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["visionDescriptionPrompt", "visionSlugPrompt"]);
+const PATH_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["defaultOutputDirectory", "lutFolder", "stampFolder", "defaultWatermarkImage"]);
 const MODEL_ID_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["gemini.description", "gemini.slug"]);
 
 /**
  * The text-cleanup form a set is compared and stored in: multiline for the prompts, single-line for
- * other text. An empty metadata member is dropped, since an empty default injects nothing.
+ * other text, preserving absolute filesystem references literally. An empty metadata member is dropped, since an empty default injects nothing.
  */
 function cleanSet(key: keyof GlobalSettings, value: unknown): unknown {
-  if (typeof value === "string") return MULTILINE_SETS.has(key) ? multiline(value) : singleLine(value);
+  if (typeof value === "string") {
+    // Native selections carry file identity: cleanup could select a different file or folder.
+    if (PATH_SETS.has(key) && path.isAbsolute(value)) return value;
+    return MULTILINE_SETS.has(key) ? multiline(value) : singleLine(value);
+  }
   if (key === "injectFields" && isRecord(value)) {
     return Object.fromEntries(Object.entries(value)
       .map(([field, text]) => [field, typeof text === "string" ? cleanMetadataField(field as keyof MetadataFields, text) : text])

@@ -9,6 +9,7 @@ import { resolveConfiguredPath } from "./configured-path";
 // Resolution:
 //   - empty/whitespace `outputDir` → the source image's own directory (the
 //     established default for "save next to the original").
+//   - an absolute selection is used literally, preserving its filename whitespace;
 //   - otherwise `~` and environment references are expanded (an unset or empty
 //     variable throws PathVariableError); an absolute result is used as-is, and a
 //     relative one is resolved against the source image's directory (an
@@ -19,5 +20,5 @@ import { resolveConfiguredPath } from "./configured-path";
 export function resolveProjectOutputDir(outputDir: string | null, sourcePath: string): string {
   const sourceDir = path.dirname(sourcePath);
   if (!outputDir || outputDir.trim().length === 0) return sourceDir;
-  return resolveConfiguredPath(outputDir.trim(), sourceDir);
+  return resolveConfiguredPath(outputDir, sourceDir);
 }

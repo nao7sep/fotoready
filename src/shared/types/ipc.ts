@@ -231,7 +231,7 @@ export type FotoReadyApi = {
     pickFile(options: { title: string; extensions: string[]; defaultPath?: string }): Promise<string | null>;
     pickFiles(options: { title: string; extensions: string[] }): Promise<string[]>;
     pickDirectory(options: { title: string; defaultPath?: string; purpose?: "output" }): Promise<string | null>;
-    revealInFolder(filePath: string): Promise<void>;
+    revealInFolder(filePath: string, purpose?: "output"): Promise<void>;
   };
   settings: {
     /** The display zone a Save changed to, sent to every window. */

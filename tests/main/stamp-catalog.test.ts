@@ -5,12 +5,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
 
+import { importLuts, listLuts } from "@main/lut-catalog";
 import { importStamps, listStamps } from "@main/stamp-catalog";
 
 const roots: string[] = [];
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+describe("selected asset library folders", () => {
+  it.each(["lut", "stamp"])("imports and lists a %s in the exact selected folder", async (kind) => {
+    const root = tempRoot();
+    const bundled = path.join(root, "bundled");
+    const selected = path.join(root, " $UNSET_LIBRARY %literal% ");
+    fs.mkdirSync(bundled);
+    fs.mkdirSync(selected);
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ version: 1, stamps: [] }));
+    const fileName = kind === "lut" ? "warm.cube" : "mark.svg";
+    const source = path.join(root, fileName);
+    fs.writeFileSync(source, kind === "lut" ? "LUT_3D_SIZE 2" : "<svg />");
+    const importAssets = kind === "lut" ? importLuts : importStamps;
+    const listAssets = kind === "lut" ? listLuts : listStamps;
+    await importAssets([source], selected, path.join(root, "unused"), bundled);
+    expect(await listAssets(selected, path.join(root, "unused"), bundled)).toEqual([
+      expect.objectContaining({ path: path.join(selected, fileName), builtin: false })
+    ]);
+    expect(fs.existsSync(selected.trim())).toBe(false);
+  });
 });
 
 describe("listStamps", () => {

@@ -2,8 +2,8 @@ import os from "node:os";
 import path from "node:path";
 import { message, type Message } from "@shared/i18n/translate";
 
-// The one place a path the user configured (a settings field, FOTOREADY_DATA_DIR)
-// is expanded and made absolute, so every such path follows the same rules.
+// Shared path-expression syntax. Settings retain literal absolute references;
+// the storage-root override explicitly opts into expression expansion.
 
 /** A configured path names an environment variable that is not set or is empty. */
 export class PathVariableError extends Error {
@@ -23,7 +23,8 @@ const ENV_REFERENCE = /\$(\w+)|\$\{(\w+)\}|%(\w+)%/g;
 /**
  * Resolves a configured path. A value that is already absolute is used exactly as given: it is what a
  * folder picker returns, and a folder may be named `$HOME` or `100%`, which expanding would reject
- * or redirect. Any other value is an authored expression: a leading `~` and every `$VAR`, `${VAR}`
+ * or redirect. Whitespace is trimmed only for authored input; an absolute selection keeps it.
+ * Any other value is an authored expression: a leading `~` and every `$VAR`, `${VAR}`
  * and `%VAR%` are expanded, and a relative result is resolved against `base`. A reference to an
  * unset or empty variable throws PathVariableError rather than keeping the reference as typed. An
  * expression therefore starts with `~` or a variable, never with a folder root (AI decision: a typed
@@ -37,8 +38,14 @@ export function resolveConfiguredPath(value: string, base: string): string {
 /** Expands authored expressions without choosing a base for a source-relative value. */
 export function expandConfiguredPath(value: string): string {
   if (path.isAbsolute(value)) return value;
-  const homeDir = os.homedir();
+  const authored = value.trim();
+  return path.isAbsolute(authored) ? authored : expandAuthoredPath(authored);
+}
+
+/** Expands an explicitly authored expression, including variables inside an absolute override. */
+export function expandAuthoredPath(value: string): string {
   let expanded = value;
+  const homeDir = os.homedir();
   if (expanded === "~") {
     expanded = homeDir;
   } else if (expanded.startsWith("~/") || expanded.startsWith("~\\")) {

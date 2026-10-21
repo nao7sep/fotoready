@@ -73,7 +73,7 @@ export class ProjectSession {
     private readonly logger?: AppLogger,
     private readonly userWork: UserWorkWrites = new UserWorkWrites()
   ) {
-    this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() || null);
+    this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() ? settings.defaultOutputDirectory : null);
     this.#previewService = new PreviewService(workerPool);
   }
 
@@ -512,7 +512,7 @@ export class ProjectSession {
     }
     // Resolved before the edit is recorded, so a default naming an unset variable leaves the task unchanged.
     const defaultWatermark = opType === "watermark-image" && this.settings.defaultWatermarkImage.trim()
-      ? resolveConfiguredPath(this.settings.defaultWatermarkImage.trim(), homedir())
+      ? resolveConfiguredPath(this.settings.defaultWatermarkImage, homedir())
       : null;
     const pipeline = task.pipeline;
 

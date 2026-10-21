@@ -72,5 +72,5 @@ export async function deleteStamps(filePaths: readonly string[], stampFolder: st
 
 export function resolveStampDir(stampFolder: string, defaultStampDir: string): string {
   const trimmed = stampFolder.trim();
-  return trimmed.length > 0 ? resolveConfiguredPath(trimmed, homedir()) : defaultStampDir;
+  return trimmed.length > 0 ? resolveConfiguredPath(stampFolder, homedir()) : defaultStampDir;
 }

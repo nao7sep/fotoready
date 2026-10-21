@@ -49,6 +49,8 @@ beforeEach(() => {
 describe("native picker paths", () => {
   it.each(["system.pickFile", "system.pickDirectory"])("resolves %s authored hints using Home and keeps the native owner", async (channel) => {
     for (const [authored, expected] of [
+      [path.join(os.homedir(), " literal folder "), path.join(os.homedir(), " literal folder ")],
+      ["  ~/art/logo.png  ", path.join(os.homedir(), "art/logo.png")],
       ["~/art/logo.png", path.join(os.homedir(), "art/logo.png")],
       ["$FOTOREADY_PICKER_ROOT/art", path.join(os.homedir(), "picker-root/art")],
       ["art", path.join(os.homedir(), "art")],
@@ -101,7 +103,7 @@ describe("output picker context", () => {
     await expect(call("project.setOutputDirFromDialog")).resolves.toEqual({ snapshot: snapshot(), cancelled: true });
     expect(options().defaultPath).toBe(path.join(os.homedir(), "other/out"));
     expect(setOutputDir).not.toHaveBeenCalled();
-    const picked = path.join(os.homedir(), "$FOTOREADY_PICKER_MISSING", "output");
+    const picked = path.join(os.homedir(), "$FOTOREADY_PICKER_MISSING", " output ");
     mocks.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [picked] });
     await call("project.setOutputDirFromDialog");
     expect(setOutputDir).toHaveBeenCalledWith(picked);

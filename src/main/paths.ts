@@ -47,5 +47,5 @@ export function getAppPaths(): AppPaths {
 function bundledResourceDir(name: string): string {
   return app.isPackaged
     ? path.join(process.resourcesPath, name)
-    : path.join(process.cwd(), "resources", name);
+    : path.resolve(import.meta.dirname, "../../resources", name);
 }

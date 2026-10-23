@@ -139,7 +139,7 @@ describe("ProcessingQueue admission", () => {
     const { processor, started, release } = controllableProcessor();
     const big = { width: 9504, height: 6336 };
     const photos = {
-      tasks: ["A", "B"].map((id) => ({ id, originalId: id })),
+      tasks: ["A", "B"].map((id) => ({ id, originalId: id, pipeline: { ops: [] } })),
       originals: ["A", "B"].map((id) => ({ id, ...big })),
       outputDir: null
     } as unknown as Project;
@@ -156,10 +156,35 @@ describe("ProcessingQueue admission", () => {
     await settle();
   });
 
+  it("reserves the largest captured recipe frame and still starts an oversized first job", async () => {
+    const { processor, started, release } = controllableProcessor();
+    const ops = [
+      { id: "large", type: "resize", enabled: true, params: { mode: "exact", width: 4000, height: 3000 } },
+      { id: "small", type: "resize", enabled: true, params: { mode: "exact", width: 400, height: 300 } }
+    ];
+    const photos = {
+      tasks: ["A", "B"].map((id) => ({ id, originalId: id, pipeline: { ops } })),
+      originals: ["A", "B"].map((id) => ({ id, width: 1000, height: 1000 })),
+      outputDir: null
+    } as unknown as Project;
+    // The source frames would both fit; the enlarged intermediate exceeds the whole share.
+    const queue = new ProcessingQueue(8, settings, workerPool, undefined, null, processor, 200_000_000);
+    const first = queue.enqueueTask(photos, "A");
+    const second = queue.enqueueTask(photos, "B");
+    await settle();
+    expect(started).toEqual(["A"]);
+    release("A");
+    await first;
+    await settle();
+    expect(started).toEqual(["A", "B"]);
+    release("B");
+    await second;
+  });
+
   it("lets a cancelled save waiting at the front stop holding back the ones behind it", async () => {
     const { processor, started, release } = controllableProcessor();
     const photos = {
-      tasks: ["A", "B", "C"].map((id) => ({ id, originalId: id })),
+      tasks: ["A", "B", "C"].map((id) => ({ id, originalId: id, pipeline: { ops: [] } })),
       originals: ["A", "B", "C"].map((id) => ({ id, width: 9504, height: 6336 })),
       outputDir: null
     } as unknown as Project;

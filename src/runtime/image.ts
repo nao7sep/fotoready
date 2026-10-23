@@ -39,7 +39,7 @@ export type WorkerPreviewStageJob = {
 export type WorkerJob = WorkerProcessJob | WorkerPreviewJob | WorkerPreviewStageJob;
 
 export type WorkerResult =
-  | { kind: "process"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }
+  | { kind: "process"; outputPath: string; bytes: number; appliedPipeline: Pipeline }
   | { kind: "preview"; bitmap: ArrayBuffer; width: number; height: number; format: "rgba8"; appliedPipeline: Pipeline }
   // A failure is returned as data, not thrown, so the category survives the structured-clone
   // worker boundary intact. The worker never emits "metadata" (that phase runs in the main process).

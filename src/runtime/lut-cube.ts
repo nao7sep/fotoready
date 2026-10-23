@@ -27,7 +27,7 @@ export function parseCubeLut(source: string): CubeLut {
       domainMin = tuple(parts.slice(1));
     } else if (directive === "DOMAIN_MAX") {
       domainMax = tuple(parts.slice(1));
-    } else if (/^-?\d/.test(parts[0])) {
+    } else if (/^[+-]?(?:\d|\.|Infinity|NaN)/i.test(parts[0])) {
       data.push(tuple(parts));
     }
   }
@@ -37,6 +37,12 @@ export function parseCubeLut(source: string): CubeLut {
   }
   if (data.length !== size * size * size) {
     throw new Error(`Expected ${size * size * size} LUT entries, got ${data.length}.`);
+  }
+  for (let channel = 0; channel < 3; channel++) {
+    const range = domainMax[channel] - domainMin[channel];
+    if (!Number.isFinite(range) || range <= 0) {
+      throw new Error("DOMAIN_MAX must exceed DOMAIN_MIN by a finite positive range in each channel.");
+    }
   }
 
   return { title, size, domainMin, domainMax, data };
@@ -80,9 +86,13 @@ function lerp3(a: [number, number, number], b: [number, number, number], t: numb
 }
 
 function normalize(value: number, min: number, max: number): number {
-  return Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
+  return Math.max(0, Math.min(1, (value - min) / (max - min)));
 }
 
 function tuple(values: string[]): [number, number, number] {
-  return [Number(values[0]), Number(values[1]), Number(values[2])];
+  const numbers = values.map(Number);
+  if (numbers.length !== 3 || !numbers.every(Number.isFinite)) {
+    throw new Error("LUT tuples must contain exactly three finite numbers.");
+  }
+  return [numbers[0], numbers[1], numbers[2]];
 }

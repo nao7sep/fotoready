@@ -84,7 +84,7 @@ export class ProcessingQueue {
     this.#pending.set(taskId, job);
     const task = project.tasks.find((item) => item.id === taskId);
     const original = task ? project.originals.find((item) => item.id === task.originalId) : undefined;
-    const cost = original ? saveCost(original.width, original.height) : 0;
+    const cost = original && task ? saveCost(original.width, original.height, task.pipeline.ops) : 0;
     await new Promise<void>((resolve, reject) => {
       this.#waiting.push({ taskId, job, cost, run: () => this.#run(project, taskId, job), settle: { resolve, reject } });
       this.#pump();

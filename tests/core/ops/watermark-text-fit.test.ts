@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { fitLargestFontSize, renderTrimmedTextBitmap } from "@core/ops/watermark-text";
+import { configureTextBitmapCacheBudget, fitLargestFontSize, renderTrimmedTextBitmap, watermarkTextModule } from "@core/ops/watermark-text";
+import { availableParallelism, totalmem } from "node:os";
+import sharp from "sharp";
 import { requireOpModule } from "../../helpers/require-op-module";
 import { warmTextRendering } from "../../helpers/warm-text-rendering";
 
@@ -47,10 +49,18 @@ const TEXT_START_UP_TIMEOUT_MS = 60_000;
 
 type Reference = { text: string; maxWidth: number; maxHeight: number; expected: number; measured: Map<number, Size> };
 
+async function renderCompleteWatermark(): Promise<Buffer> {
+  const params = { ...watermarkTextModule.defaultParams, text: "Fitted ©", x: 0.1, y: 0.1, w: 0.6, h: 0.3, rotation: 14, backgroundOpacity: 0.4, borderOpacity: 1, borderWidth: 0.01 };
+  const source = sharp({ create: { width: 200, height: 120, channels: 4, background: "#426789" } });
+  const output = await watermarkTextModule.apply!(source, params, { sourceWidth: 200, sourceHeight: 120 });
+  return ("image" in output ? output.image : output).raw().toBuffer();
+}
+
 describe("watermark text fit", () => {
   // The full binary search renders real text at every size it tries; it runs here, outside the
   // individual tests, and keeps each real measurement for them.
   const references: Reference[] = [];
+  let completeWatermarkOracle: Buffer;
   beforeAll(async () => {
     await warmTextRendering();
     const defaults = requireOpModule("watermark-text").defaultParams as Params;
@@ -64,6 +74,14 @@ describe("watermark text fit", () => {
       for (const [maxWidth, maxHeight] of BOXES) {
         references.push({ text, maxWidth, maxHeight, expected: await binarySearchFit(render, maxWidth, maxHeight), measured });
       }
+    }
+    // Prepare the uncached pixel oracle alongside the other real-render fixtures, under the same
+    // platform font-startup allowance; the test itself exercises a fresh retained fit and its hit.
+    try {
+      configureTextBitmapCacheBudget(0);
+      completeWatermarkOracle = await renderCompleteWatermark();
+    } finally {
+      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
     }
   }, TEXT_START_UP_TIMEOUT_MS);
 
@@ -89,6 +107,35 @@ describe("watermark text fit", () => {
     const { fontSize, bitmap } = await fitLargestFontSize(render, maxWidth, maxHeight);
     expect(fontSize).toBe(expected);
     expect(bitmap).toEqual(await render(fontSize));
+  });
+
+  it("preserves rendered pixels across cache hits, mutation and an allowance too small to retain them", async () => {
+    const defaults = requireOpModule("watermark-text").defaultParams as Params;
+    const params = { ...defaults, text: "Cache pixel identity ©", bold: true, italic: true, underline: true };
+    try {
+      configureTextBitmapCacheBudget(0);
+      const uncached = await renderTrimmedTextBitmap(params, 24);
+      configureTextBitmapCacheBudget(uncached.data.byteLength);
+      const first = await renderTrimmedTextBitmap(params, 24);
+      expect(first).toEqual(uncached);
+      first.data.fill(0);
+      expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
+      configureTextBitmapCacheBudget(1);
+      expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
+      expect(await renderTrimmedTextBitmap(params, 24, false)).toEqual(uncached);
+    } finally {
+      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
+    }
+  });
+
+  it("keeps the complete fitted watermark output identical with retention disabled or enabled", async () => {
+    try {
+      configureTextBitmapCacheBudget(1_000_000);
+      expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
+      expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
+    } finally {
+      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
+    }
   });
 
   it("picks the size a full binary search picks across box shapes", async () => {

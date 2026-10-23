@@ -3,7 +3,6 @@ import type { Pipeline } from "@shared/types/pipeline";
 import { getOpModule } from "@core/ops/catalog";
 import { decodeImage } from "./decode";
 import { applyOutputEncoding } from "./encode";
-import { sha256Bytes } from "./hash";
 import { asPipelineError, type PipelineErrorCategory } from "./pipeline-error";
 import type { CubeLut } from "./lut-cube";
 import type * as sharp from "sharp";
@@ -17,7 +16,7 @@ type PipelineRunContext = {
 
 type PipelineRunResult =
   | { kind: "buffer"; bytes: Buffer; width: number; height: number; appliedPipeline: Pipeline }
-  | { kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline };
+  | { kind: "file"; outputPath: string; bytes: number; appliedPipeline: Pipeline };
 
 type RawPipelineRunContext = Pick<PipelineRunContext, "resolveLut">;
 
@@ -63,7 +62,6 @@ export async function runPipeline(pipeline: Pipeline, ctx: PipelineRunContext): 
     return {
       kind: "file",
       outputPath,
-      outputHash: sha256Bytes(encoded),
       bytes: encoded.byteLength,
       appliedPipeline
     };

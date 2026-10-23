@@ -12,6 +12,7 @@ import { ProjectSession } from "@main/session";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { createTaskSidecar } from "@shared/task-sidecar";
 import { FORMAT_VERSIONS, versionedJson } from "@shared/format-versions";
+import { sourcePreparationPool } from "../helpers/source-preparation-pool";
 
 const roots: string[] = [];
 
@@ -28,7 +29,7 @@ function session() {
   };
   return {
     logger,
-    value: new ProjectSession(defaultGlobalSettings(), null as never, null as never, null as never, "resources/stamps", logger as never),
+    value: new ProjectSession(defaultGlobalSettings(), null as never, null as never, sourcePreparationPool(logger as never), "resources/stamps", logger as never),
   };
 }
 

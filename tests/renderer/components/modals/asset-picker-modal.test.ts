@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   pickFiles: vi.fn(async () => [] as string[]),
   importStamps: vi.fn<() => Promise<AssetImportResult[]>>(async () => []),
   deleteStamps: vi.fn(async () => undefined),
+  lutCancel: vi.fn(async () => undefined),
+  lutDelete: vi.fn(async () => undefined),
   lutPreview: vi.fn<() => Promise<LutPreviewEntry[] | null>>(async () => []),
   log: vi.fn(async () => undefined)
 }));
@@ -23,7 +25,7 @@ vi.mock("@renderer/ipc/client", () => ({
     assets: { thumbnail: mocks.thumbnail },
     system: { pickFiles: mocks.pickFiles },
     stamps: { import: mocks.importStamps, delete: mocks.deleteStamps },
-    luts: { preview: mocks.lutPreview }
+    luts: { preview: mocks.lutPreview, cancelPreview: mocks.lutCancel, delete: mocks.lutDelete }
   }
 }));
 
@@ -51,6 +53,9 @@ beforeEach(() => {
   mocks.importStamps.mockResolvedValue([]);
   mocks.deleteStamps.mockReset();
   mocks.deleteStamps.mockResolvedValue(undefined);
+  mocks.lutCancel.mockClear();
+  mocks.lutDelete.mockClear();
+  mocks.lutPreview.mockReset().mockResolvedValue([]);
   mocks.log.mockReset();
   mocks.log.mockResolvedValue(undefined);
   vi.stubGlobal("api", { system: { log: mocks.log } });
@@ -278,6 +283,24 @@ describe("the LUT picker", () => {
     expect(document.body.textContent).toContain("Film");
     expect(document.body.textContent).not.toContain("Cool");
     expect(document.querySelector(`img[src="data:${warm.path}"]`)).not.toBeNull();
+  });
+
+  it("shows a failed LUT beside healthy peers and owns a refused Use while leaving deletion available", async () => {
+    const [bad, good] = [lut("Broken"), lut("Healthy")];
+    mocks.lutPreview.mockResolvedValueOnce([{ ...bad, dataUrl: "", width: 0, height: 0, error: "Malformed cube" }, preview(good)]);
+    await render([bad, good]);
+    expect(document.querySelector(`img[src="data:${good.path}"]`)).not.toBeNull();
+    expect(document.body.textContent).toContain("Preview failed");
+    await clickButton("Use selected");
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(button("Delete")?.disabled).toBe(false);
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it("cancels future main-process submissions on picker cleanup", async () => {
+    await render([lut("Warm")]);
+    await act(async () => root.render(null));
+    expect(mocks.lutCancel).toHaveBeenCalledOnce();
   });
 
   it("ignores an answer a newer request replaced", async () => {

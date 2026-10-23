@@ -51,7 +51,6 @@ async function runJob(job: WorkerJob): Promise<WorkerResult> {
     return {
       kind: "process",
       outputPath: result.outputPath,
-      outputHash: result.outputHash,
       bytes: result.bytes,
       appliedPipeline: result.appliedPipeline
     };

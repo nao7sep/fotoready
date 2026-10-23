@@ -1,10 +1,9 @@
-// libuv's thread pool serves the whole process: the main process's file I/O, sharp's work on the
-// main process, and every image worker thread share it. At Node's default of 4, busy image work made
-// a plain file stat wait about 200 ms (a scratch check on Electron 44.2.0, macOS), which can hold up
-// settings and sidecar saves and use up the quit deadline; at 16 it did not wait. 16 covers 4 for
-// file I/O, the default image worker pool of up to 8, and 4 for main-process image work. The size is
-// read when the pool first starts, so this module is the main entry's first import. A size the user
-// set in the environment is kept.
+// The main process's file I/O and remaining small image conversions share libuv's pool.
+// Native image jobs now run in separate processes with their own pools; their host-derived
+// concurrency is owned by NativeProcessPool. A historical local measurement found file stat
+// contention at Node's default of 4 and none at 16. Retain 16 as that measured baseline, not
+// a guarantee for every host or a statement about the current number of image processes.
+// This first entry import runs before the pool starts and preserves an explicit environment value.
 
 export const THREADPOOL_SIZE = 16;
 

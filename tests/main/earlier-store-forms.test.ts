@@ -12,6 +12,7 @@ import { ProjectSession } from "@main/session";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { defaultGlobalSettings } from "@shared/defaults";
+import { sourcePreparationPool } from "../helpers/source-preparation-pool";
 
 // Files exactly as FotoReady v0.1.0 (published 2026-07-07) wrote them, made by running v0.1.0's own
 // `createTaskSidecar`, op catalogue defaults and settings normalization: a sidecar with every op
@@ -41,7 +42,7 @@ describe("stores written by v0.1.0", () => {
     const imagePath = path.join(root, "IMG_0412.png");
     await sharp({ create: { width: 4, height: 3, channels: 3, background: "teal" } }).png().toFile(imagePath);
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const project = new ProjectSession(defaultGlobalSettings(), null as never, null as never, null as never, "resources/stamps", logger as never);
+    const project = new ProjectSession(defaultGlobalSettings(), null as never, null as never, sourcePreparationPool(logger as never), "resources/stamps", logger as never);
     const original = (await project.addOriginals([imagePath])).snapshot.project.originals[0];
     if (!original) throw new Error("original not imported");
 

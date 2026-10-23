@@ -16,6 +16,35 @@ LUT_3D_SIZE 2
 `;
 
 describe("parseCubeLut", () => {
+  it.each(["0 0", "0 0 0 1", "0 NaN 0", "0 0 Infinity", "NaN 0 0", "-Infinity 0 0"])("rejects malformed data tuple %s", (entry) => {
+    expect(() => parseCubeLut(identityCube.replace("\n0 0 0\n", `\n${entry}\n`))).toThrow(/three finite numbers/);
+  });
+
+  it.each(["DOMAIN_MIN 0 0", "DOMAIN_MAX 1 1 1 1", "DOMAIN_MIN NaN 0 0", "DOMAIN_MAX 1 Infinity 1"])("rejects malformed domain tuple %s", (directive) => {
+    expect(() => parseCubeLut(`${directive}\n${identityCube}`)).toThrow(/three finite numbers/);
+  });
+
+  it.each([
+    "DOMAIN_MIN 0 0 0\nDOMAIN_MAX 0 1 1",
+    "DOMAIN_MIN 0 2 0\nDOMAIN_MAX 1 1 1",
+    "DOMAIN_MIN 0 0 1\nDOMAIN_MAX 1 1 1",
+    "DOMAIN_MIN -1e308 0 0\nDOMAIN_MAX 1e308 1 1"
+  ])("rejects a non-increasing or non-finite interpolation range: %s", (domain) => {
+    expect(() => parseCubeLut(`${domain}\n${identityCube}`)).toThrow(/finite positive range/);
+  });
+
+  it("keeps finite output values outside zero to one and accepts signed decimal tuples", () => {
+    const lut = parseCubeLut(identityCube.replace("\n0 0 0\n", "\n-.5 +2e0 1.5\n"));
+    expect(lut.data[0]).toEqual([-0.5, 2, 1.5]);
+    expect(sampleCubeLut(lut, 0, 0, 0)).toEqual([-0.5, 2, 1.5]);
+  });
+
+  it("interpolates finite per-channel domains outside zero to one", () => {
+    const lut = parseCubeLut(`DOMAIN_MIN -2 10 100\nDOMAIN_MAX 2 20 200\n${identityCube}`);
+    expect(sampleCubeLut(lut, 0, 12.5, 175)).toEqual([0.5, 0.25, 0.75]);
+    expect(sampleCubeLut(lut, -3, 30, 150)).toEqual([0, 1, 0.5]);
+  });
+
   it("parses title, size, domain, and data", () => {
     const lut = parseCubeLut(identityCube);
     expect(lut.title).toBe("Identity");

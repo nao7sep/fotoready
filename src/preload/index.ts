@@ -47,6 +47,7 @@ const api: FotoReadyApi = {
     clearGeminiApiKey: () => invoke("settings.clearGeminiApiKey")
   },
   state: {
+    toggleHistogram: () => invoke("state.toggleHistogram"),
     get: () => invoke("state.get"),
     update: (patch) => invoke("state.update", patch)
   },
@@ -105,6 +106,7 @@ const api: FotoReadyApi = {
     list: () => invoke("luts.list"),
     import: (filePaths) => invoke("luts.import", filePaths),
     delete: (filePaths) => invoke("luts.delete", filePaths),
+    cancelPreview: () => invoke("luts.cancelPreview"),
     preview: (taskId, options, strength, previewLongEdge) => invoke("luts.preview", taskId, options, strength, previewLongEdge)
   },
   stamps: {
@@ -142,6 +144,16 @@ const api: FotoReadyApi = {
     }
   },
   events: {
+    onUiFontChanged: (callback) => {
+      const listener = (_event: unknown, family: string): void => callback(family);
+      ipcRenderer.on("settings.ui-font-changed", listener);
+      return () => ipcRenderer.off("settings.ui-font-changed", listener);
+    },
+    onOriginalImportActivity: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, pending: number) => callback(pending);
+      ipcRenderer.on("originals.importActivity", listener);
+      return () => ipcRenderer.removeListener("originals.importActivity", listener);
+    },
     onProjectSnapshot: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof callback>[0]) => callback(snapshot);
       ipcRenderer.on("project.snapshot", listener);

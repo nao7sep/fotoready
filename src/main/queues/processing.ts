@@ -1,3 +1,4 @@
+import { NativeJobRetiringError } from "@main/workers/native-pool";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
@@ -71,7 +72,7 @@ export async function processTask(
     tempPath = null;
     writtenOutputPath = outputPath;
 
-    const stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline);
+    const stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline, undefined, logger);
     // Publish the output and `saved` only after every output artifact is complete, so a failed sidecar
     // write never leaves the task pointing at the image the failure path removes. Until then the task
     // remains `processing`, which also keeps task/original removal from dropping ownership of work
@@ -88,9 +89,9 @@ export async function processTask(
       renamedAt: null
     };
     task.status = "saved";
-    logger?.info("task processing done", { mod: "processing", taskId: task.id, ms: Math.round(performance.now() - startedAt) });
+    logger?.info("task processing done", { mod: "processing", taskId: task.id, sourcePath, outputPath, ms: Math.round(performance.now() - startedAt) });
   } catch (error) {
-    for (const strandedPath of [tempPath, writtenOutputPath]) {
+    for (const strandedPath of [error instanceof NativeJobRetiringError ? null : tempPath, writtenOutputPath]) {
       if (!strandedPath) continue;
       try {
         await fs.rm(strandedPath, { force: true });
@@ -123,14 +124,14 @@ export async function processTask(
 async function processOutputPipeline(
   pipeline: Pipeline,
   sourcePath: string,
-  original: { size: number; format: string; jpegQualityEstimate: number | null },
+  original: { size: number; format: string; jpegQualityEstimate: number | null; width: number; height: number },
   outputPath: string,
   settings: GlobalSettings,
   workerPool: PipelineWorkerPool,
   signal: AbortSignal | undefined
-): Promise<{ kind: "file"; outputPath: string; outputHash: string; bytes: number; appliedPipeline: Pipeline }> {
+): Promise<{ kind: "file"; outputPath: string; bytes: number; appliedPipeline: Pipeline }> {
   const resolved = resolvePipelineForSave(pipeline, original, settings);
-  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal });
+  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal, sourceSize: original });
   return { ...result, kind: "file" };
 }
 

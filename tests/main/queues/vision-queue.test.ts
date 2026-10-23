@@ -57,6 +57,80 @@ afterEach(async () => {
   await fs.rm(tempDir, { recursive: true, force: true });
 });
 
+describe("session vision snapshot ownership", () => {
+  it("publishes running and committed progress, returning final settlement only to its caller", async () => {
+    const description = deferred<string>();
+    const slugs = deferred<string[]>();
+    const startedSlug = deferred<void>();
+    const { session, task } = await arrange({
+      describeImage: () => description.promise,
+      suggestSlugs: () => { startedSlug.resolve(); return slugs.promise; }
+    });
+    const visible: Task[] = [];
+    session.setSnapshotListener((snapshot) => { visible.push(structuredClone(snapshot.project.tasks[0]!)); });
+
+    const run = session.runVision(task.id, { mode: "description-and-slug" });
+    expect(visible).toHaveLength(1);
+    expect(visible[0]!.visionRunning).toBe(true);
+    expect(visible[0]!.output!.vision).toBeNull();
+    description.resolve("A harbor");
+    await startedSlug.promise;
+    expect(visible).toHaveLength(2);
+    expect(visible[1]!.output!.vision).toMatchObject({ description: "A harbor", slugCandidates: [] });
+    expect(visible[1]!.visionRunning).toBe(true);
+
+    slugs.resolve(["harbor"]);
+    const reply = await run;
+
+    expect(visible).toHaveLength(3);
+    expect(visible[2]!.output!.vision!.slugCandidates).toEqual(["harbor"]);
+    expect(visible[2]!.visionRunning).toBe(true);
+    expect(reply.project.tasks[0]!.visionRunning).toBe(false);
+    expect(reply.project.tasks[0]!.visionRunMode).toBeNull();
+  });
+
+  it("publishes final background completion through the post-save owner", async () => {
+    const finished = deferred<void>();
+    const { session, task } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => ["harbor"] });
+    const visible: Task[] = [];
+    session.setSnapshotListener((snapshot) => {
+      const current = structuredClone(snapshot.project.tasks[0]!);
+      visible.push(current);
+      if (!current.visionRunning && current.output!.vision) finished.resolve();
+    });
+
+    await session.afterTaskProcessed(task.id);
+    await finished.promise;
+
+    expect(visible).toHaveLength(4);
+    expect(visible.map((current) => current.visionRunning)).toEqual([true, true, true, false]);
+    expect(visible.at(-1)!.output!.vision).toMatchObject({ description: "A harbor", slugCandidates: ["harbor"] });
+  });
+
+  it("keeps notification failures separate from a successful vision result", async () => {
+    const { session, task } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => ["harbor"] });
+    const listener = vi.fn(async () => { throw new Error("notification failed"); });
+    session.setSnapshotListener(listener);
+
+    const reply = await session.runVision(task.id, { mode: "description" });
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(reply.project.tasks[0]!.output!.vision!.description).toBe("A harbor");
+    expect(task.error).toBeNull();
+    expect(task.visionRunning).toBe(false);
+  });
+
+  it("publishes settlement before rethrowing a rejected run", async () => {
+    const { session } = await arrange({ describeImage: async () => "A harbor", suggestSlugs: async () => [] });
+    const listener = vi.fn();
+    session.setSnapshotListener(listener);
+
+    await expect(session.runVision("missing-task", { mode: "description" })).rejects.toThrow("Task not found: missing-task");
+
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+});
+
 it("keeps the provider result receipt time while its sidecar commit waits", async () => {
   const described = deferred<void>();
   const { session, task } = await arrange({

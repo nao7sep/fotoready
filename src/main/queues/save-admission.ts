@@ -1,16 +1,19 @@
+import { maximumPipelinePixels } from "@shared/pipeline-geometry";
+import type { OpInstance } from "@shared/types/op";
+
 // How many saves run at once (volume-handling-conventions, Concurrency): one per core, and only as
 // many as the machine's memory holds at each photo's cost. The machine's total memory is the
 // measure, never the free memory of the moment, which on macOS leaves out what the system releases
 // when asked; nothing waits or is refused because memory looks short.
 
 /**
- * The memory a save of a photo this size needs at its peak, in full RGBA copies of the photo. Eight
- * 60 MP saves at once with colour adjustments, a rotation, a text watermark and a stamp measured
- * about 3.8 each (the decode, the shared per-pixel buffer, each geometry or overlay render and the
- * encode), so 4 covers a heavy recipe without holding back ordinary photos.
+ * Eight RGBA frames at the largest recipe stage. Real native helpers measured about 31 bytes
+ * per pixel for a 12 MP rotate/text recipe and 25 for a small source enlarged to 24 MP. The
+ * process boundary includes native runtime overhead that the former four-frame estimate missed.
+ * This is admission sizing, not a hard allocation limit or refusal of larger photos.
  */
-export function saveCost(width: number, height: number): number {
-  return Math.max(1, width * height) * 4 * 4;
+export function saveCost(width: number, height: number, ops: readonly OpInstance[] = []): number {
+  return Math.max(1, maximumPipelinePixels({ width, height }, ops)) * 4 * 8;
 }
 
 /**

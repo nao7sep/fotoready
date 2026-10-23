@@ -1,3 +1,7 @@
+import os from "node:os";
+import { stat } from "node:fs/promises";
+import { stageInputSizes, outputSizeForOp, type ImageSize } from "@shared/pipeline-geometry";
+import { MIN_BLUR_SIGMA } from "@shared/op-limits";
 import { createHash } from "node:crypto";
 import PQueue from "p-queue";
 import sharp from "sharp";
@@ -31,17 +35,12 @@ type TaskPreviewCache = {
   stages: Map<string, PreviewBitmap>;
 };
 
-/**
- * Bitmaps kept for tasks other than the one being previewed. At the default 1024px preview a stage is
- * about 3 MB, so this holds a few recently viewed tasks' chains; the task being previewed always keeps
- * its own chain whatever its size.
- */
-const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
+// Across active and inactive chains; the execution policy reserves this retained share.
+const DEFAULT_CACHE_BUDGET_BYTES = Math.floor(os.totalmem() * 0.025);
 
 /**
- * How many original thumbnails decode at once. Each holds a thread of the shared I/O pool for the
- * whole decode, and one starts per new original, so a bulk import would otherwise hold every thread
- * while file I/O waits (see threadpool-size.ts).
+ * Direct in-process rendering is kept only for isolated callers without a worker pool. Production
+ * thumbnails use the pool's native-process admission and deadlines instead.
  */
 const ORIGINAL_THUMBNAIL_CONCURRENCY = 2;
 
@@ -94,6 +93,7 @@ export class PreviewService {
   }
 
   renderOriginalThumbnail(original: Original, longEdge = 160): Promise<OriginalThumbnail> {
+    if (this.workerPool) return this.workerPool.renderOriginalThumbnail(original, longEdge);
     return this.#thumbnails.add(() => this.#renderOriginalThumbnail(original, longEdge));
   }
 
@@ -119,8 +119,9 @@ export class PreviewService {
     luts: LutEntry[],
     previewLongEdge: number,
     options: PreviewRenderOptions | undefined,
-    strength: number
-  ): Promise<LutPreviewEntry[]> {
+    strength: number,
+    signal?: AbortSignal
+  ): Promise<LutPreviewEntry[] | null> {
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
@@ -135,30 +136,30 @@ export class PreviewService {
       await this.renderStage(original, task, previewLongEdge, previewTargetStageIndex(task, options)),
       previewLongEdge
     );
-    // Each LUT renders on the worker pool like any op stage, so parsing a large .cube and the per-pixel
-    // lookup never run on the main process, and several LUTs render at once.
-    return Promise.all(luts.map(async (lut): Promise<LutPreviewEntry> => {
-      const op: OpInstance = {
-        id: `lut-preview:${lut.path}`,
-        type: "lut",
-        enabled: true,
-        params: { cubePath: lut.path, strength }
-      };
-      const result = await this.renderOpStage(base, op, task.pipeline);
-      const png = await sharp(result.data, {
-        raw: {
-          width: result.width,
-          height: result.height,
-          channels: 4
+    if (signal?.aborted) return null;
+    const previews: LutPreviewEntry[] = new Array(luts.length);
+    let nextIndex = 0;
+    const workerCount = Math.min(luts.length, this.workerPool?.backgroundCapacity ?? 1);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+      while (!signal?.aborted && nextIndex < luts.length) {
+        const index = nextIndex++;
+        const lut = luts[index];
+        try {
+          const op: OpInstance = {
+            id: `lut-preview:${lut.path}`, type: "lut", enabled: true,
+            params: { cubePath: lut.path, strength }
+          };
+          const result = await this.renderOpStage(base, op, task.pipeline, undefined, undefined, "background");
+          const png = await sharp(result.data, {
+            raw: { width: result.width, height: result.height, channels: 4 }
+          }).png().toBuffer();
+          previews[index] = { ...lut, dataUrl: `data:image/png;base64,${png.toString("base64")}`, width: result.width, height: result.height };
+        } catch (error) {
+          previews[index] = { ...lut, dataUrl: "", width: 0, height: 0, error: error instanceof Error ? error.message : String(error) };
         }
-      }).png().toBuffer();
-      return {
-        ...lut,
-        dataUrl: `data:image/png;base64,${png.toString("base64")}`,
-        width: result.width,
-        height: result.height
-      };
+      }
     }));
+    return signal?.aborted ? null : previews;
   }
 
   private async renderStage(original: Original, task: Task, previewLongEdge: number, targetStageIndex: number): Promise<PreviewBitmap> {
@@ -166,7 +167,8 @@ export class PreviewService {
     // Copying the array is enough because the session replaces an edited op rather than mutating it.
     const pipeline: Pipeline = { ...task.pipeline, ops: [...task.pipeline.ops] };
     const baseKey = previewBaseKey(original, previewLongEdge);
-    const stageKeys = previewStageKeys(baseKey, pipeline.ops);
+    const stageKeys = await previewStageKeys(baseKey, pipeline.ops.slice(0, targetStageIndex + 1));
+    const fullInputSizes = stageInputSizes(original, pipeline.ops);
     const cache = this.taskCache(task.id);
     // Only the current chain is worth keeping; stages of superseded edits go now.
     const current = new Set(stageKeys);
@@ -174,8 +176,8 @@ export class PreviewService {
       if (!current.has(key)) cache.stages.delete(key);
     }
 
-    const result = await this.renderChain(cache, original, pipeline, baseKey, stageKeys, previewLongEdge, targetStageIndex);
-    this.enforceBudget(task.id);
+    const result = await this.renderChain(cache, original, pipeline, baseKey, stageKeys, previewLongEdge, targetStageIndex, fullInputSizes);
+    this.enforceBudget();
     return result;
   }
 
@@ -186,7 +188,8 @@ export class PreviewService {
     baseKey: string,
     stageKeys: string[],
     previewLongEdge: number,
-    targetStageIndex: number
+    targetStageIndex: number,
+    fullInputSizes: ImageSize[]
   ): Promise<PreviewBitmap> {
     let startIndex = -1;
     let current: PreviewBitmap | null = null;
@@ -203,8 +206,9 @@ export class PreviewService {
     for (let opIndex = startIndex + 1; opIndex <= targetStageIndex; opIndex += 1) {
       const op = pipeline.ops[opIndex];
       if (!op) break;
-      current = await this.renderOpStage(current, op, pipeline);
+      current = await this.renderOpStage(current, op, pipeline, fullInputSizes[opIndex], previewLongEdge);
       cache.stages.set(stageKeys[opIndex], current);
+      this.enforceBudget();
     }
 
     return current;
@@ -218,20 +222,21 @@ export class PreviewService {
     return cache;
   }
 
-  /** Drops the least recently previewed tasks' chains until the others fit the budget. */
-  private enforceBudget(activeTaskId: string): void {
-    let total = 0;
-    const sizes = new Map<string, number>();
-    for (const [taskId, cache] of this.#tasks) {
-      if (taskId === activeTaskId) continue;
-      const size = cacheBytes(cache);
-      sizes.set(taskId, size);
-      total += size;
-    }
-    for (const [taskId, size] of sizes) {
+  /** Evicts old buffers, including the active chain; a large current result remains usable uncached. */
+  private enforceBudget(): void {
+    const totalBytes = (): number => [...this.#tasks.values()].reduce((sum, cache) => sum + cacheBytes(cache), 0);
+    let total = totalBytes();
+    for (const cache of this.#tasks.values()) {
       if (total <= this.#budgetBytes) break;
-      this.#tasks.delete(taskId);
-      total -= size;
+      let before = cacheBytes(cache);
+      cache.base = null;
+      total -= before - cacheBytes(cache);
+      for (const key of cache.stages.keys()) {
+        if (total <= this.#budgetBytes) break;
+        before = cacheBytes(cache);
+        cache.stages.delete(key);
+        total -= before - cacheBytes(cache);
+      }
     }
   }
 
@@ -264,22 +269,33 @@ export class PreviewService {
       height: result.height
     };
     cache.base = base;
+    this.enforceBudget();
     return base;
   }
 
-  private async renderOpStage(previous: PreviewBitmap, op: OpInstance, pipeline: Pipeline): Promise<PreviewBitmap> {
+  private async renderOpStage(previous: PreviewBitmap, op: OpInstance, pipeline: Pipeline, fullInputSize?: ImageSize, previewLongEdge?: number, lane: "interactive" | "background" = "interactive"): Promise<PreviewBitmap> {
     const module = getOpModule(op.type);
     if (!op.enabled || !module || module.metadataOnly || !module.apply) {
       return previous;
     }
 
-    const opPipeline: Pipeline = { ...pipeline, ops: [op] };
+    let previewOp = op;
+    if (fullInputSize && op.type === "blur") {
+      const scale = Math.max(previous.width, previous.height) / Math.max(fullInputSize.width, fullInputSize.height);
+      previewOp = { ...op, params: { ...op.params, radius: Math.max(MIN_BLUR_SIGMA, op.params.radius as number) * scale } };
+    } else if (fullInputSize && previewLongEdge !== undefined && op.type === "resize") {
+      const output = outputSizeForOp(fullInputSize, op);
+      const scale = Math.min(1, previewLongEdge / Math.max(output.width, output.height));
+      previewOp = { ...op, params: { ...op.params, mode: "exact", width: Math.max(1, Math.round(output.width * scale)), height: Math.max(1, Math.round(output.height * scale)) } };
+    }
+    const opPipeline: Pipeline = { ...pipeline, ops: [previewOp] };
     const result = this.workerPool
       ? await this.workerPool.renderStage({
         bitmap: previous.data,
         width: previous.width,
         height: previous.height,
-        pipeline: opPipeline
+        pipeline: opPipeline,
+        lane
       })
       : await runPipelineFromRaw(
         opPipeline,
@@ -329,14 +345,21 @@ function previewBaseKey(original: Original, previewLongEdge: number): string {
 }
 
 /** Content keys for every stage of the chain: stage i is named by the base and ops 0..i. */
-function previewStageKeys(baseKey: string, ops: OpInstance[]): string[] {
+async function previewStageKeys(baseKey: string, ops: OpInstance[]): Promise<string[]> {
+  const references = await Promise.all(ops.map(async (op) => {
+    if (!op.enabled) return [];
+    return Promise.all([op.params.cubePath, op.params.assetPath].filter((path): path is string => typeof path === "string" && path.length > 0).map(async (path) => {
+      const info = await stat(path, { bigint: true });
+      return [path, info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].map(String);
+    }));
+  }));
   const keys: string[] = [];
   let previous = baseKey;
-  for (const op of ops) {
+  for (const [index, op] of ops.entries()) {
     previous = createHash("sha256")
       .update(previous)
       .update("\0")
-      .update(JSON.stringify({ type: op.type, enabled: op.enabled, params: op.params }))
+      .update(JSON.stringify({ type: op.type, enabled: op.enabled, params: op.params, references: references[index] }))
       .digest("hex");
     keys.push(previous);
   }

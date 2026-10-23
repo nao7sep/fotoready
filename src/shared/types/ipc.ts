@@ -52,8 +52,9 @@ export type NodeProcessPlatform =
 
 /**
  * A structured log object the sandboxed renderer forwards to the main process,
- * which owns the session file. The renderer only ever surfaces problems it
- * recovered from (captured `console.warn`/`console.error`) or last-resort global
+ * which forwards records to the database writer with text-file and console fallback.
+ * The renderer only ever surfaces problems it recovered from (captured
+ * `console.warn`/`console.error`) or last-resort global
  * hooks, so the level is restricted to `warn`/`error`. Main stamps the source
  * and writes the fields as it writes its own.
  */
@@ -69,6 +70,8 @@ export type PrivacyWarning = {
 };
 
 export type ProjectSnapshot = {
+  /** Monotonic within the owning main-process session. */
+  revision?: number;
   project: Project;
   activeTaskId: string | null;
   privacyWarnings: Record<string, PrivacyWarning>;
@@ -197,6 +200,7 @@ export type AssetImportResult = {
 };
 
 export type LutPreviewEntry = LutEntry & {
+  error?: string;
   dataUrl: string;
   width: number;
   height: number;
@@ -244,6 +248,7 @@ export type FotoReadyApi = {
     clearGeminiApiKey(): Promise<void>;
   };
   state: {
+    toggleHistogram(): Promise<UiState>;
     get(): Promise<UiState>;
     update(patch: Partial<UiState>): Promise<UiState>;
   };
@@ -304,7 +309,9 @@ export type FotoReadyApi = {
     list(): Promise<LutEntry[]>;
     import(filePaths: string[]): Promise<AssetImportResult[]>;
     delete(filePaths: string[]): Promise<void>;
-    /** Null when a newer request replaced this one before it rendered. */
+    /** Stops further LUT submissions; already admitted renders settle normally. */
+    cancelPreview(): Promise<void>;
+    /** Null when a newer request or picker close made this request obsolete. */
     preview(taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null>;
   };
   stamps: {
@@ -330,6 +337,8 @@ export type FotoReadyApi = {
     onWindowActivityChanged(callback: (active: boolean) => void): () => void;
   };
   events: {
+    onUiFontChanged(callback: (family: string) => void): () => void;
+    onOriginalImportActivity(callback: (pending: number) => void): () => void;
     onProjectSnapshot(callback: (snapshot: ProjectSnapshot) => void): () => void;
     onQueueSnapshot(callback: (snapshot: QueueSnapshot) => void): () => void;
   };

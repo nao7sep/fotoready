@@ -8,6 +8,12 @@ import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { ProcessingQueue } from "@main/queues/processing-queue";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { message } from "@shared/i18n/translate";
+import { PublishedWriteError } from "@adapters/atomic-file";
+import { DatabaseSync } from "node:sqlite";
+import { createLogger } from "@main/logger";
+import { createRecordsStore } from "@main/records-store";
+import { openRecordsDatabase } from "@main/records-tables";
+import { readRecords } from "@main/records-queries";
 
 const mocks = vi.hoisted(() => ({
   applyMetadataToOutput: vi.fn<(input: { outputPath: string }) => Promise<void>>()
@@ -26,10 +32,45 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await fs.rm(dir, { recursive: true, force: true });
 });
 
 describe("processTask output publication", () => {
+  it("retains a completed save's file identities in records after workspace removal and reopening the database", async () => {
+    const { project, task } = arrange();
+    const sourcePath = project.originals[0]!.sourcePath;
+    const databasePath = path.join(dir, "records.sqlite3");
+    const sessionStart = new Date("2026-10-23T01:00:00.000Z");
+    const database = openRecordsDatabase(databasePath);
+    const records = createRecordsStore({ writeRecord: (row) => database.insert(sessionStart.toISOString(), row) }, sessionStart);
+    const logger = createLogger(records, { debug: false });
+    let outputPath: string;
+    try {
+      await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool(), logger);
+      expect(task.status).toBe("saved");
+      outputPath = task.output!.stagedPath;
+      project.tasks.splice(0);
+      project.originals.splice(0);
+    } finally { database.close(); }
+
+    const reopened = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      const page = readRecords(reopened, { op: "page", query: {
+        session: sessionStart.toISOString(), kind: "log", level: "info", taskId: task.id, search: "task processing done", after: null
+      } });
+      expect(page.records).toHaveLength(1);
+      const saved = page.records[0]!;
+      const detail = readRecords(reopened, { op: "detail", kind: saved.kind, id: saved.id });
+      expect(detail).toMatchObject({ kind: "log", taskId: task.id, message: "task processing done" });
+      if (detail?.kind !== "log") throw new Error("Expected the persisted completed-save log");
+      expect(JSON.parse(detail.fields)).toMatchObject({ sourcePath, outputPath });
+      expect(await fs.readFile(outputPath!, "utf8")).toBe("rendered");
+      expect(project.tasks).toEqual([]);
+      expect(project.originals).toEqual([]);
+    } finally { reopened.close(); }
+  });
+
   it("publishes into the literal selected output folder, including trailing spaces", async () => {
     const { project, task } = arrange();
     project.outputDir = path.join(dir, " $UNSET_OUTPUT %literal% ");
@@ -156,7 +197,7 @@ function writingPool(): PipelineWorkerPool {
   return {
     async process(input: { outputPath: string }) {
       await fs.writeFile(input.outputPath, "rendered");
-      return { kind: "process", outputPath: input.outputPath, outputHash: "hash", bytes: 8, appliedPipeline: defaultPipeline() };
+      return { kind: "process", outputPath: input.outputPath, bytes: 8, appliedPipeline: defaultPipeline() };
     }
   } as unknown as PipelineWorkerPool;
 }
@@ -210,13 +251,51 @@ describe("processTask after the save completes", () => {
 });
 
 describe("processTask sidecar failure", () => {
+  it.runIf(process.platform !== "win32")("keeps the published image and sidecar when sidecar directory sync fails", async () => {
+    const { project, task } = arrange();
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const failure = Object.assign(new Error("directory sync failed"), { code: "EIO" });
+    const open = fs.open.bind(fs);
+    const directorySync = vi.fn();
+    vi.spyOn(fs, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      if (args[0] === dir) {
+        vi.spyOn(file, "sync").mockImplementationOnce(async () => {
+          directorySync();
+          throw failure;
+        });
+      }
+      return file;
+    });
+
+    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool(), logger);
+
+    expect(directorySync).toHaveBeenCalledOnce();
+    expect(task.status).toBe("saved");
+    expect(task.error).toBeNull();
+    expect(await fs.readFile(task.output!.stagedPath, "utf8")).toBe("rendered");
+    const sidecarPath = task.output!.stagedParamsPath!;
+    expect(JSON.parse(await fs.readFile(sidecarPath, "utf8"))).toMatchObject({
+      formatVersion: 1, original: { sourceHash: "source-hash" }, task: { customSlug: null }
+    });
+    expect((await fs.readdir(dir)).sort()).toEqual([
+      path.basename(task.output!.stagedPath), path.basename(sidecarPath)
+    ].sort());
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith("sidecar published with durability uncertain", {
+      mod: "main.task-sidecar", filePath: sidecarPath,
+      err: expect.objectContaining({ name: "PublishedWriteError", filePath: sidecarPath, cause: failure })
+    });
+    expect(logger.warn.mock.calls[0]![1].err).toBeInstanceOf(PublishedWriteError);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it("leaves the task without an output when the sidecar cannot be written", async () => {
     const { project, task } = arrange();
     // A directory where the sidecar file belongs makes its write fail after the image landed.
     const pool = {
       async process(input: { outputPath: string }) {
         await fs.writeFile(input.outputPath, "rendered");
-        return { kind: "process", outputPath: input.outputPath, outputHash: "hash", bytes: 8, appliedPipeline: defaultPipeline() };
+        return { kind: "process", outputPath: input.outputPath, bytes: 8, appliedPipeline: defaultPipeline() };
       }
     } as unknown as PipelineWorkerPool;
     mocks.applyMetadataToOutput.mockImplementation(async (input) => {

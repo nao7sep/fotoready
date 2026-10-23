@@ -21,6 +21,12 @@ beforeEach(() => {
 });
 
 describe("preload requests", () => {
+  it("forwards LUT preview cancellation to its owning main-process session", async () => {
+    bridge.invoke.mockResolvedValue(undefined);
+    await api.luts.cancelPreview();
+    expect(bridge.invoke).toHaveBeenCalledWith("luts.cancelPreview");
+  });
+
   it("reject with the IpcFailure itself, reason intact", async () => {
     const failure = ipcFailure(message("failure.pathVariable", { variable: "PHOTOS" }));
     bridge.invoke.mockResolvedValue(failure);

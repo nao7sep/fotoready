@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { nanoid } from "nanoid";
@@ -6,11 +5,8 @@ import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import type { Original, Project, Task, VisionResult } from "@shared/types/project";
-import { sha256BytesYielding } from "@runtime/hash";
 import { LatestOnly } from "./latest-only";
 import type { AssetFolders } from "./asset-relink";
-import { inspectSourceImage, uprightSize } from "@runtime/decode";
-import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
@@ -20,12 +16,11 @@ import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles, FileTrashError } from "@main/safe-delete";
-import { currentSidecarPath, isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
+import { currentSidecarPath, isTaskSidecarPath, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
 import { nextMetadataFlags } from "@main/metadata-flags";
-import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { placeNewBoxOverlay } from "@main/overlay-default-placement";
 import { pickActiveTaskAfterOriginalRemoval } from "@main/session-selection";
 import type { RenameTemplateId } from "@shared/rename-template";
@@ -40,6 +35,7 @@ import { resolveConfiguredPath } from "@main/configured-path";
 import { UserWorkWrites } from "@main/quit-save";
 
 export type ProjectSessionSnapshot = {
+  revision?: number;
   project: Project;
   activeTaskId: string | null;
   privacyWarnings: Record<string, PrivacyWarning>;
@@ -55,6 +51,8 @@ export class ProjectSession {
   readonly #previews = new LatestOnly();
   #assetFolders: (() => AssetFolders) | null = null;
   readonly #lutPreviews = new LatestOnly();
+  #lutPreviewController: AbortController | null = null;
+  #snapshotRevision = 0;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
   #originalImportTail: Promise<unknown> = Promise.resolve();
   // Every change to saved output files after the save itself — sidecar rewrites, rename, deletion —
@@ -68,7 +66,7 @@ export class ProjectSession {
     private readonly settings: GlobalSettings,
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
-    workerPool: PipelineWorkerPool,
+    private readonly workerPool: PipelineWorkerPool,
     private readonly bundledStampsDir: string,
     private readonly logger?: AppLogger,
     private readonly userWork: UserWorkWrites = new UserWorkWrites()
@@ -84,6 +82,7 @@ export class ProjectSession {
 
   snapshot(): ProjectSessionSnapshot {
     return {
+      revision: ++this.#snapshotRevision,
       project: this.#project,
       activeTaskId: this.#activeTaskId,
       privacyWarnings: this.#computePrivacyWarnings()
@@ -146,7 +145,19 @@ export class ProjectSession {
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[]
   ): Promise<OriginalImportResult> {
-    const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger, this.#assetFolders?.());
+    const sidecarResult = { loaded: [] as LoadedTaskSidecar[], rejected: [] as OriginalImportIssue[] };
+    for (const filePath of sourcePaths.filter(isTaskSidecarPath)) {
+      if (this.#closing) break;
+      try {
+        const result = await this.workerPool.prepareSidecar(filePath, this.bundledStampsDir, this.#assetFolders?.());
+        if (this.#closing) break;
+        sidecarResult.loaded.push(...result.loaded);
+        sidecarResult.rejected.push(...result.rejected);
+      } catch (error) {
+        this.logger?.error("task sidecar preparation failed", { mod: "main.session", filePath, err: error });
+        sidecarResult.rejected.push({ filePath, kind: "failed", severity: "error", reason: message("importReason.sidecarUnreadable") });
+      }
+    }
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
     const sidecars = [...sidecarResult.loaded];
     const usedSidecarPaths = new Set<string>();
@@ -156,10 +167,11 @@ export class ProjectSession {
     const succeededPaths = new Set<string>();
 
     for (const sourcePath of sourcePaths) {
+      if (this.#closing) break;
       if (isTaskSidecarPath(sourcePath)) continue;
       let original: Original;
       try {
-        original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate, this.logger);
+        original = await this.workerPool.prepareOriginal(sourcePath, this.settings.enableJpegQualityEstimate);
       } catch (error) {
         const failedToRead = typeof (error as NodeJS.ErrnoException | null)?.code === "string";
         const logFields = { mod: "main.session", filePath: sourcePath, err: error };
@@ -173,6 +185,8 @@ export class ProjectSession {
         });
         continue;
       }
+      if (this.#closing) break;
+      if (original.metadataSummary.inspectionFailed) this.logger?.warn("source metadata inspection is unknown", { mod: "main.session", sourcePath });
       const existing = this.#project.originals.find((item) => item.sourceHash === original.sourceHash);
       const targetOriginal = existing ?? original;
       acceptedImages += 1;
@@ -204,10 +218,11 @@ export class ProjectSession {
         continue;
       }
 
-      this.selectOriginal(targetOriginal.id);
+      this.#selectOriginal(targetOriginal.id);
     }
 
     for (const sidecar of sidecars) {
+      if (this.#closing) break;
       if (usedSidecarPaths.has(sidecar.path)) continue;
       const targetOriginal = this.#project.originals.find((original) => matchingTaskSidecar(original, [sidecar]));
       if (!targetOriginal) {
@@ -238,6 +253,11 @@ export class ProjectSession {
   }
 
   selectOriginal(originalId: string): ProjectSessionSnapshot {
+    this.#selectOriginal(originalId);
+    return this.snapshot();
+  }
+
+  #selectOriginal(originalId: string): void {
     const original = this.#project.originals.find((item) => item.id === originalId);
     if (!original) {
       throw new Error(`Original not found: ${originalId}`);
@@ -247,19 +267,19 @@ export class ProjectSession {
     const activeTask = activeIndex >= 0 ? this.#project.tasks[activeIndex] : null;
     if (activeTask && activeTask.status === "not-saved" && !activeTask.everEdited) {
       // Selecting its own image again is no switch, so the task and its creation time stay.
-      if (activeTask.originalId === original.id) return this.snapshot();
+      if (activeTask.originalId === original.id) return;
       // An untouched task only holds the slot: it becomes a new task for this image, keeping its id and place.
       this.#project.tasks[activeIndex] = createTaskForOriginal(original, this.settings, activeTask.id);
       this.#taskUndoHistory.delete(activeTask.id);
       this.#lastTaskUndoHistoryGroup.delete(activeTask.id);
       this.#previewService.invalidateTask(activeTask.id);
-      return this.snapshot();
+      return;
     }
 
     const task = createTaskForOriginal(original, this.settings);
     this.#project.tasks.push(task);
     this.#activeTaskId = task.id;
-    return this.snapshot();
+    return;
   }
 
   removeOriginal(originalId: string): ProjectSessionSnapshot {
@@ -402,12 +422,17 @@ export class ProjectSession {
   }
 
   enqueueSave(taskId: string): ProjectSessionSnapshot {
+    this.#enqueueSave(taskId);
+    return this.snapshot();
+  }
+
+  #enqueueSave(taskId: string): void {
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
     }
     if (task.status !== "not-saved") {
-      return this.snapshot();
+      return;
     }
     task.status = "queued";
     task.error = null;
@@ -416,13 +441,13 @@ export class ProjectSession {
       this.logger?.error("failed to enqueue or process save task", { mod: "session", taskId, err: error });
     });
 
-    return this.snapshot();
+    return;
   }
 
   enqueueSaveAll(): ProjectSessionSnapshot {
     const notSavedIds = this.#project.tasks.filter((task) => task.status === "not-saved").map((task) => task.id);
     for (const taskId of notSavedIds) {
-      this.enqueueSave(taskId);
+      this.#enqueueSave(taskId);
     }
     return this.snapshot();
   }
@@ -454,11 +479,12 @@ export class ProjectSession {
 
   /**
    * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are
-   * aborted. Worker termination can outlive rejection and leave a temporary file; the caller
-   * bounds its wait and worker teardown.
+   * aborted. Native process ownership and staging cleanup remain with the worker pool until
+   * physical exit; the caller bounds its wait and teardown.
    */
   async shutdown(): Promise<void> {
     this.#closing = true;
+    this.cancelLutPreview();
     await Promise.allSettled([this.processingQueue.shutdown(), this.visionQueue.shutdown(), this.#outputFilesTail]);
   }
 
@@ -471,9 +497,27 @@ export class ProjectSession {
     return this.#previews.run(() => this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options));
   }
 
-  /** Resolves null when a newer LUT preview request replaced this one before it ran. */
+  /** Resolves null after admitted work settles when a newer request or picker close supersedes it. */
   async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null> {
-    return this.#lutPreviews.run(() => this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength));
+    this.cancelLutPreview();
+    const controller = new AbortController();
+    this.#lutPreviewController = controller;
+    return this.#lutPreviews.run(async () => {
+      if (controller.signal.aborted) return null;
+      try {
+        return await this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength, controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) return null;
+        throw error;
+      } finally {
+        if (this.#lutPreviewController === controller) this.#lutPreviewController = null;
+      }
+    });
+  }
+
+  cancelLutPreview(): void {
+    this.#lutPreviewController?.abort();
+    this.#lutPreviewController = null;
   }
 
   async renderOriginalThumbnail(originalId: string): Promise<OriginalThumbnail> {
@@ -493,7 +537,14 @@ export class ProjectSession {
     if (!(await this.visionQueue.hasGeminiApiKey()) || this.#closing) {
       return;
     }
-    void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" });
+    void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" }).then(async (snapshot) => {
+      try { await this.#snapshotListener?.(snapshot, this.queueSnapshot()); }
+      catch (error) {
+        this.logger?.warn("automatic vision completion notification failed", { mod: "main.session", taskId, err: error });
+      }
+    }, (error) => {
+      this.logger?.error("automatic vision run failed", { mod: "main.session", taskId, err: error });
+    });
   }
 
   /**
@@ -722,17 +773,31 @@ export class ProjectSession {
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
     // The queue owns the task's running flags; they are already set when runForTask returns.
     const run = this.visionQueue.runForTask(this.#project, taskId, options, this.#commitVision);
-    await this.emitSnapshot();
+    try { await this.emitSnapshot(); }
+    catch (error) {
+      this.logger?.warn("vision start notification failed", { mod: "main.session", taskId, err: error });
+    }
     try {
       await run;
-    } finally {
-      await this.emitSnapshot();
+    } catch (error) {
+      try { await this.emitSnapshot(); }
+      catch (notificationError) {
+        this.logger?.warn("vision settlement notification failed", { mod: "main.session", taskId, err: notificationError });
+      }
+      throw error;
     }
     return this.snapshot();
   }
 
   #commitVision: VisionCommit = async (task, apply) => {
-    return this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
+    const changed = await this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
+    if (changed) {
+      try { await this.emitSnapshot(); }
+      catch (error) {
+        this.logger?.warn("vision progress notification failed", { mod: "main.session", taskId: task.id, err: error });
+      }
+    }
+    return changed;
   };
 
   async clearVision(taskId: string): Promise<ProjectSessionSnapshot> {
@@ -793,7 +858,7 @@ export class ProjectSession {
   /** Rewrites the task's sidecar from its current state, where it is now. Runs inside the output-files lane. */
   private async writeOutputSidecarIfSaved(task: Task, original: Original): Promise<void> {
     if (!task.output) return;
-    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output));
+    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output), this.logger);
   }
 
   #serializeOutputFiles<T>(work: () => Promise<T>): Promise<T> {
@@ -837,17 +902,21 @@ export class ProjectSession {
       if (retrying && !retryIsCurrent()) return false;
       const before = captureTaskMetadata(task);
       if (!apply()) return false;
+      let publishSettlement = retrying;
       try {
         await this.writeOutputSidecarIfSaved(task, original);
       } catch (error) {
         restoreTaskMetadata(task, before);
+        publishSettlement = true;
         throw error;
       } finally {
-        // Another action may have published the pending metadata, and quit retries have no IPC
-        // completion to publish their result. Notification cannot change the primary write outcome.
-        try { await this.emitSnapshot(); }
-        catch (error) {
-          this.logger?.warn("task metadata settlement notification failed", { mod: "main.session", taskId: task.id, err: error });
+        // Rollback and quit retries have no successful IPC completion to publish their result.
+        // Notification cannot change the primary write outcome.
+        if (publishSettlement) {
+          try { await this.emitSnapshot(); }
+          catch (error) {
+            this.logger?.warn("task metadata settlement notification failed", { mod: "main.session", taskId: task.id, err: error });
+          }
         }
       }
       return true;
@@ -868,24 +937,6 @@ export class ProjectSession {
   }
 }
 
-async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: boolean, logger?: AppLogger): Promise<Original> {
-  const bytes = await fs.readFile(sourcePath);
-  const { format, metadata } = await inspectSourceImage(bytes);
-  const jpegQualityEstimate = enableJpegQualityEstimate && format === "jpeg" ? detectJpegQuality(bytes).jpegQualityEstimate?.value ?? null : null;
-  const metadataSummary = await readSourceMetadataSummary(sourcePath, logger);
-
-  return {
-    id: nanoid(),
-    sourcePath: path.resolve(sourcePath),
-    sourceHash: await sha256BytesYielding(bytes),
-    size: bytes.byteLength,
-    format,
-    jpegQualityEstimate,
-    metadataSummary,
-    ...uprightSize(metadata),
-    addedAt: nowIso()
-  };
-}
 
 function createTaskForOriginal(original: Original, settings: GlobalSettings, id: string = nanoid()): Task {
   const now = nowIso();

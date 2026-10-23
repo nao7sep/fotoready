@@ -24,6 +24,7 @@ type PickerEntry = {
   name: string;
   path: string;
   previewDataUrl?: string;
+  previewError?: string;
 };
 
 type PickerOperation = "delete" | "import" | "use";
@@ -204,6 +205,7 @@ export function AssetPickerModal<T extends PickerEntry>({
     if (!beginOperation()) return;
     try {
       setNotice(null);
+      if (entry.previewError !== undefined) throw new Error(entry.previewError);
       await onUse(entry);
       setOperationError("use", null);
       onClose();
@@ -522,7 +524,7 @@ export function AssetPickerModal<T extends PickerEntry>({
                   onFocus={() => setFocusPath(entry.path)}
                 >
                   <span className="asset-picker-preview">
-                    {entry.previewDataUrl ? <img alt="" src={entry.previewDataUrl} /> : <span>{t("assets.noPreview")}</span>}
+                    {entry.previewError !== undefined ? <span>{t("canvas.previewFailed")}</span> : entry.previewDataUrl ? <img alt="" src={entry.previewDataUrl} /> : <span>{t("assets.noPreview")}</span>}
                   </span>
                   <span className="asset-picker-name" title={entry.name}>{entry.name}</span>
                   {entry.builtin ? <span className="asset-picker-badge">{t("assets.builtin")}</span> : null}
@@ -608,16 +610,20 @@ export function LutPickerModal({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      void api.luts.cancelPreview().catch((error) => presentFailure(error, null, "renderer LUT preview cancellation failed"));
+    };
   }, [luts, previewLongEdge, previewOptions, strength, taskId]);
 
   // The current list decides what is offered; a preview renders beside its LUT once it arrives, so a
   // LUT just imported shows at once and one just deleted cannot be chosen while previews catch up.
-  const previewByPath = new Map(previews.map((preview) => [preview.path, preview.dataUrl]));
+  const previewByPath = new Map(previews.map((preview) => [preview.path, preview]));
   const entries: PickerEntry[] = luts.map((entry) => ({
     ...entry,
     name: entry.name || fileNameFromPath(entry.path),
-    previewDataUrl: previewByPath.get(entry.path)
+    previewDataUrl: previewByPath.get(entry.path)?.dataUrl,
+    previewError: previewByPath.get(entry.path)?.error
   }));
   return (
     <AssetPickerModal

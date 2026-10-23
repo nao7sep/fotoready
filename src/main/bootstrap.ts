@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { BrowserWindow, app, ipcMain, powerMonitor } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import os from "node:os";
@@ -21,6 +22,7 @@ import { APP_NAME } from "@shared/constants";
 import { nowIso } from "@shared/time";
 import { showSettingsNotice } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
+import { configureRendererDiagnostics } from "./renderer-diagnostics";
 import {
   computeFirstRunWindowHeight,
   computeFirstRunWindowWidth,
@@ -104,11 +106,21 @@ export function recordStartupFailure(message: string, error: unknown): void {
 }
 
 export async function bootstrap(): Promise<void> {
+  // Electron may create its profile during readiness; isolate it before that boundary.
+  const paths = getAppPaths();
+  fs.mkdirSync(path.join(paths.dataDir, "electron", "session"), { recursive: true });
+  app.setPath("userData", path.join(paths.dataDir, "electron"));
+  app.setPath("sessionData", path.join(paths.dataDir, "electron", "session"));
+  // The lock follows userData, so independent storage roots can run independently. A second
+  // launch of the same root hands over to its running instance instead of sharing mutable stores.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
   await app.whenReady();
   // Before anything is drawn, so even a startup failure speaks the computer's language.
   await detectComputerLanguage();
 
-  const paths = getAppPaths();
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
   // off (never written to disk) in packaged release builds.
   const debug = !app.isPackaged || process.env.FOTOREADY_DEBUG === "1";
@@ -256,6 +268,7 @@ export async function bootstrap(): Promise<void> {
     configureWindowMinimum(win, () => ({ width: computeMinWindowWidth(), height: computeMinWindowHeight() }),
       (error) => logger.warn("window minimum could not be updated", { mod: "main.window", err: error }));
     configureWindowActivity(app, win);
+    configureRendererDiagnostics(win, "main", logger);
     mainGuard = installCloseGuard(win, exitState, quit, logger);
 
     // Defense in depth: the renderer only loads local content and routes every external link through

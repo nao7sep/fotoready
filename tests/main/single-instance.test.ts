@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { revealWindow } from "@main/reveal-window";
 
 const electron = vi.hoisted(() => ({
-  requestSingleInstanceLock: vi.fn<() => boolean>(),
   quit: vi.fn(),
   on: vi.fn(),
   exit: vi.fn()
@@ -20,18 +19,7 @@ afterEach(() => {
 });
 
 describe("single instance", () => {
-  it("quits a second launch before it starts anything", async () => {
-    electron.requestSingleInstanceLock.mockReturnValue(false);
-
-    await import("@main/index");
-
-    expect(electron.quit).toHaveBeenCalledTimes(1);
-    expect(bootstrap).not.toHaveBeenCalled();
-  });
-
-  it("starts the first launch", async () => {
-    electron.requestSingleInstanceLock.mockReturnValue(true);
-
+  it("delegates startup admission to bootstrap", async () => {
     await import("@main/index");
 
     expect(bootstrap).toHaveBeenCalledTimes(1);
@@ -39,7 +27,6 @@ describe("single instance", () => {
   });
 
   it("records a failed startup and exits", async () => {
-    electron.requestSingleInstanceLock.mockReturnValue(true);
     const failure = new Error("no catalogue");
     bootstrap.mockRejectedValueOnce(failure);
 

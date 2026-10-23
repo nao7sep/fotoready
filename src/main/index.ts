@@ -6,26 +6,20 @@ import { notifyNewerFormat, notifySettingsQuarantineFailure, notifyStartupFailur
 import { SettingsQuarantineError } from "./settings-io";
 import { NewerFormatError } from "@shared/format-versions";
 
-// One instance only: the project lives in memory per process, so a second instance has nothing to
-// offer and would overwrite the first one's settings with its own stale copy. A second launch hands
-// over to the running instance, which brings its window forward, and exits.
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
-  // A bootstrap failure is recorded (see recordStartupFailure), shown in the startup dialog, and
-  // ends the process here; the crash handler logs but deliberately does not terminate it.
-  void bootstrap().catch(async (error: unknown) => {
-    recordStartupFailure("startup failed", error);
-    try {
-      // A store a newer build wrote halts startup with its own notice (store-recovery-conventions).
-      await (error instanceof NewerFormatError ? notifyNewerFormat(error.filePath) : error instanceof SettingsQuarantineError ? notifySettingsQuarantineFailure(error.filePath) : notifyStartupFailure());
-    } catch (dialogError) {
-      recordStartupFailure("could not show the startup recovery dialog", dialogError);
-    } finally {
-      app.exit(1);
-    }
-  });
-}
+// A bootstrap failure is recorded (see recordStartupFailure), shown in the startup dialog, and
+// ends the process here. Uncaught exceptions are logged and rethrown; unhandled rejections
+// are logged by their separate process handler.
+void bootstrap().catch(async (error: unknown) => {
+  recordStartupFailure("startup failed", error);
+  try {
+    // A store a newer build wrote halts startup with its own notice (store-recovery-conventions).
+    await (error instanceof NewerFormatError ? notifyNewerFormat(error.filePath) : error instanceof SettingsQuarantineError ? notifySettingsQuarantineFailure(error.filePath) : notifyStartupFailure());
+  } catch (dialogError) {
+    recordStartupFailure("could not show the startup recovery dialog", dialogError);
+  } finally {
+    app.exit(1);
+  }
+});
 
 // The app ends with its main window on every platform (window-conventions); this covers a window
 // that closes without passing its close guard, such as a failed startup's.

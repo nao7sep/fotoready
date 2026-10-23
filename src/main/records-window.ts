@@ -10,6 +10,7 @@ import type { Logger } from "@shared/types/log";
 import { revealWindow } from "./reveal-window";
 import { windowBackground } from "./theme";
 import { configureWindowActivity } from "./window-activity";
+import { configureRendererDiagnostics } from "./renderer-diagnostics";
 import { configureWindowMinimum } from "./window-minimum";
 import { createWindowWithUsablePersistedBounds } from "./window-state-recovery";
 
@@ -89,6 +90,7 @@ export async function openRecordsWindow({ title, logger }: { title: string; logg
   configureWindowMinimum(win, () => ({ width: RECORDS_WINDOW_MIN_WIDTH, height: RECORDS_WINDOW_MIN_HEIGHT }),
     (error) => logger.warn("window minimum could not be updated", { mod: "main.window", window: "records", err: error }));
   configureWindowActivity(app, win);
+  configureRendererDiagnostics(win, "records", logger);
 
   // The page never legitimately opens a window or navigates away; a same-URL reload is left alone so
   // a development reload still works.

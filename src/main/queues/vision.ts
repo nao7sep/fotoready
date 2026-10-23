@@ -10,7 +10,7 @@ import type { AppPaths } from "@main/paths";
 import type { AppLogger } from "@main/logger";
 import type { RecordsStore } from "@main/records-store";
 import { ApiKeyStore } from "@adapters/api-keys";
-import { GeminiVisionProvider, VisionProviderFailure, type GeminiCall } from "@adapters/gemini";
+import { GeminiVisionProvider, VisionProviderFailure, type GeminiCall, type GeminiCallLifecycle } from "@adapters/gemini";
 import { ApiError } from "@google/genai";
 import { message, type Message } from "@shared/i18n/translate";
 import { isRecord } from "@shared/validation/common";
@@ -28,7 +28,7 @@ type VisionJob = { mode: VisionRunMode; basis: VisionBasis; cancelled: boolean; 
 export type VisionProvider = Pick<GeminiVisionProvider, "describeImage" | "suggestSlugs">;
 
 export type VisionQueueDeps = {
-  createProvider(apiKey: string, endpoint: string, recordCall: (call: GeminiCall) => void): VisionProvider;
+  createProvider(apiKey: string, endpoint: string, recordCall: (call: GeminiCall) => void, recordLifecycle: (event: GeminiCallLifecycle) => void): VisionProvider;
   prepareInput(stagedPath: string, longEdge: number): Promise<{ bytes: Buffer; width: number; height: number }>;
 };
 
@@ -39,7 +39,7 @@ export type VisionQueueDeps = {
 export type VisionCommit = (task: Task, apply: () => boolean) => Promise<boolean>;
 
 const defaultDeps: VisionQueueDeps = {
-  createProvider: (apiKey, endpoint, recordCall) => new GeminiVisionProvider(apiKey, endpoint, recordCall),
+  createProvider: (apiKey, endpoint, recordCall, recordLifecycle) => new GeminiVisionProvider(apiKey, endpoint, recordCall, recordLifecycle),
   prepareInput: prepareVisionInput
 };
 
@@ -64,6 +64,7 @@ export class VisionQueue {
   // Runs per task that have not settled (at most one running plus one pending).
   #outstanding = new Map<string, number>();
   #closing = false;
+  #shutdown = new AbortController();
 
   constructor(
     paths: AppPaths,
@@ -146,9 +147,10 @@ export class VisionQueue {
     return ids;
   }
 
-  /** Cancellation only skips pending jobs; active native reads remain owned until they settle. */
+  /** Stop unsent phases and retries; active reads and provider calls remain owned until settlement. */
   async shutdown(): Promise<void> {
     this.#closing = true;
+    this.#shutdown.abort();
     this.cancelAll();
     await Promise.allSettled([...this.#tails.values()]);
   }
@@ -183,9 +185,10 @@ export class VisionQueue {
     // The step a retry resumes from: once the description is committed, only the slug remains.
     let remaining: VisionRunMode = mode;
     try {
-      if (!isCurrent()) return;
+      if (this.#closing || !isCurrent()) return;
       const startedAt = performance.now();
       const apiKey = await this.#apiKeys.resolve("gemini");
+      if (this.#closing) return;
       if (!apiKey) {
         throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }
@@ -193,15 +196,22 @@ export class VisionQueue {
       this.logger?.info("vision started", { mod: "vision", taskId: task.id, mode, descriptionModel: settings["gemini.description"], slugModel: settings["gemini.slug"] });
 
       const callOptions = {
-        timeoutMs: settings.visionTimeoutMs
+        timeoutMs: settings.visionTimeoutMs,
+        signal: this.#shutdown.signal
       };
       const provider = this.#deps.createProvider(apiKey, settings["gemini.endpoint"], (call) =>
-        this.records?.writeProviderCall({ ...call, taskId: task.id, provider: "gemini" }));
+        this.records?.writeProviderCall({ ...call, taskId: task.id, provider: "gemini" }),
+        (event) => {
+          // Logger envelope time is the event instant; callTime links the intent to its completed call.
+          const { time: callTime, ...fields } = event;
+          this.logger?.info("vision provider attempt", { mod: "vision", taskId: task.id, provider: "gemini", callTime, ...fields });
+        });
       // Each step records its own result, model and finish time; a step this run skips keeps the last one's.
       let described: Pick<VisionResult, "description" | "model" | "ranAt"> | null = null;
       if (includesDescriptionGeneration(mode)) {
         const sourcePath = task.output.finalPath ?? task.output.stagedPath;
         const input = await this.#deps.prepareInput(sourcePath, settings.preResizeLongEdge);
+        if (this.#closing || !isCurrent()) return;
         const description = await provider.describeImage(
           { imageBytes: input.bytes, mimeType: "image/jpeg", width: input.width, height: input.height, sourcePath },
           {
@@ -229,6 +239,7 @@ export class VisionQueue {
       const description = described?.description ?? task.output.vision?.description ?? "";
       let slugged: Pick<VisionResult, "slugCandidates" | "slugModel" | "slugRanAt"> | null = null;
       if (includesSlugGeneration(mode)) {
+        if (this.#closing || !isCurrent()) return;
         if (!described && !description.trim()) throw new Error("Generate description first, then regenerate the slug.");
         const slugCandidates = await provider.suggestSlugs(description, {
           model: settings["gemini.slug"],
@@ -256,6 +267,8 @@ export class VisionQueue {
       if (!committed) return;
       this.logger?.info("vision completed", { mod: "vision", taskId: task.id, mode, ms: Math.round(performance.now() - startedAt) });
     } catch (error) {
+      const signal = this.#shutdown.signal;
+      if (signal.aborted && (error === signal.reason || (error instanceof Error && error.name === "AbortError" && error.cause === signal.reason))) return;
       if (!isCurrent()) {
         this.logger?.warn("vision failed for an output that is no longer current", { mod: "vision", taskId: task.id, mode, err: error });
         return;

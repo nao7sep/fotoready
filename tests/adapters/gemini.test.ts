@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@google/genai";
-import { GeminiVisionProvider, VISION_ATTEMPTS, type GeminiCall } from "@adapters/gemini";
+import { GeminiVisionProvider, VISION_ATTEMPTS, type GeminiCall, type GeminiCallLifecycle } from "@adapters/gemini";
 import { SUPPORTED_MODELS } from "@shared/ai-models";
 import { visionError } from "@main/queues/vision";
+
+// Native promise timers keep their own timer reference, outside Vitest's fake clock. Retry timing
+// cases use the same fake clock as the SDK; real-clock cancellation cases keep the native timer.
+vi.mock("node:timers/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:timers/promises")>();
+  return { ...original, setTimeout: (ms: number, value: undefined, options: { signal?: AbortSignal }) =>
+    vi.isFakeTimers() ? new Promise((resolve) => setTimeout(resolve, ms, value)) : original.setTimeout(ms, value, options) };
+});
 
 const fetchMock = vi.fn<typeof fetch>();
 const key = "test-provider-key";
@@ -130,7 +138,8 @@ describe("Gemini requests for an id with no row are plain", () => {
         { inlineData: { mimeType: "image/jpeg", data: sentImage } },
         { text: "Describe\n\nReturn one sentence only. Do not use bullet points or JSON." }
       ],
-      config: {}
+      config: {},
+      _diagnostics: { attemptId: expect.any(String) }
     });
     expect(sentBody()).not.toHaveProperty("safetySettings");
     expect(sentBody().generationConfig ?? {}).toEqual({});
@@ -142,6 +151,7 @@ describe("Gemini requests for an id with no row are plain", () => {
     expect(recordCall.mock.calls[0]![0].request).toEqual({
       model: "typed-unknown",
       contents: [{ text: "Slugs\n\nDescription: A mug" }],
+      _diagnostics: { attemptId: expect.any(String) },
       config: {
         responseMimeType: "application/json",
         responseSchema: { type: "OBJECT", properties: { slugs: { type: "ARRAY", minItems: "3", maxItems: "5", items: { type: "STRING" } } }, required: ["slugs"] }
@@ -152,6 +162,43 @@ describe("Gemini requests for an id with no row are plain", () => {
 });
 
 describe("Gemini calls are handed over for recording", () => {
+  it("records a sanitized start before an unsettled request and correlates its settlement", async () => {
+    let resolve!: (response: Response) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>((done) => { resolve = done; }));
+    const lifecycle = vi.fn<(event: GeminiCallLifecycle) => void>();
+    const controller = new AbortController();
+    const work = new GeminiVisionProvider(key, `https://proxy.example/${key}`, recordCall, lifecycle)
+      .describeImage({ ...request, sourcePath: `/out/${key}.jpg` }, { ...opts, signal: controller.signal, descriptionPrompt: `Describe ${key}` });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(recordCall).not.toHaveBeenCalled();
+    expect(lifecycle).toHaveBeenCalledOnce();
+    const start = lifecycle.mock.calls[0]![0];
+    expect(start).toMatchObject({ phase: "start", outcome: "unknown", role: "description", attempt: 1,
+      request: { contents: [{ inlineData: { data: { ...sentImage, sourcePath: "/out/[REDACTED].jpg" } } }, { text: "Describe [REDACTED]\n\nReturn one sentence only. Do not use bullet points or JSON." }] } });
+    expect(JSON.stringify(start)).not.toContain(key);
+    expect(JSON.stringify(start)).not.toContain(request.imageBytes.toString("base64"));
+    controller.abort();
+    await Promise.resolve();
+    expect(lifecycle).toHaveBeenCalledOnce();
+    expect(lifecycle.mock.calls[0]![0].outcome).toBe("unknown");
+    expect(recordCall).not.toHaveBeenCalled();
+    resolve(ok());
+    await work;
+    expect(lifecycle).toHaveBeenCalledOnce();
+    expect(recordCall).toHaveBeenCalledOnce();
+    expect(recordCall.mock.calls[0]![0]).toMatchObject({ time: start.time, role: start.role, attempt: start.attempt, error: null, request: { _diagnostics: { attemptId: start.attemptId } } });
+    expect(recordCall.mock.calls[0]![0].response).not.toBeNull();
+    expect(sentBody()).not.toHaveProperty("_diagnostics");
+  });
+
+  it("records a known error only when the SDK settles", async () => {
+    const lifecycle = vi.fn<(event: GeminiCallLifecycle) => void>();
+    fetchMock.mockResolvedValue(fail(400));
+    await expect(new GeminiVisionProvider(key, "https://proxy.example", recordCall, lifecycle).describeImage(request, opts)).rejects.toMatchObject({ status: 400 });
+    expect(lifecycle.mock.calls.map(([event]) => [event.phase, event.outcome])).toEqual([["start", "unknown"]]);
+    expect(recordCall).toHaveBeenCalledOnce();
+    expect(recordCall.mock.calls[0]![0]).toMatchObject({ error: { status: 400 }, request: { _diagnostics: { attemptId: lifecycle.mock.calls[0]![0].attemptId } } });
+  });
   it("records a summary of the image sent while Gemini still receives the image itself", async () => {
     fetchMock.mockImplementation(async () => ok());
     await run();
@@ -164,10 +211,18 @@ describe("Gemini calls are handed over for recording", () => {
   it("hands over every attempt whole: the request as sent and the response or failure", async () => {
     vi.useFakeTimers();
     fetchMock.mockImplementationOnce(async () => fail(503)).mockImplementation(async () => ok());
-    const work = run();
+    const lifecycle = vi.fn<(event: GeminiCallLifecycle) => void>();
+    const work = new GeminiVisionProvider(key, "https://proxy.example/gemini", recordCall, lifecycle).describeImage(request, opts);
     await vi.runAllTimersAsync();
     await expect(work).resolves.toBe("A mug.");
     expect(recordCall).toHaveBeenCalledTimes(2);
+    expect(lifecycle).toHaveBeenCalledTimes(2);
+    const starts = lifecycle.mock.calls.map(([event]) => event);
+    expect(starts.map((event) => [event.phase, event.outcome, event.attempt])).toEqual([["start", "unknown", 1], ["start", "unknown", 2]]);
+    expect(new Set(starts.map((event) => event.attemptId)).size).toBe(2);
+    for (const [index, [call]] of recordCall.mock.calls.entries()) {
+      expect(call.request).toMatchObject({ _diagnostics: { attemptId: starts[index]!.attemptId } });
+    }
     const [first, second] = recordCall.mock.calls.map(([call]) => call);
     const sent = {
       model: opts.model,
@@ -187,6 +242,37 @@ describe("Gemini calls are handed over for recording", () => {
 });
 
 describe("Gemini resend policy", () => {
+  it("cancels a native retry wait without sending another request", async () => {
+    fetchMock.mockResolvedValue(fail(503));
+    const controller = new AbortController();
+    const work = run({ signal: controller.signal }).catch((error: unknown) => error);
+    await vi.waitFor(() => expect(recordCall).toHaveBeenCalledOnce());
+    controller.abort();
+    expect(await work).toMatchObject({ name: "AbortError", cause: controller.signal.reason });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not abort or release an issued request when future attempts are cancelled", async () => {
+    let resolve!: (response: Response) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>((done) => { resolve = done; }));
+    const controller = new AbortController();
+    let settled = false;
+    const work = run({ signal: controller.signal }).finally(() => { settled = true; });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    controller.abort();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(fetchMock.mock.calls[0]![1]!.signal!.aborted).toBe(false);
+    resolve(ok());
+    await expect(work).resolves.toBe("A mug.");
+  });
+
+  it("does not send an attempt when cancellation has already been requested", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(run({ signal: controller.signal })).rejects.toBe(controller.signal.reason);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it.each([408, 429, 503])("resends %s up to the attempt cap", async (status) => {
     vi.useFakeTimers();
     fetchMock.mockImplementation(async () => fail(status));
@@ -252,6 +338,14 @@ describe("Gemini resend policy", () => {
     const error = await run().catch((error) => error);
     expect(error).toMatchObject({ code: "safety-refusal" });
     expect(visionError(error, "description").retryable).toBe(false);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Gemini slug response validation", () => {
+  it.each([null, [], { slugs: [] }, { slugs: ["", " ", "!!!"] }, { slugs: ["valid", 42] }, { slugs: [null] }, { slugs: [{}] }])("rejects malformed or unusable slugs: %j", async (value) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] })));
+    await expect(new GeminiVisionProvider(key, "https://proxy.example", recordCall).suggestSlugs("A mug", { ...opts, slugPrompt: "Slugs" })).rejects.toMatchObject({ code: "invalid-response" });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

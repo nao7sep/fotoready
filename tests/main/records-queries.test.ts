@@ -7,6 +7,7 @@ import { logRow, providerCallRow, type ProviderCallRecord, type RecordsStore } f
 import { openRecordsDatabase } from "@main/records-tables";
 import { readRecords } from "@main/records-queries";
 import { RECORDS_PAGE_SIZE, type RecordsQuery, type RecordSummary } from "@shared/records";
+import { createLogger } from "@main/logger";
 
 let root: string;
 let db: DatabaseSync | null = null;
@@ -75,6 +76,27 @@ function seed(): void {
 }
 
 describe("readRecords: page", () => {
+  it("retains a provider attempt's unknown start when no terminal provider record was persisted", () => {
+    const callTime = "2026-10-02T08:00:01.000Z";
+    store(second, (records) => {
+      createLogger(records, { debug: false }).info("vision provider attempt", {
+        mod: "vision", taskId: "removed-task", provider: "gemini", role: "description", model: "gemini-3.5-flash",
+        phase: "start", outcome: "unknown", attemptId: "interrupted-attempt", callTime
+      });
+    });
+
+    const reopened = open();
+    const result = readRecords(reopened, { op: "page", query: { ...ALL, taskId: "removed-task" } });
+
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]).toMatchObject({ kind: "log", title: "vision provider attempt", session: second.toISOString(), taskId: "removed-task" });
+    const start = result.records[0]!;
+    const detail = readRecords(reopened, { op: "detail", kind: start.kind, id: start.id });
+    if (detail?.kind !== "log") throw new Error("Expected the persisted provider-attempt start");
+    expect(JSON.parse(detail.fields)).toMatchObject({ phase: "start", outcome: "unknown", attemptId: "interrupted-attempt", callTime });
+    expect(readRecords(reopened, { op: "page", query: { ...ALL, kind: "provider-call", taskId: "removed-task" } }).records).toEqual([]);
+  });
+
   it("adds ordered indexes to an existing admitted database without changing its records or version", () => {
     seed();
     const before = page().records;

@@ -16,8 +16,11 @@ vi.mock("@main/task-sidecar", async (importOriginal) => {
 });
 
 import { ProjectSession } from "@main/session";
-import { VisionQueue, type VisionProvider } from "@main/queues/vision";
-import { GeminiVisionProvider, type GeminiCall } from "@adapters/gemini";
+import { VisionQueue, type VisionProvider, type VisionQueueDeps } from "@main/queues/vision";
+import { queueSnapshotFromProject } from "@main/queues/snapshot";
+import { ApiKeyStore } from "@adapters/api-keys";
+import { GeminiVisionProvider, type GeminiCall, type GeminiCallLifecycle } from "@adapters/gemini";
+import { createLogger, type AppLogger } from "@main/logger";
 import { defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { ProviderCallRecord } from "@main/records-store";
@@ -85,6 +88,27 @@ it("keeps the provider result receipt time while its sidecar commit waits", asyn
 });
 
 describe("VisionQueue provider records", () => {
+  it("logs one unknown start and correlates the completed provider record without a terminal log", async () => {
+    const writeLog = vi.fn();
+    const logger = createLogger({ writeLog }, { debug: false });
+    const writeProviderCall = vi.fn<(record: ProviderCallRecord) => void>();
+    const response = deferred<Response>();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(() => response.promise));
+    let provider!: GeminiVisionProvider;
+    const { session, task } = await arrange({ describeImage: (request, options) => provider.describeImage(request, options), suggestSlugs: vi.fn() },
+      { writeProviderCall }, (recordCall, lifecycle) => { provider = new GeminiVisionProvider("test-key", "https://models.example", recordCall, lifecycle); }, undefined, undefined, logger);
+    const run = session.runVision(task.id, { mode: "description" });
+    const attempts = () => writeLog.mock.calls.map(([record]) => record).filter((record) => record.message === "vision provider attempt");
+    await vi.waitFor(() => expect(attempts()).toHaveLength(1));
+    const start = attempts()[0].fields;
+    expect(start).toMatchObject({ taskId: task.id, phase: "start", outcome: "unknown", attemptId: expect.any(String), callTime: expect.any(String) });
+    expect(writeProviderCall).not.toHaveBeenCalled();
+    response.resolve(new Response(JSON.stringify({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "A harbor" }] } }] })));
+    await run;
+    expect(attempts()).toHaveLength(1);
+    expect(writeProviderCall).toHaveBeenCalledOnce();
+    expect(writeProviderCall.mock.calls[0]![0]).toMatchObject({ taskId: task.id, time: start.callTime, role: start.role, attempt: start.attempt, request: { _diagnostics: { attemptId: start.attemptId } }, error: null });
+  });
   it("records each provider call with the task it ran for", async () => {
     const writeProviderCall = vi.fn<(record: ProviderCallRecord) => void>();
     let recordCall: ((call: GeminiCall) => void) | undefined;
@@ -205,6 +229,98 @@ describe("VisionQueue requests after a relaunch", () => {
 });
 
 describe("VisionQueue result ownership", () => {
+  it("cancels retry backoff during shutdown without a task error", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ error: { message: "Try later" } }), { status: 503, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const recorded = deferred<void>();
+    let provider!: GeminiVisionProvider;
+    const { session, task, queue } = await arrange({ describeImage: (request, options) => provider.describeImage(request, options), suggestSlugs: vi.fn() }, undefined,
+      (recordCall, lifecycle) => { provider = new GeminiVisionProvider("test-key", "https://models.example", (call) => { recordCall(call); recorded.resolve(); }, lifecycle); });
+    const run = session.runVision(task.id, { mode: "description" });
+    await recorded.promise;
+    // Let the provider enter its native retry wait, then close through the queue's real controller.
+    await new Promise((resolve) => setImmediate(resolve));
+    await queue.shutdown();
+    await run;
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(task.error).toBeNull();
+    expect(task.visionRunning).toBe(false);
+  });
+  it("stops after a deferred API key lookup when shutdown starts", async () => {
+    const key = deferred<string>();
+    const entered = deferred<void>();
+    const lookup = vi.spyOn(ApiKeyStore.prototype, "resolve").mockImplementation(async () => { entered.resolve(); return key.promise; });
+    try {
+      const describeImage = vi.fn(async () => "A harbor");
+      const prepare = vi.fn(async () => ({ bytes: Buffer.from("image"), width: 4, height: 3 }));
+      const { session, task, queue } = await arrange({ describeImage, suggestSlugs: vi.fn() }, undefined, undefined, undefined, prepare);
+      const run = session.runVision(task.id, { mode: "description" });
+      await entered.promise;
+      const shutdown = queue.shutdown();
+      key.resolve("test-key");
+      await Promise.all([run, shutdown]);
+      expect(prepare).not.toHaveBeenCalled();
+      expect(describeImage).not.toHaveBeenCalled();
+      expect(task.error).toBeNull();
+      expect(task.visionRunning).toBe(false);
+    } finally { lookup.mockRestore(); }
+  });
+
+  it("owns deferred image preparation until settlement and skips its provider call on shutdown", async () => {
+    const preparation = deferred<{ bytes: Buffer; width: number; height: number }>();
+    const entered = deferred<void>();
+    const describeImage = vi.fn(async () => "A harbor");
+    const { session, task, queue } = await arrange({ describeImage, suggestSlugs: vi.fn() }, undefined, undefined, undefined, () => { entered.resolve(); return preparation.promise; });
+    const run = session.runVision(task.id, { mode: "description" });
+    await entered.promise;
+    let closed = false;
+    const shutdown = queue.shutdown().then(() => { closed = true; });
+    await Promise.resolve();
+    expect(closed).toBe(false);
+    expect(task.visionRunning).toBe(true);
+    preparation.resolve({ bytes: Buffer.from("image"), width: 4, height: 3 });
+    await Promise.all([run, shutdown]);
+    expect(describeImage).not.toHaveBeenCalled();
+    expect(task.error).toBeNull();
+    expect(task.visionRunning).toBe(false);
+  });
+
+  it("commits an issued description after shutdown while skipping the unsent slug", async () => {
+    const description = deferred<string>();
+    const entered = deferred<void>();
+    const suggestSlugs = vi.fn(async () => ["a-harbor"]);
+    const { session, task, queue } = await arrange({ describeImage: () => { entered.resolve(); return description.promise; }, suggestSlugs });
+    const run = session.runVision(task.id, { mode: "description-and-slug" });
+    await entered.promise;
+    let closed = false;
+    const shutdown = queue.shutdown().then(() => { closed = true; });
+    await Promise.resolve();
+    expect(closed).toBe(false);
+    expect(task.visionRunning).toBe(true);
+    description.resolve("A harbor");
+    await Promise.all([run, shutdown]);
+    expect(suggestSlugs).not.toHaveBeenCalled();
+    expect(task.output?.vision).toMatchObject({ description: "A harbor", slugCandidates: [] });
+    expect(mocks.writeTaskSidecarFile).toHaveBeenCalledOnce();
+    expect(task.error).toBeNull();
+    expect(task.visionRunning).toBe(false);
+  });
+
+  it("keeps a committed description when shutdown begins during its commit", async () => {
+    const commitWait = deferred<string>();
+    const committing = deferred<void>();
+    mocks.writeTaskSidecarFile.mockImplementationOnce(() => { committing.resolve(); return commitWait.promise; });
+    const suggestSlugs = vi.fn(async () => ["a-harbor"]);
+    const { session, task, queue } = await arrange({ describeImage: async () => "A harbor", suggestSlugs });
+    const run = session.runVision(task.id, { mode: "description-and-slug" });
+    await committing.promise;
+    const shutdown = queue.shutdown();
+    commitWait.resolve("sidecar");
+    await Promise.all([run, shutdown]);
+    expect(suggestSlugs).not.toHaveBeenCalled();
+    expect(task.output?.vision?.description).toBe("A harbor");
+    expect(task.error).toBeNull();
+  });
   it("uses one model per role and records the actual model that produced each result", async () => {
     const describeImage = vi.fn(async () => "A harbor");
     const suggestSlugs = vi.fn(async () => ["a-harbor"]);
@@ -408,23 +524,25 @@ describe("VisionQueue retry after a failed step", () => {
 async function arrange(
   provider: VisionProvider,
   records?: { writeProviderCall(record: ProviderCallRecord): void },
-  onProvider?: (recordCall: (call: GeminiCall) => void) => void,
-  settings: GlobalSettings = defaultGlobalSettings()
-): Promise<{ session: ProjectSession; task: Task }> {
-  const queue = new VisionQueue({ apiKeysPath: path.join(tempDir, "api-keys.json") } as AppPaths, settings, undefined, records, {
-    createProvider: (_apiKey, _endpoint, recordCall) => {
-      onProvider?.(recordCall);
+  onProvider?: (recordCall: (call: GeminiCall) => void, recordLifecycle: (event: GeminiCallLifecycle) => void) => void,
+  settings: GlobalSettings = defaultGlobalSettings(),
+  prepareInput: VisionQueueDeps["prepareInput"] = async () => ({ bytes: Buffer.from("image"), width: 4, height: 3 }),
+  logger?: AppLogger
+): Promise<{ session: ProjectSession; task: Task; queue: VisionQueue }> {
+  const queue = new VisionQueue({ apiKeysPath: path.join(tempDir, "api-keys.json") } as AppPaths, settings, logger, records, {
+    createProvider: (_apiKey, _endpoint, recordCall, recordLifecycle) => {
+      onProvider?.(recordCall, recordLifecycle);
       return provider;
     },
-    prepareInput: async () => ({ bytes: Buffer.from("image"), width: 4, height: 3 })
+    prepareInput
   });
   await queue.setGeminiApiKey("test-key");
-  const session = new ProjectSession(settings, queue, null as never, null as never, "resources/stamps");
+  const session = new ProjectSession(settings, queue, { snapshot: queueSnapshotFromProject } as never, null as never, "resources/stamps");
   const project = session.snapshot().project;
   const task = savedTask();
   project.originals.push(original());
   project.tasks.push(task);
-  return { session, task };
+  return { session, task, queue };
 }
 
 async function settleMicrotasks(): Promise<void> {

@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import { geminiDiagnostic } from "./gemini-diagnostic";
 import { ApiError, GoogleGenAI, HarmBlockThreshold, HarmCategory, PartMediaResolutionLevel, ThinkingLevel, Type, type GenerateContentConfig, type GenerateContentParameters, type GenerateContentResponse, type Part, type PartMediaResolution, type SafetySetting } from "@google/genai";
 import { isRecord } from "@shared/validation/common";
@@ -31,6 +32,8 @@ export type SentImageSummary = {
 
 export type VisionCallOptions = {
   timeoutMs: number;
+  /** Stops unsent attempts and retry waits; an issued request remains owned until settlement. */
+  signal?: AbortSignal;
 };
 
 // The app's resend policy is fixed in code: three attempts in all, with doubling backoff from one
@@ -64,13 +67,22 @@ export type GeminiCall = {
   durationMs: number;
   /**
    * The request as sent, except that an image part's `inlineData.data` holds a {@link SentImageSummary}
-   * instead of the image. It is FotoReady's own parameters only: the SDK adds the API key to the HTTP
-   * request itself. Diagnostic copies mask that known key and credential fields, including echoes
-   * from a configured endpoint in its response or error.
+   * instead of the image, plus `_diagnostics.attemptId` to link the completed call to its start.
+   * Diagnostic fields are never sent to the SDK; it adds the API key to the HTTP request itself.
+   * Diagnostic copies mask that known key and credential fields, including echoes from a configured
+   * endpoint in its response or error.
    */
   request: unknown;
   response: GenerateContentResponse | null;
   error: unknown;
+};
+
+/** Request intent; the existing completed-call record owns the terminal outcome. */
+export type GeminiCallLifecycle = Pick<GeminiCall, "time" | "endpoint" | "role" | "model" | "attempt"> & {
+  attemptId: string;
+  phase: "start";
+  outcome: "unknown";
+  request: unknown;
 };
 
 export type VisionProviderFailureCode =
@@ -175,7 +187,8 @@ export class GeminiVisionProvider {
   constructor(
     private readonly apiKey: string,
     private readonly endpoint: string,
-    private readonly recordCall: (call: GeminiCall) => void
+    private readonly recordCall: (call: GeminiCall) => void,
+    private readonly recordLifecycle?: (event: GeminiCallLifecycle) => void
   ) {}
 
   async describeImage(request: VisionDescribeRequest, opts: VisionDescribeOptions): Promise<string> {
@@ -237,10 +250,12 @@ export class GeminiVisionProvider {
       contents: parts,
       config: { ...modelConfig(opts.model, opts.thinking), ...featureConfig }
     };
-    const recordedRequest = { ...request, contents: recordedParts };
     return callWithRetry(async (attempt) => {
       const time = nowIso();
       const startedAt = performance.now();
+      const identity = { time, endpoint: this.endpoint, role, model: opts.model, attempt, attemptId: randomUUID() };
+      const recordedRequest = { ...request, contents: recordedParts, _diagnostics: { attemptId: identity.attemptId } };
+      this.recordLifecycle?.(geminiDiagnostic({ ...identity, phase: "start", outcome: "unknown", request: recordedRequest }, this.apiKey));
       const record = (response: GenerateContentResponse | null, error: unknown) => this.recordCall(geminiDiagnostic({
         time, endpoint: this.endpoint, role, model: opts.model, attempt,
         durationMs: performance.now() - startedAt, request: recordedRequest, response, error
@@ -254,13 +269,14 @@ export class GeminiVisionProvider {
         record(null, diagnostic);
         throw diagnostic;
       }
-    });
+    }, opts.signal);
   }
 }
 
-async function callWithRetry<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
+async function callWithRetry<T>(fn: (attempt: number) => Promise<T>, signal?: AbortSignal): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < VISION_ATTEMPTS; attempt++) {
+    signal?.throwIfAborted();
     try {
       return await fn(attempt + 1);
     } catch (error) {
@@ -268,7 +284,8 @@ async function callWithRetry<T>(fn: (attempt: number) => Promise<T>): Promise<T>
       if (attempt === VISION_ATTEMPTS - 1 || !isRetryable(error)) {
         throw error;
       }
-      await sleep(backoffDelayMs(attempt));
+      signal?.throwIfAborted();
+      await sleep(backoffDelayMs(attempt), undefined, { signal });
     }
   }
   throw lastError;
@@ -284,10 +301,6 @@ function backoffDelayMs(attempt: number): number {
   const base = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
   const jitter = Math.random() * INITIAL_BACKOFF_MS;
   return Math.min(MAX_BACKOFF_MS, base + jitter);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function descriptionPrompt(prompt: string): string {
@@ -342,14 +355,18 @@ function parseDescription(raw: string): string {
 }
 
 function parseSlugs(raw: string): string[] {
-  let parsed: { slugs?: unknown };
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as { slugs?: unknown };
+    parsed = JSON.parse(raw);
   } catch (error) {
     throw new VisionProviderFailure("invalid-response", "Vision provider returned invalid JSON for slugs.", { cause: error });
   }
-  if (!Array.isArray(parsed.slugs)) {
+  if (!isRecord(parsed) || !Array.isArray(parsed.slugs) || parsed.slugs.some((slug) => typeof slug !== "string")) {
     throw new VisionProviderFailure("invalid-response", "Vision provider returned an invalid slug response.");
   }
-  return parsed.slugs.map((slug) => normalizeSlugCandidate(String(slug))).filter(Boolean).slice(0, 5);
+  const slugs = parsed.slugs.map((slug: string) => normalizeSlugCandidate(slug)).filter(Boolean).slice(0, 5);
+  if (slugs.length === 0) {
+    throw new VisionProviderFailure("invalid-response", "Vision provider returned no usable slugs.");
+  }
+  return slugs;
 }

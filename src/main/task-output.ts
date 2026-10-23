@@ -46,14 +46,14 @@ export function nextTaskOutput(
 ): TaskOutput {
   const nextOutput = applyOutputSettingChange(current, key, value);
   const resolvedFormat = resolveOutputFormat(nextOutput.format, originalFormat);
-  if (key === "format") {
+  if (nextOutput.format !== current.format) {
     return {
       ...nextOutput,
       quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),
       flattenTransparency: resolvedFormat === "jpeg" ? true : nextOutput.flattenTransparency
     };
   }
-  if (resolvedFormat !== "jpeg" || (nextOutput.quality === "auto" && originalFormat !== "jpeg")) {
+  if (nextOutput.quality === "auto" && (resolvedFormat !== "jpeg" || originalFormat !== "jpeg")) {
     return {
       ...nextOutput,
       quality: defaultQualityForFormat(nextOutput.format, settings, originalFormat, current.quality),

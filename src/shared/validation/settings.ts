@@ -3,9 +3,10 @@ import { EDITABLE_METADATA_FIELDS, THEME_PREFERENCES, type GlobalSettings, type 
 import { LANGUAGES } from "../i18n/languages";
 import { SYSTEM_TIME_ZONE, isTimeZone } from "../time-zone";
 import { defaultMediaResolutionFor, defaultThinkingFor, supportedModel } from "../ai-models";
+import { encodedFormats } from "../output-format";
 import { assertBoolean, assertFiniteNumber, assertNonEmptyString, assertOneOf, assertRecord, assertString, isRecord } from "./common";
 
-const outputFormats = ["original", "jpeg", "webp", "avif", "png"] as const;
+const outputFormats = ["original", ...encodedFormats] as const;
 const jpegQualityModes = ["auto", "fixed"] as const;
 const chromaSubsamplingModes = ["4:4:4", "4:2:2", "4:2:0"] as const;
 

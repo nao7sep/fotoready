@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { defaultGlobalSettings } from "@shared/defaults";
+import { encodedFormats } from "@shared/output-format";
 
 const fallback = defaultGlobalSettings();
 
 describe("normalizeGlobalSettings", () => {
+  it.each(["original", ...encodedFormats] as const)("preserves the offered %s output default", (defaultOutputFormat) => {
+    const { settings, issues } = normalizeGlobalSettings({ ...fallback, defaultOutputFormat }, fallback);
+    expect(settings.defaultOutputFormat).toBe(defaultOutputFormat);
+    expect(issues).toEqual([]);
+  });
+
   it("returns a clean copy with no issues for a fully valid input", () => {
     const { settings, issues } = normalizeGlobalSettings(fallback, fallback);
     expect(issues).toEqual([]);

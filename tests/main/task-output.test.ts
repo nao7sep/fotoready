@@ -65,6 +65,12 @@ describe("defaultQualityForFormat", () => {
 });
 
 describe("defaultTaskOutput", () => {
+  it("initializes an original WebP or AVIF with its configured quality", () => {
+    const configured = settings({ defaultWebpQuality: 67, defaultAvifQuality: 49 });
+    expect(defaultTaskOutput(configured, "webp", output({ quality: 90 })).quality).toBe(67);
+    expect(defaultTaskOutput(configured, "avif", output({ quality: 90 })).quality).toBe(49);
+  });
+
   it("applies the configured output defaults and the resolved quality", () => {
     const result = defaultTaskOutput(settings(), "jpeg", defaultOutputSettings());
     expect(result.format).toBe("original"); // settings.defaultOutputFormat
@@ -81,6 +87,28 @@ describe("defaultTaskOutput", () => {
 });
 
 describe("nextTaskOutput", () => {
+  it.each(["webp", "avif", "png", "tiff"] as const)("preserves explicit %s quality through unrelated edits and reselecting the format", (format) => {
+    const configured = settings({ defaultWebpQuality: 67, defaultAvifQuality: 49 });
+    const changed = nextTaskOutput(output({ format, quality: 90 }), "quality", 73, configured, "jpeg");
+    expect(changed.quality).toBe(73);
+    const edited = nextTaskOutput(changed, "backgroundForTransparency", "#123456", configured, "jpeg");
+    expect(edited.quality).toBe(73);
+    expect(edited.backgroundForTransparency).toBe("#123456");
+    expect(nextTaskOutput(edited, "format", format, configured, "jpeg").quality).toBe(73);
+  });
+
+  it.each(["webp", "avif"] as const)("preserves explicit quality on an original %s output", (originalFormat) => {
+    const changed = nextTaskOutput(output({ format: "original", quality: 90 }), "quality", 73, settings(), originalFormat);
+    expect(changed.quality).toBe(73);
+    expect(nextTaskOutput(changed, "flattenTransparency", true, settings(), originalFormat).quality).toBe(73);
+  });
+
+  it.each(["webp", "avif"] as const)("uses the configured %s default on a format change", (format) => {
+    const configured = settings({ defaultWebpQuality: 67, defaultAvifQuality: 49 });
+    const result = nextTaskOutput(output({ format: "jpeg", quality: 90 }), "format", format, configured, "jpeg");
+    expect(result.quality).toBe(format === "webp" ? 67 : 49);
+  });
+
   it("changing format to jpeg forces flattenTransparency and recomputes quality", () => {
     const result = nextTaskOutput(output({ format: "png", flattenTransparency: false }), "format", "jpeg", settings(), "jpeg");
     expect(result.format).toBe("jpeg");

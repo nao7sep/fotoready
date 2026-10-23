@@ -87,6 +87,14 @@ describe("the settings format version", () => {
 });
 
 describe("settings by set", () => {
+  it("keeps a TIFF output default through saving and reopening", async () => {
+    expect((await save({ defaultOutputFormat: "tiff" })).defaultOutputFormat).toBe("tiff");
+    expect(await written()).toEqual({ defaultOutputFormat: "tiff" });
+    const reopened = await loadSettings(settingsPath());
+    expect(reopened.settings.defaultOutputFormat).toBe("tiff");
+    expect(reopened.notice).toBeNull();
+  });
+
   it.each(["defaultOutputDirectory", "lutFolder", "stampFolder", "defaultWatermarkImage"] as const)(
     "preserves literal selected %s through saving, reopening and a whitespace-only filename change",
     async (key) => {

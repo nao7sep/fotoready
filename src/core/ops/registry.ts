@@ -49,14 +49,6 @@ export function getOpModule(type: string): OpModule | undefined {
   return isOpType(type) ? modules[type] : undefined;
 }
 
-export function requireOpModule(type: string): OpModule {
-  const module = getOpModule(type);
-  if (!module) {
-    throw new Error(`Unknown op type "${type}".`);
-  }
-  return module;
-}
-
 export function getOpDefinition(type: string): OpDefinition | undefined {
   return getOpModule(type);
 }

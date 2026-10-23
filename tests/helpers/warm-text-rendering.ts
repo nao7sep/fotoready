@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { renderTrimmedTextBitmap } from "@core/ops/watermark-text";
-import { requireOpModule } from "@core/ops/registry";
+import { requireOpModule } from "./require-op-module";
 
 type Params = Parameters<typeof renderTrimmedTextBitmap>[0];
 

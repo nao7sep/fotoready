@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OP_TYPES } from "@shared/op-types";
-import { listOpModules, requireOpModule } from "@core/ops/registry";
+import { listOpModules } from "@core/ops/registry";
+import { requireOpModule } from "../../helpers/require-op-module";
 
 const modules = listOpModules();
 

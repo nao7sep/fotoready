@@ -1,6 +1,6 @@
 import sharp, { type Sharp } from "sharp";
 import { describe, expect, it } from "vitest";
-import { requireOpModule } from "@core/ops/registry";
+import { requireOpModule } from "../helpers/require-op-module";
 import { parseCubeLut } from "@runtime/lut-cube";
 import { runPipelineFromRaw } from "@runtime/pipeline-runner";
 import { defaultPipeline } from "@shared/defaults";

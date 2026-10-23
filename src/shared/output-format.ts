@@ -22,10 +22,6 @@ export function formatLabel(format: EncodedOutputFormat | string): string {
   return format.toUpperCase();
 }
 
-export function encodedFormatLabel(format: EncodedOutputFormat): string {
-  return formatLabel(format);
-}
-
 export function resolveOutputFormat(format: OutputFormat, sourceFormat: string): EncodedOutputFormat {
   if (format !== "original") {
     return format;

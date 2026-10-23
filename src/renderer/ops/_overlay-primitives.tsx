@@ -170,17 +170,4 @@ export function imageBoundsFromOriginalSize(originalSize: { width: number; heigh
   return originalSize ? imageBoundsFromSize(originalSize) : { maxX: 1, maxY: 1 };
 }
 
-/** Decode a `params.rects` blob into a list of FractionRects. Used by every conceal op. */
-export function readRectList(value: unknown): FractionRect[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const rect = entry as Partial<FractionRect>;
-    if (typeof rect.x !== "number" || typeof rect.y !== "number" || typeof rect.w !== "number" || typeof rect.h !== "number") {
-      return [];
-    }
-    return [rect as FractionRect];
-  });
-}
-
 export type { OverlayContext };

@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { expect, it } from "vitest";
-import { requireOpModule } from "@core/ops/registry";
+import { requireOpModule } from "../../helpers/require-op-module";
 import { materialize } from "@core/ops/_shared";
 
 // White balance joined the shared per-pixel pass; it must still give exactly what the image

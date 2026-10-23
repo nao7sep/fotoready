@@ -3,7 +3,6 @@ import {
   assertArray,
   assertBoolean,
   assertFiniteNumber,
-  assertIsoTimestamp,
   assertNonEmptyString,
   assertNullableString,
   assertOneOf,
@@ -86,12 +85,5 @@ describe("assertFiniteNumber", () => {
     expect(() => assertFiniteNumber(0, "x", { min: 0, minExclusive: true })).toThrow(/greater than 0/);
     expect(() => assertFiniteNumber(10, "x", { max: 10, maxExclusive: true })).toThrow(/less than 10/);
     expect(assertFiniteNumber(1, "x", { min: 0, minExclusive: true })).toBe(1);
-  });
-});
-
-describe("assertIsoTimestamp", () => {
-  it("accepts parseable timestamps and rejects junk", () => {
-    expect(assertIsoTimestamp("2026-06-04T00:00:00.000Z", "x")).toBe("2026-06-04T00:00:00.000Z");
-    expect(() => assertIsoTimestamp("not-a-date", "x")).toThrow(/ISO-8601/);
   });
 });

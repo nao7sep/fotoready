@@ -19,10 +19,6 @@ export function message(key: MessageKey, values?: MessageValues): Message {
   return values === undefined ? { key } : { key, values };
 }
 
-export function isMessage(value: unknown): value is Message {
-  return typeof value === "object" && value !== null && typeof (value as { key?: unknown }).key === "string";
-}
-
 const PLACEHOLDER = /\{(\w+)\}/g;
 
 export type Translator = {

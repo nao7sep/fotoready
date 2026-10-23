@@ -1,9 +1,5 @@
 import type { Translator } from "@shared/i18n/translate";
 
-export function sliderLongEdge(originalSize: { width: number; height: number } | null): number {
-  return originalSize ? Math.max(originalSize.width, originalSize.height) : 1000;
-}
-
 const PERCENT_STEPS = 1000;
 
 export function fractionToPercentSteps(value: number): number {

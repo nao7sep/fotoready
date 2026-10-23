@@ -85,11 +85,3 @@ export function assertFiniteNumber(
 
   return value;
 }
-
-export function assertIsoTimestamp(value: unknown, path: string): string {
-  const timestamp = assertString(value, path);
-  if (Number.isNaN(Date.parse(timestamp))) {
-    throw new Error(`${path} must be an ISO-8601 timestamp string.`);
-  }
-  return timestamp;
-}

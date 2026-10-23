@@ -3,17 +3,7 @@ import type { OpApplyContext } from "./op-module";
 import { assertArray, assertFiniteNumber, assertOneOf, assertRecord, assertString, assertNonEmptyString } from "@shared/validation/common";
 import { clamp, clamp01 } from "@shared/numeric";
 
-export type Rect = { x: number; y: number; w: number; h: number };
-
 export { clamp, clamp01 };
-
-export function numberOr(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-export function stringOr(value: unknown, fallback: string): string {
-  return typeof value === "string" ? value : fallback;
-}
 
 /**
  * Materialize the current sharp work image to a fresh raw-RGBA-backed sharp instance and
@@ -94,41 +84,6 @@ export async function applyTransformedOverlay(
   }]);
 }
 
-export async function compositeOverlayFromRegion(
-  image: sharp.Sharp,
-  region: { left: number; top: number; width: number; height: number },
-  transform: (regionImage: sharp.Sharp) => sharp.Sharp
-): Promise<sharp.OverlayOptions> {
-  const { data, info } = await transform(image.clone().extract(region)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  return {
-    input: data,
-    raw: { width: info.width, height: info.height, channels: info.channels },
-    left: region.left,
-    top: region.top
-  };
-}
-
-export function rectsToList(value: unknown): Rect[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is Rect =>
-    item !== null
-    && typeof item === "object"
-    && typeof (item as Rect).x === "number"
-    && typeof (item as Rect).y === "number"
-    && typeof (item as Rect).w === "number"
-    && typeof (item as Rect).h === "number"
-  );
-}
-
-export function regionFromRect(rect: Rect, sourceWidth: number, sourceHeight: number): { left: number; top: number; width: number; height: number } {
-  const longEdge = Math.max(sourceWidth, sourceHeight);
-  const left = Math.max(0, Math.round(rect.x * longEdge));
-  const top = Math.max(0, Math.round(rect.y * longEdge));
-  const width = Math.max(1, Math.min(Math.round(rect.w * longEdge), sourceWidth - left));
-  const height = Math.max(1, Math.min(Math.round(rect.h * longEdge), sourceHeight - top));
-  return { left, top, width, height };
-}
-
 export function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -146,18 +101,6 @@ export function assertParamsShape(value: unknown, allowedKeys: readonly string[]
     }
   }
   return record;
-}
-
-export function validateRectList(value: unknown, path: string): Rect[] {
-  return assertArray(value, path).map((entry, index) => {
-    const record = assertRecord(entry, `${path}[${index}]`);
-    return {
-      x: assertFiniteNumber(record.x, `${path}[${index}].x`, { min: 0, max: 1 }),
-      y: assertFiniteNumber(record.y, `${path}[${index}].y`, { min: 0, max: 1 }),
-      w: assertFiniteNumber(record.w, `${path}[${index}].w`, { min: 0, max: 1, minExclusive: true }),
-      h: assertFiniteNumber(record.h, `${path}[${index}].h`, { min: 0, max: 1, minExclusive: true })
-    };
-  });
 }
 
 export function validateOptionalSamplePoint(value: unknown, path: string): [number, number] | null {

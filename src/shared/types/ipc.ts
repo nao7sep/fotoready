@@ -65,6 +65,7 @@ export type RendererLogEntry = {
 
 export type PrivacyWarning = {
   kept: ("editorial" | "dates" | "gps")[];
+  inspectionFailed?: true;
 };
 
 export type ProjectSnapshot = {

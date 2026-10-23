@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { exiftool } from "exiftool-vendored";
 import { applyMetadataToOutput, metadataCopyArgs, readSourceMetadataSummary } from "@adapters/exiftool";
 
@@ -16,20 +16,19 @@ const baseInput = {
 };
 
 describe("metadataCopyArgs", () => {
-  it("copies the source first, so every clear and stamp after it overrides a copied value", () => {
+  it("never emits an implicit copy-all when stripping with no kept groups", () => {
     const args = metadataCopyArgs(baseInput);
 
-    expect(args.slice(0, 3)).toEqual(["-TagsFromFile", "/source/photo.jpg", "-all:all"]);
-    expect(args).toEqual(expect.arrayContaining(["-GPS:all=", "-XMP-exif:GPS*=", "-DateTimeOriginal=", "-EXIF:Artist=", "-Software=FotoReady", "-ModifyDate="]));
+    expect(args).not.toContain("-TagsFromFile");
+    expect(args).toEqual(expect.arrayContaining(["-all=", "-Software=FotoReady", "-ModifyDate="]));
     expect(args.at(-1)).toBe("-overwrite_original");
   });
 
   it("keeps the groups the task keeps", () => {
     const args = metadataCopyArgs({ ...baseInput, keep: ["gps", "dates", "editorial"] });
 
-    expect(args).not.toContain("-GPS:all=");
-    expect(args).not.toContain("-DateTimeOriginal=");
-    expect(args).not.toContain("-EXIF:Artist=");
+    expect(args).not.toContain("-all:all");
+    expect(args).toEqual(expect.arrayContaining(["-all:GPSLatitude", "-all:DateTimeOriginal", "-EXIF:Artist"]));
   });
 });
 
@@ -104,6 +103,33 @@ describe("applyMetadataToOutput with ExifTool", () => {
     await exiftool.end();
   });
 
+  it("does not copy private tags outside the selected groups", async () => {
+    const sourcePath = path.join(dir, "private.jpg");
+    await sharp({ create: { width: 16, height: 16, channels: 3, background: "#884422" } }).jpeg().toFile(sourcePath);
+    await exiftool.write(sourcePath, {
+      "ExifIFD:UserComment": "Private address",
+      "XMP-iptcExt:PersonInImage": ["Private person"],
+      "EXIF:Artist": "Chosen author"
+    } as never, ["-overwrite_original"]);
+    for (const keep of [[], ["editorial"]] as ("editorial")[][]) {
+      const outputPath = path.join(dir, `output-${keep.length}.jpg`);
+      await sharp(sourcePath).jpeg().toFile(outputPath);
+      await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, keep, injectFields: {} });
+      const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
+      expect(Object.keys(tags).filter((key) => /UserComment|PersonInImage/.test(key))).toEqual([]);
+      expect(tags["IFD0:Artist"]).toBe(keep.length ? "Chosen author" : undefined);
+    }
+  });
+
+  it("represents inspection failure as unknown rather than empty success", async () => {
+    const read = vi.spyOn(exiftool, "read").mockRejectedValueOnce(new Error("unavailable"));
+    try {
+      expect(await readSourceMetadataSummary("unavailable.jpg")).toMatchObject({ inspectionFailed: true });
+    } finally {
+      read.mockRestore();
+    }
+  });
+
   it("writes a file with no GPS in any group when the task strips GPS", async () => {
     const sourcePath = path.join(dir, "source.jpg");
     const outputPath = path.join(dir, "output.tmp");
@@ -121,7 +147,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
 
     const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
     expect(Object.keys(tags).filter((key) => /GPS/.test(key) && !/^Composite/.test(key))).toEqual([]);
-    expect(tags["IFD0:Make"] ?? tags.Make).toBe("Canon");
+    expect(tags["IFD0:Make"] ?? tags.Make).toBeUndefined();
     expect(tags["IFD0:Software"] ?? tags.Software).toBe("FotoReady");
     expect(Object.keys(tags).some((key) => key.endsWith("DateTimeOriginal"))).toBe(true);
     expect(await fs.readdir(dir)).toEqual(["output.tmp", "source.jpg"]);
@@ -137,7 +163,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
     const times = await exiftool.read(outputPath, ["-time:all", "-G1", "-a"]) as unknown as Record<string, unknown>;
     expect(Object.keys(times).filter((key) => /Date|Time/.test(key) && !/^(System|File):/.test(key))).toEqual([]);
     const kept = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
-    expect(kept["IFD0:Make"] ?? kept.Make).toBe("Canon");
+    expect(kept["IFD0:Make"] ?? kept.Make).toBeUndefined();
     expect(Object.keys(kept).some((key) => key.endsWith("GPSLatitude"))).toBe(true);
   });
 
@@ -155,7 +181,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
     await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
     const savedAt = new Date(Date.UTC(2026, 8, 26, 1, 30, 0));
 
-    const args = inZone("Asia/Kolkata", () => metadataCopyArgs({ ...baseInput, sourcePath, savedAt, writeModifyDate: true }));
+    const args = inZone("Asia/Kolkata", () => metadataCopyArgs({ ...baseInput, sourcePath, stripActive: false, savedAt, writeModifyDate: true }));
     await exiftool.write(outputPath, {} as never, args);
 
     const tags = await exiftool.read(outputPath, ["-G1", "-a", "-time:all"]) as unknown as Record<string, unknown>;
@@ -186,7 +212,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
     } as never, ["-overwrite_original"]);
     await sharp({ create: { width: 16, height: 16, channels: 3, background: "#224488" } }).jpeg().toFile(outputPath);
 
-    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, keep: ["dates"], injectFields: {} });
+    await applyMetadataToOutput({ ...baseInput, sourcePath, outputPath, stripActive: false, keep: ["dates"], injectFields: {} });
 
     const tags = await exiftool.read(outputPath, ["-G1", "-a"]) as unknown as Record<string, unknown>;
     expect(tags["ExifIFD:ColorSpace"]).toBe("sRGB");
@@ -236,7 +262,7 @@ describe("applyMetadataToOutput with ExifTool", () => {
     const placeKeys = ["City", "Province-State", "State", "Country-PrimaryLocationName", "Country", "Country-PrimaryLocationCode", "CountryCode", "Sub-location", "Location", "LocationShown", "LocationCreated"];
     expect(Object.keys(tags).filter((key) => placeKeys.some((placeKey) => key.endsWith(placeKey)))).toEqual([]);
     expect(Object.keys(tags).filter((key) => /GPS/.test(key) && !/^Composite/.test(key))).toEqual([]);
-    expect(tags["IFD0:Make"] ?? tags.Make).toBe("Canon");
+    expect(tags["IFD0:Make"] ?? tags.Make).toBeUndefined();
   });
 
   it("flags a place name carried only in IPTC and XMP", async () => {

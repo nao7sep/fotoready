@@ -182,6 +182,7 @@
   "originals.empty": "Aucun original. Ajoutez ou déposez une image ou un fichier annexe de tâche FotoReady.",
   "originals.remove": "Retirer l’original",
   "originals.add": "Ajouter des originaux",
+  "originals.importing": "Importation…",
   "originals.closeImportResult": "Fermer le résultat de l’importation",
 
   "import.couldNotAdd": "Les originaux n’ont pas pu être ajoutés.",
@@ -220,6 +221,8 @@
   "privacy.editorial": "éditorial ({letter})",
   "privacy.dates": "date et heure ({letter})",
   "privacy.gps": "GPS ({letter})",
+  "privacy.unchecked": "Les métadonnées n’ont pas pu être vérifiées",
+  "privacy.uncheckedDetail": "Les métadonnées de la source peuvent être conservées lors de l’enregistrement. Utilisez «\u00a0Supprimer les métadonnées\u00a0» ou importez à nouveau pour les vérifier.",
 
   "ops.title": "Opérations",
   "ops.emptyTask": "Aucune opération dans cette tâche",

@@ -182,6 +182,7 @@
   "originals.empty": "Keine Originale. Fügen Sie ein Bild oder eine FotoReady-Aufgabendatei (Sidecar) hinzu oder legen Sie sie hier ab.",
   "originals.remove": "Original entfernen",
   "originals.add": "Originale hinzufügen",
+  "originals.importing": "Wird importiert\u00a0…",
   "originals.closeImportResult": "Importergebnis schließen",
 
   "import.couldNotAdd": "Die Originale konnten nicht hinzugefügt werden.",
@@ -220,6 +221,8 @@
   "privacy.editorial": "redaktionelle Angaben ({letter})",
   "privacy.dates": "Zeit ({letter})",
   "privacy.gps": "GPS ({letter})",
+  "privacy.unchecked": "Metadaten konnten nicht geprüft werden",
+  "privacy.uncheckedDetail": "Metadaten der Quelle können beim Speichern erhalten bleiben. Verwenden Sie „Metadaten entfernen“ oder importieren Sie erneut, um sie zu prüfen.",
 
   "ops.title": "Operationen",
   "ops.emptyTask": "Keine Operationen in dieser Aufgabe",

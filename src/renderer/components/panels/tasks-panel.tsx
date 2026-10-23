@@ -35,6 +35,7 @@ export function TasksPanel({
   onSelect(taskId: string): void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const originalsById = React.useMemo(() => new Map(originals.map((original) => [original.id, original])), [originals]);
   const hasPending = tasks.some((task) => task.status === "not-saved");
   const hasQueued = queue.queued > 0;
   const listbox = useListbox({
@@ -59,7 +60,7 @@ export function TasksPanel({
             {...listbox.getOptionProps(task.id)}
           >
             <span className="task-copy">
-              <span className="row-title">{taskLabel(task, originals)}</span>
+              <span className="row-title">{taskLabel(task, originalsById)}</span>
               {/* The state is told in words, coloured by kind; no icon repeats it. */}
               <span className="row-detail">
                 {t("tasks.opCount", { count: task.pipeline.ops.length })} · <span className={`task-state state-${taskVisualState(task)}`}>{t(taskStateLabel(task, queue))}</span>
@@ -99,6 +100,9 @@ const PRIVACY_GROUP_LABEL: Record<PrivacyWarning["kept"][number], MessageKey> = 
 // The pill's letters are a code, the same in every language; the tooltip names each group.
 function PrivacyPill({ warning }: { warning: PrivacyWarning }): React.JSX.Element {
   const { t, list } = useI18n();
+  if (warning.inspectionFailed) {
+    return <span className="task-privacy-pill" title={t("privacy.uncheckedDetail")}>{t("privacy.unchecked")}</span>;
+  }
   const letters = warning.kept.map((group) => PRIVACY_GROUP_LETTER[group]).join("·");
   const tooltip = t("tasks.privacyKept", {
     groups: list(warning.kept.map((group) => t(PRIVACY_GROUP_LABEL[group], { letter: PRIVACY_GROUP_LETTER[group] })))
@@ -118,8 +122,8 @@ function PanelHeader({ title }: { title: string }): React.JSX.Element {
   );
 }
 
-function taskLabel(task: Task, originals: Array<{ id: string; sourcePath: string }>): string {
-  const original = originals.find((item) => item.id === task.originalId);
+function taskLabel(task: Task, originals: ReadonlyMap<string, Original>): string {
+  const original = originals.get(task.originalId);
   return original ? basename(original.sourcePath) : task.id;
 }
 

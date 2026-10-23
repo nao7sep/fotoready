@@ -6,6 +6,9 @@ export function computePrivacyWarning(task: Task, original: Original): PrivacyWa
   const policy = metadataPolicy(task);
   const summary = original.metadataSummary;
   const kept: PrivacyWarning["kept"] = [];
+  if (summary.inspectionFailed && (!policy.stripActive || policy.keep.length > 0)) {
+    return { kept, inspectionFailed: true };
+  }
 
   // No strip card → all source metadata is preserved (minus always-stale fields).
   // Strip card present → only the explicitly kept groups survive.

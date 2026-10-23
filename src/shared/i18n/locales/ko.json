@@ -182,6 +182,7 @@
   "originals.empty": "원본이 없습니다. 이미지나 FotoReady 작업 사이드카 파일을 추가하거나 여기에 놓으십시오.",
   "originals.remove": "원본 제거",
   "originals.add": "원본 추가",
+  "originals.importing": "가져오는 중…",
   "originals.closeImportResult": "가져오기 결과 닫기",
 
   "import.couldNotAdd": "원본을 추가하지 못했습니다.",
@@ -220,6 +221,8 @@
   "privacy.editorial": "편집 정보({letter})",
   "privacy.dates": "날짜와 시간({letter})",
   "privacy.gps": "GPS({letter})",
+  "privacy.unchecked": "메타데이터를 확인하지 못했습니다",
+  "privacy.uncheckedDetail": "저장 시 원본 메타데이터가 유지될 수 있습니다. ‘메타데이터 제거’를 사용하거나 다시 가져와 확인하십시오.",
 
   "ops.title": "편집",
   "ops.emptyTask": "이 작업에는 편집 항목이 없습니다",

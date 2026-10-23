@@ -52,6 +52,13 @@ const stripOp = (keep: string[]): OpInstance => ({
 });
 
 describe("computePrivacyWarning", () => {
+  it("warns on an unknown inspection unless no source groups can survive", () => {
+    const original = makeOriginal({ editorial: {}, dates: {}, gps: {}, inspectionFailed: true });
+    expect(computePrivacyWarning(makeTask([]), original)).toEqual({ kept: [], inspectionFailed: true });
+    expect(computePrivacyWarning(makeTask([stripOp(["gps"])]), original)?.inspectionFailed).toBe(true);
+    expect(computePrivacyWarning(makeTask([stripOp([])]), original)).toBeNull();
+  });
+
   it("warns about every group with data when there is no strip card", () => {
     const warning = computePrivacyWarning(makeTask([]), makeOriginal(fullSummary));
     expect(warning).toEqual({ kept: ["editorial", "dates", "gps"] });

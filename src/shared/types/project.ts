@@ -5,6 +5,8 @@ import type { Message } from "../i18n/translate";
 /** Capture-time and location values keyed by what they are (see the adapter's tag tables), so the
  * renderer can name each in the interface language. */
 export type SourceMetadataSummary = {
+  /** A failed inspection is unknown, never evidence that source metadata is absent. */
+  inspectionFailed?: true;
   editorial: MetadataFields;
   dates: Partial<Record<CaptureTimeField, string>>;
   gps: Partial<Record<LocationField, string>>;

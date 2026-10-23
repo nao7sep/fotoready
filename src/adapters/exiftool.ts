@@ -162,18 +162,23 @@ export async function applyMetadataToOutput(input: ApplyMetadataInput): Promise<
 export function metadataCopyArgs(input: Omit<ApplyMetadataInput, "outputPath" | "injectFields">): string[] {
   const { sourcePath, stripActive, keep, savedAt, writeSoftwareTag, writeModifyDate } = input;
   const clear = (tag: string) => `-${tag}=`;
-  const args = ["-TagsFromFile", sourcePath, "-all:all"];
-  args.push(...ALWAYS_STALE_TAGS.map(clear));
-  // The output's pixels are sRGB (content-lifecycle conventions, Files, a derived file is new). Unqualified,
-  // ExifTool writes it to EXIF and overrides a copied XMP ColorSpace without adding XMP to a file that had none.
-  args.push("-ColorSpace=sRGB");
+  // An empty -TagsFromFile selection implicitly copies all tags. Never emit it for
+  // a strip with no selected groups: private tags outside our summary must not leak.
+  const args: string[] = [];
   if (stripActive) {
-    if (!keep.includes("editorial")) args.push(...EDITORIAL_TAGS.map(clear));
-    if (!keep.includes("dates")) args.push(...CAPTURE_TIME_TAGS.map(({ tag }) => clear(tag)));
-    // Coordinates live in the GPS IFD and may be mirrored in XMP; both go, along with every
-    // IPTC/XMP place name that also says where the photo was taken.
-    if (!keep.includes("gps")) args.push(clear("GPS:all"), clear("XMP-exif:GPS*"), ...GPS_TAGS.map(({ tag }) => clear(tag)));
+    args.push("-all=");
+    const selected = [
+      ...(keep.includes("editorial") ? EDITORIAL_TAGS : []),
+      ...(keep.includes("dates") ? CAPTURE_TIME_TAGS.map(({ tag }) => `all:${tag}`) : []),
+      ...(keep.includes("gps") ? GPS_TAGS.map(({ tag }) => `all:${tag}`) : [])
+    ];
+    if (selected.length) args.push("-TagsFromFile", sourcePath, ...selected.map((tag) => `-${tag}`));
+  } else {
+    args.push("-TagsFromFile", sourcePath, "-all:all");
   }
+  args.push(...ALWAYS_STALE_TAGS.map(clear));
+  // The encoder produces sRGB pixels, independent of the source colour profile.
+  args.push("-ColorSpace=sRGB");
   // Re-stamp or clear Software and the save time; when off, clear explicitly so a source value doesn't leak
   // through. The save time follows the content-lifecycle conventions (Files, a derived file is new). ExifTool
   // writes the zone-qualified stamp to EXIF as wall-clock time, kept beside OffsetTime, and to XMP with its
@@ -195,11 +200,8 @@ export async function readSourceMetadataSummary(sourcePath: string, logger?: Log
     const tags = await exiftool.read(sourcePath);
     return metadataSummaryFromTags(tags as Record<string, unknown>);
   } catch (error) {
-    // The summary drives the privacy warning, so a read failure that silently
-    // returned "empty" would understate what metadata the source actually
-    // carries. Surface it as a warning and degrade to an empty summary.
-    logger?.warn("could not read source metadata; treating it as empty", { mod: "exiftool", sourcePath, err: error });
-    return emptyMetadataSummary();
+    logger?.warn("could not inspect source metadata", { mod: "exiftool", sourcePath, err: error });
+    return { ...emptyMetadataSummary(), inspectionFailed: true };
   }
 }
 
@@ -309,7 +311,7 @@ function tagText(value: unknown): string | undefined {
 // getters here is correct and deliberate. This is NOT a violation of the
 // "internal timestamps are always UTC" convention: that rule governs the app's
 // own internal/serialized timestamps, not the values written into a photo's
-// EXIF. The save-time ModifyDate write is opt-in and labeled "local clock" in
+// EXIF. The save-time ModifyDate write is default-on and labeled "local clock" in
 // Settings. Do not "fix" this to UTC — leave the local getters as-is.
 function exifDate(date: Date): string {
   return `${date.getFullYear()}:${pad2(date.getMonth() + 1)}:${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;

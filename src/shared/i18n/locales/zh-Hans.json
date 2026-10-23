@@ -182,6 +182,7 @@
   "originals.empty": "没有原图。添加或拖入一张图像或 FotoReady 任务附属文件。",
   "originals.remove": "移除原图",
   "originals.add": "添加原图",
+  "originals.importing": "正在导入…",
   "originals.closeImportResult": "关闭导入结果",
 
   "import.couldNotAdd": "无法添加原图。",
@@ -220,6 +221,8 @@
   "privacy.editorial": "编辑信息（{letter}）",
   "privacy.dates": "日期时间（{letter}）",
   "privacy.gps": "GPS（{letter}）",
+  "privacy.unchecked": "无法检查元数据",
+  "privacy.uncheckedDetail": "保存时可能会保留原图的元数据。请使用“移除元数据”，或重新导入以进行检查。",
 
   "ops.title": "操作",
   "ops.emptyTask": "此任务中没有操作",

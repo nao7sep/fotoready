@@ -182,6 +182,7 @@
   "originals.empty": "元画像がありません。画像か FotoReady のタスクのサイドカーファイルを追加するか、ドロップしてください。",
   "originals.remove": "元画像を取り除く",
   "originals.add": "元画像を追加",
+  "originals.importing": "読み込み中…",
   "originals.closeImportResult": "読み込み結果を閉じる",
 
   "import.couldNotAdd": "元画像を追加できませんでした。",
@@ -220,6 +221,8 @@
   "privacy.editorial": "編集情報({letter})",
   "privacy.dates": "日時({letter})",
   "privacy.gps": "GPS({letter})",
+  "privacy.unchecked": "メタデータを確認できませんでした",
+  "privacy.uncheckedDetail": "保存時に元画像のメタデータが保持される可能性があります。「メタデータを削除」を使うか、もう一度読み込んで確認してください。",
 
   "ops.title": "操作",
   "ops.emptyTask": "このタスクには操作がありません",

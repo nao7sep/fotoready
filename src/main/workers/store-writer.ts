@@ -77,8 +77,10 @@ function recordsDatabase(): RecordsDatabase | null {
 /** Stores each record, or writes it to the text file when the database cannot take it; returns how many it stored. */
 function writeRecords(rows: RecordRow[]): number {
   let stored = 0;
+  // One failed attempt spends this batch's busy timeout. Let its remaining records fall back so
+  // backups can progress too, then try the database again when the next batch arrives.
+  let db = rows.length > 0 ? recordsDatabase() : null;
   for (const row of rows) {
-    const db = recordsDatabase();
     if (db !== null) {
       try {
         db.insert(data.session, row);
@@ -86,6 +88,7 @@ function writeRecords(rows: RecordRow[]): number {
         continue;
       } catch (error) {
         noteRecordsFailure(error);
+        db = null;
       }
     }
     appendFallback(row.fallback, row.level);

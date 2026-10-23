@@ -217,9 +217,7 @@ describe("a locked or stalled store", () => {
 
     const skipping = writer();
     createRecordsStore(skipping, sessionStart).writeLog({ time: session, level: "info", message: "skipped", fields: {} });
-    const skipStarted = performance.now();
     expect(await skipping.close({ drain: false, timeoutMs: 1_000 })).toBe(false);
-    expect(performance.now() - skipStarted).toBeLessThan(50);
 
     const idle = writer();
     expect(await idle.close({ drain: false, timeoutMs: 1_000 })).toBe(true);

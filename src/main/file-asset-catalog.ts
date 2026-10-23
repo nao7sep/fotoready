@@ -5,6 +5,8 @@ import { shell } from "electron";
 import type { Logger } from "@shared/types/log";
 import { record } from "./backup-store";
 import { message, type Message } from "@shared/i18n/translate";
+import { temporaryPathFor } from "@adapters/atomic-file";
+import { moveOutputFile } from "./move-output-file";
 
 export type DirectoryAsset = {
   extension: string;
@@ -100,7 +102,7 @@ export async function importDirectoryAssets(
     const entry = directoryAssetFromFileName(dir, sourceFileName);
     let bytes: Buffer;
     try {
-      bytes = await copyNewFile(absoluteSource, entry.path);
+      bytes = await copyNewFile(absoluteSource, entry.path, logger);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") {
         knownAssets.set(normalizedFileName, entry);
@@ -127,24 +129,38 @@ export async function importDirectoryAssets(
 
 /**
  * Copies `source` to `destination`, which must not exist yet, and returns the bytes written. The copy
- * keeps the source's modified time and mode (content-lifecycle conventions, Files). A copy that fails
- * after creating the destination removes it, since nothing else can own a file created exclusively.
+ * keeps the source's modified time and mode. Bytes are completed and synced in private staging before
+ * publication. Hard-link publication exposes only complete bytes; the exclusive-copy fallback
+ * on volumes without links retains the recoverable interruption risk of output moves.
  */
-async function copyNewFile(source: string, destination: string): Promise<Buffer> {
+async function copyNewFile(source: string, destination: string, logger?: Logger): Promise<Buffer> {
   const stat = await fs.stat(source);
   const bytes = await fs.readFile(source);
-  const file = await fs.open(destination, "wx", stat.mode & 0o7777);
+  // Imports are serialized by the catalog owner. Keep its fixed staging separate from the
+  // publication helper's own fallback staging, which may be needed on volumes without hard links.
+  const staging = `${temporaryPathFor(destination)}-import`;
+  await fs.rm(staging, { recursive: true, force: true });
+  await fs.mkdir(staging, { mode: 0o700 });
+  const stagedPath = path.join(staging, path.basename(destination));
   try {
-    await file.writeFile(bytes);
-    if (process.platform !== "win32") await file.chmod(stat.mode & 0o7777);
-    await file.utimes(stat.atime, stat.mtime);
+    const file = await fs.open(stagedPath, "wx", 0o600);
+    try {
+      await file.writeFile(bytes);
+      if (process.platform !== "win32") await file.chmod(stat.mode & 0o7777);
+      await file.utimes(stat.atime, stat.mtime);
+      await file.sync();
+    } catch (error) {
+      await file.close().catch((closeError) => logger?.warn("could not close unpublished asset", { mod: "assets.catalog", filePath: stagedPath, err: closeError }));
+      throw error;
+    }
     await file.close();
-  } catch (error) {
-    await file.close().catch(() => undefined);
-    await fs.rm(destination, { force: true }).catch(() => undefined);
-    throw error;
+    for (const failure of await moveOutputFile(stagedPath, destination, logger)) {
+      logger?.warn("could not clean up published asset staging", { mod: "assets.catalog", filePath: failure.path, err: failure.error });
+    }
+    return bytes;
+  } finally {
+    await fs.rm(staging, { recursive: true, force: true }).catch((error) => logger?.warn("could not remove asset import staging", { mod: "assets.catalog", staging, err: error }));
   }
-  return bytes;
 }
 
 export async function deleteDirectoryAsset(filePath: string, dir: string, extensions: readonly string[]): Promise<void> {

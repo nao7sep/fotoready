@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { atomicWriteFile, temporaryPathFor } from "@adapters/atomic-file";
+import { atomicWriteFile, PublishedWriteError, temporaryPathFor } from "@adapters/atomic-file";
 import { asPlatform } from "../helpers/platform";
 
 const isPosix = process.platform !== "win32";
@@ -18,14 +18,24 @@ describe("atomicWriteFile", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("exclusively creates private staging, then preserves ordinary new-file defaults", async () => {
-    const writeFile = fsp.writeFile.bind(fsp);
-    const write = vi.spyOn(fsp, "writeFile").mockImplementation(async (file, data, options) => {
-      await writeFile(file, data, options);
-      if (isPosix) expect((await fsp.stat(file as string)).mode & 0o777).toBe(0o600 & ~process.umask());
+    const open = fsp.open.bind(fsp);
+    const write = vi.fn();
+    const opened = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      if (args[0] === temporaryPathFor(filePath)) {
+        const writeFile = file.writeFile.bind(file);
+        vi.spyOn(file, "writeFile").mockImplementation(async (...writeArgs) => {
+          if (isPosix) expect((await file.stat()).mode & 0o777).toBe(0o600 & ~process.umask());
+          write(...writeArgs);
+          await writeFile(...writeArgs);
+        });
+      }
+      return file;
     });
     const rename = fsp.rename.bind(fsp);
     const publish = vi.spyOn(fsp, "rename").mockImplementation(async (from, to) => {
@@ -34,9 +44,10 @@ describe("atomicWriteFile", () => {
     });
     try {
       await atomicWriteFile(filePath, "managed text");
-      expect(write).toHaveBeenCalledWith(expect.stringMatching(/\.tmp$/), Buffer.from("managed text"), { flag: "wx", mode: 0o600 });
+      expect(opened).toHaveBeenCalledWith(temporaryPathFor(filePath), "wx", 0o600);
+      expect(write).toHaveBeenCalledExactlyOnceWith(Buffer.from("managed text"));
       expect(await fsp.readFile(filePath, "utf8")).toBe("managed text");
-    } finally { write.mockRestore(); publish.mockRestore(); }
+    } finally { opened.mockRestore(); publish.mockRestore(); }
   });
 
   it.runIf(isPosix)("preserves a same-byte mode repair failure when descriptor close fails", async () => {
@@ -95,15 +106,16 @@ describe("atomicWriteFile", () => {
     const leftover = path.join(tmpDir, "out-json.tmp");
     await fsp.writeFile(leftover, "stale bytes from an interrupted write");
     if (isPosix) await fsp.chmod(leftover, 0o666);
-    const writeFile = fsp.writeFile.bind(fsp);
-    const write = vi.spyOn(fsp, "writeFile").mockImplementation(async (file, data, options) => {
-      await writeFile(file, data, options);
-      if (isPosix) expect((await fsp.stat(file as string)).mode & 0o777).toBe(0o600 & ~process.umask());
+    const open = fsp.open.bind(fsp);
+    const opened = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      if (args[0] === leftover && isPosix) expect((await file.stat()).mode & 0o777).toBe(0o600 & ~process.umask());
+      return file;
     });
     try {
       await atomicWriteFile(filePath, "fresh");
-      expect(write).toHaveBeenCalledOnce();
-    } finally { write.mockRestore(); }
+      expect(opened.mock.calls.filter(([file]) => file === leftover)).toEqual([[leftover, "wx", 0o600]]);
+    } finally { opened.mockRestore(); }
     expect(await fsp.readFile(filePath, "utf8")).toBe("fresh");
     expect(await fsp.readdir(tmpDir)).toEqual(["out.json"]);
   });
@@ -173,6 +185,134 @@ describe("atomicWriteFile", () => {
 
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   });
+
+  it.runIf(isPosix)("syncs bytes and permissions before publication, then records the exact bytes before syncing the directory", async () => {
+    const events: string[] = [];
+    const open = fsp.open.bind(fsp);
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      const directory = args[0] === tmpDir;
+      const write = file.writeFile.bind(file);
+      const chmod = file.chmod.bind(file);
+      const sync = file.sync.bind(file);
+      const close = file.close.bind(file);
+      vi.spyOn(file, "writeFile").mockImplementation(async (...writeArgs) => { events.push("write"); await write(...writeArgs); });
+      vi.spyOn(file, "chmod").mockImplementation(async (mode) => { events.push("chmod"); await chmod(mode); });
+      vi.spyOn(file, "sync").mockImplementation(async () => { events.push(directory ? "directory sync" : "file sync"); await sync(); });
+      vi.spyOn(file, "close").mockImplementation(async () => { events.push(directory ? "directory close" : "file close"); await close(); });
+      return file;
+    });
+    const rename = fsp.rename.bind(fsp);
+    vi.spyOn(fsp, "rename").mockImplementation(async (...args) => { events.push("rename"); await rename(...args); });
+    const bytes = Buffer.from([0x61, 0x0d, 0x0a, 0xff]);
+    const afterWrite = vi.fn((written: Buffer) => {
+      events.push("afterWrite");
+      expect(written.equals(bytes)).toBe(true);
+      expect(fs.readFileSync(filePath).equals(bytes)).toBe(true);
+    });
+    await atomicWriteFile(filePath, bytes, { mode: 0o640, afterWrite });
+    expect(events).toEqual(["write", "chmod", "file sync", "file close", "rename", "afterWrite", "directory sync", "directory close"]);
+    expect(afterWrite).toHaveBeenCalledOnce();
+    events.length = 0;
+    await atomicWriteFile(filePath, bytes, { mode: 0o600, afterWrite });
+    expect(events).toEqual(["chmod", "file sync", "file close", "directory sync", "directory close"]);
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+    expect(afterWrite).toHaveBeenCalledOnce();
+  });
+
+  it.each((isPosix ? ["writeFile", "chmod", "sync", "close"] : ["writeFile", "sync", "close"]) as Array<"writeFile" | "chmod" | "sync" | "close">)("keeps the previous target when staging %s fails", async (operation) => {
+    await fsp.writeFile(filePath, "previous");
+    const primary = new Error(`${operation} refused`);
+    const open = fsp.open.bind(fsp);
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      if (args[0] === temporaryPathFor(filePath)) {
+        if (operation === "close") {
+          const close = file.close.bind(file);
+          vi.spyOn(file, "close").mockImplementation(async () => { await close(); throw primary; });
+        } else vi.spyOn(file, operation).mockRejectedValueOnce(primary);
+      }
+      return file;
+    });
+    const publish = vi.spyOn(fsp, "rename");
+    const afterWrite = vi.fn();
+    await expect(atomicWriteFile(filePath, "replacement", { afterWrite })).rejects.toBe(primary);
+    expect(await fsp.readFile(filePath, "utf8")).toBe("previous");
+    expect(fs.existsSync(temporaryPathFor(filePath))).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+    expect(afterWrite).not.toHaveBeenCalled();
+  });
+
+  it("preserves the staging sync failure when closing its descriptor also fails", async () => {
+    const primary = new Error("file sync refused");
+    const closeFailure = new Error("file close refused");
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const open = fsp.open.bind(fsp);
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      if (args[0] === temporaryPathFor(filePath)) {
+        const close = file.close.bind(file);
+        vi.spyOn(file, "sync").mockRejectedValueOnce(primary);
+        vi.spyOn(file, "close").mockImplementation(async () => { await close(); throw closeFailure; });
+      }
+      return file;
+    });
+    await expect(atomicWriteFile(filePath, "replacement")).rejects.toBe(primary);
+    expect(warning).toHaveBeenCalledWith("[atomic-write] could not close temporary file", expect.objectContaining({ err: closeFailure }));
+    expect(fs.existsSync(filePath)).toBe(false);
+    expect(fs.existsSync(temporaryPathFor(filePath))).toBe(false);
+  });
+
+  it.runIf(isPosix).each(["open", "sync"] as const)("reports publication when directory %s fails and repairs durability on an unchanged retry", async (operation) => {
+    const failure = Object.assign(new Error("directory unavailable"), { code: "EIO" });
+    const open = fsp.open.bind(fsp);
+    let fail = true;
+    const fileSync = vi.fn();
+    const directorySync = vi.fn();
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const directory = args[0] === tmpDir;
+      if (directory && operation === "open" && fail) { fail = false; throw failure; }
+      const file = await open(...args);
+      const sync = file.sync.bind(file);
+      vi.spyOn(file, "sync").mockImplementation(async () => {
+        if (directory) {
+          directorySync();
+          if (operation === "sync" && fail) { fail = false; throw failure; }
+        } else fileSync();
+        await sync();
+      });
+      return file;
+    });
+    const publish = vi.spyOn(fsp, "rename");
+    const afterWrite = vi.fn();
+    const writing = atomicWriteFile(filePath, "published", { afterWrite });
+    await expect(writing).rejects.toMatchObject({ name: "PublishedWriteError", filePath, cause: failure });
+    await expect(writing).rejects.toBeInstanceOf(PublishedWriteError);
+    expect(await fsp.readFile(filePath, "utf8")).toBe("published");
+    expect(fs.existsSync(temporaryPathFor(filePath))).toBe(false);
+    expect(afterWrite).toHaveBeenCalledExactlyOnceWith(Buffer.from("published"));
+
+    await atomicWriteFile(filePath, "published", { afterWrite });
+    expect(fileSync).toHaveBeenCalledTimes(2);
+    expect(directorySync).toHaveBeenCalledTimes(operation === "open" ? 1 : 2);
+    expect(publish).toHaveBeenCalledOnce();
+    expect(afterWrite).toHaveBeenCalledOnce();
+  });
+
+  it.runIf(isPosix).each(["ENOTSUP", "EOPNOTSUPP", "EINVAL", "ENOSYS"].flatMap((code) =>
+    ["open", "sync"].map((operation) => ({ code, operation }))
+  ))("tolerates unsupported directory $operation ($code), preserving the published file", async ({ code, operation }) => {
+    const open = fsp.open.bind(fsp);
+    const unsupported = Object.assign(new Error("unsupported"), { code });
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      if (args[0] === tmpDir && operation === "open") throw unsupported;
+      const file = await open(...args);
+      if (args[0] === tmpDir) vi.spyOn(file, "sync").mockRejectedValueOnce(unsupported);
+      return file;
+    });
+    await atomicWriteFile(filePath, "published");
+    expect(await fsp.readFile(filePath, "utf8")).toBe("published");
+  });
 });
 
 describe("atomicWriteFile on Windows", () => {
@@ -185,13 +325,28 @@ describe("atomicWriteFile on Windows", () => {
 
   it("writes and repeats a write without applying POSIX modes, which Windows does not use", async () => {
     const filePath = path.join(tmpDir, "secrets.json");
-    const chmod = vi.spyOn(fsp, "chmod");
+    const chmod = vi.fn();
+    const pathChmod = vi.spyOn(fsp, "chmod");
+    const open = fsp.open.bind(fsp);
+    const openedFiles: string[] = [];
+    const opened = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+      const file = await open(...args);
+      openedFiles.push(String(args[0]));
+      const handleChmod = file.chmod.bind(file);
+      vi.spyOn(file, "chmod").mockImplementation(async (mode) => { chmod(mode); await handleChmod(mode); });
+      return file;
+    });
     await asPlatform("win32", async () => {
       await atomicWriteFile(filePath, "key", { mode: 0o600 });
       await atomicWriteFile(filePath, "key", { mode: 0o600 });
       await atomicWriteFile(filePath, "new key", { mode: 0o600 });
     });
     expect(chmod).not.toHaveBeenCalled();
+    expect(pathChmod).not.toHaveBeenCalled();
+    expect(opened.mock.calls.filter(([file]) => file === filePath).every(([, flags]) => flags === "r+")).toBe(true);
+    expect(openedFiles).toContain(temporaryPathFor(filePath));
+    expect(openedFiles).toContain(filePath);
+    expect(openedFiles).not.toContain(tmpDir);
     expect(await fsp.readFile(filePath, "utf8")).toBe("new key");
   });
 });

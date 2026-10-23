@@ -1,6 +1,6 @@
 import fs, { type FileHandle } from "node:fs/promises";
 import { FORMAT_VERSIONS, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
-import { atomicWriteFile } from "@adapters/atomic-file";
+import { atomicWriteFile, PublishedWriteError } from "@adapters/atomic-file";
 import { setAsideStore, StoreNotWritableError, type StoreLeftReason } from "./json-store";
 import type { Logger } from "@shared/types/log";
 
@@ -194,7 +194,11 @@ export class ApiKeyStore {
   private async write(data: ApiKeysFile): Promise<void> {
     // not recorded: api-keys.json is a secret, kept out of the history so its lifetime is not extended
     // there (data-backup-conventions); the 0600 mode below is where this file's protection lives.
-    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
+    try { await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE }); }
+    catch (error) {
+      if (!(error instanceof PublishedWriteError)) throw error;
+      console.warn("[api-keys] key file published with durability uncertain", { filePath: this.filePath, error });
+    }
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a

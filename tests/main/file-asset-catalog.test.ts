@@ -1,9 +1,13 @@
 import fs from "node:fs";
+import fsAsync from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Logger } from "@shared/types/log";
 import { asPlatform, fileHandlePrototype } from "../helpers/platform";
+import { temporaryPathFor } from "@adapters/atomic-file";
+import { setBackupWriter } from "@main/backup-store";
+import type { BackupWrite } from "@main/backup-tables";
 
 vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
 
@@ -12,6 +16,8 @@ import { LibraryFolderError, importDirectoryAssets, listDirectoryAssets, readDir
 const roots: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
+  setBackupWriter(null);
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -57,6 +63,113 @@ describe("listDirectoryAssets", () => {
 });
 
 describe("importDirectoryAssets", () => {
+  function arrangeImport() {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
+    roots.push(root);
+    const source = path.join(root, "warm.cube");
+    const library = path.join(root, "library");
+    const destination = path.join(library, "warm.cube");
+    const staging = `${temporaryPathFor(destination)}-import`;
+    fs.writeFileSync(source, "LUT_3D_SIZE 2\n");
+    return { source, library, destination, staging };
+  }
+
+  it("does not publish or back up a partially written import, and keeps its source", async () => {
+    const { source, library, destination, staging } = arrangeImport();
+    const backup = vi.fn();
+    setBackupWriter({ writeBackup: backup });
+    const prototype = await fileHandlePrototype();
+    const writeFile = prototype.writeFile;
+    const failure = new Error("injected partial write");
+    vi.spyOn(prototype, "writeFile").mockImplementationOnce(async function (this: typeof prototype) {
+      expect(fs.existsSync(destination)).toBe(false);
+      if (process.platform !== "win32") {
+        expect(fs.statSync(staging).mode & 0o777).toBe(0o700);
+        expect(fs.statSync(path.join(staging, "warm.cube")).mode & 0o777).toBe(0o600);
+      }
+      await writeFile.call(this, Buffer.from("partial"));
+      throw failure;
+    });
+
+    await expect(importDirectoryAssets([source], library, [".cube"])).rejects.toBe(failure);
+
+    expect(fs.existsSync(destination)).toBe(false);
+    expect(fs.existsSync(staging)).toBe(false);
+    expect(fs.readFileSync(source, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(backup).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite or remove a file created by another writer before publication", async () => {
+    const { source, library, destination, staging } = arrangeImport();
+    const backup = vi.fn();
+    setBackupWriter({ writeBackup: backup });
+    const link = fsAsync.link;
+    vi.spyOn(fsAsync, "link").mockImplementationOnce(async (from, to) => {
+      fs.writeFileSync(destination, "other writer", { flag: "wx" });
+      return link(from, to);
+    });
+
+    const [result] = await importDirectoryAssets([source], library, [".cube"]);
+
+    expect(result!.status).toBe("skipped-name-conflict");
+    expect(fs.readFileSync(destination, "utf8")).toBe("other writer");
+    expect(fs.existsSync(staging)).toBe(false);
+    expect(fs.readFileSync(source, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(backup).not.toHaveBeenCalled();
+  });
+
+  it("replaces stale private staging and backs up exact bytes only after publication", async () => {
+    const { source, library, destination, staging } = arrangeImport();
+    fs.mkdirSync(staging, { recursive: true });
+    fs.writeFileSync(path.join(staging, "warm.cube"), "stale partial bytes");
+    const sync = vi.spyOn(await fileHandlePrototype(), "sync");
+    const backup = vi.fn((input: BackupWrite) => {
+      expect(fs.readFileSync(destination)).toEqual(Buffer.from(input.bytes));
+      expect(sync).toHaveBeenCalledOnce();
+    });
+    setBackupWriter({ writeBackup: backup });
+
+    const [result] = await importDirectoryAssets([source], library, [".cube"]);
+
+    expect(result!.status).toBe("imported");
+    expect(backup).toHaveBeenCalledWith(expect.objectContaining({ path: destination, bytes: new Uint8Array(Buffer.from("LUT_3D_SIZE 2\n")) }));
+    expect(fs.existsSync(staging)).toBe(false);
+    expect(fs.readFileSync(source, "utf8")).toBe("LUT_3D_SIZE 2\n");
+  });
+
+  it("keeps a published import and its backup when private staging cleanup fails", async () => {
+    const { source, library, destination, staging } = arrangeImport();
+    const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const backup = vi.fn();
+    setBackupWriter({ writeBackup: backup });
+    const rm = fsAsync.rm;
+    const failure = new Error("injected cleanup failure");
+    vi.spyOn(fsAsync, "rm").mockImplementation(async (target, options) => {
+      if (target === staging && fs.existsSync(destination)) throw failure;
+      return rm(target, options);
+    });
+
+    const [result] = await importDirectoryAssets([source], library, [".cube"], [], logger);
+
+    expect(result!.status).toBe("imported");
+    expect(fs.readFileSync(destination, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(backup).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith("could not remove asset import staging", expect.objectContaining({ staging, err: failure }));
+  });
+
+  it("imports through exclusive-copy publication on a volume without hard links", async () => {
+    const { source, library, destination, staging } = arrangeImport();
+    vi.spyOn(fsAsync, "link").mockRejectedValue(Object.assign(new Error("hard links unsupported"), { code: "ENOTSUP" }));
+
+    const [result] = await importDirectoryAssets([source], library, [".cube"]);
+
+    expect(result!.status).toBe("imported");
+    expect(fs.readFileSync(destination, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(fs.readFileSync(source, "utf8")).toBe("LUT_3D_SIZE 2\n");
+    expect(fs.existsSync(staging)).toBe(false);
+    expect(fs.existsSync(temporaryPathFor(destination))).toBe(false);
+  });
+
   it("keeps earlier imported files when a later source cannot be read", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "fotoready-assets-"));
     roots.push(root);

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } from "@shared/validation/state";
 import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
-import { atomicWriteFile } from "@adapters/atomic-file";
+import { atomicWriteFile, PublishedWriteError } from "@adapters/atomic-file";
 import type { AppLogger } from "./logger";
 
 export type LoadedState = {
@@ -63,11 +63,15 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
   // not recorded: state.json is UI state (pane widths, histogram placement), not the user's work.
-  await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized));
+  try { await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized)); }
+  catch (error) {
+    if (!(error instanceof PublishedWriteError)) throw error;
+    console.warn("[state] state published with durability uncertain", { statePath, error });
+  }
 }
 
 export type StateCoordinator = {
-  update(patch: Partial<UiState>): Promise<UiStateNormalizationResult>;
+  update(patch: Partial<UiState> | ((current: Readonly<UiState>) => Partial<UiState>)): Promise<UiStateNormalizationResult>;
   /** Settles once every update has; rejects with the last update's failure, so quitting can log it. */
   flush(): Promise<void>;
 };
@@ -82,15 +86,27 @@ export function createStateCoordinator(
   writer: (path: string, state: UiState) => Promise<void> = saveState
 ): StateCoordinator {
   const currentState = loaded.state;
+  let intendedState = { ...currentState };
+  let submission = 0;
   let tail: Promise<void> = Promise.resolve();
   let last: Promise<unknown> = Promise.resolve();
-  const update = (patch: Partial<UiState>): Promise<UiStateNormalizationResult> => {
+  const update = (patch: Partial<UiState> | ((current: Readonly<UiState>) => Partial<UiState>)): Promise<UiStateNormalizationResult> => {
+    // Capture each intent against the latest submitted intent, including writes still pending.
+    const id = ++submission;
+    const candidate = { ...intendedState, ...(typeof patch === "function" ? patch(intendedState) : patch) };
+    const result = normalizeUiState(candidate, intendedState);
+    intendedState = result.state;
     const operation = tail.then(async () => {
-      const candidate = { ...currentState, ...patch };
-      const result = normalizeUiState(candidate, currentState);
-      if (loaded.writable) await writer(statePath, result.state);
-      Object.assign(currentState, result.state);
-      return result;
+      try {
+        if (loaded.writable) await writer(statePath, result.state);
+        Object.assign(currentState, result.state);
+        return result;
+      } catch (error) {
+        // Only the latest failed intent can reset the next input's basis. A newer queued intent
+        // already incorporates every action, and must not be overwritten by this older failure.
+        if (id === submission) intendedState = { ...currentState };
+        throw error;
+      }
     });
     tail = operation.then(
       () => undefined,

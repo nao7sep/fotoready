@@ -177,3 +177,25 @@ describe("createStateCoordinator", () => {
     await expect(coordinator.flush()).rejects.toThrow("read-only");
   });
 });
+
+
+describe("histogram intent ordering", () => {
+  it.each([false, true])("preserves both overlapping toggles when first failure is %s", async (failFirst) => {
+    const state = defaultUiState();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const writes: boolean[] = [];
+    const coordinator = createStateCoordinator(statePath(), { state, writable: true }, async (_path, next) => {
+      writes.push(next.showHistogram);
+      if (writes.length === 1) { await held; if (failFirst) throw new Error("first write failed"); }
+    });
+    const toggle = (current: typeof state) => ({ showHistogram: !current.showHistogram });
+    const first = coordinator.update(toggle).catch((error: unknown) => error);
+    const second = coordinator.update(toggle);
+    release();
+    await first;
+    await second;
+    expect(writes).toEqual([true, false]);
+    expect(state.showHistogram).toBe(false);
+  });
+});

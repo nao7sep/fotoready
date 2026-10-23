@@ -28,6 +28,7 @@ export type OpCardContext = {
   stamps: StampEntry[];
   originalMetadataSummary: SourceMetadataSummary | null;
   originalSize: { width: number; height: number } | null;
+  inputSize?: { width: number; height: number } | null;
   reloadLuts?: () => Promise<void>;
   reloadStamps?: () => Promise<void>;
 };

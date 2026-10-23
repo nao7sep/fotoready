@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { HTMLAttributes, PointerEvent as ReactPointerEvent } from "react";
 import {
   CHROME,
   PANE_MAXES,
@@ -17,6 +17,7 @@ import {
 type PaneKey = WorkspacePaneKey;
 
 export type WorkspaceWidths = Record<PaneKey, number>;
+type SplitterControls = Pick<HTMLAttributes<HTMLButtonElement>, "aria-valuemin" | "aria-valuemax" | "aria-valuenow" | "onKeyDown" | "onKeyUp" | "onBlur">;
 
 // Defaults and maximums live in @shared so the state layer (defaults + normalization) and the main
 // process's window sizing read the same numbers. The minimum stays PANE_MINS; the max caps growth.
@@ -31,6 +32,7 @@ const limits: Record<PaneKey, { min: number; max: number }> = {
 // halves. The workspace lays out three side panes (originals, tasks, ops-region) and the editor,
 // separated by three splitters.
 const SIDE_SPLITTER_COUNT = 3;
+const KEY_RESIZE_STEP = 16;
 
 export function useWorkspaceLayout({
   showOps,
@@ -44,21 +46,24 @@ export function useWorkspaceLayout({
   showTasks: boolean;
   // The persisted intent, supplied by the app once state.json has loaded (PANE_DEFAULTS until then).
   widths: WorkspaceWidths;
-  // Persist a new intent — a drag only. Wired to `state.update({ workspaceWidths })` by the app.
+  // Persist a new intent from a pointer drag or completed keyboard gesture.
   onWidthsChange(widths: WorkspaceWidths): void;
 }): {
   gridTemplateColumns: string;
   addOpsWidth: number;
   startResize(pane: PaneKey): (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  splitterControls(pane: PaneKey): SplitterControls;
 } {
-  // INTENT, not display: the width the user dragged each adjustable pane to, in pixels. It is set
-  // ONLY by a splitter drag and is the sole thing persisted. A window resize never touches it — the
+  // INTENT, not display: the width the user resized each adjustable pane to, in pixels. It is set
+  // ONLY by a splitter gesture and is the sole thing persisted. A window resize never touches it — the
   // user's intended widths survive a temporary shrink and reappear when the window grows again.
   //
   // Seeded from the `widths` prop and re-synced when that changes from OUTSIDE (state.json finishing
   // its async load, or a future reset). The value compare means our own persisted drag echoing back
   // through the prop is a no-op, so a drag is never fought by the sync.
   const [intent, setIntent] = useState<WorkspaceWidths>(widths);
+  // A held arrow can repeat before React paints; retain its live width and save only at gesture end.
+  const keyedResize = useRef<{ pane: PaneKey; width: number; intent: WorkspaceWidths } | null>(null);
   const widthsKey = `${widths.originals},${widths.tasks},${widths.ops},${widths.addOps}`;
   useEffect(() => {
     setIntent((current) =>
@@ -120,14 +125,7 @@ export function useWorkspaceLayout({
       // The dragged value is the new INTENT, clamped against the live container so the drag itself
       // can't push a sibling below its minimum. This clamped width is also what fits right now, so it
       // doubles as the intent: a window-grow later cannot widen a pane past where the user dragged it.
-      const next = clampPaneWidth(
-        requested,
-        limits[pane].min,
-        limits[pane].max,
-        othersMinSum(pane),
-        container,
-        SIDE_SPLITTER_COUNT * SPLITTER_WIDTH
-      );
+      const next = resizeWidth(pane, requested, container);
       setIntent((current) => {
         const updated = { ...current, [pane]: next };
         onWidthsChange(updated);
@@ -148,7 +146,45 @@ export function useWorkspaceLayout({
     window.addEventListener("pointerup", onUp, { once: true });
   }, [intent, onWidthsChange]);
 
-  return { gridTemplateColumns, addOpsWidth: displayed.addOps, startResize };
+  function commitKeyedResize(): void {
+    if (!keyedResize.current) return;
+    const updated = keyedResize.current.intent;
+    keyedResize.current = null;
+    onWidthsChange(updated);
+  }
+
+  function splitterControls(pane: PaneKey): SplitterControls {
+    const maximum = resizeWidth(pane, limits[pane].max, containerWidth);
+    return {
+      "aria-valuemin": limits[pane].min,
+      "aria-valuemax": maximum,
+      "aria-valuenow": displayed[pane],
+      onKeyDown(event) {
+        const current = keyedResize.current?.pane === pane ? keyedResize.current : null;
+        const from = current?.width ?? clampWidthsToContainer(intent, currentContainerWidth(event.currentTarget))[pane];
+        const direction = pane === "ops" || pane === "addOps" ? -1 : 1;
+        const target = event.key === "ArrowLeft" ? from - KEY_RESIZE_STEP * direction
+          : event.key === "ArrowRight" ? from + KEY_RESIZE_STEP * direction
+          : event.key === "Home" ? limits[pane].min
+          : event.key === "End" ? limits[pane].max
+          : null;
+        if (target === null) return;
+        event.preventDefault();
+        const width = resizeWidth(pane, target, currentContainerWidth(event.currentTarget));
+        const updated = { ...(current?.intent ?? intent), [pane]: width };
+        keyedResize.current = { pane, width, intent: updated };
+        setIntent(updated);
+      },
+      onKeyUp: commitKeyedResize,
+      onBlur: commitKeyedResize
+    };
+  }
+
+  return { gridTemplateColumns, addOpsWidth: displayed.addOps, startResize, splitterControls };
+}
+
+function resizeWidth(pane: PaneKey, requested: number, container: number): number {
+  return clampPaneWidth(requested, limits[pane].min, limits[pane].max, othersMinSum(pane), container, SIDE_SPLITTER_COUNT * SPLITTER_WIDTH);
 }
 
 // Pure builder for the workspace grid track template, exported for tests. The Ops region is a single

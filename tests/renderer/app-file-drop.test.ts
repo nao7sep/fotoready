@@ -77,7 +77,7 @@ Object.defineProperty(window, "api", {
       get: () => Promise.resolve(defaultGlobalSettings()),
       hasGeminiApiKey: () => Promise.resolve(false)
     },
-    state: { get: () => Promise.resolve(defaultUiState()) },
+    state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
     project: {
       current: () => Promise.resolve(snapshot),
       addOriginals
@@ -87,6 +87,7 @@ Object.defineProperty(window, "api", {
     luts: { list: () => Promise.resolve([]) },
     stamps: { list: () => Promise.resolve([]) },
     events: {
+      onOriginalImportActivity: () => vi.fn(),
       onProjectSnapshot: () => vi.fn(),
       onQueueSnapshot: () => vi.fn()
     },

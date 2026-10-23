@@ -1,5 +1,6 @@
+import { stageInputSizes, type ImageSize } from "@shared/pipeline-geometry";
 import { OUTPUT_QUALITY_LIMITS } from "@shared/op-limits";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import type { LutEntry, OpCatalogItem, StampEntry, TaskEditOptions, VisionRunMode } from "@shared/types/ipc";
 import type { OpInstance } from "@shared/types/op";
@@ -66,6 +67,10 @@ type OpsPanelProps = {
 export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
   const { t, compare } = useI18n();
   const { activeTask, opCatalog, pendingRevealOpId, selectedOpId } = props;
+  const inputSizes = useMemo(
+    () => activeTask && props.originalSize ? stageInputSizes(props.originalSize, activeTask.pipeline.ops) : [],
+    [activeTask?.pipeline.ops, props.originalSize]
+  );
   const currentOpsRef = useRef<HTMLDivElement>(null);
   const opRefs = useRef(new Map<string, HTMLElement>());
   const panelOpFailures = failuresOutsideConsequencePrefix(props.opFailures, "op:");
@@ -103,6 +108,7 @@ export function OpsPanel(props: OpsPanelProps): React.JSX.Element {
                   disabled={!isTaskEditable(activeTask.status)}
                   failures={failuresForConsequencePrefix(props.opFailures, `op:${op.id}:`)}
                   index={index}
+                  inputSize={inputSizes[index] ?? null}
                   key={op.id}
                   luts={props.luts}
                   op={op}
@@ -238,6 +244,7 @@ function PipelineOpCard({
   disabled,
   failures,
   index,
+  inputSize,
   op,
   opCount,
   taskId,
@@ -261,6 +268,7 @@ function PipelineOpCard({
   disabled: boolean;
   failures: OwnedFailures;
   index: number;
+  inputSize: ImageSize | null;
   luts: LutEntry[];
   op: OpInstance;
   opCount: number;
@@ -291,7 +299,10 @@ function PipelineOpCard({
       ref={cardRef}
       onBlurCapture={continuousHistory.onBlurCapture}
       onClick={onSelect}
-      onFocusCapture={continuousHistory.onFocusCapture}
+      onFocusCapture={(event) => {
+        continuousHistory.onFocusCapture(event);
+        onSelect();
+      }}
       onPointerCancelCapture={continuousHistory.onPointerEndCapture}
       onPointerDownCapture={continuousHistory.onPointerDownCapture}
       onPointerUpCapture={continuousHistory.onPointerEndCapture}
@@ -341,6 +352,7 @@ function PipelineOpCard({
             stamps,
             originalMetadataSummary,
             originalSize,
+            inputSize,
             reloadLuts: onReloadLuts,
             reloadStamps: onReloadStamps
           }}

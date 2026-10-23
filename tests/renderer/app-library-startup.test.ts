@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { act } from "react";
-import { describe, expect, it, vi } from "vitest";
+import type { Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { QueueSnapshot } from "@shared/types/ipc";
 import { defaultGlobalSettings } from "@shared/defaults";
@@ -10,6 +11,19 @@ import { message } from "@shared/i18n/translate";
 import { ipcFailure } from "@shared/ipc-failure";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const mounted = vi.hoisted(() => ({ roots: [] as Root[] }));
+vi.mock("react-dom/client", async (load) => {
+  const actual = await load<typeof import("react-dom/client")>();
+  return { ...actual, createRoot: (...args: Parameters<typeof actual.createRoot>) => {
+    const root = actual.createRoot(...args);
+    mounted.roots.push(root);
+    return root;
+  } };
+});
+
+afterEach(async () => {
+  await act(async () => { for (const root of mounted.roots.splice(0)) root.unmount(); });
+});
 
 // A LUT or stamp library folder naming an unset variable does not keep the main window from
 // opening: that library lists as empty with a notice naming the variable, Settings opens, and
@@ -38,19 +52,20 @@ describe.each([
   { library: "luts", folderKey: "lutFolder", folderLabel: "Imported LUT folder", notice: "The LUT library could not be loaded", otherNotice: "The stamp library could not be loaded" },
   { library: "stamps", folderKey: "stampFolder", folderLabel: "Imported stamp folder", notice: "The stamp library could not be loaded", otherNotice: "The LUT library could not be loaded" }
 ] as const)("startup with the $library folder naming an unset variable", ({ library, folderKey, folderLabel, notice, otherNotice }) => {
-  it("opens the main window with that library empty and a notice, and loads it once Settings fixes the folder", async () => {
-    const stored: GlobalSettings = { ...defaultGlobalSettings(), [folderKey]: "$FOTOREADY_UNSET_LIBRARY/assets" };
-    const unavailable = ipcFailure(message("failure.pathVariable", { variable: "FOTOREADY_UNSET_LIBRARY" }));
-    // The preload rethrows a main-authored IpcFailure as the plain object it is.
-    const failingList = vi.fn(async () => {
-      if (stored[folderKey].includes("$FOTOREADY_UNSET_LIBRARY")) throw unavailable;
-      return [];
-    });
-    const otherList = vi.fn(async () => []);
-    const update = vi.fn(async (next: GlobalSettings) => {
-      Object.assign(stored, next);
-      return { ...stored };
-    });
+  const stored: GlobalSettings = { ...defaultGlobalSettings(), [folderKey]: "$FOTOREADY_UNSET_LIBRARY/assets" };
+  const unavailable = ipcFailure(message("failure.pathVariable", { variable: "FOTOREADY_UNSET_LIBRARY" }));
+  // The preload rethrows a main-authored IpcFailure as the plain object it is.
+  const failingList = vi.fn(async () => {
+    if (stored[folderKey].includes("$FOTOREADY_UNSET_LIBRARY")) throw unavailable;
+    return [];
+  });
+  const otherList = vi.fn(async () => []);
+  const update = vi.fn(async (next: GlobalSettings) => {
+    Object.assign(stored, next);
+    return { ...stored };
+  });
+
+  beforeEach(async () => {
     mountApi({
       settings: { get: async () => ({ ...stored }), hasGeminiApiKey: async () => false, update },
       luts: { list: library === "luts" ? failingList : otherList },
@@ -64,14 +79,16 @@ describe.each([
     });
 
     await vi.waitFor(() => expect(document.querySelector(".app-shell")).not.toBeNull());
+  });
+
+  it("opens the main window with that library empty and a notice, and loads it once Settings fixes the folder", async () => {
     const shellResults = (): string => document.querySelector(".app-shell-result-stack")?.textContent ?? "";
     expect(shellResults()).toContain(notice);
     expect(shellResults()).toContain("FOTOREADY_UNSET_LIBRARY");
     expect(shellResults()).not.toContain(otherNotice);
     expect(otherList).toHaveBeenCalledTimes(1);
 
-    // Through the window's own menu: each case mounts a fresh app, and an earlier case's app still
-    // listens for shortcuts on the window.
+    // Use the window's own menu to exercise the Settings path from the loaded shell.
     const root = document.querySelector<HTMLElement>("#root")!;
     await act(async () => root.querySelector<HTMLButtonElement>('button[title="Menu"]')!.click());
     await act(async () => [...root.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Settings")!.click());
@@ -109,11 +126,12 @@ function mountApi(overrides: Record<string, unknown>): void {
         }),
         log: vi.fn().mockResolvedValue(undefined)
       },
-      state: { get: () => Promise.resolve(defaultUiState()) },
+      state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
       project: { current: () => Promise.resolve({ project: { outputDir: null, originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }) },
       ops: { list: () => Promise.resolve([]) },
       queues: { snapshot: () => Promise.resolve(queue) },
       events: {
+        onOriginalImportActivity: () => vi.fn(),
         onProjectSnapshot: () => vi.fn(),
         onQueueSnapshot: () => vi.fn()
       },

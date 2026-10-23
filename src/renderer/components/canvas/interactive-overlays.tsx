@@ -30,6 +30,7 @@ export function InteractiveOverlayRect({
   placement,
   rect,
   rotateEnabled = false,
+  resizeEnabled = true,
   shape = "rectangle",
   onChange,
   onCommit
@@ -39,6 +40,7 @@ export function InteractiveOverlayRect({
   placement: Placement;
   rect: RectShape;
   rotateEnabled?: boolean;
+  resizeEnabled?: boolean;
   shape?: ConcealShape;
   onChange(nextRect: RectShape): void;
   onCommit(nextRect: RectShape): void;
@@ -153,6 +155,7 @@ export function InteractiveOverlayRect({
         flipEnabled={false}
         keepRatio={Boolean(aspectRatio)}
         rotateEnabled={rotateEnabled}
+        resizeEnabled={resizeEnabled}
       />
     </>
   );

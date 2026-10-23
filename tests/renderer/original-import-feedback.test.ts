@@ -3,7 +3,6 @@ import type { OriginalImportResult } from "@shared/types/ipc";
 import {
   buildOriginalImportFeedback,
   inaccessibleOriginalImportFeedback,
-  queueRefreshFailureFeedback,
   settleOriginalImportFeedback,
   type OriginalImportFeedback,
 } from "@renderer/original-import-feedback";
@@ -167,7 +166,5 @@ describe("original import feedback", () => {
     });
   });
 
-  it("clears a queue-refresh error after the next successful refresh, even on dialog cancellation", () => {
-    expect(settleOriginalImportFeedback(queueRefreshFailureFeedback(), result({ canceled: true }))).toBeNull();
-  });
+
 });

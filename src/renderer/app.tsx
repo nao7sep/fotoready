@@ -1,3 +1,4 @@
+import { applyUiFontFamily } from "@renderer/ui-font";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { installWindowActivityState } from "./window-activity";
@@ -56,7 +57,6 @@ import {
 import {
   inaccessibleOriginalImportFeedback,
   originalImportFailureFeedback,
-  queueRefreshFailureFeedback,
   settleOriginalImportFeedback,
   type OriginalImportFeedback,
 } from "./original-import-feedback";
@@ -236,10 +236,7 @@ function App(): React.JSX.Element {
   // to the app.css default. The string is handed to CSS verbatim (engine-resolved, graceful fallback)
   // per the app-chrome-conventions. The watermark font is unaffected — it is content-output.
   useEffect(() => {
-    const family = settings?.uiFontFamily?.trim();
-    const root = document.documentElement;
-    if (family) root.style.setProperty("--font-ui", family);
-    else root.style.removeProperty("--font-ui");
+    applyUiFontFamily(settings?.uiFontFamily ?? "");
   }, [settings?.uiFontFamily]);
 
   useEffect(() => {
@@ -354,6 +351,9 @@ function App(): React.JSX.Element {
       offQueue();
     };
   }, []);
+
+  const [pendingOriginalFiles, setPendingOriginalFiles] = useState(0);
+  useEffect(() => api.events.onOriginalImportActivity(setPendingOriginalFiles), []);
 
   const pendingCloseRequest = useRef<import("@shared/types/ipc").CloseRequest | null>(null);
   const checkingClose = useRef(false);
@@ -479,13 +479,6 @@ function App(): React.JSX.Element {
     inaccessibleNames: string[] = []
   ): Promise<void> {
     setProjectSnapshot(result.snapshot);
-    try {
-      setQueue(await api.queues.snapshot());
-    } catch (error) {
-      console.error(error);
-      setOriginalImportFeedback(queueRefreshFailureFeedback());
-      return;
-    }
     setOriginalImportFeedback((current) => settleOriginalImportFeedback(current, result, inaccessibleNames));
   }
 
@@ -752,7 +745,7 @@ function App(): React.JSX.Element {
   async function toggleHistogram(): Promise<void> {
     if (!uiState) return;
     try {
-      setUiState(await api.state.update({ showHistogram: !uiState.showHistogram }));
+      setUiState(await api.state.toggleHistogram());
       dismissOwnedFailure(setShellFailures, "histogram-visibility");
     } catch (error) {
       const failure = presentFailure(error, message("failure.histogramVisibility"), "histogram visibility persistence failed");
@@ -807,13 +800,6 @@ function App(): React.JSX.Element {
 
   async function refreshProject(snapshot: ProjectSnapshot): Promise<void> {
     setProjectSnapshot(snapshot);
-    try {
-      setQueue(await api.queues.snapshot());
-      dismissOwnedFailure(setShellFailures, "queue-refresh");
-    } catch (error) {
-      const failure = presentFailure(error, message("failure.queueRefresh"), "queue refresh after project change failed");
-      setShellFailures((current) => ({ ...current, "queue-refresh": failure }));
-    }
   }
 
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
@@ -914,6 +900,7 @@ function App(): React.JSX.Element {
       <section className="workspace" style={{ gridTemplateColumns: workspaceLayout.gridTemplateColumns }}>
         {showOriginals ? (
           <OriginalsPanel
+            pendingImportFiles={pendingOriginalFiles}
             activeOriginalId={activeOriginal?.id ?? null}
             originals={project?.originals ?? []}
             thumbnails={originalThumbnails}
@@ -941,7 +928,7 @@ function App(): React.JSX.Element {
             })}
           />
         ) : null}
-        {showOriginals ? <WorkspaceSplitter label={t("workspace.resizeOriginals")} onPointerDown={workspaceLayout.startResize("originals")} /> : null}
+        {showOriginals ? <WorkspaceSplitter label={t("workspace.resizeOriginals")} {...workspaceLayout.splitterControls("originals")} onPointerDown={workspaceLayout.startResize("originals")} /> : null}
 
         {showTasks ? (
           <TasksPanel
@@ -958,7 +945,7 @@ function App(): React.JSX.Element {
             onSelect={(taskId) => void runOwnedAction({ action: () => selectTask(taskId), fields: { taskId }, key: "select", operation: "task selection failed", setFailures: setTaskFailures, userMessage: message("failure.selectTask") })}
           />
         ) : null}
-        {showTasks ? <WorkspaceSplitter label={t("workspace.resizeTasks")} onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
+        {showTasks ? <WorkspaceSplitter label={t("workspace.resizeTasks")} {...workspaceLayout.splitterControls("tasks")} onPointerDown={workspaceLayout.startResize("tasks")} /> : null}
 
         <section className="editor-panel">
           <div className="preview-toolbar">
@@ -1047,7 +1034,7 @@ function App(): React.JSX.Element {
           ) : null}
         </section>
 
-        {showOps ? <WorkspaceSplitter label={t("workspace.resizeOps")} onPointerDown={workspaceLayout.startResize("ops")} /> : null}
+        {showOps ? <WorkspaceSplitter label={t("workspace.resizeOps")} {...workspaceLayout.splitterControls("ops")} onPointerDown={workspaceLayout.startResize("ops")} /> : null}
 
         {showOps ? (
           <OpsPanel
@@ -1192,12 +1179,11 @@ function App(): React.JSX.Element {
 
 function WorkspaceSplitter({
   label,
-  onPointerDown
-}: {
+  ...controls
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   label: string;
-  onPointerDown(event: React.PointerEvent<HTMLButtonElement>): void;
 }): React.JSX.Element {
-  return <button aria-label={label} className="workspace-splitter" type="button" onPointerDown={onPointerDown} />;
+  return <button {...controls} aria-label={label} role="separator" aria-orientation="vertical" tabIndex={0} className="workspace-splitter" type="button" />;
 }
 
 function StatusBar({

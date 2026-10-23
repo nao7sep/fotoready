@@ -97,6 +97,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
       <div className="geometry-controls">
         <input
           ref={textField.ref}
+          aria-label={t("opName.watermarkText")}
           className="compact-control"
           disabled={disabled}
           type="text"
@@ -181,7 +182,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
               disabled={disabled}
             />
             <label className="color-picker-button">
-              <input disabled={disabled} type="color" value={normalizedBox.backgroundColor} onChange={(event) => onParamsChange({ backgroundColor: event.currentTarget.value, backgroundOpacity: normalizedBox.backgroundOpacity > 0 ? normalizedBox.backgroundOpacity : 1 })} />
+              <input aria-label={t("watermarkText.backgroundColor")} disabled={disabled} type="color" value={normalizedBox.backgroundColor} onChange={(event) => onParamsChange({ backgroundColor: event.currentTarget.value, backgroundOpacity: normalizedBox.backgroundOpacity > 0 ? normalizedBox.backgroundOpacity : 1 })} />
             </label>
           </div>
         </div>
@@ -211,7 +212,7 @@ export const watermarkTextRenderer: OpRenderer<WatermarkTextParams> = {
               disabled={disabled}
             />
             <label className="color-picker-button">
-              <input disabled={disabled} type="color" value={normalizedBox.borderColor} onChange={(event) => onParamsChange({
+              <input aria-label={t("watermarkText.borderColor")} disabled={disabled} type="color" value={normalizedBox.borderColor} onChange={(event) => onParamsChange({
                 borderColor: event.currentTarget.value,
                 borderOpacity: normalizedBox.borderOpacity > 0 ? normalizedBox.borderOpacity : 1,
                 borderWidth: borderWidthFallback

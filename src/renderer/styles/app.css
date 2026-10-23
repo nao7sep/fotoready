@@ -1052,8 +1052,7 @@ button.output-badge-label:focus-visible {
   background: var(--brand-secondary-soft-border);
 }
 
-/* Names and states wrap rather than truncate (responsive-interface-conventions): a row may grow taller,
-   but its file name and its state stay whole. */
+/* Detail text wraps unless its surface uses it to identify a list item. */
 .row-title,
 .row-detail {
   display: block;
@@ -1543,8 +1542,8 @@ button.output-badge-label:focus-visible {
 }
 
 .ops-edit-pane {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .ops-add-pane {
@@ -1555,6 +1554,7 @@ button.output-badge-label:focus-visible {
 /* Ops and Output are titled panes stacked in one column: each takes the same
    header band as Originals and Tasks, and its content keeps the pane padding. */
 .current-ops-section {
+  flex: 1 1 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
@@ -1574,7 +1574,10 @@ button.output-badge-label:focus-visible {
 }
 
 .output-section {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 50%;
+  overflow-y: auto;
 }
 
 .output-section > .panel-header {
@@ -3243,7 +3246,6 @@ kbd {
   color: var(--danger-text);
 }
 
-/* The header holds the record's whole message, so it grows with it. */
 /* The header names the record in one line; a log's message is read whole in
    the detail body below it. */
 .records-detail-header {

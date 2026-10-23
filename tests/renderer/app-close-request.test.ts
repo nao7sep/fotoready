@@ -30,11 +30,11 @@ async function mount(approveClose: ReturnType<typeof vi.fn>, settingsUpdate = vi
     language: { current: async () => ({ language: "en", locale: "en-US" }), onChanged: () => () => {} },
     system: { getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", cpuCount: 8, platform: "darwin" }), log: vi.fn(async () => {}) },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false, update: settingsUpdate },
-    state: { get: async () => defaultUiState() },
+    state: { get: async () => defaultUiState(), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
     project: { current: async () => ({ project: { originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }) },
     ops: { list: async () => [] }, luts: { list: async () => [] }, stamps: { list: async () => [] },
     queues: { snapshot: async () => ({ saved: 0, total: 1, notSaved: 1, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null }) },
-    events: { onProjectSnapshot: () => () => {}, onQueueSnapshot: () => () => {} },
+    events: { onOriginalImportActivity: () => () => {}, onProjectSnapshot: () => () => {}, onQueueSnapshot: () => () => {} },
     lifecycle: { approveClose, onCloseRequest: (callback: typeof requested) => { requested = callback; return () => {}; }, onWindowActivityChanged: () => () => {} },
   } });
   document.body.innerHTML = '<div id="root"></div>';

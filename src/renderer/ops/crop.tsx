@@ -24,7 +24,7 @@ export const cropRenderer: OpRenderer<CropParams> = {
   Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const { t, rich } = useI18n();
     const originalAspectRatio = ctx.originalSize ? ctx.originalSize.width / Math.max(1, ctx.originalSize.height) : null;
-    const imageBounds = imageBoundsFromOriginalSize(ctx.originalSize);
+    const imageBounds = imageBoundsFromOriginalSize(ctx.inputSize ?? ctx.originalSize);
     const currentRect = clampFractionRect({ x: params.x, y: params.y, w: params.w, h: params.h }, imageBounds);
     const activeAspectId = identifyAspect(params.aspectLock, originalAspectRatio);
     const customAspectDraft = useMemo(() => readCustomAspectDraft(params.aspectLock), [params.aspectLock]);

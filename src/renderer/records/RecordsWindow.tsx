@@ -28,6 +28,7 @@ import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
 import { api } from "@renderer/ipc/client";
 import { useDisplayTimeZone } from "@renderer/use-display-time-zone";
 import { presentFailure } from "@renderer/present-failure";
+import { applyUiFontFamily } from "@renderer/ui-font";
 import {
   KIND_LABELS,
   LEVEL_CHIPS,
@@ -45,12 +46,35 @@ const ENGLISH: InterfaceLanguage = { language: "en", locale: "en" };
 
 /**
  * The Records window speaks the interface language from its first text, and follows it when Settings
- * changes it in the main window. The list pane opens at its saved width, so nothing is drawn until
- * both are known.
+ * changes it in the main window. Nothing is drawn until the language, saved list width and UI font
+ * are known, so the shell opens with its configured appearance.
  */
 export function RecordsApp(): React.JSX.Element | null {
   const [language, setLanguage] = useState<InterfaceLanguage | null>(null);
   const [listWidth, setListWidth] = useState<number | null>(null);
+  const [fontReady, setFontReady] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    let changed = false;
+    const off = api.events.onUiFontChanged((family) => {
+      changed = true;
+      applyUiFontFamily(family);
+      setFontReady(true);
+    });
+    void api.settings.get().then((settings) => {
+      if (!current || changed) return;
+      applyUiFontFamily(settings.uiFontFamily);
+      setFontReady(true);
+    }, (error: unknown) => {
+      presentFailure(error, null, "records window font read failed");
+      if (current) setFontReady(true);
+    });
+    return () => {
+      current = false;
+      off();
+    };
+  }, []);
 
   useEffect(() => {
     let current = true;
@@ -97,7 +121,7 @@ export function RecordsApp(): React.JSX.Element | null {
     };
   }, []);
 
-  if (language === null || listWidth === null) return null;
+  if (language === null || listWidth === null || !fontReady) return null;
   return (
     <I18nProvider language={language.language} locale={language.locale}>
       <RecordsWindow initialListWidth={listWidth} />

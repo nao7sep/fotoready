@@ -125,13 +125,14 @@ async function mountApp({ revealInFolder = vi.fn(), select = vi.fn(async () => s
       settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },
       luts: { list: async () => [] },
       stamps: { list: async () => [] },
-      state: { get: () => Promise.resolve(defaultUiState()) },
+      state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
       project: { current: () => Promise.resolve(snapshot(withPhoto)) },
       preview: { render: () => new Promise(() => {}), originalThumbnail: () => new Promise(() => {}) },
       task: { select },
       ops: { list: () => Promise.resolve([]) },
       queues: { snapshot: () => Promise.resolve(withPhoto ? { ...queue, processing: 0, notSaved: 1, activeTaskId: null, activeTaskLabel: null } : queue) },
       events: {
+        onOriginalImportActivity: () => vi.fn(),
         onProjectSnapshot: () => vi.fn(),
         onQueueSnapshot: () => vi.fn()
       },

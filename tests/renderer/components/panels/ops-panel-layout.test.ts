@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { act, createElement } from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsPanel } from "@renderer/components/panels/ops-panel";
@@ -22,6 +24,27 @@ afterEach(async () => {
 });
 
 describe("OpsPanel result geometry", () => {
+  it("allocates remaining space to Ops and caps the complete scrolling Output section", async () => {
+    const style = document.createElement("style");
+    style.textContent = readFileSync(resolve("src/renderer/styles/app.css"), "utf8");
+    document.head.append(style);
+    try {
+      await render({});
+      const pane = getComputedStyle(document.querySelector(".ops-edit-pane")!);
+      const ops = getComputedStyle(document.querySelector(".current-ops-section")!);
+      const output = getComputedStyle(document.querySelector(".output-section")!);
+      expect([pane.display, pane.flexDirection, pane.minHeight]).toEqual(["flex", "column", "0px"]);
+      expect([ops.flexGrow, ops.flexShrink, ops.flexBasis, ops.minHeight]).toEqual(["1", "1", "0px", "0px"]);
+      expect([output.flexGrow, output.flexShrink, output.flexBasis]).toEqual(["0", "1", "auto"]);
+      expect([output.maxHeight, output.minHeight, output.overflowY]).toEqual(["50%", "0px", "auto"]);
+      expect(document.querySelector(".output-section > .panel-header")).not.toBeNull();
+      expect(document.querySelector(".output-section > .output-fixed > .output-controls")).not.toBeNull();
+      expect(getComputedStyle(document.querySelector(".current-ops")!).overflowY).toBe("auto");
+    } finally {
+      style.remove();
+    }
+  });
+
   it("adds the third grid row only while an Ops result exists", async () => {
     await render({});
     expect(document.querySelector(".current-ops-section")?.classList.contains("has-owned-failures")).toBe(false);
@@ -52,7 +75,52 @@ describe("OpsPanel result geometry", () => {
   });
 });
 
-async function render(opFailures: OwnedFailures, activeTask: Task | null = null): Promise<void> {
+describe("operation control focus", () => {
+  it("selects the owning operation through focus alone without editing its recipe", async () => {
+    const task = taskWithOneOp();
+    task.pipeline.ops = [
+      { id: "balance", type: "white-balance", params: { temperature: 0, tint: 0, samplePoint: null }, enabled: true },
+      { id: "rotate", type: "rotate", params: { degrees: 0, fillColor: "#ffffff" }, enabled: true }
+    ];
+    const onSelectOp = vi.fn();
+    const onOpParamChange = vi.fn();
+    const onOpParamsChange = vi.fn();
+    await render({}, task, { selectedOpId: "rotate", onSelectOp, onOpParamChange, onOpParamsChange });
+
+    const cards = document.querySelectorAll(".pipeline-op-card");
+    await act(async () => cards[0]!.querySelector<HTMLInputElement>('input[type="range"]')!.focus());
+    expect(onSelectOp).toHaveBeenLastCalledWith("balance");
+    await act(async () => cards[1]!.querySelector<HTMLButtonElement>(".geometry-controls button")!.focus());
+    expect(onSelectOp).toHaveBeenLastCalledWith("rotate");
+    expect(onOpParamChange).not.toHaveBeenCalled();
+    expect(onOpParamsChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves one continuous history group while focused and begins another on reentry", async () => {
+    const task = taskWithOneOp();
+    task.pipeline.ops = [{ id: "balance", type: "white-balance", params: { temperature: 0, tint: 0, samplePoint: null }, enabled: true }];
+    const onOpParamsChange = vi.fn();
+    await render({}, task, { onOpParamsChange });
+    const sliders = document.querySelectorAll<HTMLInputElement>('.pipeline-op-card input[type="range"]');
+    await act(async () => sliders[0]!.focus());
+    await changeRange(sliders[0]!, 10);
+    await changeRange(sliders[0]!, 20);
+    expect(onOpParamsChange).toHaveBeenNthCalledWith(1, "balance", { temperature: 10 }, { historyGroup: "op:balance:1" });
+    expect(onOpParamsChange).toHaveBeenNthCalledWith(2, "balance", { temperature: 20 }, { historyGroup: "op:balance:1" });
+    await act(async () => sliders[1]!.focus());
+    await changeRange(sliders[1]!, 10);
+    expect(onOpParamsChange).toHaveBeenNthCalledWith(3, "balance", { tint: 10 }, { historyGroup: "op:balance:2" });
+  });
+});
+
+async function changeRange(input: HTMLInputElement, value: number): Promise<void> {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, String(value));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function render(opFailures: OwnedFailures, activeTask: Task | null = null, overrides: Partial<Parameters<typeof OpsPanel>[0]> = {}): Promise<void> {
   await act(async () => {
     root.render(createElement(OpsPanel, {
       activeOriginal: null,
@@ -87,7 +155,8 @@ async function render(opFailures: OwnedFailures, activeTask: Task | null = null)
       onReloadStamps: vi.fn(async () => undefined),
       onRemoveOp: vi.fn(),
       onRevealOpHandled: vi.fn(),
-      onSelectOp: vi.fn()
+      onSelectOp: vi.fn(),
+      ...overrides
     }));
   });
 }

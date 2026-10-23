@@ -15,6 +15,7 @@ import type { OwnedFailures } from "@renderer/owned-failures";
 import { useI18n } from "@renderer/i18n/I18nContext";
 
 export function OriginalsPanel({
+  pendingImportFiles = 0,
   activeOriginalId,
   originals,
   thumbnails,
@@ -27,6 +28,7 @@ export function OriginalsPanel({
   onRemove,
   onSelect
 }: {
+  pendingImportFiles?: number;
   activeOriginalId: string | null;
   originals: Original[];
   thumbnails: Record<string, string>;
@@ -39,7 +41,7 @@ export function OriginalsPanel({
   onRemove(originalId: string): void;
   onSelect(originalId: string): void;
 }): React.JSX.Element {
-  const { t, text } = useI18n();
+  const { t, text, number } = useI18n();
   const [dropActive, setDropActive] = useState(false);
   const dragDepthRef = useRef(0);
 
@@ -58,6 +60,7 @@ export function OriginalsPanel({
   return (
     <aside className="panel originals-panel">
       <PanelHeader title={t("originals.title")} />
+      {pendingImportFiles > 0 ? <div role="status" className="panel-owned-failures">{t("originals.importing")} {number(pendingImportFiles)}</div> : null}
       <div
         className={`originals-receiver ${dropActive ? "is-delivery-candidate" : ""}`}
         onDragEnter={(event) => {
@@ -91,7 +94,7 @@ export function OriginalsPanel({
       >
         <div className="list" aria-label={t("originals.title")} {...listbox.listboxProps}>
           {originals.length === 0 ? (
-            <div className="empty-state">{t("originals.empty")}</div>
+            pendingImportFiles > 0 ? null : <div className="empty-state">{t("originals.empty")}</div>
           ) : originals.map((original) => (
             <div className="original-list-entry" key={original.id}>
               <div className={`list-row with-actions ${activeOriginalId === original.id ? "active" : ""}`}>

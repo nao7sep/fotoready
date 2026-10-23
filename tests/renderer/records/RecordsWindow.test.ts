@@ -44,6 +44,8 @@ let recordsChanged: (() => void) | null = null;
 let languageChanged: ((language: InterfaceLanguage) => void) | null = null;
 let displayTimeZone = "system";
 let displayTimeZoneChanged: ((zone: string) => void) | null = null;
+let uiFontChanged: ((family: string) => void) | null = null;
+const getSettings = vi.fn(async () => ({ displayTimeZone, uiFontFamily: "" }));
 const onChanged = vi.fn<FotoReadyApi["records"]["onChanged"]>((listener) => {
   recordsChanged = listener;
   return () => {
@@ -58,8 +60,11 @@ Object.defineProperty(window, "api", {
     records: { page, detail, sources, onChanged },
     state: { get: getState, update },
     system: { log },
+    events: {
+      onUiFontChanged: (listener: (family: string) => void) => { uiFontChanged = listener; return () => { uiFontChanged = null; }; }
+    },
     settings: {
-      get: async () => ({ displayTimeZone }),
+      get: getSettings,
       onDisplayTimeZoneChanged: (listener: (zone: string) => void) => { displayTimeZoneChanged = listener; return () => { displayTimeZoneChanged = null; }; }
     },
     language: { current: currentLanguage, onChanged: (listener: (language: InterfaceLanguage) => void) => { languageChanged = listener; return () => { languageChanged = null; }; } }
@@ -106,6 +111,9 @@ beforeEach(() => {
   getState.mockReset().mockResolvedValue({ recordsListWidth: RECORDS_LIST_WIDTH.default } as UiState);
   currentLanguage.mockReset().mockResolvedValue({ language: "en", locale: "en" });
   displayTimeZone = "system";
+  uiFontChanged = null;
+  getSettings.mockReset().mockImplementation(async () => ({ displayTimeZone, uiFontFamily: "" }));
+  document.documentElement.style.removeProperty("--font-ui");
   Object.assign(box, { scrollTop: 0, scrollHeight: 1000, clientHeight: 200, shellWidth: 2000 });
   resizeCallbacks.clear();
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -128,6 +136,7 @@ afterEach(async () => {
   if (root !== null) await act(async () => root?.unmount());
   root = null;
   document.body.innerHTML = "";
+  document.documentElement.style.removeProperty("--font-ui");
   vi.useRealTimers();
   vi.unstubAllGlobals();
   for (const name of ["scrollTop", "scrollHeight", "clientHeight", "clientWidth"]) {
@@ -172,6 +181,48 @@ const cursorOf = (record: RecordSummary) => ({ time: record.time, kind: record.k
 const ALL: RecordsQuery = { session: null, kind: null, level: null, taskId: null, search: "", after: null };
 
 describe("RecordsApp", () => {
+  const mountApp = async (): Promise<void> => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(createElement(RecordsApp)));
+  };
+
+  it("opens with the saved UI font and follows font saves and reset while open", async () => {
+    getSettings.mockResolvedValue({ displayTimeZone: "system", uiFontFamily: "  Example Sans, sans-serif  " });
+    await mountApp();
+    expect(document.querySelector(".records-shell")).not.toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe("Example Sans, sans-serif");
+
+    await act(async () => uiFontChanged!("Another Sans"));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe("Another Sans");
+    await act(async () => uiFontChanged!("  "));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe("");
+  });
+
+  it("keeps a newer font broadcast when the older startup settings read arrives later", async () => {
+    const initial = deferred<{ displayTimeZone: string; uiFontFamily: string }>();
+    getSettings.mockReturnValueOnce(initial.promise);
+    await mountApp();
+    expect(document.querySelector(".records-shell")).toBeNull();
+    await act(async () => uiFontChanged!("New Font"));
+    expect(document.querySelector(".records-shell")).not.toBeNull();
+    await act(async () => initial.resolve({ displayTimeZone: "system", uiFontFamily: "Old Font" }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe("New Font");
+  });
+
+  it("stops font updates and ignores a pending font read after it closes", async () => {
+    const initial = deferred<{ displayTimeZone: string; uiFontFamily: string }>();
+    getSettings.mockReturnValueOnce(initial.promise);
+    await mountApp();
+    expect(uiFontChanged).not.toBeNull();
+    await act(async () => root?.unmount());
+    root = null;
+    expect(uiFontChanged).toBeNull();
+    await act(async () => initial.resolve({ displayTimeZone: "system", uiFontFamily: "Old Font" }));
+    expect(document.documentElement.style.getPropertyValue("--font-ui")).toBe("");
+  });
+
   it("keeps a newer language broadcast when the older startup read arrives later", async () => {
     const initial = deferred<InterfaceLanguage>();
     currentLanguage.mockReturnValueOnce(initial.promise);

@@ -72,7 +72,7 @@ function AssetOverlayControls({
   sourceAction,
   sourceField
 }: {
-  aspectRatio: number;
+  aspectRatio: number | null;
   ctx: OpCardContext;
   disabled: boolean;
   onParamChange<K extends keyof AssetOverlayParams>(key: K, value: AssetOverlayParams[K]): void;
@@ -127,7 +127,7 @@ function AssetOverlayControls({
       <label className="toggle-row">
         <input
           checked={o.lockAspectRatio}
-          disabled={disabled}
+          disabled={disabled || (aspectRatio === null && !o.lockAspectRatio)}
           type="checkbox"
           onChange={(e) => applyBoxPatch({ lockAspectRatio: e.currentTarget.checked })}
         />
@@ -136,7 +136,7 @@ function AssetOverlayControls({
       <label className="slider-row">
         <span>{t("geometry.width")}</span>
         <input
-          disabled={disabled}
+          disabled={disabled || (o.lockAspectRatio && aspectRatio === null)}
           max={fractionToPercentSteps(bounds.maxX)}
           min={minSize}
           step={1}
@@ -149,7 +149,7 @@ function AssetOverlayControls({
       <label className="slider-row">
         <span>{t("geometry.height")}</span>
         <input
-          disabled={disabled}
+          disabled={disabled || (o.lockAspectRatio && aspectRatio === null)}
           max={fractionToPercentSteps(bounds.maxY)}
           min={minSize}
           step={1}
@@ -229,9 +229,9 @@ function updateAssetOverlayBox(
   current: AssetOverlayParams,
   updates: Partial<AssetOverlayParams>,
   bounds: { maxX: number; maxY: number },
-  aspectRatio: number
+  aspectRatio: number | null
 ): Partial<AssetOverlayParams> {
-  const safeAR = Math.max(0.01, aspectRatio);
+  const safeAR = aspectRatio === null ? null : Math.max(0.01, aspectRatio);
   const lockNow = updates.lockAspectRatio ?? current.lockAspectRatio;
   const lockTurningOn = updates.lockAspectRatio === true && !current.lockAspectRatio;
 
@@ -240,7 +240,7 @@ function updateAssetOverlayBox(
   if (updates.y !== undefined) rectUpdates.y = updates.y;
   if (updates.width !== undefined) rectUpdates.w = updates.width;
   if (updates.height !== undefined) rectUpdates.h = updates.height;
-  if (lockTurningOn && updates.width === undefined && updates.height === undefined) {
+  if (lockTurningOn && safeAR !== null && updates.width === undefined && updates.height === undefined) {
     // Enabling the lock should snap height to width/AR rather than preserve a mismatched ratio.
     rectUpdates.h = current.width / safeAR;
   }
@@ -279,7 +279,7 @@ function AssetOverlayRect({
   params,
   editable
 }: {
-  aspectRatio: number;
+  aspectRatio: number | null;
   color: string;
   ctx: OverlayContext;
   onParamsChange(patch: Partial<AssetOverlayParams>): void;
@@ -296,6 +296,7 @@ function AssetOverlayRect({
       placement={ctx.placement}
       rect={{ ...stageBox, rotation: o.rotation }}
       rotateEnabled
+      resizeEnabled={!o.lockAspectRatio || aspectRatio !== null}
       onChange={() => undefined}
       onCommit={(next) => {
         const imageRect = rectFromStage(next, ctx.longEdge, ctx.placement);
@@ -336,29 +337,29 @@ export async function normalizeAssetOverlayForPath(
   );
 }
 
-export function useLocalAssetAspectRatio(assetPath: string, refreshedLibrary?: unknown, sourceSelections = 0): number {
-  const [aspectRatio, setAspectRatio] = useState(1);
+export function useLocalAssetAspectRatio(assetPath: string, refreshedLibrary?: unknown, sourceSelections = 0): number | null {
+  const [result, setResult] = useState<{ assetPath: string; refreshedLibrary: unknown; sourceSelections: number; value: number | null } | null>(null);
   useEffect(() => {
+    if (!assetPath) return;
     let cancelled = false;
-    void readLocalAssetAspectRatio(assetPath).then((ar) => {
-      if (!cancelled) setAspectRatio(ar);
+    void readLocalAssetAspectRatio(assetPath).then((value) => {
+      if (!cancelled) setResult({ assetPath, refreshedLibrary, sourceSelections, value });
+    }).catch((error) => {
+      if (cancelled) return;
+      setResult({ assetPath, refreshedLibrary, sourceSelections, value: null });
+      reportRendererLog({
+        level: "warn",
+        message: "asset aspect ratio read failed",
+        fields: { assetPath, error: describeError(error) }
+      });
     });
     return () => { cancelled = true; };
   }, [assetPath, refreshedLibrary, sourceSelections]);
-  return aspectRatio;
+  return result?.assetPath === assetPath && result.refreshedLibrary === refreshedLibrary && result.sourceSelections === sourceSelections ? result.value : null;
 }
 
 async function readLocalAssetAspectRatio(assetPath: string): Promise<number> {
-  if (!assetPath) return 1;
-  try {
-    const ar = await api.assets.aspectRatio(assetPath);
-    return Number.isFinite(ar) && ar > 0 ? ar : 1;
-  } catch (error) {
-    reportRendererLog({
-      level: "warn",
-      message: "asset aspect ratio read failed; using fallback",
-      fields: { assetPath, error: describeError(error) }
-    });
-    return 1;
-  }
+  const aspectRatio = await api.assets.aspectRatio(assetPath);
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) throw new Error("The asset's aspect ratio could not be determined.");
+  return aspectRatio;
 }

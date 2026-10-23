@@ -14,7 +14,6 @@ type FeedbackIssue = {
 type FeedbackResolution =
   | { kind: "paths"; issues: FeedbackIssue[]; success: Message | null }
   | { kind: "next-import" }
-  | { kind: "queue-refresh" }
   | null;
 
 export type OriginalImportFeedback = {
@@ -38,7 +37,6 @@ export function settleOriginalImportFeedback(
   const next = buildOriginalImportFeedback(result, inaccessibleNames);
   if (next) return next;
 
-  if (current?.resolution?.kind === "queue-refresh") return null;
   if (result.canceled) return current;
   if (current?.resolution?.kind === "next-import") return null;
   if (current?.resolution?.kind !== "paths") return current;
@@ -107,15 +105,6 @@ export function originalImportFailureFeedback(): OriginalImportFeedback {
     title: message("import.couldNotAdd"),
     details: [{ severity: "error", text: message("import.readFailed") }],
     resolution: { kind: "next-import" },
-  };
-}
-
-export function queueRefreshFailureFeedback(): OriginalImportFeedback {
-  return {
-    severity: "error",
-    title: message("import.refreshFailed"),
-    details: [{ severity: "error", text: message("import.refreshFailedDetail") }],
-    resolution: { kind: "queue-refresh" },
   };
 }
 

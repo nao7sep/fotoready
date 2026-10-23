@@ -116,6 +116,24 @@ describe("WatermarkSourceAction", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("The current watermark is unchanged");
   });
 
+  it("keeps the current recipe when inspecting a selected replacement fails", async () => {
+    mocks.pickFile.mockResolvedValue("/new/unreadable.svg");
+    mocks.aspectRatio.mockRejectedValue(new Error("Unreadable image"));
+    const onParamsChange = vi.fn();
+    const params: AssetOverlayParams = {
+      assetPath: "/current/watermark.png", x: 0.1, y: 0.1, width: 0.2, height: 0.1,
+      lockAspectRatio: true, flipHorizontal: false, flipVertical: false, opacity: 1, rotation: 0
+    };
+    await act(async () => root.render(createElement(WatermarkSourceAction, {
+      ctx: { activeTaskId: "task", assetPickerPreviewLongEdge: 128, luts: [], opId: "watermark", stamps: [], originalMetadataSummary: null, originalSize: { width: 1000, height: 800 } },
+      disabled: false, onParamsChange, params
+    })));
+    await act(async () => document.querySelector<HTMLButtonElement>("button")!.click());
+    expect(onParamsChange).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("The current watermark is unchanged");
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
   describe("while the chosen image's shape is read", () => {
     const params = (): AssetOverlayParams => ({
       assetPath: "/current/watermark.png", x: 0.1, y: 0.1, width: 0.2, height: 0.2, lockAspectRatio: true,

@@ -1,6 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { configureTextBitmapCacheBudget, fitLargestFontSize, renderTrimmedTextBitmap, watermarkTextModule } from "@core/ops/watermark-text";
-import { availableParallelism, totalmem } from "node:os";
+import { fitLargestFontSize, renderTrimmedTextBitmap, watermarkTextModule } from "@core/ops/watermark-text";
 import sharp from "sharp";
 import { requireOpModule } from "../../helpers/require-op-module";
 import { warmTextRendering } from "../../helpers/warm-text-rendering";
@@ -75,14 +74,9 @@ describe("watermark text fit", () => {
         references.push({ text, maxWidth, maxHeight, expected: await binarySearchFit(render, maxWidth, maxHeight), measured });
       }
     }
-    // Prepare the uncached pixel oracle alongside the other real-render fixtures, under the same
-    // platform font-startup allowance; the test itself exercises a fresh retained fit and its hit.
-    try {
-      configureTextBitmapCacheBudget(0);
-      completeWatermarkOracle = await renderCompleteWatermark();
-    } finally {
-      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
-    }
+    // The first render is a cache miss, prepared alongside the other real-render fixtures under the
+    // same platform font-startup allowance; the test itself exercises the cached fit.
+    completeWatermarkOracle = await renderCompleteWatermark();
   }, TEXT_START_UP_TIMEOUT_MS);
 
   it("picks the size a full binary search picks for real text, in a few renders", async () => {
@@ -109,33 +103,18 @@ describe("watermark text fit", () => {
     expect(bitmap).toEqual(await render(fontSize));
   });
 
-  it("preserves rendered pixels across cache hits, mutation and an allowance too small to retain them", async () => {
+  it("preserves rendered pixels across cache hits and mutation", async () => {
     const defaults = requireOpModule("watermark-text").defaultParams as Params;
     const params = { ...defaults, text: "Cache pixel identity ©", bold: true, italic: true, underline: true };
-    try {
-      configureTextBitmapCacheBudget(0);
-      const uncached = await renderTrimmedTextBitmap(params, 24);
-      configureTextBitmapCacheBudget(uncached.data.byteLength);
-      const first = await renderTrimmedTextBitmap(params, 24);
-      expect(first).toEqual(uncached);
-      first.data.fill(0);
-      expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
-      configureTextBitmapCacheBudget(1);
-      expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
-      expect(await renderTrimmedTextBitmap(params, 24, false)).toEqual(uncached);
-    } finally {
-      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
-    }
+    const uncached = await renderTrimmedTextBitmap(params, 24, false);
+    const first = await renderTrimmedTextBitmap(params, 24);
+    expect(first).toEqual(uncached);
+    first.data.fill(0);
+    expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
   });
 
-  it("keeps the complete fitted watermark output identical with retention disabled or enabled", async () => {
-    try {
-      configureTextBitmapCacheBudget(1_000_000);
-      expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
-      expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
-    } finally {
-      configureTextBitmapCacheBudget(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
-    }
+  it("keeps the complete fitted watermark output identical on a cache hit", async () => {
+    expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
   });
 
   it("picks the size a full binary search picks across box shapes", async () => {

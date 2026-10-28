@@ -1,4 +1,3 @@
-import os from "node:os";
 import { stat } from "node:fs/promises";
 import { stageInputSizes, outputSizeForOp, type ImageSize } from "@shared/pipeline-geometry";
 import { MIN_BLUR_SIGMA } from "@shared/op-limits";
@@ -35,12 +34,17 @@ type TaskPreviewCache = {
   stages: Map<string, PreviewBitmap>;
 };
 
-// Across active and inactive chains; the execution policy reserves this retained share.
-const DEFAULT_CACHE_BUDGET_BYTES = Math.floor(os.totalmem() * 0.025);
+/**
+ * Bitmaps kept for tasks other than the one being previewed. At the default 1024px preview a stage is
+ * about 3 MB, so this holds a few recently viewed tasks' chains; the task being previewed always keeps
+ * its own chain whatever its size.
+ */
+const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
 
 /**
- * Direct in-process rendering is kept only for isolated callers without a worker pool. Production
- * thumbnails use the pool's native-process admission and deadlines instead.
+ * How many original thumbnails decode at once. Each holds a thread of the shared I/O pool for the
+ * whole decode, and one starts per new original, so a bulk import would otherwise hold every thread
+ * while file I/O waits (see threadpool-size.ts).
  */
 const ORIGINAL_THUMBNAIL_CONCURRENCY = 2;
 
@@ -93,7 +97,6 @@ export class PreviewService {
   }
 
   renderOriginalThumbnail(original: Original, longEdge = 160): Promise<OriginalThumbnail> {
-    if (this.workerPool) return this.workerPool.renderOriginalThumbnail(original, longEdge);
     return this.#thumbnails.add(() => this.#renderOriginalThumbnail(original, longEdge));
   }
 
@@ -139,7 +142,7 @@ export class PreviewService {
     if (signal?.aborted) return null;
     const previews: LutPreviewEntry[] = new Array(luts.length);
     let nextIndex = 0;
-    const workerCount = Math.min(luts.length, this.workerPool?.backgroundCapacity ?? 1);
+    const workerCount = Math.min(luts.length, this.workerPool?.capacity ?? 1);
     await Promise.all(Array.from({ length: workerCount }, async () => {
       while (!signal?.aborted && nextIndex < luts.length) {
         const index = nextIndex++;
@@ -149,7 +152,7 @@ export class PreviewService {
             id: `lut-preview:${lut.path}`, type: "lut", enabled: true,
             params: { cubePath: lut.path, strength }
           };
-          const result = await this.renderOpStage(base, op, task.pipeline, undefined, undefined, "background");
+          const result = await this.renderOpStage(base, op, task.pipeline);
           const png = await sharp(result.data, {
             raw: { width: result.width, height: result.height, channels: 4 }
           }).png().toBuffer();
@@ -177,7 +180,7 @@ export class PreviewService {
     }
 
     const result = await this.renderChain(cache, original, pipeline, baseKey, stageKeys, previewLongEdge, targetStageIndex, fullInputSizes);
-    this.enforceBudget();
+    this.enforceBudget(task.id);
     return result;
   }
 
@@ -208,7 +211,6 @@ export class PreviewService {
       if (!op) break;
       current = await this.renderOpStage(current, op, pipeline, fullInputSizes[opIndex], previewLongEdge);
       cache.stages.set(stageKeys[opIndex], current);
-      this.enforceBudget();
     }
 
     return current;
@@ -222,21 +224,20 @@ export class PreviewService {
     return cache;
   }
 
-  /** Evicts old buffers, including the active chain; a large current result remains usable uncached. */
-  private enforceBudget(): void {
-    const totalBytes = (): number => [...this.#tasks.values()].reduce((sum, cache) => sum + cacheBytes(cache), 0);
-    let total = totalBytes();
-    for (const cache of this.#tasks.values()) {
+  /** Drops the least recently previewed tasks' chains until the others fit the budget. */
+  private enforceBudget(activeTaskId: string): void {
+    let total = 0;
+    const sizes = new Map<string, number>();
+    for (const [taskId, cache] of this.#tasks) {
+      if (taskId === activeTaskId) continue;
+      const size = cacheBytes(cache);
+      sizes.set(taskId, size);
+      total += size;
+    }
+    for (const [taskId, size] of sizes) {
       if (total <= this.#budgetBytes) break;
-      let before = cacheBytes(cache);
-      cache.base = null;
-      total -= before - cacheBytes(cache);
-      for (const key of cache.stages.keys()) {
-        if (total <= this.#budgetBytes) break;
-        before = cacheBytes(cache);
-        cache.stages.delete(key);
-        total -= before - cacheBytes(cache);
-      }
+      this.#tasks.delete(taskId);
+      total -= size;
     }
   }
 
@@ -269,11 +270,10 @@ export class PreviewService {
       height: result.height
     };
     cache.base = base;
-    this.enforceBudget();
     return base;
   }
 
-  private async renderOpStage(previous: PreviewBitmap, op: OpInstance, pipeline: Pipeline, fullInputSize?: ImageSize, previewLongEdge?: number, lane: "interactive" | "background" = "interactive"): Promise<PreviewBitmap> {
+  private async renderOpStage(previous: PreviewBitmap, op: OpInstance, pipeline: Pipeline, fullInputSize?: ImageSize, previewLongEdge?: number): Promise<PreviewBitmap> {
     const module = getOpModule(op.type);
     if (!op.enabled || !module || module.metadataOnly || !module.apply) {
       return previous;
@@ -294,8 +294,7 @@ export class PreviewService {
         bitmap: previous.data,
         width: previous.width,
         height: previous.height,
-        pipeline: opPipeline,
-        lane
+        pipeline: opPipeline
       })
       : await runPipelineFromRaw(
         opPipeline,

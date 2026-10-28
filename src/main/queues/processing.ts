@@ -1,4 +1,3 @@
-import { NativeJobRetiringError } from "@main/workers/native-pool";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
@@ -91,7 +90,7 @@ export async function processTask(
     task.status = "saved";
     logger?.info("task processing done", { mod: "processing", taskId: task.id, sourcePath, outputPath, ms: Math.round(performance.now() - startedAt) });
   } catch (error) {
-    for (const strandedPath of [error instanceof NativeJobRetiringError ? null : tempPath, writtenOutputPath]) {
+    for (const strandedPath of [tempPath, writtenOutputPath]) {
       if (!strandedPath) continue;
       try {
         await fs.rm(strandedPath, { force: true });
@@ -124,14 +123,14 @@ export async function processTask(
 async function processOutputPipeline(
   pipeline: Pipeline,
   sourcePath: string,
-  original: { size: number; format: string; jpegQualityEstimate: number | null; width: number; height: number },
+  original: { size: number; format: string; jpegQualityEstimate: number | null },
   outputPath: string,
   settings: GlobalSettings,
   workerPool: PipelineWorkerPool,
   signal: AbortSignal | undefined
 ): Promise<{ kind: "file"; outputPath: string; bytes: number; appliedPipeline: Pipeline }> {
   const resolved = resolvePipelineForSave(pipeline, original, settings);
-  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal, sourceSize: original });
+  const result = await workerPool.process({ sourcePath, outputPath, pipeline: resolved, signal });
   return { ...result, kind: "file" };
 }
 

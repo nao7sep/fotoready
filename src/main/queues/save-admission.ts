@@ -7,9 +7,9 @@ import type { OpInstance } from "@shared/types/op";
 // when asked; nothing waits or is refused because memory looks short.
 
 /**
- * Eight RGBA frames at the largest recipe stage. Real native helpers measured about 31 bytes
- * per pixel for a 12 MP rotate/text recipe and 25 for a small source enlarged to 24 MP. The
- * process boundary includes native runtime overhead that the former four-frame estimate missed.
+ * Eight RGBA frames at the largest recipe stage. Native image work measured about 31 bytes per
+ * pixel for a 12 MP rotate/text recipe and 25 for a small source enlarged to 24 MP, which the
+ * former four-frame estimate missed.
  * This is admission sizing, not a hard allocation limit or refusal of larger photos.
  */
 export function saveCost(width: number, height: number, ops: readonly OpInstance[] = []): number {

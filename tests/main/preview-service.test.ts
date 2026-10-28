@@ -23,24 +23,24 @@ afterEach(async () => { await rm(assetRoot, { recursive: true, force: true }); }
 const WIDTH = 4;
 const HEIGHT = 2;
 
-type StageCall = { strength: number; lane?: string; release(): void };
+type StageCall = { strength: number; release(): void };
 
 /** A worker pool whose stage renders fill the bitmap with the LUT strength and can be held open. */
-function fakePool(options: { holdStages?: boolean; assetPixel?: number; backgroundCapacity?: number } = {}) {
+function fakePool(options: { holdStages?: boolean; assetPixel?: number; capacity?: number } = {}) {
   const baseCalls: string[] = [];
   const stageCalls: StageCall[] = [];
   const pool = {
-    backgroundCapacity: options.backgroundCapacity ?? 1,
+    capacity: options.capacity ?? 1,
     async renderBuffer(input: { sourcePath: string }) {
       baseCalls.push(input.sourcePath);
       return { kind: "preview" as const, bitmap: filled(1).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: defaultPipeline() };
     },
-    async renderStage(input: { pipeline: Pipeline; lane?: string }) {
+    async renderStage(input: { pipeline: Pipeline }) {
       const strength = Number(input.pipeline.ops[0].params.strength);
       const pixel = options.assetPixel ?? Math.round(strength * 100);
       let release!: () => void;
       const gate = new Promise<void>((resolve) => { release = resolve; });
-      stageCalls.push({ strength, release, lane: input.lane });
+      stageCalls.push({ strength, release });
       if (!options.holdStages) release();
       await gate;
       return { kind: "preview" as const, bitmap: filled(pixel).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: input.pipeline };
@@ -183,22 +183,11 @@ describe("PreviewService stage cache", () => {
     expect(await firstPixel(await render())).toBe(10);
   });
 
-  it("does not retain an active bitmap larger than the entire budget", async () => {
-    const { pool, baseCalls } = fakePool();
-    const service = new PreviewService(pool, { budgetBytes: 1 });
-    const project: Project = { outputDir: null, originals: [], tasks: [] };
-    const { task } = arrange(project);
-    const first = await service.renderTaskPreview(project, task.id, 1024);
-    const second = await service.renderTaskPreview(project, task.id, 1024);
-    expect(second).toEqual(first);
-    expect(baseCalls).toHaveLength(2);
-  });
-
-  it("charges active and inactive chains against the same byte budget", async () => {
+  it("keeps recently previewed tasks within the byte budget and always keeps the active one", async () => {
     const { pool, baseCalls } = fakePool();
     const bitmapBytes = WIDTH * HEIGHT * 4;
-    // Room for two chains, including the current one.
-    const service = new PreviewService(pool, { budgetBytes: bitmapBytes * 4 });
+    // Room for one other task's chain (base plus one stage) besides the task being previewed.
+    const service = new PreviewService(pool, { budgetBytes: bitmapBytes * 2 });
     const project: Project = { outputDir: null, originals: [], tasks: [] };
     const a = arrange(project, "a");
     const b = arrange(project, "b");
@@ -272,8 +261,8 @@ async function until(condition: () => boolean): Promise<void> {
 describe("PreviewService LUT previews", () => {
   const luts = (count: number): LutEntry[] => Array.from({ length: count }, (_, index) => ({ name: `LUT ${index}`, path: `/luts/${index}.cube`, builtin: false }));
 
-  it("bounds admitted LUT work by background capacity and stops future work on cancellation", async () => {
-    const { pool, stageCalls } = fakePool({ holdStages: true, backgroundCapacity: 2 });
+  it("bounds admitted LUT work by pool capacity and stops future work on cancellation", async () => {
+    const { pool, stageCalls } = fakePool({ holdStages: true, capacity: 2 });
     const service = new PreviewService(pool);
     const project: Project = { outputDir: null, originals: [], tasks: [] };
     const { task } = arrange(project);
@@ -281,7 +270,6 @@ describe("PreviewService LUT previews", () => {
     const controller = new AbortController();
     const pending = service.renderLutPreviews(project, task.id, luts(20), WIDTH, undefined, 0.5, controller.signal);
     await until(() => stageCalls.length === 2);
-    expect(stageCalls.map((call) => call.lane)).toEqual(["background", "background"]);
     controller.abort();
     stageCalls[0].release();
     stageCalls[1].release();

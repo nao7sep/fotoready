@@ -1,17 +1,44 @@
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import sharp from "sharp";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const metadata = vi.hoisted(() => ({ hold: null as Promise<void> | null, started: vi.fn() }));
+vi.mock("@adapters/exiftool", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@adapters/exiftool")>();
+  return {
+    ...actual,
+    readSourceMetadataSummary: async (...args: Parameters<typeof actual.readSourceMetadataSummary>) => {
+      metadata.started(args[0]);
+      if (metadata.hold) await metadata.hold;
+      return { editorial: {}, dates: {}, gps: {} };
+    }
+  };
+});
+
 import { ProjectSession } from "@main/session";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
-import type { Original, Project, Task, TaskStatus } from "@shared/types/project";
+import type { Project, Task, TaskStatus } from "@shared/types/project";
 import type { OriginalImportIssue } from "@shared/types/ipc";
-import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 
 const time = "2026-10-23T00:00:00.000Z";
+const roots: string[] = [];
 
-function original(id: string): Original {
-  return {
-    id, sourcePath: `/photos/${id}.png`, sourceHash: `hash-${id}`, size: 64, format: "png",
-    jpegQualityEstimate: null, metadataSummary: { editorial: {}, dates: {}, gps: {} }, width: 4, height: 4, addedAt: time
-  };
+afterEach(async () => {
+  metadata.hold = null;
+  metadata.started.mockReset();
+  await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
+});
+
+async function photos(...colors: string[]): Promise<string[]> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-batch-"));
+  roots.push(root);
+  return Promise.all(colors.map(async (background, index) => {
+    const filePath = path.join(root, `photo-${index}.png`);
+    await sharp({ create: { width: 4, height: 4, channels: 3, background } }).png().toFile(filePath);
+    return filePath;
+  }));
 }
 
 function task(id: string, status: TaskStatus): Task {
@@ -34,39 +61,32 @@ function arrange() {
     shutdown: vi.fn(async () => undefined)
   };
   const vision = { shutdown: vi.fn(async () => undefined) };
-  const prepareOriginal = vi.fn<PipelineWorkerPool["prepareOriginal"]>();
-  const prepareSidecar = vi.fn<PipelineWorkerPool["prepareSidecar"]>();
-  const session = new ProjectSession(defaultGlobalSettings(), vision as never, processing as never,
-    { prepareOriginal, prepareSidecar } as unknown as PipelineWorkerPool, "resources/stamps");
-  return { session, processing, vision, prepareOriginal, prepareSidecar };
+  const session = new ProjectSession(defaultGlobalSettings(), vision as never, processing as never, null as never, "resources/stamps");
+  return { session, processing, vision };
 }
 
 describe("session batch snapshot ownership", () => {
   it("builds one returned snapshot for a partially successful import and preserves the last successful selection", async () => {
-    const { session, prepareOriginal } = arrange();
-    const first = original("first");
-    const last = original("last");
-    const failedPath = "/photos/missing.png";
-    prepareOriginal.mockResolvedValueOnce(first)
-      .mockRejectedValueOnce(Object.assign(new Error("missing source"), { code: "ENOENT" }))
-      .mockResolvedValueOnce(last);
+    const { session } = arrange();
+    const [first, last] = await photos("teal", "orange");
+    const failedPath = path.join(path.dirname(first!), "missing.png");
     const initialIssue: OriginalImportIssue = {
       filePath: "/photos/unsupported.txt", kind: "unsupported", severity: "warning", reason: { key: "importReason.unsupported" }
     };
     const snapshot = vi.spyOn(session, "snapshot");
 
-    const result = await session.addOriginals([first.sourcePath, failedPath, last.sourcePath], [initialIssue]);
+    const result = await session.addOriginals([first!, failedPath, last!], [initialIssue]);
 
     expect(snapshot).toHaveBeenCalledOnce();
     expect(result.snapshot).toBe(snapshot.mock.results[0]!.value);
-    expect(result).toMatchObject({ acceptedImages: 2, addedOriginals: 2, restoredTasks: 0, succeededPaths: [first.sourcePath, last.sourcePath] });
-    expect(result.snapshot.project.originals.map((image) => image.id)).toEqual([first.id, last.id]);
+    expect(result).toMatchObject({ acceptedImages: 2, addedOriginals: 2, restoredTasks: 0, succeededPaths: [first, last] });
+    const originals = result.snapshot.project.originals;
+    expect(originals.map((image) => image.sourcePath)).toEqual([first, last]);
     const active = result.snapshot.project.tasks.find((item) => item.id === result.snapshot.activeTaskId);
-    expect(active!.originalId).toBe(last.id);
+    expect(active!.originalId).toBe(originals[1]!.id);
     expect(result.issues).toEqual([initialIssue, {
       filePath: failedPath, kind: "failed", severity: "error", reason: { key: "importReason.imageUnreadable" }
     }]);
-    expect(prepareOriginal.mock.calls.map(([sourcePath]) => sourcePath)).toEqual([first.sourcePath, failedPath, last.sourcePath]);
   });
 
   it("queues every eligible task and builds only the returned Save All snapshot", () => {
@@ -84,21 +104,20 @@ describe("session batch snapshot ownership", () => {
   });
 
   it("discards an image preparation that settles after shutdown and never prepares later files", async () => {
-    const { session, processing, vision, prepareOriginal } = arrange();
-    const started = deferred<void>();
-    const preparing = deferred<Original>();
-    prepareOriginal.mockImplementationOnce(() => { started.resolve(); return preparing.promise; });
-    const importing = session.addOriginals(["/photos/late.png", "/photos/later.png"]);
-    await started.promise;
+    const { session, processing, vision } = arrange();
+    const [late, later] = await photos("teal", "orange");
+    const preparing = deferred<void>();
+    metadata.hold = preparing.promise;
+    const importing = session.addOriginals([late!, later!]);
+    await vi.waitFor(() => expect(metadata.started).toHaveBeenCalledOnce());
 
     await session.shutdown();
-    preparing.resolve(original("late"));
+    preparing.resolve();
     const result = await importing;
 
     expect(processing.shutdown).toHaveBeenCalledOnce();
     expect(vision.shutdown).toHaveBeenCalledOnce();
-    expect(prepareOriginal).toHaveBeenCalledOnce();
-    expect(prepareOriginal).toHaveBeenCalledWith("/photos/late.png", defaultGlobalSettings().enableJpegQualityEstimate);
+    expect(metadata.started).toHaveBeenCalledExactlyOnceWith(late);
     expect(result).toMatchObject({ acceptedImages: 0, addedOriginals: 0, restoredTasks: 0, succeededPaths: [] });
     expect(result.snapshot.project.originals).toEqual([]);
     expect(result.snapshot.project.tasks).toEqual([]);

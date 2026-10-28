@@ -1,6 +1,4 @@
 import { ANGLE_LIMITS } from "@shared/op-limits";
-import { availableParallelism, totalmem } from "node:os";
-import { BitmapCache } from "@runtime/bitmap-cache";
 import type * as sharp from "sharp";
 import { DEFAULT_TEXT_WATERMARK_FONT_FAMILY } from "@shared/watermark-text-layout";
 import type { OpModule } from "./op-module";
@@ -37,13 +35,10 @@ type TrimmedTextBitmap = {
   channels: 4;
 };
 
-// Each image process receives its share of the host's text-cache allowance. Worker admission can
-// configure the actual share; direct callers use the machine's available image parallelism.
-const textBitmapCache = new BitmapCache<TrimmedTextBitmap>(Math.floor(totalmem() * 0.025 / Math.max(2, availableParallelism())));
-
-export function configureTextBitmapCacheBudget(bytes: number): void {
-  textBitmapCache.setBudget(bytes);
-}
+const MAX_FITTED_TEXT_BITMAP_CACHE_ENTRIES = 96;
+const MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES = 256;
+const fittedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
+const renderedTextBitmapCache = new Map<string, TrimmedTextBitmap>();
 
 export const watermarkTextModule: OpModule<WatermarkTextParams> = {
   type: "watermark-text",
@@ -154,16 +149,16 @@ export const watermarkTextModule: OpModule<WatermarkTextParams> = {
 
 
 async function fitTextBitmap(params: WatermarkTextParams, maxWidth: number, maxHeight: number): Promise<TrimmedTextBitmap> {
-  const cacheKey = `fit|${textBitmapStyleKey(params)}|${maxWidth}x${maxHeight}`;
-  const cached = textBitmapCache.get(cacheKey);
+  const cacheKey = `${textBitmapStyleKey(params)}|fit|${maxWidth}x${maxHeight}`;
+  const cached = getCachedBitmap(fittedTextBitmapCache, cacheKey);
   if (cached) {
     return cached;
   }
 
-  // Only the fitted result is reused by image operations; retaining every search probe wastes the
-  // same allowance on candidates that were already rejected or superseded.
+  // Only the fitted result is reused by image operations; retaining every search probe would fill the
+  // rendered cache with candidates that were already rejected or superseded.
   const { bitmap } = await fitLargestFontSize((fontSize) => renderTrimmedTextBitmap(params, fontSize, false), maxWidth, maxHeight);
-  textBitmapCache.set(cacheKey, bitmap);
+  setCachedBitmap(fittedTextBitmapCache, cacheKey, bitmap, MAX_FITTED_TEXT_BITMAP_CACHE_ENTRIES);
   return cloneTrimmedTextBitmap(bitmap);
 }
 
@@ -202,8 +197,8 @@ export async function fitLargestFontSize<T extends { width: number; height: numb
 }
 
 export async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontSize: number, cacheResult = true): Promise<TrimmedTextBitmap> {
-  const cacheKey = `render|${textBitmapStyleKey(params)}|${fontSize}`;
-  const cached = cacheResult ? textBitmapCache.get(cacheKey) : null;
+  const cacheKey = `${textBitmapStyleKey(params)}|render|${fontSize}`;
+  const cached = cacheResult ? getCachedBitmap(renderedTextBitmapCache, cacheKey) : null;
   if (cached) {
     return cached;
   }
@@ -231,7 +226,7 @@ export async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontS
   const bounds = alphaBounds(rendered.data, rendered.info.width, rendered.info.height, rendered.info.channels);
   if (!bounds) {
     const empty = { data: Buffer.from([0, 0, 0, 0]), width: 1, height: 1, channels: 4 } as const;
-    if (cacheResult) textBitmapCache.set(cacheKey, empty);
+    if (cacheResult) setCachedBitmap(renderedTextBitmapCache, cacheKey, empty, MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES);
     return cloneTrimmedTextBitmap(empty);
   }
   const trimmed = await sharpImpl(rendered.data, {
@@ -250,7 +245,7 @@ export async function renderTrimmedTextBitmap(params: WatermarkTextParams, fontS
     height: trimmed.info.height,
     channels: 4
   } as const;
-  if (cacheResult) textBitmapCache.set(cacheKey, bitmap);
+  if (cacheResult) setCachedBitmap(renderedTextBitmapCache, cacheKey, bitmap, MAX_RENDERED_TEXT_BITMAP_CACHE_ENTRIES);
   return cloneTrimmedTextBitmap(bitmap);
 }
 
@@ -323,6 +318,24 @@ function textBitmapStyleKey(params: WatermarkTextParams): string {
     underline: params.underline,
     strikeThrough: params.strikeThrough
   });
+}
+
+function getCachedBitmap(cache: Map<string, TrimmedTextBitmap>, key: string): TrimmedTextBitmap | null {
+  const value = cache.get(key);
+  if (!value) return null;
+  cache.delete(key);
+  cache.set(key, value);
+  return cloneTrimmedTextBitmap(value);
+}
+
+function setCachedBitmap(cache: Map<string, TrimmedTextBitmap>, key: string, bitmap: TrimmedTextBitmap, maxEntries: number): void {
+  cache.delete(key);
+  cache.set(key, cloneTrimmedTextBitmap(bitmap));
+  if (cache.size <= maxEntries) return;
+  const oldestKey = cache.keys().next().value;
+  if (typeof oldestKey === "string") {
+    cache.delete(oldestKey);
+  }
 }
 
 function cloneTrimmedTextBitmap(bitmap: TrimmedTextBitmap): TrimmedTextBitmap {

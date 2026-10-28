@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { nanoid } from "nanoid";
@@ -5,8 +6,11 @@ import { nowIso } from "@shared/time";
 import { createEmptyProject, defaultPipeline } from "@shared/defaults";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields } from "@shared/types/settings";
 import type { Original, Project, Task, VisionResult } from "@shared/types/project";
+import { sha256BytesYielding } from "@runtime/hash";
 import { LatestOnly } from "./latest-only";
 import type { AssetFolders } from "./asset-relink";
+import { inspectSourceImage, uprightSize } from "@runtime/decode";
+import { detectJpegQuality } from "@runtime/jpeg-quality";
 import type { LutEntry, LutPreviewEntry, OriginalImportIssue, OriginalImportResult, PreviewRenderOptions, QueueSnapshot, RenamePreview, RenameRunResult, TaskEditOptions, VisionRunOptions } from "@shared/types/ipc";
 import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
@@ -16,7 +20,8 @@ import type { VisionCommit, VisionQueue } from "@main/queues/vision";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles, FileTrashError } from "@main/safe-delete";
-import { currentSidecarPath, isTaskSidecarPath, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
+import { currentSidecarPath, isTaskSidecarPath, loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile, type LoadedTaskSidecar } from "@main/task-sidecar";
+import { readSourceMetadataSummary } from "@adapters/exiftool";
 import { applyOpParamChange, applyOpParamPatch } from "@shared/validation/ops";
 import { isTaskEditable } from "@shared/task-editing";
 import { defaultTaskOutput, nextTaskOutput, initializeOpParamsForOriginal, imageBoundsForOriginal } from "@main/task-output";
@@ -66,7 +71,7 @@ export class ProjectSession {
     private readonly settings: GlobalSettings,
     private readonly visionQueue: VisionQueue,
     private readonly processingQueue: ProcessingQueue,
-    private readonly workerPool: PipelineWorkerPool,
+    workerPool: PipelineWorkerPool,
     private readonly bundledStampsDir: string,
     private readonly logger?: AppLogger,
     private readonly userWork: UserWorkWrites = new UserWorkWrites()
@@ -145,19 +150,7 @@ export class ProjectSession {
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[]
   ): Promise<OriginalImportResult> {
-    const sidecarResult = { loaded: [] as LoadedTaskSidecar[], rejected: [] as OriginalImportIssue[] };
-    for (const filePath of sourcePaths.filter(isTaskSidecarPath)) {
-      if (this.#closing) break;
-      try {
-        const result = await this.workerPool.prepareSidecar(filePath, this.bundledStampsDir, this.#assetFolders?.());
-        if (this.#closing) break;
-        sidecarResult.loaded.push(...result.loaded);
-        sidecarResult.rejected.push(...result.rejected);
-      } catch (error) {
-        this.logger?.error("task sidecar preparation failed", { mod: "main.session", filePath, err: error });
-        sidecarResult.rejected.push({ filePath, kind: "failed", severity: "error", reason: message("importReason.sidecarUnreadable") });
-      }
-    }
+    const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger, this.#assetFolders?.());
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
     const sidecars = [...sidecarResult.loaded];
     const usedSidecarPaths = new Set<string>();
@@ -171,7 +164,7 @@ export class ProjectSession {
       if (isTaskSidecarPath(sourcePath)) continue;
       let original: Original;
       try {
-        original = await this.workerPool.prepareOriginal(sourcePath, this.settings.enableJpegQualityEstimate);
+        original = await buildOriginal(sourcePath, this.settings.enableJpegQualityEstimate, this.logger);
       } catch (error) {
         const failedToRead = typeof (error as NodeJS.ErrnoException | null)?.code === "string";
         const logFields = { mod: "main.session", filePath: sourcePath, err: error };
@@ -479,8 +472,8 @@ export class ProjectSession {
 
   /**
    * Stops work for quit: waiting saves and descriptions are cancelled, and running saves are
-   * aborted. Native process ownership and staging cleanup remain with the worker pool until
-   * physical exit; the caller bounds its wait and teardown.
+   * aborted. Worker termination can outlive rejection and leave a temporary file; the caller
+   * bounds its wait and worker teardown.
    */
   async shutdown(): Promise<void> {
     this.#closing = true;
@@ -937,6 +930,25 @@ export class ProjectSession {
   }
 }
 
+
+async function buildOriginal(sourcePath: string, enableJpegQualityEstimate: boolean, logger?: AppLogger): Promise<Original> {
+  const bytes = await fs.readFile(sourcePath);
+  const { format, metadata } = await inspectSourceImage(bytes);
+  const jpegQualityEstimate = enableJpegQualityEstimate && format === "jpeg" ? detectJpegQuality(bytes).jpegQualityEstimate?.value ?? null : null;
+  const metadataSummary = await readSourceMetadataSummary(sourcePath, logger);
+
+  return {
+    id: nanoid(),
+    sourcePath: path.resolve(sourcePath),
+    sourceHash: await sha256BytesYielding(bytes),
+    size: bytes.byteLength,
+    format,
+    jpegQualityEstimate,
+    metadataSummary,
+    ...uprightSize(metadata),
+    addedAt: nowIso()
+  };
+}
 
 function createTaskForOriginal(original: Original, settings: GlobalSettings, id: string = nanoid()): Task {
   const now = nowIso();

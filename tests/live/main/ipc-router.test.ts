@@ -92,7 +92,6 @@ async function startApp(home: string) {
   const { ProcessingQueue } = await import("@main/queues/processing-queue");
   const { PipelineWorkerPool } = await import("@main/workers/pipeline-pool");
   const { createRecordsReader } = await import("@main/records-reader");
-  const { UserWorkWrites } = await import("@main/quit-save");
 
   const paths = getAppPaths();
   const sessionStart = new Date();
@@ -112,13 +111,12 @@ async function startApp(home: string) {
   const cores = Math.max(1, os.cpus().length);
   const pipelineWorkerPool = new PipelineWorkerPool(cores);
   const processingQueue = new ProcessingQueue(cores, settings, pipelineWorkerPool, logger);
-  const userWork = new UserWorkWrites();
-  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
   processingQueue.setUpdateListener((save) => projectSession.onProcessingUpdate(save));
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
   const recordsReader = createRecordsReader(paths.recordsPath);
   registerIpcHandlers({
-    paths, settings, settingsFile, uiState, stateCoordinator, userWork, projectSession, logger, version: "0.0.0-live",
+    paths, settings, settingsFile, uiState, stateCoordinator, projectSession, logger, version: "0.0.0-live",
     records: {
       reader: recordsReader,
       session: records.session,
@@ -142,7 +140,7 @@ async function startApp(home: string) {
       await pipelineWorkerPool.destroy();
       await recordsReader.close();
       setBackupWriter(null);
-      await storeWriter.close({ drain: true, timeoutMs: 1_000 });
+      await storeWriter.close({ drain: true });
     },
   };
 }

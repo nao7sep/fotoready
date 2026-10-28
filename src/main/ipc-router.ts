@@ -19,7 +19,7 @@ import { installApplicationMenu } from "@main/menu";
 import { LANGUAGE_CHANGED_CHANNEL } from "@shared/language-channel";
 import { DISPLAY_TIME_ZONE_CHANGED_CHANNEL } from "@shared/time-zone";
 import type { StateCoordinator } from "@main/state-io";
-import type { UserWorkWrites } from "@main/quit-save";
+import type { UnsavedWrite } from "@main/quit-save";
 import { AssetThumbnailCache } from "@main/asset-thumbnail-cache";
 import { deleteLuts, importLuts, listLuts } from "@main/lut-catalog";
 import { resolveProjectOutputDir } from "@main/output-paths";
@@ -40,8 +40,6 @@ export type RouterContext = {
   settingsFile: SettingsFile;
   uiState: UiState;
   stateCoordinator: StateCoordinator;
-  /** The settings and API key the user saves are their own work, which a quit waits for. */
-  userWork: UserWorkWrites;
   projectSession: ProjectSession;
   logger: AppLogger;
   version: string;
@@ -53,7 +51,12 @@ export type RouterContext = {
   };
 };
 
-export type IpcWork = { closeAdmission(): void; isIdle(): boolean };
+export type IpcWork = {
+  closeAdmission(): void;
+  isIdle(): boolean;
+  /** The latest settings save while it is not saved: the user's own work, which a quit waits for or asks about. */
+  unsavedSettings(): UnsavedWrite | null;
+};
 
 export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   let accepting = true;
@@ -149,11 +152,20 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
 
   let settingsChain: Promise<unknown> = Promise.resolve();
   let settingsSubmission = 0;
-  let keySubmission = 0;
-  const serializeSettings = <T>(fn: () => Promise<T>): Promise<T> => {
-    const next = settingsChain.then(fn, fn);
-    settingsChain = next.catch(() => {});
-    return next;
+  // A later save supersedes it: each save holds the whole draft.
+  let unsavedSettings: UnsavedWrite | null = null;
+  const saveSettingsInTurn = (write: (retrying: boolean) => Promise<GlobalSettings>, retrying = false): Promise<GlobalSettings> => {
+    const settled = settingsChain.then(() => write(retrying), () => write(retrying));
+    settingsChain = settled.catch(() => {});
+    const entry: UnsavedWrite = {
+      work: { kind: "settings" },
+      running: true,
+      settled,
+      retry: () => void saveSettingsInTurn(write, true).catch(() => undefined)
+    };
+    unsavedSettings = entry;
+    settled.then(() => { if (unsavedSettings === entry) unsavedSettings = null; }, () => { entry.running = false; });
+    return settled;
   };
 
   handle("system.getInfo", "debug", async () => ({
@@ -257,7 +269,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("settings.update", "info", async (_event, draft: unknown) => {
     const submission = ++settingsSubmission;
     const retryIsCurrent = (): boolean => submission === settingsSubmission;
-    return ctx.userWork.run({ kind: "settings" }, (retrying) => serializeSettings(async () => {
+    return saveSettingsInTurn(async (retrying) => {
       if (retrying && !retryIsCurrent()) return ctx.settings;
       const settings = await saveSettings(ctx.settingsFile, draft, ctx.settings, ctx.logger);
       const zoneChanged = settings.displayTimeZone !== ctx.settings.displayTimeZone;
@@ -276,17 +288,11 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
         for (const win of BrowserWindow.getAllWindows()) win.webContents.send(LANGUAGE_CHANGED_CHANNEL, language);
       }
       return ctx.settings;
-    }), retryIsCurrent);
+    });
   });
   handle("settings.hasGeminiApiKey", "debug", async () => ctx.projectSession.hasGeminiApiKey());
-  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) => {
-    const submission = ++keySubmission;
-    return ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.setGeminiApiKey(apiKey), () => submission === keySubmission);
-  });
-  handle("settings.clearGeminiApiKey", "info", async () => {
-    const submission = ++keySubmission;
-    return ctx.userWork.run({ kind: "settings" }, () => ctx.projectSession.clearGeminiApiKey(), () => submission === keySubmission);
-  });
+  handle("settings.setGeminiApiKey", "info", async (_event, apiKey: string) => ctx.projectSession.setGeminiApiKey(apiKey));
+  handle("settings.clearGeminiApiKey", "info", async () => ctx.projectSession.clearGeminiApiKey());
 
   handle("state.get", "debug", async () => ctx.uiState);
   handle("state.toggleHistogram", "info", async () => {
@@ -427,7 +433,7 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
     recordSources(await ctx.records.reader.read({ op: "sources" }), ctx.records.session, ctx.projectSession.project())
   );
   // Count admitted calls until their actual settlement, including native reads and queued work.
-  return { closeAdmission: () => { accepting = false; }, isIdle: () => active === 0 };
+  return { closeAdmission: () => { accepting = false; }, isIdle: () => active === 0, unsavedSettings: () => unsavedSettings };
 }
 
 function normalizeAddOriginalsPaths(

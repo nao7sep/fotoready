@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const electron = vi.hoisted(() => {
   const listeners = new Map<string, Array<(event: { preventDefault(): void }) => void>>();
   const handlers = new Map<string, (event: { sender: unknown }, ...args: unknown[]) => Promise<void>>();
-  const state = { exits: 0, window: null as null | { emit(name: string, event: unknown): boolean } };
+  const state = { exits: 0, exited: [] as Array<() => void>, window: null as null | { emit(name: string, event: unknown): boolean } };
   const emit = (name: string): boolean => {
     let prevented = false;
     const event = { preventDefault: () => { prevented = true; } };
@@ -21,6 +21,7 @@ const electron = vi.hoisted(() => {
     if (closePrevented) return;
     if (emit("will-quit")) return;
     state.exits += 1;
+    for (const resolve of state.exited.splice(0)) resolve();
   });
   return { listeners, handlers, state, quit, exit: vi.fn() };
 });
@@ -52,7 +53,15 @@ vi.mock("electron", async () => {
 
 
 const { confirmWorkspaceQuit, installCloseGuard, installQuitShutdown, prepareQuit } = await import("@main/bootstrap");
-const { UserWorkWrites } = await import("@main/quit-save");
+type UnsavedWrite = import("@main/quit-save").UnsavedWrite;
+
+// Resolves once the process has exited: at once when it already has.
+function whenExited(): Promise<void> {
+  return new Promise((resolve) => {
+    if (electron.state.exits > 0) resolve();
+    else electron.state.exited.push(resolve);
+  });
+}
 
 function fakeWindow() {
   const send = vi.fn();
@@ -97,6 +106,7 @@ beforeEach(() => {
   electron.listeners.clear();
   electron.handlers.clear();
   electron.state.exits = 0;
+  electron.state.exited = [];
   electron.quit.mockClear();
 });
 
@@ -114,7 +124,8 @@ describe("close guard quit", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith("lifecycle.close-requested", { requestId: 1 });
 
     await approve(true);
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(send).toHaveBeenCalledOnce();
   });
 
@@ -133,16 +144,20 @@ describe("close guard quit", () => {
     win.emit("close", { preventDefault() {} });
     expect(send).toHaveBeenCalledTimes(2);
     await approve(true);
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
   });
 
   it("keeps the window open when the user cancels at the unsaved-work question", async () => {
-    const save = vi.fn(async () => false);
+    let saved!: () => void;
+    const saving = new Promise<void>((resolve) => { saved = resolve; });
+    const save = vi.fn(async () => { saved(); return false; });
     const { win, approve, stop } = installApp(save);
 
     win.emit("close", { preventDefault() {} });
     await approve(true);
-    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    await saving;
+    expect(save).toHaveBeenCalledOnce();
     await Promise.resolve();
     expect(stop).not.toHaveBeenCalled();
     expect(electron.state.exits).toBe(0);
@@ -157,7 +172,8 @@ describe("close guard quit", () => {
     expect(send).toHaveBeenCalledOnce();
     await approve(true);
 
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(win.close).not.toHaveBeenCalled();
   });
 
@@ -210,7 +226,8 @@ describe("close guard quit", () => {
 
     expect(query.preventDefault).not.toHaveBeenCalled();
     expect(quit.sessionEnding()).toBe(true);
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -221,7 +238,8 @@ describe("close guard quit", () => {
     expect(send).toHaveBeenCalledOnce();
     quit.endSession();
 
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
   });
 });
 
@@ -284,7 +302,8 @@ describe("Windows session events", () => {
 function installPreparedQuit({ windowless = false } = {}) {
   electron.state.window = null;
   const exitState = { reason: "unknown" };
-  const userWork = new UserWorkWrites();
+  // The owners' unsaved writes, as the test sets them.
+  const unsaved: UnsavedWrite[] = [];
   const logger = { info: vi.fn(), error: vi.fn() };
   const stop = vi.fn(async () => true);
   let answerWorkspace: ((go: boolean) => void) | null = null;
@@ -292,13 +311,13 @@ function installPreparedQuit({ windowless = false } = {}) {
   const askNotSaved = vi.fn(async () => "cancel" as const);
   const reasonAtStop: string[] = [];
   const quit = installQuitShutdown({
-    prepare: () => prepareQuit({ userWork, exitState, sessionEnding: () => quit.sessionEnding(), confirmWorkspace, askNotSaved, logger }),
+    prepare: (deadline) => prepareQuit({ unsavedWork: () => unsaved, deadline, exitState, sessionEnding: () => quit.sessionEnding(), confirmWorkspace, askNotSaved, logger }),
     // A renderer confirmation goes on with the quit; the windowless dialog gives its cancel choice.
     answerForSessionEnd: () => answerWorkspace?.(!windowless),
     stop: async () => { reasonAtStop.push(exitState.reason); return stop(); },
     sessionEnded: vi.fn()
   });
-  return { exitState, userWork, logger, confirmWorkspace, askNotSaved, quit, reasonAtStop, answer: (go: boolean) => answerWorkspace?.(go) };
+  return { exitState, unsaved, logger, confirmWorkspace, askNotSaved, quit, reasonAtStop, answer: (go: boolean) => answerWorkspace?.(go) };
 }
 
 describe("bootstrap's quit checks", () => {
@@ -307,7 +326,8 @@ describe("bootstrap's quit checks", () => {
     electron.quit();
     expect(confirmWorkspace).toHaveBeenCalledOnce();
     quit.endSession();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(askNotSaved).not.toHaveBeenCalled();
     expect(reasonAtStop).toEqual(["system-shutdown"]);
   });
@@ -316,35 +336,38 @@ describe("bootstrap's quit checks", () => {
     const { quit, reasonAtStop } = installPreparedQuit({ windowless: true });
     electron.quit();
     quit.endSession();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(reasonAtStop).toEqual(["system-shutdown"]);
   });
 
   it("asks nothing when the session is already ending", async () => {
-    const { quit, confirmWorkspace, askNotSaved, userWork } = installPreparedQuit();
+    const { quit, confirmWorkspace, askNotSaved, unsaved } = installPreparedQuit();
     let finish!: () => void;
-    void userWork.run({ kind: "settings" }, () => new Promise<void>((resolve) => { finish = resolve; }));
+    const write: UnsavedWrite = { work: { kind: "settings" }, running: true, settled: new Promise<void>((resolve) => { finish = resolve; }), retry: vi.fn() };
+    unsaved.push(write);
     quit.endSession();
     await vi.advanceTimersByTimeAsync(0);
     expect(confirmWorkspace).not.toHaveBeenCalled();
+    unsaved.length = 0;
     finish();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(askNotSaved).not.toHaveBeenCalled();
   });
 
-  it("records an ordinary quit as the user's, and a declined one as no quit, keeping no failure for later", async () => {
-    const { exitState, userWork, answer, reasonAtStop } = installPreparedQuit();
+  it("records an ordinary quit as the user's, and a declined one as no quit", async () => {
+    const { exitState, answer, reasonAtStop } = installPreparedQuit();
     electron.quit();
     expect(exitState.reason).toBe("user-quit");
     answer(false);
     await vi.advanceTimersByTimeAsync(0);
     expect(exitState.reason).toBe("unknown");
-    await userWork.run({ kind: "settings" }, async () => { throw new Error("disk full"); }).catch(() => undefined);
-    expect(userWork.unsaved().failed).toEqual([]);
 
     electron.quit();
     answer(true);
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(reasonAtStop).toEqual(["user-quit"]);
   });
 
@@ -360,6 +383,7 @@ describe("bootstrap's quit checks", () => {
     confirmWorkspace.mockRejectedValueOnce(cause);
     electron.quit();
     quit.endSession();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
   });
 });

@@ -112,6 +112,9 @@ function parseFailure(error: unknown): Record<string, unknown> {
 
 export class ApiKeyStore {
   #chain: Promise<unknown> = Promise.resolve();
+  // The latest set or clear while it is not saved: running, or failed and not written again since.
+  // A later write supersedes it, so a quit asks only about the key the user last saved.
+  #unsaved: { running: boolean; settled: Promise<void>; retry(): void } | null = null;
   #modeInspectionWarned = false;
   #modeRepairWarned = false;
   #modeWarned = false;
@@ -163,7 +166,7 @@ export class ApiKeyStore {
   set(id: string, value: string): Promise<void> {
     assertKeyId(id);
     const trimmed = value.trim();
-    return this.serialize(async () => {
+    return this.latestWrite(async () => {
       const all = await this.readFile();
       if (this.#left) throw new StoreNotWritableError(this.filePath, this.#left);
       if (trimmed.length === 0) delete all.keys[id];
@@ -175,7 +178,7 @@ export class ApiKeyStore {
   /** Remove the stored key. Any environment value is unaffected. */
   clear(id: string): Promise<void> {
     assertKeyId(id);
-    return this.serialize(async () => {
+    return this.latestWrite(async () => {
       // A file left as it is reads as holding no key, so there is nothing to clear and nothing is written.
       const all = await this.readFile();
       if (id in all.keys) {
@@ -183,6 +186,19 @@ export class ApiKeyStore {
         await this.write(all);
       }
     });
+  }
+
+  /** The latest set or clear while it is not saved, which a quit waits for or asks about. */
+  unsavedWrite(): { running: boolean; settled: Promise<void>; retry(): void } | null {
+    return this.#unsaved;
+  }
+
+  private latestWrite(write: () => Promise<void>): Promise<void> {
+    const settled = this.serialize(write);
+    const entry = { running: true, settled, retry: () => void this.latestWrite(write).catch(() => undefined) };
+    this.#unsaved = entry;
+    settled.then(() => { if (this.#unsaved === entry) this.#unsaved = null; }, () => { entry.running = false; });
+    return settled;
   }
 
   private serialize<T>(fn: () => Promise<T>): Promise<T> {

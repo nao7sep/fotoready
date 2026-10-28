@@ -36,7 +36,7 @@ afterEach(async () => {
     try { lock.exec("ROLLBACK"); } catch { /* not in a transaction */ }
     lock.close();
   }
-  await Promise.all(writers.splice(0).map((writer) => writer.close({ drain: false, timeoutMs: 0 })));
+  await Promise.all(writers.splice(0).map((writer) => writer.close({ drain: false })));
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -53,7 +53,7 @@ function writer(options: Partial<StoreWriterOptions> = {}): StoreWriter {
   return started;
 }
 
-const drain = (target: StoreWriter) => target.close({ drain: true, timeoutMs: 10_000 });
+const drain = (target: StoreWriter) => target.close({ drain: true });
 
 function query(file: string, sql: string, ...params: Array<string | number>): Array<Record<string, unknown>> {
   const db = new DatabaseSync(file);
@@ -179,20 +179,13 @@ describe("a locked or stalled store", () => {
     await drain(target);
   });
 
-  it("gives up the drain at its bound at quit, and skips it at OS session end", async () => {
-    openRecordsDatabase(recordsFile()).close();
-    lock(recordsFile());
-    const draining = writer();
-    const records = createRecordsStore(draining, sessionStart);
-    for (let index = 0; index < 4; index += 1) records.writeLog({ time: session, level: "info", message: `line ${index}`, fields: {} });
-    expect(await draining.close({ drain: true, timeoutMs: 100 })).toBe(false);
-
+  it("skips the drain at OS session end", async () => {
     const skipping = writer();
     createRecordsStore(skipping, sessionStart).writeLog({ time: session, level: "info", message: "skipped", fields: {} });
-    expect(await skipping.close({ drain: false, timeoutMs: 1_000 })).toBe(false);
+    expect(await skipping.close({ drain: false })).toBe(false);
 
     const idle = writer();
-    expect(await idle.close({ drain: false, timeoutMs: 1_000 })).toBe(true);
+    expect(await idle.close({ drain: false })).toBe(true);
   });
 });
 

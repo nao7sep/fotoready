@@ -106,6 +106,26 @@ describe("ApiKeyStore", () => {
     expect(await store.resolve("gemini")).toBe("sk-plaintext-secret");
   });
 
+  it("reports its latest failed save until a retry or a later save lands, never replaying an older one", async () => {
+    const store = new ApiKeyStore(filePath);
+    const write = vi.spyOn(store as unknown as { write(data: unknown): Promise<void> }, "write");
+    write.mockRejectedValueOnce(new Error("disk full"));
+    await expect(store.set("gemini", "first-key")).rejects.toThrow("disk full");
+    expect(store.unsavedWrite()).toMatchObject({ running: false });
+
+    store.unsavedWrite()!.retry();
+    expect(store.unsavedWrite()).toMatchObject({ running: true });
+    await store.unsavedWrite()!.settled;
+    expect(store.unsavedWrite()).toBeNull();
+    expect(await store.peek("gemini")).toBe("first-key");
+
+    write.mockRejectedValueOnce(new Error("disk full"));
+    await expect(store.set("gemini", "older-key")).rejects.toThrow();
+    await store.set("gemini", "newer-key");
+    expect(store.unsavedWrite()).toBeNull();
+    expect(await store.peek("gemini")).toBe("newer-key");
+  });
+
   it("clears the stored key while leaving any env key in effect", async () => {
     const store = new ApiKeyStore(filePath);
     await store.set("gemini", "stored-key");

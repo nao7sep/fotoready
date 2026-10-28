@@ -34,7 +34,7 @@ it("skips the drain at OS session end without waiting for worker termination to 
   const owner = workers[0]!;
   expect(owner.postMessage).toHaveBeenCalledTimes(1);
   let result: boolean | undefined;
-  const closing = writer.close({ drain: false, timeoutMs: 1_000 }).then((value) => { result = value; });
+  const closing = writer.close({ drain: false }).then((value) => { result = value; });
   try {
     await Promise.resolve();
     expect(owner.terminate).toHaveBeenCalledTimes(1);

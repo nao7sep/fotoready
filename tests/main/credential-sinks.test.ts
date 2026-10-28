@@ -60,7 +60,7 @@ describe.each([
       recordsPath, backupsPath: path.join(root, "backups.sqlite3"), fallbackPath: fallbackFile(path.join(root, "logs"), sessionStart),
       session: sessionStart.toISOString(), onWarning: () => {}
     });
-    if (sink === "console") expect(await writer.close({ drain: true, timeoutMs: 10_000 })).toBe(true);
+    if (sink === "console") expect(await writer.close({ drain: true })).toBe(true);
     const records = createRecordsStore(writer, sessionStart);
     const logger = createLogger(records, { debug: true });
 
@@ -91,7 +91,7 @@ describe.each([
     fs.writeFileSync(keysPath, `{"formatVersion":1,"keys":{"gemini":${STORED}}}`, { mode: 0o600 });
     await expect(new ApiKeyStore(keysPath, logger).resolve("gemini")).resolves.toBeNull();
 
-    expect(await writer.close({ drain: true, timeoutMs: 10_000 })).toBe(true);
+    expect(await writer.close({ drain: true })).toBe(true);
 
     const sinks = [...filesUnder(path.join(root, "logs")), ...filesUnder(root).filter((file) => path.basename(file).startsWith("records.sqlite3"))];
     expect(sink === "console" ? consoleText.length : sinks.length).toBeGreaterThan(0);

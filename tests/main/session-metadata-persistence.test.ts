@@ -18,7 +18,7 @@ vi.mock("@main/task-sidecar", async (importOriginal) => {
 });
 
 import { ProjectSession } from "@main/session";
-import { UserWorkWrites } from "@main/quit-save";
+import { describeUnsaved } from "@main/quit-save";
 
 const persistenceFailure = new Error("sidecar persistence failed");
 
@@ -46,21 +46,19 @@ describe("ProjectSession saved-task metadata persistence", () => {
     expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a sidecar write that fails during a quit, which the quit's retry writes again with the change", async () => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
+  it("reports a failed sidecar write until a quit's retry writes it again with the change", async () => {
+    const { session, task } = arrangeSession(savedTask());
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
-    userWork.beginQuit();
 
     await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
     expect(task.customSlug).toBe("vision-slug");
     // The quit question names the sidecar the task has, where it is.
-    expect(userWork.unsaved()).toEqual({ failed: [{ kind: "sidecar", file: "photo-fotoready.json" }], running: [] });
+    expect(describeUnsaved(session.unsavedSidecars())).toEqual({ failed: [{ kind: "sidecar", file: "photo-fotoready.json" }], running: [] });
 
-    userWork.retry();
-    await userWork.settle(1_000);
+    retryUnsaved(session);
+    await settleUnsaved(session);
 
-    expect(userWork.unsaved()).toEqual({ failed: [], running: [] });
+    expect(describeUnsaved(session.unsavedSidecars())).toEqual({ failed: [], running: [] });
     expect(task.customSlug).toBe("pier");
     expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(2);
   });
@@ -146,15 +144,27 @@ function notSavedSession(): { session: ProjectSession; task: Task } {
   return arrangeSession(task);
 }
 
-function arrangeSession(task: Task, userWork?: UserWorkWrites, logger?: AppLogger): { session: ProjectSession; task: Task } {
+// The quit's Retry and its wait, over what the session reports as not saved.
+function retryUnsaved(session: ProjectSession): void {
+  for (const write of session.unsavedSidecars()) if (!write.running) write.retry();
+}
+
+async function settleUnsaved(session: ProjectSession): Promise<void> {
+  let running = session.unsavedSidecars().filter((write) => write.running);
+  while (running.length > 0) {
+    await Promise.allSettled(running.map((write) => write.settled));
+    running = session.unsavedSidecars().filter((write) => write.running);
+  }
+}
+
+function arrangeSession(task: Task, logger?: AppLogger): { session: ProjectSession; task: Task } {
   const session = new ProjectSession(
     defaultGlobalSettings(),
     null as never,
     { snapshot: () => ({}) } as never,
     null as never,
     "resources/stamps",
-    logger,
-    userWork
+    logger
   );
   const project = session.snapshot().project;
   project.originals.push(original());
@@ -243,8 +253,7 @@ describe("ProjectSession sidecar write ordering", () => {
   });
 
   it("does not retry an obsolete slug over a newer durable submission during quit", async () => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
+    const { session, task } = arrangeSession(savedTask());
     let fail!: () => void;
     const written: Array<string | null> = [];
     mocks.writeTaskSidecarFile.mockImplementationOnce(async () => {
@@ -258,48 +267,41 @@ describe("ProjectSession sidecar write ordering", () => {
     const rejected = expect(first).rejects.toBe(persistenceFailure);
     await writesStarted(1);
     const second = session.setCustomSlug(task.id, "second");
-    userWork.beginQuit();
     fail();
     await rejected;
     await second;
-    userWork.retry();
-    await userWork.settle(1_000);
+    retryUnsaved(session);
+    await settleUnsaved(session);
     expect(task.customSlug).toBe("second");
     expect(written).toEqual(["second"]);
-    expect(userWork.unsaved()).toEqual({ failed: [], running: [] });
+    expect(describeUnsaved(session.unsavedSidecars())).toEqual({ failed: [], running: [] });
   });
 
   it("retains a failed slug retry when an unrelated flag is saved", async () => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
-    userWork.beginQuit();
+    const { session, task } = arrangeSession(savedTask());
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
     await session.setGenerateSlug(task.id, true);
-    expect(userWork.unsaved().failed).toHaveLength(1);
-    userWork.retry();
-    await userWork.settle(1_000);
+    expect(describeUnsaved(session.unsavedSidecars()).failed).toHaveLength(1);
+    retryUnsaved(session);
+    await settleUnsaved(session);
     expect(task).toMatchObject({ customSlug: "pier", generateSlug: true, generateDescription: true });
   });
 
   it("keeps the newer coupled generation choice when quit retries", async () => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
-    userWork.beginQuit();
+    const { session, task } = arrangeSession(savedTask());
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     await expect(session.setGenerateSlug(task.id, true)).rejects.toBe(persistenceFailure);
     await session.setGenerateDescription(task.id, false);
-    userWork.retry();
-    await userWork.settle(1_000);
+    retryUnsaved(session);
+    await settleUnsaved(session);
     expect(task).toMatchObject({ generateSlug: false, generateDescription: false });
   });
 
   it.each(["description", "slug"] as const)("retains a failed %s choice after an independent flag no-op", async (field) => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
+    const { session, task } = arrangeSession(savedTask());
     task.generateDescription = field === "slug";
     task.generateSlug = field === "slug";
-    userWork.beginQuit();
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     const change = field === "description"
       ? session.setGenerateDescription(task.id, true)
@@ -307,17 +309,15 @@ describe("ProjectSession sidecar write ordering", () => {
     await expect(change).rejects.toBe(persistenceFailure);
     if (field === "description") await session.setGenerateSlug(task.id, false);
     else await session.setGenerateDescription(task.id, true);
-    expect(userWork.unsaved().failed).toHaveLength(1);
-    userWork.retry();
-    await userWork.settle(1_000);
+    expect(describeUnsaved(session.unsavedSidecars()).failed).toHaveLength(1);
+    retryUnsaved(session);
+    await settleUnsaved(session);
     expect(task).toMatchObject({ generateDescription: true, generateSlug: false });
     expect(mocks.writeTaskSidecarFile).toHaveBeenCalledTimes(2);
   });
 
   it("skips a queued retry superseded after Retry but before its output lane runs", async () => {
-    const userWork = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), userWork);
-    userWork.beginQuit();
+    const { session, task } = arrangeSession(savedTask());
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     await expect(session.setCustomSlug(task.id, "obsolete")).rejects.toBe(persistenceFailure);
     let release!: () => void;
@@ -331,11 +331,11 @@ describe("ProjectSession sidecar write ordering", () => {
     });
     const held = session.setGenerateDescription(task.id, true);
     await writesStarted(1);
-    userWork.retry();
+    retryUnsaved(session);
     const latest = session.setCustomSlug(task.id, "latest");
     release();
     await Promise.all([held, latest]);
-    await userWork.settle(1_000);
+    await settleUnsaved(session);
     expect(written).toEqual(["latest"]);
     expect(task.customSlug).toBe("latest");
   });
@@ -443,33 +443,29 @@ describe("saved metadata settlement publication", () => {
   });
 
   it("publishes a successful sidecar retry even though the original IPC has already failed", async () => {
-    const writes = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), writes);
+    const { session, task } = arrangeSession(savedTask());
     const visible: Array<string | null> = [];
     session.setSnapshotListener((snapshot) => { visible.push(snapshot.project.tasks[0].customSlug); });
-    writes.beginQuit();
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
-    writes.retry();
-    await writes.settle(1_000);
+    retryUnsaved(session);
+    await settleUnsaved(session);
     expect(task.customSlug).toBe("pier");
     expect(visible).toEqual(["vision-slug", "pier"]);
   });
 
   it("keeps a successful quit retry saved when its settlement notification fails", async () => {
-    const writes = new UserWorkWrites();
-    const { session, task } = arrangeSession(savedTask(), writes);
+    const { session, task } = arrangeSession(savedTask());
     const listener = vi.fn(async () => { throw new Error("window notification failed"); });
     session.setSnapshotListener(listener);
-    writes.beginQuit();
     mocks.writeTaskSidecarFile.mockRejectedValueOnce(persistenceFailure);
     await expect(session.setCustomSlug(task.id, "pier")).rejects.toBe(persistenceFailure);
 
-    writes.retry();
-    await writes.settle(1_000);
+    retryUnsaved(session);
+    await settleUnsaved(session);
 
     expect(task.customSlug).toBe("pier");
-    expect(writes.unsaved()).toEqual({ failed: [], running: [] });
+    expect(describeUnsaved(session.unsavedSidecars())).toEqual({ failed: [], running: [] });
     expect(listener).toHaveBeenCalledTimes(2);
   });
 

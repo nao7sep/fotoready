@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // already closed) will-quit, and the process ends only if neither event was prevented.
 const electron = vi.hoisted(() => {
   const listeners = new Map<string, Array<(event: { preventDefault(): void }) => void>>();
-  const state = { exits: 0, exitCalls: [] as number[] };
+  const state = { exits: 0, exitCalls: [] as number[], exited: [] as Array<() => void> };
   const emit = (name: string): boolean => {
     let prevented = false;
     const event = { preventDefault: () => { prevented = true; } };
@@ -15,6 +15,7 @@ const electron = vi.hoisted(() => {
     if (emit("before-quit")) return;
     if (emit("will-quit")) return;
     state.exits += 1;
+    for (const resolve of state.exited.splice(0)) resolve();
   });
   const exit = vi.fn((code: number) => { state.exitCalls.push(code); });
   const power = new Map<string, (event: { preventDefault(): void }) => void>();
@@ -44,6 +45,14 @@ vi.mock("electron", () => ({
 
 const { followOsShutdown, installQuitShutdown, QUIT_DEADLINE_MS } = await import("@main/bootstrap");
 
+// Resolves once the process has exited: at once when it already has.
+function whenExited(): Promise<void> {
+  return new Promise((resolve) => {
+    if (electron.state.exits > 0) resolve();
+    else electron.state.exited.push(resolve);
+  });
+}
+
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((settle) => { resolve = settle; });
@@ -66,6 +75,7 @@ beforeEach(() => {
   electron.listeners.clear();
   electron.state.exits = 0;
   electron.state.exitCalls = [];
+  electron.state.exited = [];
   electron.quit.mockClear();
   electron.exit.mockClear();
 });
@@ -80,7 +90,8 @@ describe("quit shutdown", () => {
   it("holds every quit while the checks and the stop run, and exits once after the stop", async () => {
     const prepared = deferred<boolean>();
     const stopped = deferred<boolean>();
-    const quitSteps = steps({ prepare: vi.fn(() => prepared.promise), stop: vi.fn(() => stopped.promise) });
+    const stopping = deferred<void>();
+    const quitSteps = steps({ prepare: vi.fn(() => prepared.promise), stop: vi.fn(() => { stopping.resolve(); return stopped.promise; }) });
     const quit = installQuitShutdown(quitSteps);
 
     electron.quit();
@@ -89,14 +100,15 @@ describe("quit shutdown", () => {
     expect(quit.approved()).toBe(false);
 
     prepared.resolve(true);
-    await vi.waitFor(() => expect(quitSteps.stop).toHaveBeenCalledOnce());
+    await stopping.promise;
     expect(quit.approved()).toBe(true);
     electron.quit();
     expect(quitSteps.stop).toHaveBeenCalledOnce();
     expect(electron.state.exits).toBe(0);
 
     stopped.resolve(true);
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(quitSteps.prepare).toHaveBeenCalledOnce();
   });
 
@@ -105,12 +117,13 @@ describe("quit shutdown", () => {
     installQuitShutdown(quitSteps);
 
     electron.quit();
-    await vi.waitFor(() => expect(quitSteps.prepare).toHaveBeenCalledOnce());
+    expect(quitSteps.prepare).toHaveBeenCalledOnce();
     await Promise.resolve();
     expect(quitSteps.stop).not.toHaveBeenCalled();
 
     electron.quit();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
     expect(quitSteps.prepare).toHaveBeenCalledTimes(2);
   });
 
@@ -122,7 +135,8 @@ describe("quit shutdown", () => {
     expect(quit.sessionEnding()).toBe(true);
     expect(quitSteps.answerForSessionEnd).toHaveBeenCalledOnce();
     expect(electron.quit).toHaveBeenCalledOnce();
-    await vi.waitFor(() => expect(electron.state.exits).toBe(1));
+    await whenExited();
+    expect(electron.state.exits).toBe(1);
 
     const asking = installQuitShutdown(steps({ prepare: () => new Promise<boolean>(() => {}) }));
     electron.quit.mockClear();
@@ -159,22 +173,73 @@ describe("the total exit deadline", () => {
     expect(electron.state.exits).toBe(0);
   });
 
-  it("ends an approved quit whose stop stalls, at the deadline counted from approval", async () => {
-    const prepared = deferred<boolean>();
+  it("counts from when the quit begins, the stop drawing on what the user's work left", async () => {
     const forceExit = vi.fn();
-    installQuitShutdown(steps({ prepare: () => prepared.promise, stop: () => new Promise<boolean>(() => {}) }), { deadlineMs: 5_000, forceExit });
+    installQuitShutdown(steps({
+      prepare: async (deadline) => deadline.within(new Promise((resolve) => setTimeout(resolve, 2_000))),
+      stop: () => new Promise<boolean>(() => {})
+    }), { deadlineMs: 5_000, forceExit });
 
     electron.quit();
-    // The questions and the save of the user's work come before approval, however long they take.
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(forceExit).not.toHaveBeenCalled();
-
-    prepared.resolve(true);
     await vi.advanceTimersByTimeAsync(4_999);
     expect(forceExit).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(forceExit).toHaveBeenCalledOnce();
     expect(electron.state.exits).toBe(0);
+  });
+
+  it("pauses while a quit question is open and starts again when the answer arrives", async () => {
+    const answer = deferred<boolean>();
+    const forceExit = vi.fn();
+    installQuitShutdown(steps({ prepare: (deadline) => deadline.ask(() => answer.promise), stop: () => new Promise<boolean>(() => {}) }), { deadlineMs: 5_000, forceExit });
+
+    electron.quit();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(forceExit).not.toHaveBeenCalled();
+
+    answer.resolve(true);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(forceExit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(forceExit).toHaveBeenCalledOnce();
+  });
+
+  it("ends the wait for the user's work when it runs out before approval, so the question is asked instead", async () => {
+    const answer = deferred<boolean>();
+    const forceExit = vi.fn();
+    const waited: boolean[] = [];
+    installQuitShutdown(steps({
+      prepare: async (deadline) => {
+        waited.push(await deadline.within(new Promise(() => {})));
+        return deadline.ask(() => answer.promise);
+      },
+      stop: () => new Promise<boolean>(() => {})
+    }), { deadlineMs: 5_000, forceExit });
+
+    electron.quit();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(waited).toEqual([false]);
+    expect(forceExit).not.toHaveBeenCalled();
+
+    answer.resolve(true);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(forceExit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps running through a question the session end answers", async () => {
+    const forceExit = vi.fn();
+    const quit = installQuitShutdown(steps({
+      prepare: (deadline) => deadline.ask(() => new Promise<boolean>(() => {})),
+      answerForSessionEnd: vi.fn()
+    }), { deadlineMs: 5_000, forceExit });
+
+    electron.quit();
+    await vi.advanceTimersByTimeAsync(60_000);
+    quit.endSession();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(forceExit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(forceExit).toHaveBeenCalledOnce();
   });
 
   it("ends an ending session at the deadline counted from the session end, even while its save is stalled", async () => {

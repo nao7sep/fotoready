@@ -38,7 +38,7 @@ import { revealWindow } from "./reveal-window";
 import type { CloseRequest } from "@shared/types/ipc";
 import { createRecordsReader } from "./records-reader";
 import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
-import { UserWorkWrites, saveUserWorkBeforeQuit, settleWithin, type QuitChoice, type UserWork } from "./quit-save";
+import { describeUnsaved, saveUserWorkBeforeQuit, type QuitChoice, type QuitDeadline, type UnsavedWrite, type UserWork } from "./quit-save";
 import { askDiscardWorkspace, askWorkNotSaved } from "./quit-dialog";
 import { cancelOpenMessageDialogs } from "./plain-message-dialog";
 
@@ -152,14 +152,13 @@ export async function bootstrap(): Promise<void> {
   const loadedState = await loadState(paths.statePath, logger);
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
-  const userWork = new UserWorkWrites();
   if (settingsNotice) await showSettingsNotice(logger, settingsNotice);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   // One image worker per core; how many saves run at once also follows each photo's size (save-admission.ts).
   const cores = Math.max(1, os.cpus().length);
   const pipelineWorkerPool = new PipelineWorkerPool(cores);
   const processingQueue = new ProcessingQueue(cores, settings, pipelineWorkerPool, logger);
-  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
+  const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
   // A folder setting naming an unset variable leaves that kind of asset unrelinked; its listing reports the problem.
   const folderOrNull = (resolve: () => string): string | null => { try { return resolve(); } catch { return null; } };
   projectSession.setAssetFolders(() => ({
@@ -177,7 +176,6 @@ export async function bootstrap(): Promise<void> {
     settingsFile,
     uiState,
     stateCoordinator,
-    userWork,
     projectSession,
     logger,
     version: __APP_VERSION__,
@@ -217,15 +215,18 @@ export async function bootstrap(): Promise<void> {
       return "cancel" as const;
     });
 
+  const unsavedWork = (): UnsavedWrite[] => unsavedUserWork(ipcWork, visionQueue, projectSession);
+
   // One launch = one session. The work above is one-time process init; only the
   // window is (re)created below, so it must never be redone on re-activate.
   // Every quit path (unsaved-edits-conventions, Quitting) first asks the window's pre-quit
   // confirmations and waits for the user's own work, then cancels in-flight saves (unfinished
   // temporary files may remain), lands the last UI state write, and closes the workers and the
-  // records reader, each stage within its bound.
+  // records reader, all within the one exit deadline.
   const quit = installQuitShutdown({
-    prepare: () => prepareQuit({
-      userWork,
+    prepare: (deadline) => prepareQuit({
+      unsavedWork,
+      deadline,
       exitState,
       sessionEnding: () => quit.sessionEnding(),
       confirmWorkspace: () => confirmWorkspaceQuit(mainGuard, projectSession, askDiscardWorkspace),
@@ -239,9 +240,9 @@ export async function bootstrap(): Promise<void> {
     approved: () => ipcWork.closeAdmission(),
     stop: () => stopAppWork({ logger, exitReason: exitState.reason, statePath: paths.statePath,
       stateCoordinator, projectSession, pipelineWorkerPool, recordsReader, storeWriter,
-      userWork, ipcWork, sessionEnding: quit.sessionEnding }),
+      unsavedWork, ipcWork, sessionEnding: quit.sessionEnding }),
     sessionEnded: () => {
-      logger.warn("the session ended before quitting finished", { mod: "main.quit", ...userWork.unsaved() });
+      logger.warn("the session ended before quitting finished", { mod: "main.quit", ...describeUnsaved(unsavedWork()) });
     }
   });
 
@@ -309,25 +310,41 @@ export async function bootstrap(): Promise<void> {
 }
 
 /**
+ * Exported for tests. The user's own work its owners have not saved: the settings chain, the key
+ * store (whose key is saved from Settings) and the output-files lane each report their latest
+ * unsaved write.
+ */
+export function unsavedUserWork(ipcWork: Pick<IpcWork, "unsavedSettings">, visionQueue: Pick<VisionQueue, "unsavedKeyWrite">,
+  projectSession: Pick<ProjectSession, "unsavedSidecars">): UnsavedWrite[] {
+  const settingsWrite = ipcWork.unsavedSettings();
+  const keyWrite = visionQueue.unsavedKeyWrite();
+  return [
+    ...(settingsWrite ? [settingsWrite] : []),
+    ...(keyWrite ? [{ work: { kind: "settings" } as const, ...keyWrite }] : []),
+    ...projectSession.unsavedSidecars()
+  ];
+}
+
+/**
  * Exported for tests. The checks every quit passes before any window closes: the workspace discard
  * question, then the save of the user's own work. An ending session asks nothing, and a question
  * already open when the session starts ending lets the quit go on whatever its answer. Resolves
  * false when the user keeps FotoReady open. Never rejects.
  */
-export async function prepareQuit({ userWork, exitState, sessionEnding, confirmWorkspace, askNotSaved, logger }: {
-  userWork: UserWorkWrites;
+export async function prepareQuit({ unsavedWork, deadline, exitState, sessionEnding, confirmWorkspace, askNotSaved, logger }: {
+  unsavedWork(): UnsavedWrite[];
+  deadline: QuitDeadline;
   exitState: ExitState;
   sessionEnding(): boolean;
   confirmWorkspace(): Promise<boolean>;
   askNotSaved(unsaved: UserWork[]): Promise<QuitChoice>;
   logger: Pick<AppLogger, "info" | "error">;
 }): Promise<boolean> {
-  userWork.beginQuit();
   let go = false;
   try {
     if (exitState.reason !== "window-close") exitState.reason = "user-quit";
-    if (!sessionEnding() && !(await confirmWorkspace()) && !sessionEnding()) return false;
-    go = await saveUserWorkBeforeQuit(userWork, askNotSaved, sessionEnding, logger);
+    if (!sessionEnding() && !(await deadline.ask(confirmWorkspace)) && !sessionEnding()) return false;
+    go = await saveUserWorkBeforeQuit(unsavedWork, deadline, askNotSaved, sessionEnding, logger);
     return go;
   } catch (error) {
     logger.error("quitting could not check the user's work", { mod: "main.quit", err: error });
@@ -335,7 +352,6 @@ export async function prepareQuit({ userWork, exitState, sessionEnding, confirmW
     return go;
   } finally {
     if (!go) {
-      userWork.endQuit();
       exitState.reason = "unknown";
     } else if (sessionEnding()) {
       // Also when the session began ending while an ordinary quit was asking: macOS can send its
@@ -345,16 +361,14 @@ export async function prepareQuit({ userWork, exitState, sessionEnding, confirmW
   }
 }
 
-// How long quitting waits, after the user's own work (QUIT_SAVE_MS), for in-flight saves to stop
-// and the last UI state write to land, then for the workers and the records reader to close, then
-// for the store writer's pending records and backups. They are sub-bounds of QUIT_DEADLINE_MS.
-const QUIT_STOP_MS = 1_500;
-const QUIT_CLOSE_MS = 1_000;
-const QUIT_DRAIN_MS = 1_000;
-
-/** Bootstrap's actual stop wiring: normal teardown is allowed only after owned work settles. */
+/**
+ * Bootstrap's actual stop wiring: in-flight saves stop and the last UI state write lands, then the
+ * workers and the records reader close, then the store writer writes its pending records and
+ * backups. Each step draws on what remains of the exit deadline, which ends FotoReady if one stalls.
+ * Normal teardown is allowed only after owned work settles.
+ */
 export async function stopAppWork({ logger, exitReason, statePath, stateCoordinator, projectSession,
-  pipelineWorkerPool, recordsReader, storeWriter, userWork, ipcWork, sessionEnding }: {
+  pipelineWorkerPool, recordsReader, storeWriter, unsavedWork, ipcWork, sessionEnding }: {
   logger: Pick<AppLogger, "info" | "warn">;
   exitReason: string;
   statePath: string;
@@ -363,7 +377,7 @@ export async function stopAppWork({ logger, exitReason, statePath, stateCoordina
   pipelineWorkerPool: Pick<PipelineWorkerPool, "destroy">;
   recordsReader: Pick<ReturnType<typeof createRecordsReader>, "close">;
   storeWriter: Pick<ReturnType<typeof startStoreWriter>, "close">;
-  userWork: UserWorkWrites;
+  unsavedWork(): UnsavedWrite[];
   ipcWork: IpcWork;
   sessionEnding(): boolean;
 }): Promise<boolean> {
@@ -372,22 +386,21 @@ export async function stopAppWork({ logger, exitReason, statePath, stateCoordina
   const stateSaved = stateCoordinator.flush().catch((error: unknown) => {
     logger.warn("the UI state was not saved before quit", { mod: "main.quit", statePath, err: error });
   });
-  const finished = await settleWithin(Promise.allSettled([projectSession.shutdown(), stateSaved]), QUIT_STOP_MS);
-  if (!finished) logger.warn("in-flight work did not stop in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_STOP_MS });
-  const closed = await settleWithin(Promise.allSettled([pipelineWorkerPool.destroy(), recordsReader.close()]), QUIT_CLOSE_MS);
-  if (!closed) logger.warn("the workers did not close in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_CLOSE_MS });
-  const drained = await storeWriter.close({ drain: !sessionEnding(), timeoutMs: QUIT_DRAIN_MS });
-  if (!drained) logger.warn("the records and backups did not finish writing in time; quitting anyway", { mod: "main.quit", waitMs: QUIT_DRAIN_MS });
+  await Promise.allSettled([projectSession.shutdown(), stateSaved]);
+  await Promise.allSettled([pipelineWorkerPool.destroy(), recordsReader.close()]);
+  // An ending session skips the drain; the batch already sent may still be writing.
+  const drained = await storeWriter.close({ drain: !sessionEnding() });
   // Quit anyway does not cancel primary writes, and IPC may still own native image/file reads.
-  // Their actual settlement (not the earlier bounded wait) decides whether teardown is safe.
-  const writesSettled = userWork.unsaved().running.length === 0;
-  return finished && closed && drained && writesSettled && ipcWork.isIdle();
+  // Their actual settlement decides whether teardown is safe.
+  const writesSettled = !unsavedWork().some((write) => write.running);
+  return drained && writesSettled && ipcWork.isIdle();
 }
 
 /**
- * One total exit deadline, so quitting always ends within a known time: it starts when an ordinary quit is approved, after
- * any questions and Retry choices, or when the OS session end begins, and a later quit request never
- * extends it. An ending session spends at most QUIT_SAVE_MS of it on the user's own work.
+ * One exit deadline, so quitting always ends within a known time: it starts when the quit begins or
+ * the OS session end begins, a quit question pauses it and it starts again when the answer arrives,
+ * and every step — the wait for the user's own work, stopping, closing the workers and draining the
+ * store writer — draws on what remains. A later quit request never extends it.
  */
 export const QUIT_DEADLINE_MS = 5_000;
 
@@ -404,18 +417,19 @@ function killProcess(): void {
 
 export type QuitSteps = {
   /**
-   * Runs before any window closes: the pre-quit confirmations and the save of the user's own work.
-   * Resolves false when the user keeps FotoReady open. Never rejects.
+   * Runs before any window closes: the pre-quit confirmations and the save of the user's own work,
+   * asking its questions through `deadline`. Resolves false when the user keeps FotoReady open.
+   * Never rejects.
    */
-  prepare(): Promise<boolean>;
+  prepare(deadline: QuitDeadline): Promise<boolean>;
   /** Closes new work admission only after the cancelable checks have approved quitting. */
   approved?(): void;
   /** Answers every question still open, as an ending session must not wait on one. */
   answerForSessionEnd(): void;
   /**
-   * Runs once the windows have closed; bounds each of its own waits. Resolves true when every
-   * tracked operation settled (primary writes, IPC, processing, vision, readers and writers), so the
-   * ordinary exit cannot hang on one of them. Never rejects.
+   * Runs once the windows have closed, within what remains of the exit deadline. Resolves true when
+   * every tracked operation settled (primary writes, IPC, processing, vision, readers and writers),
+   * so the ordinary exit cannot hang on one of them. Never rejects.
    */
   stop(): Promise<boolean>;
   /** Records what a Windows session end cut short; the process exits right after. */
@@ -455,24 +469,62 @@ export function installQuitShutdown(
 ): QuitControl {
   let phase: "running" | "preparing" | "approved" | "stopping" | "done" = "running";
   let sessionEnding = false;
-  let deadline: NodeJS.Timeout | null = null;
-  const armDeadline = (): void => {
-    if (deadline !== null) return;
-    deadline = setTimeout(forceExit, deadlineMs);
+  // The exit deadline's timer; null while no quit runs or a question pauses it.
+  let timer: NodeJS.Timeout | null = null;
+  // Whether it ran out during an ordinary quit's checks, and the signal that it did.
+  let ranOut = false;
+  let runOut = (): void => {};
+  let runningOut = new Promise<void>((resolve) => { runOut = resolve; });
+  const startDeadline = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    ranOut = false;
+    runningOut = new Promise<void>((resolve) => { runOut = resolve; });
+    timer = setTimeout(expire, deadlineMs);
+  };
+  const stopDeadline = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  // Before an ordinary quit is approved, running out ends the wait for the user's own work, so its
+  // question is asked instead of the work being lost; after approval, or in an ending session, it
+  // ends FotoReady.
+  function expire(): void {
+    timer = null;
+    if (phase === "preparing" && !sessionEnding) {
+      ranOut = true;
+      runOut();
+    } else forceExit();
+  }
+  const deadline: QuitDeadline = {
+    async ask(question) {
+      if (!sessionEnding) stopDeadline();
+      try {
+        return await question();
+      } finally {
+        // An ending session's deadline already runs from when the session began ending.
+        if (!sessionEnding) startDeadline();
+      }
+    },
+    within: (work) => Promise.race([work.then(() => true, () => true), runningOut.then(() => false)])
   };
   app.on("before-quit", (event) => {
     if (phase === "approved" || phase === "done") return;
     event.preventDefault();
     if (phase !== "running") return;
     phase = "preparing";
-    void steps.prepare().then((go) => {
+    if (!sessionEnding) startDeadline();
+    void steps.prepare(deadline).then((go) => {
       if (!go) {
         phase = "running";
+        stopDeadline();
         return;
       }
       phase = "approved";
       steps.approved?.();
-      armDeadline();
+      if (ranOut) {
+        forceExit();
+        return;
+      }
       app.quit();
     });
   });
@@ -491,7 +543,7 @@ export function installQuitShutdown(
   const endSession = (): void => {
     if (sessionEnding) return;
     sessionEnding = true;
-    armDeadline();
+    if (timer === null) startDeadline();
     steps.answerForSessionEnd();
     if (phase === "running") app.quit();
   };

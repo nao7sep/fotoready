@@ -106,6 +106,11 @@ export class VisionQueue {
     await this.#apiKeys.clear("gemini");
   }
 
+  /** The key store's latest write while it is not saved. */
+  unsavedKeyWrite(): ReturnType<ApiKeyStore["unsavedWrite"]> {
+    return this.#apiKeys.unsavedWrite();
+  }
+
   /**
    * Schedules a vision run and resolves when it settles. The task's running flags are set before the
    * first await, so a caller may publish them right after calling.

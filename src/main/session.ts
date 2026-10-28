@@ -38,7 +38,7 @@ import { isTaskBusyForRemoval } from "@main/task-removal";
 import { message } from "@shared/i18n/translate";
 import { mainTranslator } from "@main/i18n";
 import { resolveConfiguredPath } from "@main/configured-path";
-import { UserWorkWrites } from "@main/quit-save";
+import type { UnsavedWrite, UserWork } from "@main/quit-save";
 
 export type ProjectSessionSnapshot = {
   project: Project;
@@ -66,6 +66,9 @@ export class ProjectSession {
   #shutdown = new AbortController();
   // Retry identity belongs to the authored field; removed tasks are retained only by admitted work.
   #metadataIntents = new WeakMap<Task, Map<string, { value?: boolean }>>();
+  // Sidecar writes of the user's own work that are not saved: running, or failed while their change
+  // is still the latest for its field. A quit waits for or asks about them.
+  #unsavedSidecars = new Set<UnsavedWrite & { current(): boolean }>();
 
   constructor(
     private readonly settings: GlobalSettings,
@@ -73,8 +76,7 @@ export class ProjectSession {
     private readonly processingQueue: ProcessingQueue,
     workerPool: PipelineWorkerPool,
     private readonly bundledStampsDir: string,
-    private readonly logger?: AppLogger,
-    private readonly userWork: UserWorkWrites = new UserWorkWrites()
+    private readonly logger?: AppLogger
   ) {
     this.#project = createEmptyProject(settings.defaultOutputDirectory.trim() ? settings.defaultOutputDirectory : null);
     this.#previewService = new PreviewService(workerPool);
@@ -937,7 +939,7 @@ export class ProjectSession {
     // state, and a failed write rolls back only its own change, never a later one. The sidecar is
     // the user's own work, so a quit waits for the write and can run it again.
     const file = path.basename(currentSidecarPath(task.output));
-    return this.userWork.run({ kind: "sidecar", file }, (retrying) => this.#serializeOutputFiles(async () => {
+    return this.#writeSidecar({ kind: "sidecar", file }, (retrying) => this.#serializeOutputFiles(async () => {
       if (retrying && !retryIsCurrent()) return false;
       const before = captureTaskMetadata(task);
       if (!apply()) return false;
@@ -960,6 +962,29 @@ export class ProjectSession {
       }
       return true;
     }), retryIsCurrent);
+  }
+
+  /** The sidecar writes that are not saved, for the quit. */
+  unsavedSidecars(): UnsavedWrite[] {
+    for (const write of this.#unsavedSidecars) if (!write.running && !write.current()) this.#unsavedSidecars.delete(write);
+    return [...this.#unsavedSidecars];
+  }
+
+  #writeSidecar(work: UserWork, write: (retrying: boolean) => Promise<boolean>, current: () => boolean, retrying = false): Promise<boolean> {
+    const settled = write(retrying);
+    const entry = {
+      work,
+      running: true,
+      settled,
+      current,
+      retry: () => {
+        this.#unsavedSidecars.delete(entry);
+        void this.#writeSidecar(work, write, current, true).catch(() => undefined);
+      }
+    };
+    this.#unsavedSidecars.add(entry);
+    settled.then(() => this.#unsavedSidecars.delete(entry), () => { entry.running = false; });
+    return settled;
   }
 
   private recordTaskEdit(task: Task, options?: TaskEditOptions): void {

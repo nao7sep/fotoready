@@ -2,7 +2,6 @@ import { Worker } from "node:worker_threads";
 import type { BackupWrite } from "./backup-tables";
 import type { RecordRow } from "./records-tables";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "./store-writer-protocol";
-import { settleWithin } from "./quit-save";
 
 export type StoreWriterOptions = StoreWriterData & {
   /** Logs a failure the writer reported, such as a backup that could not be recorded. */
@@ -20,11 +19,11 @@ export interface StoreWriter {
   /** Called after each batch the database stored records from; the Records window follows it. */
   onStored(listener: () => void): void;
   /**
-   * Stops the writer. With `drain`, the pending writes get up to `timeoutMs` (ordinary quit) and it
-   * resolves whether they finished in time; without it they are skipped (OS session end) and it
-   * resolves whether the writer was idle, so nothing it was writing can hold the exit. Never rejects.
+   * Stops the writer. With `drain` (ordinary quit), the pending writes are written first, within what
+   * remains of the exit deadline, and it resolves true; without it they are skipped (OS session end)
+   * and it resolves whether the writer was idle, so nothing it was writing can hold the exit. Never rejects.
    */
-  close(options: { drain: boolean; timeoutMs: number }): Promise<boolean>;
+  close(options: { drain: boolean }): Promise<boolean>;
 }
 
 /** Starts the one writer of records.sqlite3 and backups.sqlite3 on its own worker thread. */
@@ -124,23 +123,21 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
     onStored(listener) {
       storedListener = listener;
     },
-    async close({ drain, timeoutMs }) {
+    async close({ drain }) {
       if (stopped) return true;
       if (!drain) {
         const idle = !inFlight;
         stop(null);
         return idle;
       }
-      const drained = (async () => {
-        await whenIdle();
-        if (stopped) return;
+      await whenIdle();
+      if (!stopped) {
         const closed = new Promise<void>((resolve) => { closedWaiter = resolve; });
         worker.postMessage({ kind: "close" } satisfies StoreWriterRequest);
         await closed;
-      })();
-      const finished = await settleWithin(drained, timeoutMs);
+      }
       stop(null);
-      return finished;
+      return true;
     }
   };
 }

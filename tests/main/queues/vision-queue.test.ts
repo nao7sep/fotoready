@@ -230,7 +230,7 @@ describe("VisionQueue with a locked records store", () => {
     } finally {
       held.exec("ROLLBACK");
       held.close();
-      await writer.close({ drain: true, timeoutMs: 10_000 });
+      await writer.close({ drain: true });
     }
     const check = new DatabaseSync(recordsPath);
     const fallback = await fs.readFile(fallbackFile(path.join(tempDir, "logs"), sessionStart), "utf8").catch(() => "");

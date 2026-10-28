@@ -83,7 +83,6 @@ describe("a store left as it is at load", () => {
       logger,
       settings: {},
       paths: {},
-      userWork: { run: (_kind: unknown, work: () => Promise<unknown>) => work() },
       projectSession: { setSnapshotListener: () => {}, setGeminiApiKey: async () => { throw refused; } },
       records: { reader: { read: vi.fn(), close: async () => {} }, session: "s1", openWindow: vi.fn() }
     } as unknown as RouterContext);

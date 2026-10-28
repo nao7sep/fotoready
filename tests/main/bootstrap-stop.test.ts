@@ -35,8 +35,10 @@ vi.mock("sharp", () => ({ default: () => ({
   resize() { return this; }, jpeg() { return this; }, toBuffer: () => boundary.readImage(),
 }) }));
 const { app } = await import("electron");
-const { installQuitShutdown, stopAppWork } = await import("@main/bootstrap");
-const { UserWorkWrites, saveUserWorkBeforeQuit } = await import("@main/quit-save");
+const { installQuitShutdown, stopAppWork, unsavedUserWork, QUIT_DEADLINE_MS } = await import("@main/bootstrap");
+const { saveUserWorkBeforeQuit } = await import("@main/quit-save");
+const { ApiKeyStore } = await import("@adapters/api-keys");
+type QuitDeadline = import("@main/quit-save").QuitDeadline;
 const { registerIpcHandlers } = await import("@main/ipc-router");
 const { VisionQueue } = await import("@main/queues/vision");
 const { ProjectSession } = await import("@main/session");
@@ -58,20 +60,20 @@ afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); }
 
 function owners(prepareInput: () => Promise<{ bytes: Buffer; width: number; height: number }> = async () => ({ bytes: Buffer.from("image"), width: 4, height: 3 })) {
   const settings = defaultGlobalSettings();
-  const userWork = new UserWorkWrites();
   const queue = new VisionQueue({ apiKeysPath: "/unused/api-keys.json" } as AppPaths, settings, undefined, undefined, {
     createProvider: () => ({ describeImage: async () => "A photo", suggestSlugs: async () => ["photo"] }), prepareInput,
   });
-  const session = new ProjectSession(settings, queue, { shutdown: async () => {} } as never, null as never, "/unused", undefined, userWork);
-  const ipcWork = registerIpcHandlers({ settings, projectSession: session, logger, userWork } as unknown as RouterContext);
+  const session = new ProjectSession(settings, queue, { shutdown: async () => {} } as never, null as never, "/unused", undefined);
+  const ipcWork = registerIpcHandlers({ settings, projectSession: session, logger } as unknown as RouterContext);
+  const unsavedWork = () => unsavedUserWork(ipcWork, queue, session);
   const stop = () => stopAppWork({ logger, exitReason: "user-quit", statePath: "/unused/state.json",
     stateCoordinator: { flush: async () => {} }, projectSession: session,
     pipelineWorkerPool: { destroy: async () => {} }, recordsReader: { close: async () => {} },
-    storeWriter: { close: async () => true }, userWork, ipcWork, sessionEnding: () => false,
+    storeWriter: { close: async () => true }, unsavedWork, ipcWork, sessionEnding: () => false,
   });
-  return { userWork, queue, session, ipcWork, stop };
+  return { unsavedWork, queue, session, ipcWork, stop };
 }
-function quitWith(owner: ReturnType<typeof owners>, prepare = async () => true) {
+function quitWith(owner: ReturnType<typeof owners>, prepare: (deadline: QuitDeadline) => Promise<boolean> = async () => true) {
   const forceExit = vi.fn();
   installQuitShutdown({ prepare, approved: owner.ipcWork.closeAdmission, stop: owner.stop,
     answerForSessionEnd() {}, sessionEnded() {},
@@ -80,32 +82,22 @@ function quitWith(owner: ReturnType<typeof owners>, prepare = async () => true) 
   return forceExit;
 }
 
-it("uses force exit when Quit anyway leaves a primary settings write running through the real stop", async () => {
+it("asks once the deadline runs out, and force exits when Quit anyway leaves an API-key save running", async () => {
   const owner = owners();
   const write = deferred<void>();
-  const running = owner.userWork.run({ kind: "settings" }, () => write.promise);
+  vi.spyOn(ApiKeyStore.prototype as unknown as { write(): Promise<void> }, "write").mockReturnValue(write.promise);
+  const save = boundary.handlers.get("settings.setGeminiApiKey")!("synthetic-key");
   const ask = vi.fn(async () => "quit" as const);
-  const force = quitWith(owner, async () => {
-    owner.userWork.beginQuit();
-    return saveUserWorkBeforeQuit(owner.userWork, ask, () => false, logger);
-  });
-  await vi.advanceTimersByTimeAsync(2_000);
-  expect(ask).toHaveBeenCalledOnce();
+  const force = quitWith(owner, (deadline) => saveUserWorkBeforeQuit(owner.unsavedWork, deadline, ask, () => false, logger));
+  await vi.advanceTimersByTimeAsync(QUIT_DEADLINE_MS - 1);
+  expect(ask).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(ask).toHaveBeenCalledExactlyOnceWith([{ kind: "settings" }]);
   expect(force).toHaveBeenCalledOnce();
   expect(boundary.exits).toBe(0);
-  write.resolve(); await running;
-});
-
-it("keeps an admitted API-key save owned after Quit anyway", async () => {
-  const owner = owners();
-  const write = deferred<void>();
-  vi.spyOn(owner.session, "setGeminiApiKey").mockReturnValue(write.promise);
-  const save = boundary.handlers.get("settings.setGeminiApiKey")!("synthetic-key");
-  const force = quitWith(owner, () => saveUserWorkBeforeQuit(owner.userWork, async () => "quit", () => false, logger));
-  await vi.advanceTimersByTimeAsync(2_000);
-  expect(force).toHaveBeenCalledOnce();
-  expect(owner.userWork.unsaved().running).toHaveLength(1);
+  expect(owner.unsavedWork().filter((unsaved) => unsaved.running)).toHaveLength(1);
   write.resolve(); await save;
+  expect(owner.unsavedWork()).toEqual([]);
   expect(owner.ipcWork.isIdle()).toBe(true);
 });
 
@@ -122,7 +114,9 @@ it("includes a description held at its image-read boundary in session shutdown",
   await vi.advanceTimersByTimeAsync(0);
   expect(prepare).toHaveBeenCalledOnce();
   const force = quitWith(owner);
-  await vi.advanceTimersByTimeAsync(1_500);
+  await vi.advanceTimersByTimeAsync(QUIT_DEADLINE_MS - 1);
+  expect(force).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
   expect(force).toHaveBeenCalledOnce();
   expect(boundary.exits).toBe(0);
   await owner.queue.runForTask(project, task.id, { mode: "description" }, { running: () => {}, step: async () => false });

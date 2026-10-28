@@ -2,14 +2,9 @@ import { Worker } from "node:worker_threads";
 import type { RecordsRead, RecordsReadResults } from "@shared/records";
 import type { RecordsWorkerData, RecordsWorkerRequest, RecordsWorkerResponse } from "./records-queries";
 
-/** How long one read may take before the window is told it failed (PLAYBOOK, Bound every external wait). */
-export const RECORDS_READ_TIMEOUT_MS = 10_000;
-/** How long quitting waits for the worker to stop. */
-const CLOSE_TIMEOUT_MS = 2_000;
-
 export interface RecordsReader {
   read<R extends RecordsRead>(read: R): Promise<RecordsReadResults[R["op"]]>;
-  /** Stops the worker, within a bound; reads after it fail. Never rejects. */
+  /** Stops the worker; reads after it fail. Never rejects. Quitting bounds the wait. */
   close(): Promise<void>;
 }
 
@@ -17,41 +12,24 @@ type Pending = {
   worker: Worker;
   resolve: (value: never) => void;
   reject: (error: Error) => void;
-  timer: NodeJS.Timeout;
 };
 
 /**
  * Reads records.sqlite3 for the Records window on one worker thread, started at the first read. A
- * read that does not answer in time fails, and the worker is replaced, since a timeout alone would
- * not stop the query it gave up on; a worker that fails is replaced at the next read.
+ * local read gets no timeout; a worker that fails or exits fails its waiting reads and is replaced
+ * at the next read.
  */
-export function createRecordsReader(
-  databasePath: string,
-  { timeoutMs = RECORDS_READ_TIMEOUT_MS }: { timeoutMs?: number } = {}
-): RecordsReader {
+export function createRecordsReader(databasePath: string): RecordsReader {
   let worker: Worker | null = null;
   let closed = false;
   let nextId = 1;
   const pending = new Map<number, Pending>();
-  const retiring = new Set<Promise<void>>();
-  const retirement = new WeakMap<Worker, Promise<void>>();
-
-  const retire = (current: Worker): Promise<void> => {
-    const existing = retirement.get(current);
-    if (existing) return existing;
-    const stopped = current.terminate().then(() => undefined, () => undefined);
-    retirement.set(current, stopped);
-    retiring.add(stopped);
-    void stopped.then(() => retiring.delete(stopped));
-    return stopped;
-  };
 
   // Fails the reads waiting on `owner`, or on any worker.
   const fail = (error: Error, owner?: Worker): void => {
     for (const [id, read] of pending) {
       if (owner !== undefined && read.worker !== owner) continue;
       pending.delete(id);
-      clearTimeout(read.timer);
       read.reject(error);
     }
   };
@@ -59,7 +37,7 @@ export function createRecordsReader(
   const discard = (current: Worker, error: Error): void => {
     if (worker === current) worker = null;
     fail(error, current);
-    void retire(current);
+    void current.terminate().catch(() => undefined);
   };
 
   const ensureWorker = (): Worker => {
@@ -73,7 +51,6 @@ export function createRecordsReader(
       const read = pending.get(message.id);
       if (!read) return;
       pending.delete(message.id);
-      clearTimeout(read.timer);
       if (message.ok) read.resolve(message.value as never);
       else read.reject(new Error(message.error));
     });
@@ -97,12 +74,7 @@ export function createRecordsReader(
           reject(error instanceof Error ? error : new Error(String(error)));
           return;
         }
-        const timer = setTimeout(
-          () => discard(current, new Error(`The records read did not finish within ${timeoutMs} ms.`)),
-          timeoutMs
-        );
-        timer.unref();
-        pending.set(id, { worker: current, resolve: resolve as (value: never) => void, reject, timer });
+        pending.set(id, { worker: current, resolve: resolve as (value: never) => void, reject });
         current.postMessage({ id, read } satisfies RecordsWorkerRequest);
       });
     },
@@ -111,17 +83,7 @@ export function createRecordsReader(
       const current = worker;
       worker = null;
       fail(new Error("The records reader is closed."));
-      if (current !== null) void retire(current);
-      if (retiring.size === 0) return;
-      let timer: NodeJS.Timeout | undefined;
-      const timeout = new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, CLOSE_TIMEOUT_MS);
-      });
-      try {
-        await Promise.race([Promise.all([...retiring]), timeout]);
-      } finally {
-        clearTimeout(timer);
-      }
+      if (current !== null) await current.terminate().catch(() => undefined);
     }
   };
 }

@@ -27,8 +27,8 @@ afterEach(async () => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-function reader(options?: { timeoutMs?: number }): RecordsReader {
-  const created = createRecordsReader(dbFile(), options);
+function reader(): RecordsReader {
+  const created = createRecordsReader(dbFile());
   readers.push(created);
   return created;
 }

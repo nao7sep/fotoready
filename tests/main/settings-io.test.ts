@@ -7,7 +7,6 @@ import { defaultGlobalSettings } from "@shared/defaults";
 import { multiline, singleLine } from "@shared/text-cleanup";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { AppLogger } from "@main/logger";
-import { PublishedWriteError } from "@adapters/atomic-file";
 
 const ENV_VAR = "FOTOREADY_DATA_DIR";
 const prevHome = process.env[ENV_VAR];
@@ -88,37 +87,6 @@ describe("the settings format version", () => {
 });
 
 describe("settings by set", () => {
-  it.runIf(process.platform !== "win32")("keeps a published choice in the held settings after directory sync fails and another set is saved", async () => {
-    const loaded = await loadSettings(settingsPath());
-    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const failure = Object.assign(new Error("directory sync failed"), { code: "EIO" });
-    const open = fs.open.bind(fs);
-    const directorySync = vi.fn();
-    let injected = false;
-    vi.spyOn(fs, "open").mockImplementation(async (...args) => {
-      const file = await open(...args);
-      if (args[0] === dir && !injected) {
-        injected = true;
-        vi.spyOn(file, "sync").mockImplementationOnce(async () => { directorySync(); throw failure; });
-      }
-      return file;
-    });
-
-    const first = await saveSettings(loaded.file, { ...loaded.settings, defaultWebpQuality: 71 }, loaded.settings, logger);
-    expect(directorySync).toHaveBeenCalledOnce();
-    expect(first.defaultWebpQuality).toBe(71);
-    expect(await written()).toEqual({ defaultWebpQuality: 71 });
-    // Reuse the same file authority as the app, rather than reloading and masking stale stored sets.
-    const second = await saveSettings(loaded.file, { ...first, confirmDeleteTasks: false }, first, logger);
-    expect(second).toMatchObject({ defaultWebpQuality: 71, confirmDeleteTasks: false });
-    expect(await written()).toEqual({ defaultWebpQuality: 71, confirmDeleteTasks: false });
-    expect(logger.warn).toHaveBeenCalledExactlyOnceWith("settings published with durability uncertain", {
-      mod: "settings", filePath: settingsPath(),
-      err: expect.objectContaining({ name: "PublishedWriteError", filePath: settingsPath(), cause: failure })
-    });
-    expect(logger.warn.mock.calls[0]![1].err).toBeInstanceOf(PublishedWriteError);
-  });
-
   it("keeps a TIFF output default through saving and reopening", async () => {
     expect((await save({ defaultOutputFormat: "tiff" })).defaultOutputFormat).toBe("tiff");
     expect(await written()).toEqual({ defaultOutputFormat: "tiff" });

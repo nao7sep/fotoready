@@ -9,7 +9,7 @@ import { validateOpInstance } from "@shared/validation/ops";
 import { validateOutputSettings } from "@shared/validation/pipeline";
 import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
-import { atomicWriteFile, PublishedWriteError } from "@adapters/atomic-file";
+import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
@@ -34,7 +34,7 @@ export function currentSidecarPath(output: TaskOutput): string {
 }
 
 /** Writes the task's sidecar beside `outputPath`, or at `sidecarPath` when the task already has one elsewhere. */
-export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline, sidecarPath = sidecarPathForOutput(outputPath), logger?: Logger): Promise<string> {
+export async function writeTaskSidecarFile(outputPath: string, original: Original, task: Task, pipeline: Pipeline, sidecarPath = sidecarPathForOutput(outputPath)): Promise<string> {
   const payload = createTaskSidecar({
     original: {
       fileName: path.basename(original.sourcePath),
@@ -52,14 +52,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
   });
   // not recorded: the sidecar is output, like the saved image it sits beside; once the app hands
   // them to the user, the user owns them (data-backup-conventions, What is protected).
-  try {
-    await atomicWriteFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, payload));
-  } catch (error) {
-    if (!(error instanceof PublishedWriteError)) throw error;
-    // Publication is factual even when the filesystem cannot confirm crash durability. Treating
-    // this as an unpublished sidecar would remove its image or roll back already-landed edits.
-    logger?.warn("sidecar published with durability uncertain", { mod: "main.task-sidecar", filePath: sidecarPath, err: error });
-  }
+  await atomicWriteFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, payload));
   return sidecarPath;
 }
 

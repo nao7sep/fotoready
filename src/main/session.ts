@@ -858,7 +858,7 @@ export class ProjectSession {
   /** Rewrites the task's sidecar from its current state, where it is now. Runs inside the output-files lane. */
   private async writeOutputSidecarIfSaved(task: Task, original: Original): Promise<void> {
     if (!task.output) return;
-    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output), this.logger);
+    await writeTaskSidecarFile(task.output.finalPath ?? task.output.stagedPath, original, task, task.pipeline, currentSidecarPath(task.output));
   }
 
   #serializeOutputFiles<T>(work: () => Promise<T>): Promise<T> {

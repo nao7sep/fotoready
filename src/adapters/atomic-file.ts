@@ -1,17 +1,6 @@
 import fs, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 
-/** The new bytes are published; a later failure left their durability uncertain. */
-export class PublishedWriteError extends Error {
-  readonly filePath: string;
-
-  constructor(filePath: string, cause: unknown) {
-    super(`The write to ${filePath} was published, but its durability is uncertain.`, { cause });
-    this.name = "PublishedWriteError";
-    this.filePath = filePath;
-  }
-}
-
 export type AtomicWriteOptions = {
   encoding?: BufferEncoding;
   /**
@@ -22,11 +11,11 @@ export type AtomicWriteOptions = {
    */
   mode?: number;
   /**
-   * Called with the exact bytes just published, strictly AFTER the rename lands and before the directory
-   * is synced. This is the seam the managed-text choke point (`@main/write-managed-file`) uses to hand the
+   * Called with the exact bytes just written, strictly AFTER the rename lands and only when the write
+   * succeeded. This is the seam the managed-text choke point (`@main/write-managed-file`) uses to hand the
    * on-disk bytes to the data-backup layer without this low-level, layer-neutral writer having to know
-   * about the store. A later directory-sync failure does not undo publication or this record. Any throw
-   * from the hook propagates (the managed-text hook is itself best-effort, so it never throws).
+   * about the store. Any throw from the hook propagates (the managed-text hook is itself best-effort, so it
+   * never throws).
    * Left undefined by every non-recorded caller (secrets, output sidecars, binaries).
    */
   afterWrite?: (bytes: Buffer) => void;
@@ -56,12 +45,8 @@ export async function atomicWriteFile(
   // buffer uses the same encoding as the write below.
   const bytes = typeof data === "string" ? Buffer.from(data, opts.encoding ?? "utf8") : data;
   // A write that changes nothing is skipped (content-lifecycle conventions, Files): no replace and no
-  // after-write record. Syncing the existing bytes and directory also repairs a previous write whose
-  // publication succeeded but durability could not be confirmed. An explicit mode still applies.
-  if (await skipUnchanged(filePath, bytes, opts)) {
-    await syncPublishedDirectory(filePath);
-    return;
-  }
+  // after-write record. An explicit mode still applies to the file as it is.
+  if (await skipUnchanged(filePath, bytes, opts)) return;
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   const tmpPath = temporaryPathFor(filePath);
@@ -93,14 +78,12 @@ export async function atomicWriteFile(
   // after-write hook (only the managed-text choke point supplies one). Recording before the rename would
   // risk a "backup of a save that never happened" (data-backup conventions).
   opts.afterWrite?.(bytes);
-  await syncPublishedDirectory(filePath);
 }
 
 /** Equality and an explicit access repair belong to the inspected file descriptor. */
 async function skipUnchanged(filePath: string, bytes: Buffer, opts: AtomicWriteOptions): Promise<boolean> {
   let file: Awaited<ReturnType<typeof fs.open>>;
-  // Windows FlushFileBuffers needs a writable handle, even when only confirming existing bytes.
-  try { file = await fs.open(filePath, process.platform === "win32" ? "r+" : "r"); } catch (error) {
+  try { file = await fs.open(filePath, "r"); } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
   }
@@ -108,44 +91,12 @@ async function skipUnchanged(filePath: string, bytes: Buffer, opts: AtomicWriteO
   try {
     if (!(await file.readFile()).equals(bytes)) return false;
     if (opts.mode !== undefined && process.platform !== "win32") await file.chmod(opts.mode);
-    try { await file.sync(); } catch (error) { throw new PublishedWriteError(filePath, error); }
     return true;
   } catch (error) {
     failed = true;
     throw error;
   } finally {
     await closeFile(file, filePath, failed, "inspected");
-  }
-}
-
-/** Node cannot reliably sync directories on Windows; unsupported POSIX filesystems are best-effort. */
-async function syncDirectory(dir: string): Promise<void> {
-  if (process.platform === "win32") return;
-  let file: FileHandle;
-  try { file = await fs.open(dir, "r"); } catch (error) {
-    if (directorySyncUnsupported(error)) return;
-    throw error;
-  }
-  let failed = false;
-  try {
-    await file.sync();
-  } catch (error) {
-    if (!directorySyncUnsupported(error)) {
-      failed = true;
-      throw error;
-    }
-  } finally {
-    await closeFile(file, dir, failed, "directory");
-  }
-}
-
-function directorySyncUnsupported(error: unknown): boolean {
-  return ["ENOTSUP", "EOPNOTSUPP", "EINVAL", "ENOSYS"].includes((error as NodeJS.ErrnoException).code ?? "");
-}
-
-async function syncPublishedDirectory(filePath: string): Promise<void> {
-  try { await syncDirectory(path.dirname(filePath)); } catch (error) {
-    throw new PublishedWriteError(filePath, error);
   }
 }
 

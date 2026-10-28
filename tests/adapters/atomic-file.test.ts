@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { atomicWriteFile, PublishedWriteError, temporaryPathFor } from "@adapters/atomic-file";
+import { atomicWriteFile, temporaryPathFor } from "@adapters/atomic-file";
 import { asPlatform } from "../helpers/platform";
 
 const isPosix = process.platform !== "win32";
@@ -186,20 +186,19 @@ describe("atomicWriteFile", () => {
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
   });
 
-  it.runIf(isPosix)("syncs bytes and permissions before publication, then records the exact bytes before syncing the directory", async () => {
+  it.runIf(isPosix)("syncs bytes and permissions before publication, then records the exact bytes", async () => {
     const events: string[] = [];
     const open = fsp.open.bind(fsp);
     vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
       const file = await open(...args);
-      const directory = args[0] === tmpDir;
       const write = file.writeFile.bind(file);
       const chmod = file.chmod.bind(file);
       const sync = file.sync.bind(file);
       const close = file.close.bind(file);
       vi.spyOn(file, "writeFile").mockImplementation(async (...writeArgs) => { events.push("write"); await write(...writeArgs); });
       vi.spyOn(file, "chmod").mockImplementation(async (mode) => { events.push("chmod"); await chmod(mode); });
-      vi.spyOn(file, "sync").mockImplementation(async () => { events.push(directory ? "directory sync" : "file sync"); await sync(); });
-      vi.spyOn(file, "close").mockImplementation(async () => { events.push(directory ? "directory close" : "file close"); await close(); });
+      vi.spyOn(file, "sync").mockImplementation(async () => { events.push("file sync"); await sync(); });
+      vi.spyOn(file, "close").mockImplementation(async () => { events.push("file close"); await close(); });
       return file;
     });
     const rename = fsp.rename.bind(fsp);
@@ -211,11 +210,11 @@ describe("atomicWriteFile", () => {
       expect(fs.readFileSync(filePath).equals(bytes)).toBe(true);
     });
     await atomicWriteFile(filePath, bytes, { mode: 0o640, afterWrite });
-    expect(events).toEqual(["write", "chmod", "file sync", "file close", "rename", "afterWrite", "directory sync", "directory close"]);
+    expect(events).toEqual(["write", "chmod", "file sync", "file close", "rename", "afterWrite"]);
     expect(afterWrite).toHaveBeenCalledOnce();
     events.length = 0;
     await atomicWriteFile(filePath, bytes, { mode: 0o600, afterWrite });
-    expect(events).toEqual(["chmod", "file sync", "file close", "directory sync", "directory close"]);
+    expect(events).toEqual(["chmod", "file close"]);
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
     expect(afterWrite).toHaveBeenCalledOnce();
   });
@@ -262,57 +261,6 @@ describe("atomicWriteFile", () => {
     expect(fs.existsSync(filePath)).toBe(false);
     expect(fs.existsSync(temporaryPathFor(filePath))).toBe(false);
   });
-
-  it.runIf(isPosix).each(["open", "sync"] as const)("reports publication when directory %s fails and repairs durability on an unchanged retry", async (operation) => {
-    const failure = Object.assign(new Error("directory unavailable"), { code: "EIO" });
-    const open = fsp.open.bind(fsp);
-    let fail = true;
-    const fileSync = vi.fn();
-    const directorySync = vi.fn();
-    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
-      const directory = args[0] === tmpDir;
-      if (directory && operation === "open" && fail) { fail = false; throw failure; }
-      const file = await open(...args);
-      const sync = file.sync.bind(file);
-      vi.spyOn(file, "sync").mockImplementation(async () => {
-        if (directory) {
-          directorySync();
-          if (operation === "sync" && fail) { fail = false; throw failure; }
-        } else fileSync();
-        await sync();
-      });
-      return file;
-    });
-    const publish = vi.spyOn(fsp, "rename");
-    const afterWrite = vi.fn();
-    const writing = atomicWriteFile(filePath, "published", { afterWrite });
-    await expect(writing).rejects.toMatchObject({ name: "PublishedWriteError", filePath, cause: failure });
-    await expect(writing).rejects.toBeInstanceOf(PublishedWriteError);
-    expect(await fsp.readFile(filePath, "utf8")).toBe("published");
-    expect(fs.existsSync(temporaryPathFor(filePath))).toBe(false);
-    expect(afterWrite).toHaveBeenCalledExactlyOnceWith(Buffer.from("published"));
-
-    await atomicWriteFile(filePath, "published", { afterWrite });
-    expect(fileSync).toHaveBeenCalledTimes(2);
-    expect(directorySync).toHaveBeenCalledTimes(operation === "open" ? 1 : 2);
-    expect(publish).toHaveBeenCalledOnce();
-    expect(afterWrite).toHaveBeenCalledOnce();
-  });
-
-  it.runIf(isPosix).each(["ENOTSUP", "EOPNOTSUPP", "EINVAL", "ENOSYS"].flatMap((code) =>
-    ["open", "sync"].map((operation) => ({ code, operation }))
-  ))("tolerates unsupported directory $operation ($code), preserving the published file", async ({ code, operation }) => {
-    const open = fsp.open.bind(fsp);
-    const unsupported = Object.assign(new Error("unsupported"), { code });
-    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
-      if (args[0] === tmpDir && operation === "open") throw unsupported;
-      const file = await open(...args);
-      if (args[0] === tmpDir) vi.spyOn(file, "sync").mockRejectedValueOnce(unsupported);
-      return file;
-    });
-    await atomicWriteFile(filePath, "published");
-    expect(await fsp.readFile(filePath, "utf8")).toBe("published");
-  });
 });
 
 describe("atomicWriteFile on Windows", () => {
@@ -329,7 +277,7 @@ describe("atomicWriteFile on Windows", () => {
     const pathChmod = vi.spyOn(fsp, "chmod");
     const open = fsp.open.bind(fsp);
     const openedFiles: string[] = [];
-    const opened = vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
+    vi.spyOn(fsp, "open").mockImplementation(async (...args) => {
       const file = await open(...args);
       openedFiles.push(String(args[0]));
       const handleChmod = file.chmod.bind(file);
@@ -343,10 +291,8 @@ describe("atomicWriteFile on Windows", () => {
     });
     expect(chmod).not.toHaveBeenCalled();
     expect(pathChmod).not.toHaveBeenCalled();
-    expect(opened.mock.calls.filter(([file]) => file === filePath).every(([, flags]) => flags === "r+")).toBe(true);
     expect(openedFiles).toContain(temporaryPathFor(filePath));
     expect(openedFiles).toContain(filePath);
-    expect(openedFiles).not.toContain(tmpDir);
     expect(await fsp.readFile(filePath, "utf8")).toBe("new key");
   });
 });

@@ -1,4 +1,3 @@
-import { PublishedWriteError } from "@adapters/atomic-file";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
@@ -160,11 +159,7 @@ export async function saveSettings(
   // First run writes nothing while every set is at its built-in (config-sets-conventions).
   if (Object.keys(next).length === 0 && !(await fileExists(file.path))) return effective;
   // recorded: durable config sets use the managed atomic write and backup history.
-  try { await writeManagedFile(file.path, versionedJson(FORMAT_VERSIONS.config, next)); }
-  catch (error) {
-    if (!(error instanceof PublishedWriteError)) throw error;
-    logger?.warn("settings published with durability uncertain", { mod: "settings", filePath: file.path, err: error });
-  }
+  await writeManagedFile(file.path, versionedJson(FORMAT_VERSIONS.config, next));
   file.stored = next;
   return effective;
 }

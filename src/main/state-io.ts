@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } from "@shared/validation/state";
 import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
-import { atomicWriteFile, PublishedWriteError } from "@adapters/atomic-file";
+import { atomicWriteFile } from "@adapters/atomic-file";
 import type { AppLogger } from "./logger";
 
 export type LoadedState = {
@@ -63,11 +63,7 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
   // not recorded: state.json is UI state (pane widths, histogram placement), not the user's work.
-  try { await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized)); }
-  catch (error) {
-    if (!(error instanceof PublishedWriteError)) throw error;
-    console.warn("[state] state published with durability uncertain", { statePath, error });
-  }
+  await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized));
 }
 
 export type StateCoordinator = {

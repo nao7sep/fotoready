@@ -8,7 +8,6 @@ import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { ProcessingQueue } from "@main/queues/processing-queue";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { message } from "@shared/i18n/translate";
-import { PublishedWriteError } from "@adapters/atomic-file";
 import { DatabaseSync } from "node:sqlite";
 import { createLogger } from "@main/logger";
 import { createRecordsStore } from "@main/records-store";
@@ -251,44 +250,6 @@ describe("processTask after the save completes", () => {
 });
 
 describe("processTask sidecar failure", () => {
-  it.runIf(process.platform !== "win32")("keeps the published image and sidecar when sidecar directory sync fails", async () => {
-    const { project, task } = arrange();
-    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const failure = Object.assign(new Error("directory sync failed"), { code: "EIO" });
-    const open = fs.open.bind(fs);
-    const directorySync = vi.fn();
-    vi.spyOn(fs, "open").mockImplementation(async (...args) => {
-      const file = await open(...args);
-      if (args[0] === dir) {
-        vi.spyOn(file, "sync").mockImplementationOnce(async () => {
-          directorySync();
-          throw failure;
-        });
-      }
-      return file;
-    });
-
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool(), logger);
-
-    expect(directorySync).toHaveBeenCalledOnce();
-    expect(task.status).toBe("saved");
-    expect(task.error).toBeNull();
-    expect(await fs.readFile(task.output!.stagedPath, "utf8")).toBe("rendered");
-    const sidecarPath = task.output!.stagedParamsPath!;
-    expect(JSON.parse(await fs.readFile(sidecarPath, "utf8"))).toMatchObject({
-      formatVersion: 1, original: { sourceHash: "source-hash" }, task: { customSlug: null }
-    });
-    expect((await fs.readdir(dir)).sort()).toEqual([
-      path.basename(task.output!.stagedPath), path.basename(sidecarPath)
-    ].sort());
-    expect(logger.warn).toHaveBeenCalledExactlyOnceWith("sidecar published with durability uncertain", {
-      mod: "main.task-sidecar", filePath: sidecarPath,
-      err: expect.objectContaining({ name: "PublishedWriteError", filePath: sidecarPath, cause: failure })
-    });
-    expect(logger.warn.mock.calls[0]![1].err).toBeInstanceOf(PublishedWriteError);
-    expect(logger.error).not.toHaveBeenCalled();
-  });
-
   it("leaves the task without an output when the sidecar cannot be written", async () => {
     const { project, task } = arrange();
     // A directory where the sidecar file belongs makes its write fail after the image landed.

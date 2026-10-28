@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import type { Original, Task } from "@shared/types/project";
 import type { AppLogger } from "@main/logger";
-import { PublishedWriteError } from "@adapters/atomic-file";
 
 const mocks = vi.hoisted(() => ({
   writeTaskSidecarFile: vi.fn<() => Promise<string>>()
@@ -27,57 +23,6 @@ beforeEach(() => {
 });
 
 describe("ProjectSession saved-task metadata persistence", () => {
-  it.runIf(process.platform !== "win32")("retains authored metadata after the real sidecar publishes but directory sync fails", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-metadata-publication-"));
-    const realSidecars = await vi.importActual<typeof import("@main/task-sidecar")>("@main/task-sidecar");
-    const task = savedTask();
-    task.output!.stagedPath = task.output!.finalPath = path.join(dir, "photo.jpg");
-    const sidecarPath = path.join(dir, "photo-fotoready.json");
-    task.output!.stagedParamsPath = task.output!.finalParamsPath = sidecarPath;
-    const writes = new UserWorkWrites();
-    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const { session } = arrangeSession(task, writes, logger);
-    const failure = Object.assign(new Error("directory sync failed"), { code: "EIO" });
-    const open = fs.open.bind(fs);
-    const directorySync = vi.fn();
-    let injected = false;
-    const opened = vi.spyOn(fs, "open").mockImplementation(async (...args) => {
-      const file = await open(...args);
-      if (args[0] === dir && !injected) {
-        injected = true;
-        vi.spyOn(file, "sync").mockImplementationOnce(async () => { directorySync(); throw failure; });
-      }
-      return file;
-    });
-    mocks.writeTaskSidecarFile.mockImplementation(async (...args: unknown[]) =>
-      realSidecars.writeTaskSidecarFile(...args as Parameters<typeof realSidecars.writeTaskSidecarFile>)
-    );
-    try {
-      await fs.writeFile(task.output!.finalPath!, "saved image");
-      writes.beginQuit();
-      await session.setCustomSlug(task.id, "authored-pier");
-      expect(directorySync).toHaveBeenCalledOnce();
-      expect(task.customSlug).toBe("authored-pier");
-      expect(writes.unsaved()).toEqual({ failed: [], running: [] });
-      expect(JSON.parse(await fs.readFile(sidecarPath, "utf8"))).toMatchObject({ task: { customSlug: "authored-pier" } });
-
-      await session.setGenerateDescription(task.id, true);
-      expect(task).toMatchObject({ customSlug: "authored-pier", generateDescription: true, status: "saved" });
-      expect(JSON.parse(await fs.readFile(sidecarPath, "utf8"))).toMatchObject({
-        task: { customSlug: "authored-pier", generateDescription: true }
-      });
-      expect(await fs.readFile(task.output!.finalPath!, "utf8")).toBe("saved image");
-      expect(logger.warn).toHaveBeenCalledExactlyOnceWith("sidecar published with durability uncertain", {
-        mod: "main.task-sidecar", filePath: sidecarPath,
-        err: expect.objectContaining({ name: "PublishedWriteError", filePath: sidecarPath, cause: failure })
-      });
-      expect(logger.warn.mock.calls[0]![1].err).toBeInstanceOf(PublishedWriteError);
-    } finally {
-      opened.mockRestore();
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  });
-
   it.each([
     ["description flag", (session: ProjectSession, task: Task) => session.setGenerateDescription(task.id, true)],
     ["slug flag", (session: ProjectSession, task: Task) => session.setGenerateSlug(task.id, true)],

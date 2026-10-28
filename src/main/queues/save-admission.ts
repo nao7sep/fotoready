@@ -1,10 +1,12 @@
 import { maximumPipelinePixels } from "@shared/pipeline-geometry";
 import type { OpInstance } from "@shared/types/op";
 
-// How many saves run at once (volume-handling-conventions, Concurrency): one per core, and only as
-// many as the machine's memory holds at each photo's cost. The machine's total memory is the
-// measure, never the free memory of the moment, which on macOS leaves out what the system releases
-// when asked; nothing waits or is refused because memory looks short.
+// How many saves run at once: one per core, and only as many as the machine's memory holds at each
+// photo's cost (developer decision to keep saving several at once). Measured on a ten-core Mac with
+// 24 GB: forty 24 MP JPEGs through the real save, default recipe, took 16.6 s one at a time and
+// 4.4 s at this width. The machine's total memory is the measure, never the free memory of the
+// moment, which on macOS leaves out what the system releases when asked; nothing waits or is
+// refused because memory looks short.
 
 /**
  * Eight RGBA frames at the largest recipe stage. Native image work measured about 31 bytes per

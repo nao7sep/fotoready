@@ -60,27 +60,25 @@ try {
     Write-Step "Installing dependencies"
     Invoke-Native -FilePath "npm" -ArgumentList @("install")
 
-    # Windows locks the packaged executable while it runs, so replacement must
-    # happen before cleaning the package directory.
-    Write-Step "Replacing any existing FotoReady runtime"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
-
-    # Remove stale output so a build that fails to emit a file can't be masked by
-    # a leftover artifact from a previous run.
-    Write-Step "Cleaning previous build"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "clean-build")
+    # Build into a clean candidate so a build that fails to emit a file can't be
+    # masked by a leftover artifact; the previous package stays runnable until the
+    # candidate is complete.
+    Write-Step "Preparing clean build output"
+    $candidate = & node $runtimeHelper prepare-candidate
+    if ($LASTEXITCODE -ne 0) { throw "Could not prepare the build output." }
 
     # The package script type-checks the shipped sources (main/preload + renderer), builds the
     # production bundle and packages the unpacked app only, no installer. The dev server skips the
     # type check entirely, and tests are a separate gate. Packaging gives the app its own identity
     # (correct name and icon) instead of running under the generic Electron runtime.
     Write-Step "Building and packaging the app"
-    Invoke-Native -FilePath "npm" -ArgumentList @("run", "package")
+    Invoke-Native -FilePath "npm" -ArgumentList @("run", "package", "--", "--config.directories.output=$candidate")
 
-    $exePath = & node $runtimeHelper packaged-app
-    if (-not $exePath) {
-        throw "Packaging did not produce the app executable."
-    }
+    # Windows locks the packaged executable while it runs, so the running app
+    # closes before the candidate replaces its package.
+    Write-Step "Publishing the verified package"
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "publish-candidate")
 
     Write-Step "Launching the packaged app"
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "launch-packaged")

@@ -42,10 +42,11 @@ cd "$REPO_DIR"
 log_step "Installing dependencies"
 npm install
 
-# Remove stale output so a build that fails to emit a file can't be masked by a
-# leftover artifact from a previous run.
-log_step "Cleaning previous build"
-node "$RUNTIME_HELPER" clean-build
+# Build into a clean candidate so a build that fails to emit a file can't be masked
+# by a leftover artifact; the previous package stays runnable until the candidate
+# is complete.
+log_step "Preparing clean build output"
+CANDIDATE="$(node "$RUNTIME_HELPER" prepare-candidate)"
 
 # The package script type-checks the shipped sources (main/preload + renderer), builds the
 # production bundle and packages it into a real .app bundle, the .app only with no dmg/zip
@@ -53,14 +54,11 @@ node "$RUNTIME_HELPER" clean-build
 # check entirely, and tests are a separate gate. The bundle gives the app its own identity, so
 # the dock and menu show "FotoReady" rather than the generic "Electron".
 log_step "Building and packaging the app bundle"
-npm run package
+npm run package -- --config.directories.output="$CANDIDATE"
 
-APP_BUNDLE="$(node "$RUNTIME_HELPER" packaged-app)"
-if [[ -z "$APP_BUNDLE" ]]; then
-  echo "Packaging did not produce the app bundle." >&2
-  exit 1
-fi
+log_step "Publishing the verified package"
+node "$RUNTIME_HELPER" stop
+node "$RUNTIME_HELPER" publish-candidate
 
 log_step "Launching the packaged app"
-node "$RUNTIME_HELPER" stop
 node "$RUNTIME_HELPER" launch-packaged

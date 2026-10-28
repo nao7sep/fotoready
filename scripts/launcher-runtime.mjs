@@ -15,13 +15,14 @@
  *   check-dev-endpoint          fail when the dev server's port is taken
  *   wait-dev-server             wait until the dev server responds
  *   dev-url                     print the dev server's address
- *   clean-build                 remove the build and packaging output
+ *   prepare-candidate           remove the build output and any earlier candidate; print the candidate folder
+ *   publish-candidate           replace the packaged app with the validated candidate
  *   packaged-app                print the packaged app's path, or nothing when there is none
  */
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync, readdirSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
@@ -36,6 +37,10 @@ const RECORD_FILE = join(REPO_ROOT, ".git", "launcher-runtime-process");
 const { build } = JSON.parse(await readFile(join(REPO_ROOT, "package.json"), "utf8"));
 const productName = build.productName;
 const packagingOutput = join(REPO_ROOT, build.directories.output);
+// rebuild packages into the candidate and publishes it over the output only once it is complete, so
+// the previous runnable package survives a failed build.
+const packagingCandidate = `${packagingOutput}.candidate`;
+const packagingPrevious = `${packagingOutput}.previous`;
 const DEV_URL = `http://${DEV_HOST}:${DEV_PORT}`;
 const DEV_START_TIMEOUT_MS = 60_000;
 const windows = process.platform === "win32";
@@ -120,17 +125,48 @@ async function stopRecorded(onlyPid) {
 const singleInstanceNote = `If ${productName} was already running outside these launchers, its window is brought forward instead.\n`;
 
 // What run-built and rebuild launch: the .app bundle on macOS, the unpacked executable on Windows.
-function packagedApp() {
+function packagedApp(output = packagingOutput) {
   if (windows) {
-    const exe = join(packagingOutput, "win-unpacked", `${productName}.exe`);
+    const exe = join(output, "win-unpacked", `${productName}.exe`);
     return existsSync(exe) ? exe : null;
   }
-  if (!existsSync(packagingOutput)) return null;
-  for (const entry of readdirSync(packagingOutput, { withFileTypes: true })) {
-    const bundle = join(packagingOutput, entry.name, `${productName}.app`);
+  if (!existsSync(output)) return null;
+  for (const entry of readdirSync(output, { withFileTypes: true })) {
+    const bundle = join(output, entry.name, `${productName}.app`);
     if (entry.isDirectory() && existsSync(join(bundle, "Contents", "MacOS"))) return bundle;
   }
   return null;
+}
+
+function packagedExecutable(app) {
+  return windows ? app : join(app, "Contents", "MacOS", productName);
+}
+
+/** Swap the validated candidate in for the packaged output, restoring the previous one if the swap fails. */
+async function publishCandidate() {
+  const app = packagedApp(packagingCandidate);
+  if (!app || !(await stat(packagedExecutable(app))).isFile()) {
+    throw new Error(`Packaging did not produce a runnable ${productName} under ${packagingCandidate}.`);
+  }
+  await rm(packagingPrevious, { recursive: true, force: true });
+  let movedPrevious = false;
+  try {
+    await rename(packagingOutput, packagingPrevious);
+    movedPrevious = true;
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  try {
+    await rename(packagingCandidate, packagingOutput);
+  } catch (error) {
+    if (movedPrevious) await rename(packagingPrevious, packagingOutput);
+    throw error;
+  }
+  if (movedPrevious) {
+    await rm(packagingPrevious, { recursive: true, force: true }).catch((error) => {
+      process.stderr.write(`The new package is ready; the previous one could not be removed from ${packagingPrevious}: ${error.message}\n`);
+    });
+  }
 }
 
 /** Open a new instance of the bundle through Launch Services, which gives it its bundle identity. */
@@ -265,17 +301,19 @@ async function main([command, ...args]) {
     process.stdout.write(`${DEV_URL}\n`);
     return;
   }
-  if (command === "clean-build") {
+  if (command === "prepare-candidate") {
     await rm(join(REPO_ROOT, "out"), { recursive: true, force: true });
-    await rm(packagingOutput, { recursive: true, force: true });
+    await rm(packagingCandidate, { recursive: true, force: true });
+    process.stdout.write(`${packagingCandidate}\n`);
     return;
   }
+  if (command === "publish-candidate") return publishCandidate();
   if (command === "packaged-app") {
     const app = packagedApp();
     if (app) process.stdout.write(`${app}\n`);
     return;
   }
-  throw new Error("Expected one of: stop, stop-if-recorded, launch-packaged, record-dev, check-dev-endpoint, wait-dev-server, dev-url, clean-build, packaged-app.");
+  throw new Error("Expected one of: stop, stop-if-recorded, launch-packaged, record-dev, check-dev-endpoint, wait-dev-server, dev-url, prepare-candidate, publish-candidate, packaged-app.");
 }
 
 main(process.argv.slice(2)).catch((error) => {

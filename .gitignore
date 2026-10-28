@@ -4,6 +4,8 @@ node_modules/
 # Build and packaging output
 out/
 release/
+release.candidate/
+release.previous/
 dist/
 
 # Local OS/editor noise

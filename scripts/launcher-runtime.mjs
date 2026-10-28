@@ -1,230 +1,217 @@
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { readFile, rm, unlink, writeFile } from "node:fs/promises";
+/**
+ * Shared by the launchers (run-dev, run-built, rebuild) of both platforms: one
+ * FotoReady runtime per repository. The launcher that starts FotoReady records
+ * its process ID and executable under .git; the next launcher asks that process
+ * to quit only while it still runs that executable, and stops with a message
+ * rather than force-closing it when it stays open, for example on its quit
+ * question. FotoReady started any other way is left to its single-instance
+ * behavior, which brings its window forward instead of opening a second one.
+ *
+ * CLI: node launcher-runtime.mjs <command>
+ *   stop                        ask the recorded runtime to quit
+ *   stop-if-recorded <pid>      the same, only while <pid> is the recorded one
+ *   launch-packaged             open the packaged app as a new instance and record it
+ *   record-dev <pid>            record the Electron app the dev wrapper <pid> started; prints its pid
+ *   check-dev-endpoint          fail when the dev server's port is taken
+ *   wait-dev-server             wait until the dev server responds
+ *   dev-url                     print the dev server's address
+ *   clean-build                 remove the build and packaging output
+ *   packaged-app                print the packaged app's path, or nothing when there is none
+ */
+import { execFile, spawn } from "node:child_process";
+import { once } from "node:events";
+import { existsSync, readdirSync } from "node:fs";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { dirname, join, normalize, relative, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { DEV_HOST, DEV_PORT } from "./dev-server.mjs";
 
 const execFileAsync = promisify(execFile);
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = resolve(SCRIPT_DIR, "..");
-const OWNER_FILE = join(
-  tmpdir(),
-  `company-launcher-${createHash("sha256").update(REPO_ROOT).digest("hex").slice(0, 20)}.owner`,
-);
-
-function normalized(value) {
-  return normalize(value ?? "").replaceAll("\\", "/").toLowerCase();
-}
-
-function underRoot(value) {
-  const candidate = normalized(value);
-  const root = normalized(REPO_ROOT);
-  return candidate === root || candidate.startsWith(`${root}/`) || candidate.includes(`${root}/`);
-}
-
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const RECORD_FILE = join(REPO_ROOT, ".git", "launcher-runtime-process");
+// The packaged app's name and output folder, as electron-builder reads them from package.json.
+const { build } = JSON.parse(await readFile(join(REPO_ROOT, "package.json"), "utf8"));
+const productName = build.productName;
+const packagingOutput = join(REPO_ROOT, build.directories.output);
 const DEV_URL = `http://${DEV_HOST}:${DEV_PORT}`;
 const DEV_START_TIMEOUT_MS = 60_000;
-const PACKAGED_START_TIMEOUT_MS = 30_000;
+const windows = process.platform === "win32";
 
-let packagingCache;
+const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 
-// The packaged app's name and output folder, as electron-builder reads them from package.json.
-function packaging() {
-  if (!packagingCache) {
-    const { build } = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
-    packagingCache = { name: build.productName, output: join(REPO_ROOT, build.directories.output) };
-  }
-  return packagingCache;
+async function powershell(script) {
+  const { stdout } = await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return stdout.trim();
 }
+
+async function osascript(script, ...args) {
+  const { stdout } = await execFileAsync("/usr/bin/osascript", ["-l", "JavaScript", "-e", script, ...args], { encoding: "utf8" });
+  return stdout.trim();
+}
+
+function sameExecutable(left, right) {
+  return windows ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+
+/** The executable a process runs, or "" when no such process exists. */
+async function executableOf(pid) {
+  if (windows) return powershell(`(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).Path`);
+  // ps shows the path a process was started with, which a wrapper can give relatively; lsof names the file it runs.
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-a", "-p", String(pid), "-d", "txt", "-Fn"], { encoding: "utf8" });
+    return stdout.split("\n").find((line) => line.startsWith("n"))?.slice(1) ?? "";
+  } catch (error) {
+    if (error?.code === 1) return ""; // lsof lists nothing for an ended process
+    throw error;
+  }
+}
+
+async function record(pid, executable) {
+  await writeFile(RECORD_FILE, `${pid}\n${executable}\n`, "utf8");
+}
+
+/** The recorded process ID, returned only while that process still runs the recorded executable. */
+async function recordedPid() {
+  let text;
+  try {
+    text = await readFile(RECORD_FILE, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  const [pidText, executable] = text.split(/\r?\n/);
+  const pid = Number(pidText);
+  if (!Number.isInteger(pid) || pid <= 0 || !executable) return undefined;
+  return sameExecutable(await executableOf(pid), executable) ? pid : undefined;
+}
+
+/** Ask the process to quit as a user would, so it can still ask before closing the workspace. */
+async function requestClose(pid) {
+  if (windows) {
+    await powershell(`$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue; if ($p) { $null = $p.CloseMainWindow() }`);
+    return;
+  }
+  await osascript(`ObjC.import('AppKit');
+function run(args) {
+  var application = $.NSRunningApplication.runningApplicationWithProcessIdentifier(Number(args[0]));
+  if (application) application.terminate;
+}`, String(pid));
+}
+
+async function stopRecorded(onlyPid) {
+  const pid = await recordedPid();
+  if (pid === undefined || (onlyPid !== undefined && pid !== onlyPid)) return;
+  process.stdout.write(`Asking the running ${productName} (pid ${pid}) to quit.\n`);
+  await requestClose(pid);
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    if (await recordedPid() !== pid) return;
+    await delay(100);
+  }
+  throw new Error(`${productName} is still open, perhaps asking before it closes the workspace. Close it, then run this launcher again.`);
+}
+
+const singleInstanceNote = `If ${productName} was already running outside these launchers, its window is brought forward instead.\n`;
 
 // What run-built and rebuild launch: the .app bundle on macOS, the unpacked executable on Windows.
 function packagedApp() {
-  const { name, output } = packaging();
-  if (process.platform === "win32") {
-    const exe = join(output, "win-unpacked", `${name}.exe`);
+  if (windows) {
+    const exe = join(packagingOutput, "win-unpacked", `${productName}.exe`);
     return existsSync(exe) ? exe : null;
   }
-  if (!existsSync(output)) return null;
-  for (const entry of readdirSync(output, { withFileTypes: true })) {
-    const bundle = join(output, entry.name, `${name}.app`);
+  if (!existsSync(packagingOutput)) return null;
+  for (const entry of readdirSync(packagingOutput, { withFileTypes: true })) {
+    const bundle = join(packagingOutput, entry.name, `${productName}.app`);
     if (entry.isDirectory() && existsSync(join(bundle, "Contents", "MacOS"))) return bundle;
   }
   return null;
 }
 
-function packagedExecutable(app) {
-  return process.platform === "win32" ? app : join(app, "Contents", "MacOS", packaging().name);
+/** Open a new instance of the bundle through Launch Services, which gives it its bundle identity. */
+async function launchBundle(bundle) {
+  const pid = Number(await osascript(`ObjC.import('AppKit');
+function run(args) {
+  var application = $.NSWorkspace.sharedWorkspace.launchApplicationAtURLOptionsConfigurationError(
+    $.NSURL.fileURLWithPath(args[0]), $.NSWorkspaceLaunchNewInstance, $({}), null);
+  return application.isNil() ? '' : String(application.processIdentifier);
+}`, resolve(bundle)));
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error(`${productName} could not be opened.`);
+  await record(pid, await executableOf(pid));
 }
 
-export function ownsProcess(processInfo) {
-  const executable = normalized(processInfo.executablePath);
-  const command = normalized(processInfo.commandLine);
-  const combined = `${executable}\n${command}`;
-  if (!underRoot(executable) && !underRoot(command)) return false;
-  if (combined.includes("/scripts/run-dev.command")
-    || combined.includes("/scripts/run-dev.ps1")
-    || combined.includes("/scripts/run-built.command")
-    || combined.includes("/scripts/run-built.ps1")
-    || combined.includes("/scripts/rebuild.command")
-    || combined.includes("/scripts/rebuild.ps1")) {
-    return true;
-  }
-
-  const name = packaging().name.toLowerCase();
-  return combined.includes("/node_modules/.bin/electron-vite")
-    || combined.includes("/node_modules/electron-vite/")
-    || combined.includes("/node_modules/electron/dist/")
-    || combined.includes(`/${name}.app/contents/macos/${name}`)
-    || combined.includes(`/${name}.exe`);
+async function launchExecutable(executable) {
+  const child = spawn(resolve(executable), [], { detached: true, stdio: "ignore" });
+  await once(child, "spawn");
+  child.unref();
+  await record(child.pid, resolve(executable));
 }
 
-function parsePosixProcesses(stdout) {
-  return stdout.trim().split("\n").filter(Boolean).map((line) => {
-    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
-    if (!match) return undefined;
-    return {
-      pid: Number(match[1]),
-      parentPid: Number(match[2]),
-      executablePath: "",
-      commandLine: match[3],
-    };
-  }).filter(Boolean);
+async function launchPackaged() {
+  const app = packagedApp();
+  if (!app) throw new Error("No packaged app found — run rebuild first.");
+  await (windows ? launchExecutable(app) : launchBundle(app));
+  process.stdout.write(singleInstanceNote);
 }
 
 async function listProcesses() {
-  if (process.platform !== "win32") {
-    const { stdout } = await execFileAsync("ps", ["-axo", "pid=,ppid=,command="], {
-      encoding: "utf8",
-      timeout: 5000,
-      maxBuffer: 8 * 1024 * 1024,
-    });
-    return parsePosixProcesses(stdout);
+  if (!windows) {
+    const { stdout } = await execFileAsync("ps", ["-axo", "pid=,ppid=,comm="], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+    return stdout.split("\n").map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line)).filter(Boolean)
+      .map((match) => ({ pid: Number(match[1]), parentPid: Number(match[2]), executable: match[3].trim() }));
   }
-
-  const script = [
-    "Get-CimInstance Win32_Process |",
-    "Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine |",
-    "ConvertTo-Json -Compress",
-  ].join(" ");
-  const { stdout } = await execFileAsync("powershell.exe", [
-    "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script,
-  ], {
-    encoding: "utf8",
-    timeout: 10000,
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  const decoded = JSON.parse(stdout || "[]");
-  const rows = Array.isArray(decoded) ? decoded : [decoded];
-  return rows.map((row) => ({
+  const decoded = JSON.parse(await powershell(
+    "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,ExecutablePath | ConvertTo-Json -Compress",
+  ) || "[]");
+  return (Array.isArray(decoded) ? decoded : [decoded]).map((row) => ({
     pid: Number(row.ProcessId),
     parentPid: Number(row.ParentProcessId),
-    executablePath: row.ExecutablePath ?? "",
-    commandLine: row.CommandLine ?? "",
+    executable: row.ExecutablePath ?? "",
   }));
 }
 
-function descendantsOf(processes, roots) {
-  const selected = new Set(roots);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const item of processes) {
-      if (selected.has(item.parentPid) && !selected.has(item.pid)) {
-        selected.add(item.pid);
-        changed = true;
+/**
+ * Record the app process that the wrapper (npm run dev, then electron-vite)
+ * starts, once it appears: the topmost descendant running the Electron binary,
+ * since Electron's own child processes can share it. Fails when the wrapper
+ * ends first, as it does when the build fails.
+ */
+async function recordDev(wrapperPid) {
+  // The electron package's main export is the path of its binary.
+  const expected = resolve(createRequire(join(REPO_ROOT, "package.json"))("electron"));
+  for (;;) {
+    const processes = await listProcesses();
+    if (!processes.some((item) => item.pid === wrapperPid)) {
+      throw new Error(`The ${productName} development runtime ended before the app started.`);
+    }
+    const descendants = new Set([wrapperPid]);
+    for (let grown = true; grown;) {
+      grown = false;
+      for (const item of processes) {
+        if (descendants.has(item.parentPid) && !descendants.has(item.pid)) {
+          descendants.add(item.pid);
+          grown = true;
+        }
       }
     }
-  }
-  return selected;
-}
-
-function ancestorsOf(processes, pid) {
-  const byPid = new Map(processes.map((item) => [item.pid, item]));
-  const selected = new Set([pid]);
-  let current = byPid.get(pid)?.parentPid;
-  while (current && !selected.has(current)) {
-    selected.add(current);
-    current = byPid.get(current)?.parentPid;
-  }
-  return selected;
-}
-
-const delay = (milliseconds) => new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
-
-export async function claimRuntime(token) {
-  await writeFile(OWNER_FILE, `${token}\n`, { encoding: "utf8", mode: 0o600 });
-}
-
-export async function isRuntimeOwner(token) {
-  try {
-    return (await readFile(OWNER_FILE, "utf8")).trim() === token;
-  } catch (error) {
-    if (error?.code === "ENOENT") return false;
-    throw error;
-  }
-}
-
-export async function releaseRuntime(token) {
-  if (!await isRuntimeOwner(token)) return false;
-  try {
-    await unlink(OWNER_FILE);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
-  return true;
-}
-
-async function stopRuntime() {
-  const initial = await listProcesses();
-  const excluded = ancestorsOf(initial, process.pid);
-  const ownedRoots = initial.filter((item) => !excluded.has(item.pid) && ownsProcess(item)).map((item) => item.pid);
-  if (ownedRoots.length === 0) return;
-
-  const initialTargets = descendantsOf(initial, ownedRoots);
-  process.stdout.write(`Stopping the existing ${packaging().name} runtime (pid ${ownedRoots.join(", ")}).\n`);
-
-  if (process.platform === "win32") {
-    for (const pid of ownedRoots) {
-      try {
-        await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T"], { timeout: 5000 });
-      } catch {
-        // A process may exit while another root tears down the same tree.
-      }
+    const candidates = processes.filter((item) => item.pid !== wrapperPid && descendants.has(item.pid) && sameExecutable(basename(item.executable), basename(expected)));
+    const matches = [];
+    for (const item of candidates) {
+      const executable = windows ? item.executable : await executableOf(item.pid);
+      if (sameExecutable(executable, expected)) matches.push({ ...item, executable });
     }
-  } else {
-    for (const pid of initialTargets) {
-      try { process.kill(pid, "SIGTERM"); } catch {}
+    const app = matches.find((item) => !matches.some((other) => other.pid === item.parentPid));
+    if (app) {
+      await record(app.pid, app.executable);
+      process.stdout.write(`${app.pid}\n`);
+      return;
     }
-  }
-
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
-    const current = await listProcesses();
-    if (!current.some((item) => initialTargets.has(item.pid))) return;
-    await delay(100);
-  }
-
-  const current = await listProcesses();
-  const currentOwnedRoots = current
-    .filter((item) => initialTargets.has(item.pid) && !excluded.has(item.pid) && ownsProcess(item))
-    .map((item) => item.pid);
-  const forceTargets = descendantsOf(current, currentOwnedRoots);
-  if (process.platform === "win32") {
-    for (const pid of currentOwnedRoots) {
-      try {
-        await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeout: 5000 });
-      } catch {}
-    }
-  } else {
-    for (const pid of forceTargets) {
-      try { process.kill(pid, "SIGKILL"); } catch {}
-    }
+    await delay(200);
   }
 }
 
@@ -259,75 +246,28 @@ async function waitForHttp(url, timeoutMilliseconds) {
   throw new Error(`${url} did not become ready within ${timeoutMilliseconds} ms (${lastError}).`);
 }
 
-async function waitForExecutable(executablePath, timeoutMilliseconds) {
-  const expected = normalized(resolve(executablePath));
-  const repoRelativeExpected = normalized(relative(REPO_ROOT, expected));
-  const deadline = Date.now() + timeoutMilliseconds;
-  while (Date.now() < deadline) {
-    const processes = await listProcesses();
-    const byPid = new Map(processes.map((item) => [item.pid, item]));
-    const found = processes.some((item) => {
-      const executable = normalized(item.executablePath);
-      const command = normalized(item.commandLine);
-      if (executable === expected || command === expected || command.startsWith(expected + " ")) return true;
-      const relativeMatch = command === repoRelativeExpected || command.startsWith(repoRelativeExpected + " ");
-      if (!relativeMatch) return false;
-      let parent = byPid.get(item.parentPid);
-      while (parent) {
-        if (underRoot(parent.executablePath) || underRoot(parent.commandLine)) return true;
-        parent = byPid.get(parent.parentPid);
-      }
-      return false;
-    });
-    if (found) return;
-    await delay(100);
+async function main([command, ...args]) {
+  if (command === "stop") return stopRecorded();
+  if (command === "stop-if-recorded") {
+    const pid = Number(args[0]);
+    if (!Number.isInteger(pid)) throw new Error("Expected stop-if-recorded <pid>.");
+    return stopRecorded(pid);
   }
-  throw new Error(`${executablePath} did not start within ${timeoutMilliseconds} ms.`);
-}
-
-async function main(args) {
-  const command = args.shift();
-  if (command === "claim") {
-    const token = args.shift();
-    if (!token) throw new Error("Expected claim <token>.");
-    await claimRuntime(token);
-    return;
+  if (command === "launch-packaged") return launchPackaged();
+  if (command === "record-dev") {
+    const pid = Number(args[0]);
+    if (!Number.isInteger(pid)) throw new Error("Expected record-dev <pid>.");
+    return recordDev(pid);
   }
-  if (command === "is-owner") {
-    const token = args.shift();
-    if (!token) throw new Error("Expected is-owner <token>.");
-    if (!await isRuntimeOwner(token)) process.exitCode = 3;
-    return;
-  }
-  if (command === "stop") {
-    await stopRuntime();
-    return;
-  }
-  if (command === "stop-if-owner") {
-    const token = args.shift();
-    if (!token) throw new Error("Expected stop-if-owner <token>.");
-    if (!await isRuntimeOwner(token)) return;
-    await stopRuntime();
-    await releaseRuntime(token);
-    return;
-  }
+  if (command === "check-dev-endpoint") return assertEndpointAvailable(DEV_HOST, DEV_PORT);
+  if (command === "wait-dev-server") return waitForHttp(DEV_URL, DEV_START_TIMEOUT_MS);
   if (command === "dev-url") {
     process.stdout.write(`${DEV_URL}\n`);
     return;
   }
-  if (command === "check-dev-endpoint") {
-    await assertEndpointAvailable(DEV_HOST, DEV_PORT);
-    return;
-  }
-  if (command === "wait-dev-runtime") {
-    await waitForHttp(DEV_URL, DEV_START_TIMEOUT_MS);
-    // The electron package's main export is the path of its binary.
-    await waitForExecutable(createRequire(join(REPO_ROOT, "package.json"))("electron"), DEV_START_TIMEOUT_MS);
-    return;
-  }
   if (command === "clean-build") {
     await rm(join(REPO_ROOT, "out"), { recursive: true, force: true });
-    await rm(packaging().output, { recursive: true, force: true });
+    await rm(packagingOutput, { recursive: true, force: true });
     return;
   }
   if (command === "packaged-app") {
@@ -335,19 +275,10 @@ async function main(args) {
     if (app) process.stdout.write(`${app}\n`);
     return;
   }
-  if (command === "wait-packaged-app") {
-    const app = packagedApp();
-    if (!app) throw new Error("No packaged app to wait for.");
-    await waitForExecutable(packagedExecutable(app), PACKAGED_START_TIMEOUT_MS);
-    return;
-  }
-  throw new Error("Expected one of: claim, is-owner, stop, stop-if-owner, dev-url, check-dev-endpoint, wait-dev-runtime, clean-build, packaged-app, wait-packaged-app.");
+  throw new Error("Expected one of: stop, stop-if-recorded, launch-packaged, record-dev, check-dev-endpoint, wait-dev-server, dev-url, clean-build, packaged-app.");
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) {
-  main(process.argv.slice(2)).catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  });
-}
+main(process.argv.slice(2)).catch((error) => {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 1;
+});

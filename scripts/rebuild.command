@@ -11,7 +11,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_HELPER="$SCRIPT_DIR/launcher-runtime.mjs"
-RUNTIME_TOKEN="rebuild-$$-$(date +%s)-$RANDOM"
 
 log_step() {
   printf '\n==> %s\n' "$1"
@@ -63,7 +62,5 @@ if [[ -z "$APP_BUNDLE" ]]; then
 fi
 
 log_step "Launching the packaged app"
-node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
 node "$RUNTIME_HELPER" stop
-open -n "$APP_BUNDLE"
-node "$RUNTIME_HELPER" wait-packaged-app
+node "$RUNTIME_HELPER" launch-packaged

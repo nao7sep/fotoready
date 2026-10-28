@@ -27,7 +27,6 @@ function Write-Step {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
-$runtimeToken = [guid]::NewGuid().ToString("N")
 
 try {
     Set-Utf8Console
@@ -47,15 +46,12 @@ try {
     }
 
     $builtAt = (Get-Item $exePath).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
-    & node $runtimeHelper claim $runtimeToken
     & node $runtimeHelper stop
     if ($LASTEXITCODE -ne 0) { throw "Could not replace the existing FotoReady runtime." }
     Write-Step "Launching the existing packaged app (built: $builtAt)"
     Write-Host "If you changed source since then, run rebuild instead."
 
-    # GUI app: launch non-blocking via Start-Process.
-    Start-Process -FilePath $exePath | Out-Null
-    & node $runtimeHelper wait-packaged-app
+    & node $runtimeHelper launch-packaged
     if ($LASTEXITCODE -ne 0) { throw "FotoReady did not start." }
 }
 catch {

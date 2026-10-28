@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_HELPER="$SCRIPT_DIR/launcher-runtime.mjs"
-RUNTIME_TOKEN="run-dev-$$-$(date +%s)-$RANDOM"
+APP_PID=""
 
 log_step() {
   printf '\n==> %s\n' "$1"
@@ -34,8 +34,9 @@ pause_on_failure() {
 cleanup() {
   local status="$?"
   trap - EXIT
-  if node "$RUNTIME_HELPER" is-owner "$RUNTIME_TOKEN" >/dev/null 2>&1; then
-    node "$RUNTIME_HELPER" stop-if-owner "$RUNTIME_TOKEN" >/dev/null 2>&1 || true
+  # Closing this launcher closes the app it started, unless a later launcher has replaced it.
+  if [[ -n "$APP_PID" ]]; then
+    node "$RUNTIME_HELPER" stop-if-recorded "$APP_PID" >/dev/null 2>&1 || true
   fi
   pause_on_failure "$status"
   exit "$status"
@@ -49,7 +50,6 @@ require_command npm
 cd "$REPO_DIR"
 
 log_step "Replacing any existing FotoReady runtime"
-node "$RUNTIME_HELPER" claim "$RUNTIME_TOKEN"
 node "$RUNTIME_HELPER" stop
 node "$RUNTIME_HELPER" check-dev-endpoint
 
@@ -66,6 +66,7 @@ fi
 log_step "Starting FotoReady in development mode"
 npm run dev &
 DEV_PID=$!
-node "$RUNTIME_HELPER" wait-dev-runtime
+node "$RUNTIME_HELPER" wait-dev-server
+APP_PID="$(node "$RUNTIME_HELPER" record-dev "$DEV_PID")"
 log_step "FotoReady is ready at $(node "$RUNTIME_HELPER" dev-url)"
 wait "$DEV_PID"

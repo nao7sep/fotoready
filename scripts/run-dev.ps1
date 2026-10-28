@@ -48,7 +48,7 @@ function Invoke-Native {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
-$runtimeToken = [guid]::NewGuid().ToString("N")
+$appPid = $null
 
 try {
     Set-Utf8Console
@@ -58,7 +58,6 @@ try {
     Set-Location $repoDir
 
     Write-Step "Replacing any existing FotoReady runtime"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "check-dev-endpoint")
 
@@ -74,7 +73,9 @@ try {
 
     Write-Step "Starting FotoReady in development mode"
     $devProcess = Start-Process -FilePath (Get-Command "npm.cmd").Source -ArgumentList @("run", "dev") -NoNewWindow -PassThru
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-dev-runtime")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-dev-server")
+    $appPid = & node $runtimeHelper record-dev $devProcess.Id
+    if ($LASTEXITCODE -ne 0) { throw "FotoReady did not start." }
     Write-Step "FotoReady is ready at $(& node $runtimeHelper dev-url)"
     $devProcess.WaitForExit()
     if ($devProcess.ExitCode -notin @(0, 130, -1073741510)) {
@@ -87,11 +88,9 @@ catch {
     $scriptExitCode = 1
 }
 finally {
-    & node $runtimeHelper is-owner $runtimeToken *> $null
-    if ($LASTEXITCODE -eq 0) {
-        & node $runtimeHelper stop-if-owner $runtimeToken *> $null
-        Read-Host "Press Enter to close" | Out-Null
-    }
+    # Closing this launcher closes the app it started, unless a later launcher has replaced it.
+    if ($appPid) { & node $runtimeHelper stop-if-recorded $appPid *> $null }
+    Read-Host "Press Enter to close" | Out-Null
 }
 
 exit $scriptExitCode

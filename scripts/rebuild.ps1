@@ -49,7 +49,6 @@ function Invoke-Native {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = Split-Path -Parent $scriptDir
 $runtimeHelper = Join-Path $scriptDir "launcher-runtime.mjs"
-$runtimeToken = [guid]::NewGuid().ToString("N")
 
 try {
     Set-Utf8Console
@@ -64,7 +63,6 @@ try {
     # Windows locks the packaged executable while it runs, so replacement must
     # happen before cleaning the package directory.
     Write-Step "Replacing any existing FotoReady runtime"
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "claim", $runtimeToken)
     Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "stop")
 
     # Remove stale output so a build that fails to emit a file can't be masked by
@@ -84,10 +82,8 @@ try {
         throw "Packaging did not produce the app executable."
     }
 
-    # GUI app: launch non-blocking via Start-Process.
     Write-Step "Launching the packaged app"
-    Start-Process -FilePath $exePath | Out-Null
-    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "wait-packaged-app")
+    Invoke-Native -FilePath "node" -ArgumentList @($runtimeHelper, "launch-packaged")
 }
 catch {
     Write-Host ""

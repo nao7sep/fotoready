@@ -490,15 +490,19 @@ export class ProjectSession {
     return this.#previews.run(() => this.#previewService.renderTaskPreview(this.#project, taskId, this.settings.previewLongEdge, options));
   }
 
-  /** Resolves null after admitted work settles when a newer request or picker close supersedes it. */
-  async renderLutPreviews(taskId: string, luts: LutEntry[], options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null> {
+  /**
+   * Resolves null when a newer request or picker close aborts it, including while the library list
+   * is still being read; a LUT already rendering settles first.
+   */
+  async renderLutPreviews(taskId: string, listLuts: () => Promise<LutEntry[]>, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number): Promise<LutPreviewEntry[] | null> {
     this.cancelLutPreview();
     const controller = new AbortController();
     this.#lutPreviewController = controller;
     return this.#lutPreviews.run(async () => {
-      if (controller.signal.aborted) return null;
       try {
-        return await this.#previewService.renderLutPreviews(this.#project, taskId, luts, previewLongEdge, options, strength, controller.signal);
+        const entries = await listLuts();
+        if (controller.signal.aborted) return null;
+        return await this.#previewService.renderLutPreviews(this.#project, taskId, entries, previewLongEdge, options, strength, controller.signal);
       } catch (error) {
         if (controller.signal.aborted) return null;
         throw error;

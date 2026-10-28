@@ -281,9 +281,9 @@ describe("PreviewService LUT previews", () => {
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.project());
     task.pipeline.ops = [];
-    const old = session.renderLutPreviews(task.id, luts(20), undefined, 0.1, WIDTH);
+    const old = session.renderLutPreviews(task.id, async () => luts(20), undefined, 0.1, WIDTH);
     await until(() => stageCalls.length === 1);
-    const fresh = session.renderLutPreviews(task.id, luts(2), undefined, 0.2, WIDTH);
+    const fresh = session.renderLutPreviews(task.id, async () => luts(2), undefined, 0.2, WIDTH);
     options.holdStages = false;
     stageCalls[0].release();
     expect(await old).toBeNull();
@@ -296,12 +296,39 @@ describe("PreviewService LUT previews", () => {
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.project());
     task.pipeline.ops = [];
-    const pending = session.renderLutPreviews(task.id, luts(20), undefined, 0.1, WIDTH);
+    const pending = session.renderLutPreviews(task.id, async () => luts(20), undefined, 0.1, WIDTH);
     await until(() => stageCalls.length === 1);
     session.cancelLutPreview();
     stageCalls[0].release();
     expect(await pending).toBeNull();
     expect(stageCalls).toHaveLength(1);
+  });
+
+  it("starts no batch when the picker closes while the library list is still being read", async () => {
+    const { pool, stageCalls } = fakePool();
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
+    const { task } = arrange(session.project());
+    task.pipeline.ops = [];
+    let list!: (entries: LutEntry[]) => void;
+    const pending = session.renderLutPreviews(task.id, () => new Promise((resolve) => { list = resolve; }), undefined, 0.1, WIDTH);
+    session.cancelLutPreview();
+    list(luts(2));
+    expect(await pending).toBeNull();
+    expect(stageCalls).toHaveLength(0);
+  });
+
+  it("runs only the newest request when an older library list is read later", async () => {
+    const { pool, stageCalls } = fakePool();
+    const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
+    const { task } = arrange(session.project());
+    task.pipeline.ops = [];
+    let oldList!: (entries: LutEntry[]) => void;
+    const old = session.renderLutPreviews(task.id, () => new Promise((resolve) => { oldList = resolve; }), undefined, 0.2, WIDTH);
+    const fresh = session.renderLutPreviews(task.id, async () => luts(1), undefined, 0.8, WIDTH);
+    oldList(luts(2));
+    expect(await old).toBeNull();
+    expect(await fresh).toHaveLength(1);
+    expect(stageCalls.map((call) => call.strength)).toEqual([0.8]);
   });
 
   it("retains healthy native LUT previews beside a malformed file", async () => {

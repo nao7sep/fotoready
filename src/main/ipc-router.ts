@@ -410,18 +410,9 @@ export function registerIpcHandlers(ctx: RouterContext): IpcWork {
   handle("luts.list", "debug", async () => listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger));
   handle("luts.import", "info", async (_event, filePaths: string[]) => mutateAssets(() => importLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger)));
   handle("luts.delete", "info", async (_event, filePaths: string[]) => mutateAssets(() => deleteLuts(filePaths, ctx.settings.lutFolder, ctx.paths.lutsDir)));
-  let lutPreviewGeneration = 0;
-  handle("luts.cancelPreview", "debug", async () => {
-    lutPreviewGeneration += 1;
-    ctx.projectSession.cancelLutPreview();
-  });
-  handle("luts.preview", "debug", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) => {
-    const generation = ++lutPreviewGeneration;
-    ctx.projectSession.cancelLutPreview();
-    const luts = await listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger);
-    if (generation !== lutPreviewGeneration) return null;
-    return ctx.projectSession.renderLutPreviews(taskId, luts, options, strength, previewLongEdge);
-  });
+  handle("luts.cancelPreview", "debug", async () => ctx.projectSession.cancelLutPreview());
+  handle("luts.preview", "debug", async (_event, taskId: string, options: PreviewRenderOptions | undefined, strength: number, previewLongEdge: number) =>
+    ctx.projectSession.renderLutPreviews(taskId, () => listLuts(ctx.settings.lutFolder, ctx.paths.lutsDir, ctx.paths.bundledLutsDir, ctx.logger), options, strength, previewLongEdge));
   handle("stamps.list", "debug", async () => listStamps(ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger));
   handle("stamps.import", "info", async (_event, filePaths: string[]) => mutateAssets(() => importStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir, ctx.paths.bundledStampsDir, ctx.logger)));
   handle("stamps.delete", "info", async (_event, filePaths: string[]) => mutateAssets(() => deleteStamps(filePaths, ctx.settings.stampFolder, ctx.paths.stampsDir)));

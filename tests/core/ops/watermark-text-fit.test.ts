@@ -97,16 +97,6 @@ describe("watermark text fit", () => {
     expect(bitmap).toEqual(await render(fontSize));
   });
 
-  it("preserves rendered pixels across cache hits and mutation", async () => {
-    const defaults = requireOpModule("watermark-text").defaultParams as Params;
-    const params = { ...defaults, text: "Cache pixel identity ©", bold: true, italic: true, underline: true };
-    const uncached = await renderTrimmedTextBitmap(params, 24, false);
-    const first = await renderTrimmedTextBitmap(params, 24);
-    expect(first).toEqual(uncached);
-    first.data.fill(0);
-    expect(await renderTrimmedTextBitmap(params, 24)).toEqual(uncached);
-  });
-
   it("keeps the complete fitted watermark output identical on a cache hit", async () => {
     expect(await renderCompleteWatermark()).toEqual(completeWatermarkOracle);
   });

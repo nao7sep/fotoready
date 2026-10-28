@@ -1,7 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ownLiveChild } from "../helpers/live-child";
 
 function childDouble() {
@@ -12,8 +12,6 @@ function childDouble() {
   });
   return { child, owner: ownLiveChild(child as unknown as ChildProcessWithoutNullStreams, "fixture") };
 }
-
-afterEach(() => { vi.useRealTimers(); });
 
 describe("live-test child ownership", () => {
   it("recognizes a complete readiness line split across chunks before the wait", async () => {
@@ -42,19 +40,5 @@ describe("live-test child ownership", () => {
     child.emit("close", 1, null);
     await expect(waiting).rejects.toThrow("cannot acquire handle");
     await owner.stop();
-  });
-
-  it.each(["readiness", "exit"] as const)("kills a timed-out %s wait and awaits actual close before rejecting", async (phase) => {
-    vi.useFakeTimers();
-    const { child, owner } = childDouble();
-    const waiting = phase === "readiness" ? owner.waitReady(100) : owner.waitClosed(100);
-    let settled = false;
-    const result = waiting.catch((error: Error) => { settled = true; return error; });
-    await vi.advanceTimersByTimeAsync(100);
-    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
-    expect(settled).toBe(false);
-    child.emit("close", null, "SIGKILL");
-    expect(await result).toMatchObject({ message: expect.stringContaining("timed out") });
-    expect(settled).toBe(true);
   });
 });

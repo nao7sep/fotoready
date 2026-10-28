@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HistogramOverlay } from "@renderer/components/canvas/histogram-overlay";
+import { whenDocument } from "../../../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,12 +31,14 @@ describe("HistogramOverlay results", () => {
 
   it("announces its own decode failure and offers a retry", async () => {
     let imageCount = 0;
+    let loaded: (() => void) | null = null;
     class FailingImage {
       onerror: ((event: Event) => unknown) | null = null;
       onload: ((event: Event) => unknown) | null = null;
 
       set src(_value: string) {
         imageCount += 1;
+        loaded?.();
         queueMicrotask(() => this.onerror?.(new Event("error")));
       }
     }
@@ -43,7 +46,7 @@ describe("HistogramOverlay results", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     await renderHistogram({ dataUrl: "data:broken", width: 10, height: 10 }, "idle");
 
-    await vi.waitFor(() => expect(document.querySelector('[role="alert"]')).not.toBeNull());
+    await whenDocument(() => document.querySelector('[role="alert"]') !== null);
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent).toContain("Histogram failed");
     expect(error?.textContent).not.toContain("Error:");
@@ -53,8 +56,10 @@ describe("HistogramOverlay results", () => {
     const retry = [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Retry");
     expect(retry).toBeDefined();
+    const reloaded = new Promise<void>((resolve) => { loaded = resolve; });
     await act(async () => retry!.click());
-    await vi.waitFor(() => expect(imageCount).toBe(2));
+    await reloaded;
+    expect(imageCount).toBe(2);
   });
 
   it("does not make preview progress assertive", async () => {

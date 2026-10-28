@@ -7,10 +7,15 @@ import { visionError } from "@main/queues/vision";
 
 // Native promise timers keep their own timer reference, outside Vitest's fake clock. Retry timing
 // cases use the same fake clock as the SDK; real-clock cancellation cases keep the native timer.
+const retryWait = vi.hoisted(() => ({ entered: null as (() => void) | null }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:timers/promises")>();
-  return { ...original, setTimeout: (ms: number, value: undefined, options: { signal?: AbortSignal }) =>
-    vi.isFakeTimers() ? new Promise((resolve) => setTimeout(resolve, ms, value)) : original.setTimeout(ms, value, options) };
+  return { ...original, setTimeout: (ms: number, value: undefined, options: { signal?: AbortSignal }) => {
+    if (vi.isFakeTimers()) return new Promise((resolve) => setTimeout(resolve, ms, value));
+    const waiting = original.setTimeout(ms, value, options);
+    retryWait.entered?.();
+    return waiting;
+  } };
 });
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -164,12 +169,15 @@ describe("Gemini requests for an id with no row are plain", () => {
 describe("Gemini calls are handed over for recording", () => {
   it("records a sanitized start before an unsettled request and correlates its settlement", async () => {
     let resolve!: (response: Response) => void;
-    fetchMock.mockImplementation(() => new Promise<Response>((done) => { resolve = done; }));
+    let sent!: () => void;
+    const sending = new Promise<void>((done) => { sent = done; });
+    fetchMock.mockImplementation(() => { sent(); return new Promise<Response>((done) => { resolve = done; }); });
     const lifecycle = vi.fn<(event: GeminiCallLifecycle) => void>();
     const controller = new AbortController();
     const work = new GeminiVisionProvider(key, `https://proxy.example/${key}`, recordCall, lifecycle)
       .describeImage({ ...request, sourcePath: `/out/${key}.jpg` }, { ...opts, signal: controller.signal, descriptionPrompt: `Describe ${key}` });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    await sending;
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(recordCall).not.toHaveBeenCalled();
     expect(lifecycle).toHaveBeenCalledOnce();
     const start = lifecycle.mock.calls[0]![0];
@@ -244,9 +252,11 @@ describe("Gemini calls are handed over for recording", () => {
 describe("Gemini resend policy", () => {
   it("cancels a native retry wait without sending another request", async () => {
     fetchMock.mockResolvedValue(fail(503));
+    const waiting = new Promise<void>((done) => { retryWait.entered = done; });
     const controller = new AbortController();
     const work = run({ signal: controller.signal }).catch((error: unknown) => error);
-    await vi.waitFor(() => expect(recordCall).toHaveBeenCalledOnce());
+    await waiting;
+    retryWait.entered = null;
     controller.abort();
     expect(await work).toMatchObject({ name: "AbortError", cause: controller.signal.reason });
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -254,11 +264,14 @@ describe("Gemini resend policy", () => {
 
   it("does not abort or release an issued request when future attempts are cancelled", async () => {
     let resolve!: (response: Response) => void;
-    fetchMock.mockImplementation(() => new Promise<Response>((done) => { resolve = done; }));
+    let sent!: () => void;
+    const sending = new Promise<void>((done) => { sent = done; });
+    fetchMock.mockImplementation(() => { sent(); return new Promise<Response>((done) => { resolve = done; }); });
     const controller = new AbortController();
     let settled = false;
     const work = run({ signal: controller.signal }).finally(() => { settled = true; });
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    await sending;
+    expect(fetchMock).toHaveBeenCalledOnce();
     controller.abort();
     await Promise.resolve();
     expect(settled).toBe(false);

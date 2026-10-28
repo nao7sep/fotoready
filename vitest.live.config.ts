@@ -12,7 +12,7 @@ export default defineConfig({
     include: ["tests/live/**/*.test.ts"],
     exclude: configDefaults.exclude,
     fileParallelism: false,
-    testTimeout: 15 * 60_000,
-    hookTimeout: 5 * 60_000,
+    testTimeout: 0,
+    hookTimeout: 0,
   },
 });

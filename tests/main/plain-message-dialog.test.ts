@@ -5,7 +5,16 @@ const electron = vi.hoisted(() => ({
   loadError: undefined as unknown,
   executeResults: [] as Array<number | Error>,
   windows: [] as Array<{ close: () => void; show: ReturnType<typeof vi.fn>; options: { backgroundColor?: string } }>,
+  shown: null as (() => void) | null,
 }));
+
+/** Resolves once dialog window `index` has been shown, at once when it already has. */
+function shown(index: number): Promise<void> {
+  return new Promise((resolve) => {
+    const check = (): void => { if (electron.windows[index]?.show.mock.calls.length) resolve(); else electron.shown = check; };
+    check();
+  });
+}
 
 vi.mock("electron", () => {
   class FakeBrowserWindow {
@@ -18,7 +27,7 @@ vi.mock("electron", () => {
       this.destroyed = true;
       this.emit("closed");
     });
-    readonly show = vi.fn();
+    readonly show = vi.fn(() => electron.shown?.());
     readonly setContentSize = vi.fn();
     readonly webContents = {
       on: (event: string, listener: (...args: unknown[]) => void) => this.addListener(event, listener),
@@ -124,17 +133,17 @@ describe("plain message dialog", () => {
     const options = { title: "Title", message: "Message", buttons: ["Cancel", "Retry"], defaultId: 1, cancelId: 0, detailsLabel: "Message details", lang: "en" };
 
     const chosen = showPlainMessageDialog(options);
-    await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+    await shown(0);
     navigate(0, "https://fotoready-dialog.invalid/choice/1");
     await expect(chosen).resolves.toBe(1);
 
     const escaped = showPlainMessageDialog(options);
-    await vi.waitFor(() => expect(electron.windows[1]?.show).toHaveBeenCalledOnce());
+    await shown(1);
     pressEscape(1);
     await expect(escaped).resolves.toBe(0);
 
     const ended = showPlainMessageDialog(options);
-    await vi.waitFor(() => expect(electron.windows[2]?.show).toHaveBeenCalledOnce());
+    await shown(2);
     cancelOpenMessageDialogs();
     await expect(ended).resolves.toBe(0);
     expect(electron.windows[2]?.close).toHaveBeenCalled();
@@ -143,7 +152,7 @@ describe("plain message dialog", () => {
   it("follows the resolved theme in its window background", async () => {
     electron.dark = true;
     const result = showPlainMessageDialog({ title: "Title", message: "Message", ...words });
-    await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+    await shown(0);
     expect(electron.windows[0]?.options.backgroundColor).toBe(windowBackground(true));
     electron.windows[0]?.close();
     await result;
@@ -172,7 +181,7 @@ describe("plain message dialog", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     const result = showPlainMessageDialog({ title: "Title", message: "Message", ...words });
-    await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
+    await shown(0);
     electron.windows[0]?.close();
 
     await expect(result).resolves.toBe(0);

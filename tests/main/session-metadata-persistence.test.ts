@@ -4,12 +4,17 @@ import type { Original, Task } from "@shared/types/project";
 import type { AppLogger } from "@main/logger";
 
 const mocks = vi.hoisted(() => ({
-  writeTaskSidecarFile: vi.fn<() => Promise<string>>()
+  writeTaskSidecarFile: vi.fn<() => Promise<string>>(),
+  onWrite: null as (() => void) | null
 }));
 
 vi.mock("@main/task-sidecar", async (importOriginal) => {
   const original = await importOriginal<typeof import("@main/task-sidecar")>();
-  return { ...original, writeTaskSidecarFile: mocks.writeTaskSidecarFile };
+  return { ...original, writeTaskSidecarFile: (...args: unknown[]) => {
+    const written = (mocks.writeTaskSidecarFile as (...args: unknown[]) => Promise<string>)(...args);
+    mocks.onWrite?.();
+    return written;
+  } };
 });
 
 import { ProjectSession } from "@main/session";
@@ -227,7 +232,7 @@ describe("ProjectSession sidecar write ordering", () => {
       return "sidecar";
     });
     const first = session.setCustomSlug(task.id, "first");
-    await flush();
+    await writesStarted(1);
     const second = session.setCustomSlug(task.id, "second");
     if (removed === "original") session.removeOriginal(task.originalId);
     else await session.deleteTask(task.id);
@@ -251,7 +256,7 @@ describe("ProjectSession sidecar write ordering", () => {
     });
     const first = session.setCustomSlug(task.id, "first");
     const rejected = expect(first).rejects.toBe(persistenceFailure);
-    await flush();
+    await writesStarted(1);
     const second = session.setCustomSlug(task.id, "second");
     userWork.beginQuit();
     fail();
@@ -325,7 +330,7 @@ describe("ProjectSession sidecar write ordering", () => {
       return "sidecar";
     });
     const held = session.setGenerateDescription(task.id, true);
-    await flush();
+    await writesStarted(1);
     userWork.retry();
     const latest = session.setCustomSlug(task.id, "latest");
     release();
@@ -347,12 +352,12 @@ describe("ProjectSession sidecar write ordering", () => {
 
     const first = session.setCustomSlug(task.id, "harbor");
     const second = session.setCustomSlug(task.id, "harbor-sunset");
-    await flush();
+    await writesStarted(1);
     expect(written).toEqual(["harbor"]);
 
     gates.shift()!();
     await first;
-    await flush();
+    await writesStarted(2);
     expect(written).toEqual(["harbor", "harbor-sunset"]);
     gates.shift()!();
     await second;
@@ -380,7 +385,7 @@ describe("ProjectSession sidecar write ordering", () => {
     });
 
     const pending = session.setCustomSlug(task.id, "harbor");
-    await flush();
+    await writesStarted(1);
     task.output!.finalPath = "/output/harbor.jpg";
     task.output!.stagedPath = "/output/harbor.jpg";
     release();
@@ -390,8 +395,12 @@ describe("ProjectSession sidecar write ordering", () => {
   });
 });
 
-async function flush(): Promise<void> {
-  for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+/** Resolves once `count` sidecar writes have started, at once when they already have. */
+function writesStarted(count: number): Promise<void> {
+  return new Promise((resolve) => {
+    const check = (): void => { if (mocks.writeTaskSidecarFile.mock.calls.length >= count) resolve(); else mocks.onWrite = check; };
+    check();
+  });
 }
 
 describe("saved metadata settlement publication", () => {
@@ -423,7 +432,7 @@ describe("saved metadata settlement publication", () => {
     mocks.writeTaskSidecarFile.mockImplementationOnce(() => new Promise<string>((_resolve, fail) => { reject = () => fail(persistenceFailure); }));
     const writing = mutate(session, task);
     const failed = expect(writing).rejects.toBe(persistenceFailure);
-    await flush();
+    await writesStarted(1);
     // Another action/processing update publishes the same authority while this save is held.
     await session.emitSnapshot();
     expect(visible).not.toEqual(before);

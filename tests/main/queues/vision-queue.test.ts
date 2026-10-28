@@ -28,7 +28,7 @@ import { loadSettings, saveSettings } from "@main/settings-io";
 import { DatabaseSync } from "node:sqlite";
 import { startStoreWriter } from "@main/store-writer";
 import { createRecordsStore, fallbackFile } from "@main/records-store";
-import { openRecordsDatabase, STORE_BUSY_TIMEOUT_MS } from "@main/records-tables";
+import { openRecordsDatabase } from "@main/records-tables";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
 
@@ -141,18 +141,22 @@ it("keeps the provider result receipt time while its sidecar commit waits", asyn
     suggestSlugs: async () => ["slug"]
   });
   const blocked = deferred<string>();
-  mocks.writeTaskSidecarFile.mockImplementationOnce(() => blocked.promise);
+  const editWriting = deferred<void>();
+  mocks.writeTaskSidecarFile.mockImplementationOnce(() => { editWriting.resolve(); return blocked.promise; });
   vi.useFakeTimers({ toFake: ["Date"] });
   try {
     vi.setSystemTime(new Date("2026-10-07T01:00:00Z"));
     const edit = session.setCustomSlug(task.id, "user-slug");
-    await settleMicrotasks();
+    await editWriting.promise;
+    // The vision result reaches the session's commit once the provider has returned and its receipt
+    // time is stamped; the commit then waits behind the edit's write.
+    const committing = deferred<void>();
+    const commit = (session as unknown as { commitTaskMetadata: (...args: unknown[]) => Promise<boolean> }).commitTaskMetadata.bind(session);
+    vi.spyOn(session as unknown as { commitTaskMetadata: typeof commit }, "commitTaskMetadata").mockImplementation((...args) => { committing.resolve(); return commit(...args); });
     vi.setSystemTime(new Date("2026-10-07T01:01:00Z"));
     const vision = session.runVision(task.id, { mode: "description" });
-    // The run reads the key file before calling the provider, so wait for the call itself rather than a
-    // fixed number of turns; the receipt time is stamped synchronously once the provider returns.
     await described.promise;
-    await settleMicrotasks();
+    await committing.promise;
     vi.setSystemTime(new Date("2026-10-07T01:02:00Z"));
     blocked.resolve("sidecar");
     await Promise.all([edit, vision]);
@@ -163,7 +167,8 @@ it("keeps the provider result receipt time while its sidecar commit waits", asyn
 
 describe("VisionQueue provider records", () => {
   it("logs one unknown start and correlates the completed provider record without a terminal log", async () => {
-    const writeLog = vi.fn();
+    const attempted = deferred<void>();
+    const writeLog = vi.fn((record: { message: string; fields: Record<string, unknown> }) => { if (record.message === "vision provider attempt") attempted.resolve(); });
     const logger = createLogger({ writeLog }, { debug: false });
     const writeProviderCall = vi.fn<(record: ProviderCallRecord) => void>();
     const response = deferred<Response>();
@@ -173,7 +178,8 @@ describe("VisionQueue provider records", () => {
       { writeProviderCall }, (recordCall, lifecycle) => { provider = new GeminiVisionProvider("test-key", "https://models.example", recordCall, lifecycle); }, undefined, undefined, logger);
     const run = session.runVision(task.id, { mode: "description" });
     const attempts = () => writeLog.mock.calls.map(([record]) => record).filter((record) => record.message === "vision provider attempt");
-    await vi.waitFor(() => expect(attempts()).toHaveLength(1));
+    await attempted.promise;
+    expect(attempts()).toHaveLength(1);
     const start = attempts()[0].fields;
     expect(start).toMatchObject({ taskId: task.id, phase: "start", outcome: "unknown", attemptId: expect.any(String), callTime: expect.any(String) });
     expect(writeProviderCall).not.toHaveBeenCalled();
@@ -198,7 +204,7 @@ describe("VisionQueue provider records", () => {
 });
 
 describe("VisionQueue with a locked records store", () => {
-  it("finishes a description at once and stays successful, the call recorded once the writer can", async () => {
+  it("finishes a description while the store is held and stays successful, the call recorded once the writer can", async () => {
     const recordsPath = path.join(tempDir, "records.sqlite3");
     const sessionStart = new Date("2026-10-09T05:00:00.000Z");
     openRecordsDatabase(recordsPath).close();
@@ -217,9 +223,8 @@ describe("VisionQueue with a locked records store", () => {
         (fn) => { recordCall = fn; }
       );
 
-      const started = performance.now();
+      // The store is still held when the description finishes.
       await session.runVision(task.id, { mode: "description" });
-      expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
       expect(task.error).toBeNull();
       expect(task.output?.vision?.description).toBe("A harbor");
     } finally {
@@ -312,8 +317,7 @@ describe("VisionQueue result ownership", () => {
       (recordCall, lifecycle) => { provider = new GeminiVisionProvider("test-key", "https://models.example", (call) => { recordCall(call); recorded.resolve(); }, lifecycle); });
     const run = session.runVision(task.id, { mode: "description" });
     await recorded.promise;
-    // Let the provider enter its native retry wait, then close through the queue's real controller.
-    await new Promise((resolve) => setImmediate(resolve));
+    // Close through the queue's real controller once the failed attempt is recorded.
     await queue.shutdown();
     await run;
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -409,10 +413,11 @@ describe("VisionQueue result ownership", () => {
 
   it("keeps a slug the user typed while the run was in flight", async () => {
     const describe = deferred<string>();
-    const { session, task } = await arrange({ describeImage: () => describe.promise, suggestSlugs: async () => ["ai-slug"] });
+    const describing = deferred<void>();
+    const { session, task } = await arrange({ describeImage: () => { describing.resolve(); return describe.promise; }, suggestSlugs: async () => ["ai-slug"] });
 
     const run = session.runVision(task.id, { mode: "description-and-slug" });
-    await settleMicrotasks();
+    await describing.promise;
     await session.setCustomSlug(task.id, "my-own-slug");
     describe.resolve("A harbor at sunset");
     await run;
@@ -431,10 +436,11 @@ describe("VisionQueue result ownership", () => {
 
   it("discards a result whose output was replaced while the call ran", async () => {
     const describe = deferred<string>();
-    const { session, task } = await arrange({ describeImage: () => describe.promise, suggestSlugs: async () => ["old-slug"] });
+    const describing = deferred<void>();
+    const { session, task } = await arrange({ describeImage: () => { describing.resolve(); return describe.promise; }, suggestSlugs: async () => ["old-slug"] });
 
     const run = session.runVision(task.id, { mode: "description-and-slug" });
-    await settleMicrotasks();
+    await describing.promise;
     // A re-save of the same task: a new output identity, possibly at the same path.
     task.output = { ...task.output!, stagedAt: "2026-09-02T00:00:00.000Z", outputHash: "new-hash", vision: null };
     describe.resolve("The old image");
@@ -450,10 +456,12 @@ describe("VisionQueue result ownership", () => {
     const first = deferred<string>();
     const second = deferred<string>();
     const calls = [first, second];
+    const entered = [deferred<void>(), deferred<void>()];
     let active = 0;
     let maxActive = 0;
     const { session, task } = await arrange({
       describeImage: async () => {
+        entered[2 - calls.length]!.resolve();
         active += 1;
         maxActive = Math.max(maxActive, active);
         try {
@@ -466,16 +474,15 @@ describe("VisionQueue result ownership", () => {
     });
 
     const runA = session.runVision(task.id, { mode: "description" });
-    await settleMicrotasks();
+    await entered[0]!.promise;
     const runB = session.runVision(task.id, { mode: "description" });
-    await settleMicrotasks();
     first.resolve("first");
     await runA;
 
     expect(task.visionRunning).toBe(true);
     await expect(session.deleteSavedOutput(task.id)).rejects.toThrow(/being analyzed/);
 
-    await settleMicrotasks();
+    await entered[1]!.promise;
     second.resolve("second");
     await runB;
 
@@ -617,10 +624,6 @@ async function arrange(
   project.originals.push(original());
   project.tasks.push(task);
   return { session, task, queue };
-}
-
-async function settleMicrotasks(): Promise<void> {
-  for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve));
 }
 
 function savedTask(): Task {

@@ -9,6 +9,7 @@ import { defaultGlobalSettings } from "@shared/defaults";
 import { defaultUiState } from "@shared/validation/state";
 import { message } from "@shared/i18n/translate";
 import { ipcFailure } from "@shared/ipc-failure";
+import { whenDocument } from "../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mounted = vi.hoisted(() => ({ roots: [] as Root[] }));
@@ -78,7 +79,7 @@ describe.each([
       await import("@renderer/app");
     });
 
-    await vi.waitFor(() => expect(document.querySelector(".app-shell")).not.toBeNull());
+    await whenDocument(() => document.querySelector(".app-shell") !== null);
   });
 
   it("opens the main window with that library empty and a notice, and loads it once Settings fixes the folder", async () => {
@@ -99,9 +100,10 @@ describe.each([
     await act(async () => buttonByText(field!, "Clear").click());
     await act(async () => dialog!.querySelector<HTMLButtonElement>("button.primary-action")!.click());
 
-    await vi.waitFor(() => expect(failingList).toHaveBeenCalledTimes(2));
+    // The notice goes once the library is read again from the cleared folder.
+    await whenDocument(() => !shellResults().includes(notice));
+    expect(failingList).toHaveBeenCalledTimes(2);
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ [folderKey]: "" }));
-    await vi.waitFor(() => expect(shellResults()).not.toContain(notice));
     await expect(failingList.mock.results[1]!.value).resolves.toEqual([]);
   });
 });

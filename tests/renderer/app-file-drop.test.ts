@@ -50,7 +50,9 @@ const queue: QueueSnapshot = {
   activeTaskId: null,
   activeTaskLabel: null
 };
-const addOriginals = vi.fn().mockResolvedValue(importResult);
+let announceImport!: () => void;
+const imported = new Promise<void>((resolve) => { announceImport = resolve; });
+const addOriginals = vi.fn(async () => { announceImport(); return importResult; });
 let onProject!: (value: typeof snapshot) => void;
 let onQueue!: (value: QueueSnapshot) => void;
 Object.defineProperty(window, "api", {
@@ -121,7 +123,7 @@ describe("FotoReady app file receiver", () => {
     const drop = dragEvent("drop", delivery);
     await act(async () => {
       receiver!.dispatchEvent(drop);
-      await vi.waitFor(() => expect(addOriginals).toHaveBeenCalledTimes(1));
+      await imported;
     });
 
     expect(drop.defaultPrevented).toBe(true);

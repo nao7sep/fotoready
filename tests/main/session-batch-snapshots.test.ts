@@ -107,9 +107,11 @@ describe("session batch snapshot ownership", () => {
     const { session, processing, vision } = arrange();
     const [late, later] = await photos("teal", "orange");
     const preparing = deferred<void>();
+    const started = deferred<void>();
     metadata.hold = preparing.promise;
+    metadata.started.mockImplementationOnce(() => started.resolve());
     const importing = session.addOriginals([late!, later!]);
-    await vi.waitFor(() => expect(metadata.started).toHaveBeenCalledOnce());
+    await started.promise;
 
     await session.shutdown();
     preparing.resolve();

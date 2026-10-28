@@ -29,33 +29,18 @@ export function ownLiveChild(child: ChildProcessWithoutNullStreams, label: strin
     await closed;
   }
 
-  async function bounded<T>(work: Promise<T>, milliseconds: number, description: string): Promise<T> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(failure(`timed out ${description}`)), milliseconds);
-    });
-    try {
-      return await Promise.race([work, expired]);
-    } catch (error) {
-      await stop();
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   return {
     child,
     stop,
-    async waitReady(milliseconds = 10_000): Promise<void> {
-      await bounded(Promise.race([
+    async waitReady(): Promise<void> {
+      await Promise.race([
         ready,
         closed.then(({ code, signal }) => { throw failure(`exited before readiness (code ${code}, signal ${signal})`); }),
-      ]), milliseconds, "waiting for readiness");
+      ]);
       if (ended || spawnError) throw failure("failed during startup");
     },
-    async waitClosed(milliseconds = 10_000): Promise<void> {
-      await bounded(closed, milliseconds, "waiting for exit");
+    async waitClosed(): Promise<void> {
+      await closed;
       if (spawnError) throw failure("process failed");
     },
   };

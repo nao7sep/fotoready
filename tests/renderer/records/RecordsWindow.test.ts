@@ -8,6 +8,7 @@ import type { RecordDetail, RecordsPage, RecordsQuery, RecordSummary } from "@sh
 import type { FotoReadyApi } from "@shared/types/ipc";
 import type { UiState } from "@shared/types/state";
 import type { InterfaceLanguage } from "@shared/i18n/languages";
+import { whenDocument } from "../../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -231,7 +232,7 @@ describe("RecordsApp", () => {
     root = createRoot(container);
     await act(async () => root?.render(createElement(RecordsApp)));
     await act(async () => languageChanged!({ language: "ja", locale: "ja" }));
-    await vi.waitFor(() => expect(document.title).toBe("ログ"));
+    await whenDocument(() => document.title === "ログ");
     await act(async () => initial.resolve({ language: "en", locale: "en" }));
     expect(document.title).toBe("ログ");
   });
@@ -276,7 +277,7 @@ describe("RecordsWindow", () => {
     displayTimeZone = "Asia/Tokyo";
     await mount();
     const firstTime = (): string | null | undefined => document.querySelector(".records-row-meta span")?.textContent;
-    await vi.waitFor(() => expect(firstTime()).toBe(shown("Asia/Tokyo")));
+    await whenDocument(() => firstTime() === shown("Asia/Tokyo"));
 
     await act(async () => displayTimeZoneChanged!("America/New_York"));
     expect(firstTime()).toBe(shown("America/New_York"));

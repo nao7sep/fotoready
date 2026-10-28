@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // original thumbnails decode at once, and how waiting previews are coalesced.
 
 const thumbnails = vi.hoisted(() => {
-  const state = { active: 0, peak: 0, finishers: [] as Array<() => void> };
+  const state = { active: 0, peak: 0, started: 0, finishers: [] as Array<() => void>, onStart: null as (() => void) | null };
   const image = () => ({
     rotate() { return this; },
     async metadata() { return { width: 4, height: 3 }; },
@@ -12,8 +12,10 @@ const thumbnails = vi.hoisted(() => {
     jpeg() { return this; },
     toBuffer: () => new Promise<Buffer>((resolve) => {
       state.active += 1;
+      state.started += 1;
       state.peak = Math.max(state.peak, state.active);
       state.finishers.push(() => { state.active -= 1; resolve(Buffer.from("jpeg")); });
+      state.onStart?.();
     })
   });
   return { state, sharp: vi.fn(image) };
@@ -37,12 +39,19 @@ describe("original thumbnails", () => {
   it("decode at most two at a time, however many originals arrive", async () => {
     const service = new PreviewService(null);
     const originals = Array.from({ length: 6 }, (_, index) => ({ id: `o${index}`, sourcePath: `/photos/${index}.jpg`, width: 4, height: 3 }));
+    // Resolves once `count` decodes have started, at once when they already have.
+    const started = (count: number): Promise<void> => new Promise((resolve) => {
+      const check = (): void => { if (thumbnails.state.started >= count) resolve(); else thumbnails.state.onStart = check; };
+      check();
+    });
     const rendering = Promise.all(originals.map((original) => service.renderOriginalThumbnail(original as never)));
-    await vi.waitFor(() => expect(thumbnails.state.active).toBe(2));
-    while (thumbnails.state.finishers.length > 0 || thumbnails.state.active > 0) {
-      thumbnails.state.finishers.shift()?.();
-      await new Promise((resolve) => setImmediate(resolve));
+    await started(2);
+    expect(thumbnails.state.active).toBe(2);
+    for (let next = 3; next <= originals.length; next += 1) {
+      thumbnails.state.finishers.shift()!();
+      await started(next);
     }
+    while (thumbnails.state.finishers.length > 0) thumbnails.state.finishers.shift()!();
     expect((await rendering).map((thumbnail) => thumbnail.originalId)).toEqual(originals.map((original) => original.id));
     expect(thumbnails.state.peak).toBe(2);
   });

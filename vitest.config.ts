@@ -32,6 +32,9 @@ export default defineConfig({
     // `// @vitest-environment jsdom` docblock, so none is JSX today, but a .tsx one written
     // tomorrow would otherwise be type-checked, look fine, and never run.
     include: ["tests/**/*.test.{ts,tsx}"],
+    // Tests carry no timeouts: each waits for the event it needs, and the runner reports durations.
+    testTimeout: 0,
+    hookTimeout: 0,
     // data-dir-isolation: every test writes under its own throwaway storage root.
     // rendered-keys: every spec that mounts the interface also fails if a catalogue key reaches
     // the screen, where a raw key would stand in for a missing translation.

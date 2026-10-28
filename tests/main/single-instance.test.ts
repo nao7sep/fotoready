@@ -29,9 +29,11 @@ describe("single instance", () => {
   it("records a failed startup and exits", async () => {
     const failure = new Error("no catalogue");
     bootstrap.mockRejectedValueOnce(failure);
+    const exited = new Promise<void>((resolve) => { electron.exit.mockImplementationOnce(() => resolve()); });
 
     await import("@main/index");
-    await vi.waitFor(() => expect(electron.exit).toHaveBeenCalledWith(1));
+    await exited;
+    expect(electron.exit).toHaveBeenCalledWith(1);
 
     expect(recordStartupFailure).toHaveBeenCalledWith("startup failed", failure);
   });

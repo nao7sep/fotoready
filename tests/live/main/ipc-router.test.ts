@@ -10,7 +10,6 @@
 
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { build } from "electron-vite";
@@ -35,17 +34,20 @@ const CAT_PHOTO = "photos/similarity/apartment-cat/reference.jpg";
 // The vision calls read the photo at this long edge, the smallest that still shows a cat, so
 // each call spends as little as the product allows (tests-folder-conventions, live tests).
 const TINY_LONG_EDGE = 192;
-const SAVE_TIMEOUT_MS = 2 * 60_000;
-const VISION_TIMEOUT_MS = 5 * 60_000;
 
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => Promise<unknown>>());
+// One stand-in window, so each published project snapshot wakes the test's waits for a task's state.
+const published = vi.hoisted(() => ({ changed: null as (() => void) | null }));
 vi.mock("electron", () => ({
   ipcMain: {
     handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => {
       handlers.set(channel, async (...args) => fn({}, ...args));
     },
   },
-  BrowserWindow: { getAllWindows: () => [], fromWebContents: () => null },
+  BrowserWindow: {
+    getAllWindows: () => [{ webContents: { send: (channel: string) => { if (channel === "project.snapshot") published.changed?.(); } } }],
+    fromWebContents: () => null
+  },
   app: { getVersion: () => "0.0.0-live", getPath: () => "/tmp", isPackaged: false },
   shell: {},
   dialog: {},
@@ -132,6 +134,7 @@ async function startApp(home: string) {
   return {
     invoke,
     snapshot: () => projectSession.snapshot(),
+    nextSnapshot: () => new Promise<void>((resolve) => { published.changed = resolve; }),
     task: async (taskId: string): Promise<Task> => projectSession.snapshot().project.tasks.find((task) => task.id === taskId)!,
     /** The close guard's flush and the will-quit handler, then what process exit would close. */
     shutdown: async () => {
@@ -187,18 +190,14 @@ async function addOp(app: App, taskId: string, type: string, params: Record<stri
   await app.invoke("task.updateOpParams", taskId, await lastOpId(app, taskId), params);
 }
 
-/** Polls the task until `done` holds, failing on an error or the deadline. */
-async function waitForTask(app: App, taskId: string, timeoutMs: number, done: (task: Task) => boolean): Promise<Task> {
-  const deadline = Date.now() + timeoutMs;
+/** Resolves with the task once `done` holds, checking now and after each published snapshot; fails on a task error. */
+async function waitForTask(app: App, taskId: string, done: (task: Task) => boolean): Promise<Task> {
   for (;;) {
-    const task = await app.task(taskId);
+    const changed = app.nextSnapshot();
+    const task = app.snapshot().project.tasks.find((item) => item.id === taskId)!;
     if (task.error) throw new Error(`The task failed at ${task.error.stage}: ${task.error.message}`);
     if (done(task)) return task;
-    if (Date.now() > deadline) {
-      await app.invoke("task.cancel", taskId);
-      throw new Error(`The task was still ${task.status} after ${timeoutMs} ms.`);
-    }
-    await delay(100);
+    await changed;
   }
 }
 
@@ -213,13 +212,9 @@ afterAll(async () => {
   // The app leaves ExifTool running until its process exits; this test's process
   // outlives each app, so it ends ExifTool here and proves every child it ran died.
   for (const pid of exiftool.pids) exiftoolPids.add(pid);
+  // end() settles once its child processes have exited.
   await exiftool.end();
-  const deadline = Date.now() + 2_000;
-  let alive = [...exiftoolPids].filter(isRunning);
-  while (alive.length > 0 && Date.now() < deadline) {
-    await delay(20);
-    alive = alive.filter(isRunning);
-  }
+  const alive = [...exiftoolPids].filter(isRunning);
   expect(alive, "no ExifTool process outlives the lane").toEqual([]);
 });
 
@@ -261,7 +256,7 @@ describe("the live save and vision paths", () => {
         for (const pid of exiftool.pids) exiftoolPids.add(pid);
 
         await app.invoke("task.save", task.id);
-        const saved = await waitForTask(app, task.id, SAVE_TIMEOUT_MS, (current) => current.status === "saved");
+        const saved = await waitForTask(app, task.id, (current) => current.status === "saved");
         for (const pid of exiftool.pids) exiftoolPids.add(pid);
         const output = saved.output!;
         expect(output.stagedPath.endsWith(".webp")).toBe(true);
@@ -299,12 +294,11 @@ describe("the live save and vision paths", () => {
         await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
 
         await app.invoke("task.save", task.id);
-        await waitForTask(app, task.id, SAVE_TIMEOUT_MS, (current) => current.status === "saved");
+        await waitForTask(app, task.id, (current) => current.status === "saved");
         for (const pid of exiftool.pids) exiftoolPids.add(pid);
         const described = await waitForTask(
           app,
           task.id,
-          VISION_TIMEOUT_MS,
           (current) => !current.visionRunning && (current.output?.vision?.slugCandidates.length ?? 0) > 0,
         );
 
@@ -346,13 +340,12 @@ describe("the live save and vision paths", () => {
           await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
 
           await app.invoke("task.save", task.id);
-          await waitForTask(app, task.id, SAVE_TIMEOUT_MS, (current) => current.status === "saved");
+          await waitForTask(app, task.id, (current) => current.status === "saved");
           for (const pid of exiftool.pids) exiftoolPids.add(pid);
           const described = await waitForTask(
             app,
             task.id,
-            VISION_TIMEOUT_MS,
-            (current) => !current.visionRunning && Boolean(current.output?.vision?.description),
+              (current) => !current.visionRunning && Boolean(current.output?.vision?.description),
           );
 
           const vision = described.output!.vision!;

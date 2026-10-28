@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssetImportResult, LutEntry, LutPreviewEntry, StampEntry } from "@shared/types/ipc";
 import { LutPickerModal, StampPickerModal } from "@renderer/components/modals/asset-picker-modal";
 import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
+import { whenDocument } from "../../../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -101,7 +102,8 @@ describe("StampPickerModal groups", () => {
       ));
     });
 
-    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledTimes(1));
+    await whenDocument(() => document.querySelector('img[src="data:/laughing-face.png"]') !== null);
+    expect(mocks.thumbnail).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[role="dialog"]')?.classList.contains("asset-picker-modal")).toBe(true);
     const headerClose = document.querySelector<HTMLButtonElement>(".modal-header-close");
     expect(headerClose?.getAttribute("aria-label")).toBe("Close");
@@ -115,13 +117,15 @@ describe("StampPickerModal groups", () => {
     expect(document.body.textContent).not.toContain("Googly eyes");
 
     await clickTab("Funny");
-    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/googly-eyes.png", 64));
+    await whenDocument(() => document.querySelector('img[src="data:/googly-eyes.png"]') !== null);
+    expect(mocks.thumbnail).toHaveBeenCalledWith("/googly-eyes.png", 64);
     expect(selectedTab()?.textContent).toBe("Funny");
     expect(document.body.textContent).toContain("Googly eyes");
     expect(document.body.textContent).not.toContain("Laughing face");
 
     await clickTab("Cover");
-    await vi.waitFor(() => expect(mocks.thumbnail).toHaveBeenCalledWith("/cover-blob.png", 64));
+    await whenDocument(() => document.querySelector('img[src="data:/cover-blob.png"]') !== null);
+    expect(mocks.thumbnail).toHaveBeenCalledWith("/cover-blob.png", 64);
     expect(selectedTab()?.textContent).toBe("Cover");
     expect(document.body.textContent).toContain("Cover blob");
     expect(document.body.textContent).not.toContain("Laughing face");
@@ -274,7 +278,7 @@ describe("the LUT picker", () => {
     const [warm, cool, film] = [lut("Warm"), lut("Cool"), lut("Film")];
     mocks.lutPreview.mockResolvedValueOnce([preview(warm), preview(cool)]);
     await render([warm, cool]);
-    await vi.waitFor(() => expect(document.querySelector(`img[src="data:${cool.path}"]`)).not.toBeNull());
+    await whenDocument(() => document.querySelector(`img[src="data:${cool.path}"]`) !== null);
 
     mocks.lutPreview.mockImplementationOnce(() => new Promise(() => {}));
     await render([warm, film]);

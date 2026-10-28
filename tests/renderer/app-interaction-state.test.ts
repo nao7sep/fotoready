@@ -7,6 +7,7 @@ import { defaultGlobalSettings } from "@shared/defaults";
 import { defaultUiState } from "@shared/validation/state";
 import type { ProjectSnapshot } from "@shared/types/ipc";
 import type { UiState } from "@shared/types/state";
+import { whenDocument } from "../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mounted = vi.hoisted(() => ({ roots: [] as Root[] }));
@@ -75,7 +76,7 @@ async function mount() {
   document.body.innerHTML = '<div id="root"></div>';
   vi.resetModules();
   await act(async () => { await import("@renderer/app"); });
-  await vi.waitFor(() => expect(document.querySelector(".app-shell")).not.toBeNull());
+  await whenDocument(() => document.querySelector(".app-shell") !== null);
   return { importActivity, selectOriginal, addOriginalsFromDialog, toggleHistogram, updateState };
 }
 

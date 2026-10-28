@@ -34,7 +34,10 @@ describe("Menu", () => {
     const menu = document.querySelector<HTMLElement>('[role="menu"]')!;
     const items = [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
     // Opening focuses the first item on the next frame.
-    await vi.waitFor(() => expect(document.activeElement).toBe(items[0]));
+    await new Promise<void>((resolve) => {
+      if (document.activeElement === items[0]) resolve();
+      else items[0]!.addEventListener("focus", () => resolve(), { once: true });
+    });
     const press = async (key: string): Promise<void> => {
       await act(async () => {
         menu.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));

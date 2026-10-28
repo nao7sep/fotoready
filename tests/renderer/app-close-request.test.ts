@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { defaultGlobalSettings } from "@shared/defaults";
 import { defaultUiState } from "@shared/validation/state";
 import type { CloseRequest } from "@shared/types/ipc";
+import { whenDocument } from "../helpers/document-change";
 
 const owner = vi.hoisted(() => ({
   confirm: vi.fn(),
@@ -46,7 +47,7 @@ async function mount(approveClose: ReturnType<typeof vi.fn>, settingsUpdate = vi
   document.body.innerHTML = '<div id="root"></div>';
   vi.resetModules();
   await act(async () => { await import("@renderer/app"); });
-  await vi.waitFor(() => expect(document.querySelector(".app-shell")).not.toBeNull());
+  await whenDocument(() => document.querySelector(".app-shell") !== null);
   return (request: CloseRequest) => requested(request);
 }
 

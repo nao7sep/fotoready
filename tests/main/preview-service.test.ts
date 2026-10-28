@@ -29,6 +29,12 @@ type StageCall = { strength: number; release(): void };
 function fakePool(options: { holdStages?: boolean; assetPixel?: number } = {}) {
   const baseCalls: string[] = [];
   const stageCalls: StageCall[] = [];
+  let stageStarted: (() => void) | null = null;
+  /** Resolves once `count` stage renders have started, at once when they already have. */
+  const stagesStarted = (count: number): Promise<void> => new Promise((resolve) => {
+    const check = (): void => { if (stageCalls.length >= count) resolve(); else stageStarted = check; };
+    check();
+  });
   const pool = {
     async renderBuffer(input: { sourcePath: string }) {
       baseCalls.push(input.sourcePath);
@@ -40,12 +46,13 @@ function fakePool(options: { holdStages?: boolean; assetPixel?: number } = {}) {
       let release!: () => void;
       const gate = new Promise<void>((resolve) => { release = resolve; });
       stageCalls.push({ strength, release });
+      stageStarted?.();
       if (!options.holdStages) release();
       await gate;
       return { kind: "preview" as const, bitmap: filled(pixel).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: input.pipeline };
     }
   };
-  return { pool: pool as unknown as PipelineWorkerPool, baseCalls, stageCalls };
+  return { pool: pool as unknown as PipelineWorkerPool, baseCalls, stageCalls, stagesStarted };
 }
 
 /**
@@ -80,7 +87,7 @@ describe("PreviewService stage cache", () => {
 
   it.each(["cubePath", "assetPath"])("retires %s task stages on library mutation, including held renders and other tasks", async (assetParam) => {
     const options = { holdStages: false, assetPixel: 10 };
-    const { pool, stageCalls } = fakePool(options);
+    const { pool, stageCalls, stagesStarted } = fakePool(options);
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const a = arrange(session.project(), "a").task;
     const b = arrange(session.project(), "b").task;
@@ -90,7 +97,7 @@ describe("PreviewService stage cache", () => {
     expect(await firstPixel(await session.renderPreview(a.id))).toBe(10);
     options.holdStages = true;
     const held = session.renderPreview(b.id);
-    await until(() => stageCalls.length === 2);
+    await stagesStarted(2);
     const before = structuredClone(session.project());
     session.invalidateAssetPreviews();
     options.assetPixel = 20;
@@ -139,18 +146,18 @@ describe("PreviewService stage cache", () => {
   });
 
   it("never serves a stage rendered for an edit that was superseded while it rendered", async () => {
-    const { pool, stageCalls } = fakePool({ holdStages: true });
+    const { pool, stageCalls, stagesStarted } = fakePool({ holdStages: true });
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
     const render = directRender(pool, session, task.id);
     const opId = task.pipeline.ops[0].id;
 
     const late = render();
-    await until(() => stageCalls.length === 1);
+    await stagesStarted(1);
     session.updateOpParam(task.id, opId, "strength", 0.2);
 
     const fresh = render();
-    await until(() => stageCalls.length === 2);
+    await stagesStarted(2);
     stageCalls[1].release();
     expect(await firstPixel(await fresh)).toBe(20);
 
@@ -164,14 +171,14 @@ describe("PreviewService stage cache", () => {
 
   it("renders each stage from the enabled state it was keyed by, even if the op is toggled mid-render", async () => {
     const options = { holdStages: true };
-    const { pool, stageCalls } = fakePool(options);
+    const { pool, stageCalls, stagesStarted } = fakePool(options);
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.snapshot().project);
     const render = directRender(pool, session, task.id);
     task.pipeline.ops.push({ id: "lut-late", type: "lut", enabled: false, params: { cubePath: assetPath, strength: 0.5 } });
 
     const late = render();
-    await until(() => stageCalls.length === 1);
+    await stagesStarted(1);
     session.setOpEnabled(task.id, "lut-late", true);
     options.holdStages = false;
     stageCalls[0].release();
@@ -252,23 +259,18 @@ async function firstPixel(preview: { dataUrl: string } | null): Promise<number> 
   return data[0];
 }
 
-async function until(condition: () => boolean): Promise<void> {
-  for (let i = 0; i < 100 && !condition(); i += 1) await new Promise((resolve) => setImmediate(resolve));
-  if (!condition()) throw new Error("condition was not reached");
-}
-
 describe("PreviewService LUT previews", () => {
   const luts = (count: number): LutEntry[] => Array.from({ length: count }, (_, index) => ({ name: `LUT ${index}`, path: `/luts/${index}.cube`, builtin: false }));
 
   it("renders one LUT at a time and stops further work on cancellation", async () => {
-    const { pool, stageCalls } = fakePool({ holdStages: true });
+    const { pool, stageCalls, stagesStarted } = fakePool({ holdStages: true });
     const service = new PreviewService(pool);
     const project: Project = { outputDir: null, originals: [], tasks: [] };
     const { task } = arrange(project);
     task.pipeline.ops = [];
     const controller = new AbortController();
     const pending = service.renderLutPreviews(project, task.id, luts(20), WIDTH, undefined, 0.5, controller.signal);
-    await until(() => stageCalls.length === 1);
+    await stagesStarted(1);
     controller.abort();
     stageCalls[0].release();
     expect(await pending).toBeNull();
@@ -277,12 +279,12 @@ describe("PreviewService LUT previews", () => {
 
   it("supersedes an old library run after its admitted LUT settles", async () => {
     const options = { holdStages: true };
-    const { pool, stageCalls } = fakePool(options);
+    const { pool, stageCalls, stagesStarted } = fakePool(options);
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.project());
     task.pipeline.ops = [];
     const old = session.renderLutPreviews(task.id, async () => luts(20), undefined, 0.1, WIDTH);
-    await until(() => stageCalls.length === 1);
+    await stagesStarted(1);
     const fresh = session.renderLutPreviews(task.id, async () => luts(2), undefined, 0.2, WIDTH);
     options.holdStages = false;
     stageCalls[0].release();
@@ -292,12 +294,12 @@ describe("PreviewService LUT previews", () => {
   });
 
   it("stops further library work when the session cancels a closed picker", async () => {
-    const { pool, stageCalls } = fakePool({ holdStages: true });
+    const { pool, stageCalls, stagesStarted } = fakePool({ holdStages: true });
     const session = new ProjectSession(defaultGlobalSettings(), null as never, null as never, pool, "resources/stamps");
     const { task } = arrange(session.project());
     task.pipeline.ops = [];
     const pending = session.renderLutPreviews(task.id, async () => luts(20), undefined, 0.1, WIDTH);
-    await until(() => stageCalls.length === 1);
+    await stagesStarted(1);
     session.cancelLutPreview();
     stageCalls[0].release();
     expect(await pending).toBeNull();

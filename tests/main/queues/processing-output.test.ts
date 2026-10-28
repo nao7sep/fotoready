@@ -172,19 +172,33 @@ describe("ProcessingQueue shutdown", () => {
   it("aborts the running save, skips waiting ones, and resolves after the running one settles", async () => {
     const started: string[] = [];
     let settled = false;
-    const queue = new ProcessingQueue(1, defaultGlobalSettings(), {} as PipelineWorkerPool, undefined, null, async (_project, taskId, _settings, _onUpdate, _pool, _logger, signal) => {
+    let announceStart!: () => void;
+    const startedA = new Promise<void>((resolve) => { announceStart = resolve; });
+    let announceAbort!: () => void;
+    const abortedA = new Promise<void>((resolve) => { announceAbort = resolve; });
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const queue = new ProcessingQueue(1, defaultGlobalSettings(), {} as PipelineWorkerPool, undefined, null, async (_project, taskId, _settings, _report, _pool, _logger, signal) => {
       started.push(taskId);
-      await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()));
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      const aborted = new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()));
+      announceStart();
+      await aborted;
+      announceAbort();
+      // The render settles after its abort, as a worker can.
+      await finished;
       settled = true;
     });
     const project = { tasks: [], originals: [], outputDir: null } as unknown as Project;
 
     void queue.enqueueTask(project, "A");
     void queue.enqueueTask(project, "B");
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await startedA;
 
-    await queue.shutdown();
+    const shutdown = queue.shutdown();
+    await abortedA;
+    expect(settled).toBe(false);
+    finish();
+    await shutdown;
 
     expect(settled).toBe(true);
     expect(started).toEqual(["A"]);

@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { defaultUiState } from "@shared/validation/state";
 import type { ProjectSnapshot, QueueSnapshot } from "@shared/types/ipc";
+import { whenDocument } from "../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mounted = vi.hoisted(() => ({ root: null as Root | null }));
@@ -58,12 +59,12 @@ it("keeps project and queue changes that follow the subscription's first snapsho
   } });
   document.body.innerHTML = '<div id="root"></div>';
   await act(async () => { await import("@renderer/app"); });
-  await vi.waitFor(() => expect(onProject).toBeTypeOf("function"));
+  expect(onProject).toBeTypeOf("function");
   const { useEditorStore } = await import("@renderer/state/editor-store");
   await act(async () => { onProject(finished); onQueue(finishedQueue); });
   expect(useEditorStore.getState().projectSnapshot?.project.tasks[0]?.status).toBe("saved");
   await act(async () => { finishLibrary([]); });
-  await vi.waitFor(() => expect(document.querySelector(".app-shell")).not.toBeNull());
+  await whenDocument(() => document.querySelector(".app-shell") !== null);
   expect(useEditorStore.getState().projectSnapshot?.project.tasks[0]?.status).toBe("saved");
   expect(document.querySelector(".status-bar")?.textContent).toContain("1/1 saved");
   expect(document.querySelector(".status-bar .status-chip-active")).toBeNull();

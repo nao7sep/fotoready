@@ -99,7 +99,7 @@ it("keeps localized Output scrollable at the supported shell minimum and capture
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
     owned = ownLiveChild(spawn(electron, ["--headless", main], { env, stdio: ["pipe", "pipe", "pipe"] }), "Ops layout Electron probe");
-    await owned.waitClosed(30_000);
+    await owned.waitClosed();
     expect(owned.child.exitCode).toBe(0);
     const { measurements, termination } = JSON.parse(await readFile(result, "utf8")) as {
       measurements: Array<{ language: Language; zoom: number; font: string; geometry: ReturnType<typeof measureLayout> }>;

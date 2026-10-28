@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { QueueSnapshot } from "@shared/types/ipc";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { defaultUiState } from "@shared/validation/state";
+import { whenDocument } from "../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,7 +43,7 @@ describe("values cut short in the main window", () => {
     expect(badge?.textContent).toContain(OUTPUT_DIR);
     await act(async () => badge!.click());
     expect(revealInFolder).toHaveBeenCalledWith(OUTPUT_DIR, "output");
-    await vi.waitFor(() => expect(shellResults()).toContain("The output folder could not be shown"));
+    await whenDocument(() => shellResults().includes("The output folder could not be shown"));
 
     await act(async () => badge!.click());
     expect(revealInFolder).toHaveBeenCalledTimes(2);
@@ -57,11 +58,8 @@ describe("values cut short in the main window", () => {
 
   it("shortens the selected photo's name in the preview toolbar but keeps the task state apart", async () => {
     await mountApp({ withPhoto: true });
-    const name = await vi.waitFor(() => {
-      const element = document.querySelector<HTMLElement>(".preview-name");
-      expect(element?.textContent).toBe(PHOTO_NAME);
-      return element!;
-    });
+    await whenDocument(() => document.querySelector(".preview-name")?.textContent === PHOTO_NAME);
+    const name = document.querySelector<HTMLElement>(".preview-name")!;
     expect(name.title).toBe(`/fixtures/originals/${PHOTO_NAME}`);
     expect(document.querySelector(".preview-state")?.textContent).toBe("Not saved");
   });
@@ -153,5 +151,5 @@ async function mountApp({ revealInFolder = vi.fn(), select = vi.fn(async () => s
   await act(async () => {
     await import("@renderer/app");
   });
-  await vi.waitFor(() => expect(document.querySelector("button.output-badge-label")).not.toBeNull());
+  await whenDocument(() => document.querySelector("button.output-badge-label") !== null);
 }

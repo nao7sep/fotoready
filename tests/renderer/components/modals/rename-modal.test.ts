@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectSnapshot, RenamePreview } from "@shared/types/ipc";
 import { RenameModal } from "@renderer/components/modals/rename-modal";
 import { ConfirmerProvider } from "@renderer/components/modals/confirmer";
+import { whenDocument } from "../../../helpers/document-change";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -115,7 +116,7 @@ describe("RenameModal vision recovery", () => {
   it("announces preview failures with authored recovery copy", async () => {
     await renderModal({ onPreview: async () => { throw new Error("Preview unavailable"); } });
 
-    await vi.waitFor(() => expect(document.querySelector('[role="alert"]')).not.toBeNull());
+    await whenDocument(() => document.querySelector('[role="alert"]') !== null);
     const error = document.querySelector('[role="alert"]');
     expect(error?.textContent)
       .toContain("The rename preview could not be prepared. Saved files are unchanged; try again.");
@@ -129,7 +130,7 @@ describe("RenameModal vision recovery", () => {
       onRun: async () => { throw new Error("Destination is read-only"); }
     });
 
-    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+    await whenDocument(() => button("Rename all")?.disabled === false);
     await clickButton("Rename all");
     expect(document.querySelector('[role="alert"]')?.textContent)
       .toContain("Some files may already have their new names");
@@ -154,7 +155,7 @@ describe("RenameModal vision recovery", () => {
       onPreview: async () => { throw new Error("preview rejected"); },
       onSetOutputDir: async () => { throw new Error("output picker rejected"); }
     });
-    await vi.waitFor(() => expect(document.querySelectorAll('[role="alert"]')).toHaveLength(1));
+    await whenDocument(() => document.querySelectorAll('[role="alert"]').length === 1);
 
     await clickButton("Change");
     expect(document.querySelectorAll('[role="alert"]')).toHaveLength(2);
@@ -164,7 +165,7 @@ describe("RenameModal vision recovery", () => {
 
   it("keeps the modal open and reconciled after a stopped partial rename", async () => {
     await renderModal({ onPreview: async () => readyPreview, onRun: async () => ({ status: "stopped", warnings: [] }) });
-    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+    await whenDocument(() => button("Rename all")?.disabled === false);
 
     await clickButton("Rename all");
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
@@ -176,7 +177,7 @@ describe("RenameModal vision recovery", () => {
     const running = new Promise<{ status: "complete" | "stopped"; warnings: [] }>((resolve) => { finishRun = resolve; });
     const onClose = vi.fn();
     await renderModal({ onClose, onPreview: async () => readyPreview, onRun: async () => running });
-    await vi.waitFor(() => expect(button("Rename all")?.disabled).toBe(false));
+    await whenDocument(() => button("Rename all")?.disabled === false);
 
     await clickButton("Rename all");
     const cancel = button("Cancel");
@@ -201,7 +202,7 @@ describe("RenameModal while a description runs", () => {
   it("keeps Rename all disabled while a listed file is being described", async () => {
     const describing = { ...snapshot, project: { ...snapshot.project, tasks: [{ id: "task-1", visionRunning: true, error: null }] } } as unknown as ProjectSnapshot;
     await renderModal({ onPreview: async () => readyPreview, projectSnapshot: describing });
-    await vi.waitFor(() => expect(document.body.textContent).toContain("photo-ready.jpg"));
+    await whenDocument(() => document.body.textContent?.includes("photo-ready.jpg") === true);
     expect(button("Rename all")?.disabled).toBe(true);
   });
 });
@@ -209,7 +210,7 @@ describe("RenameModal while a description runs", () => {
 describe("RenameModal preview rows", () => {
   it("tells each row's state in words alone, with no mark repeating it", async () => {
     await renderModal({ onPreview: async () => readyPreview });
-    await vi.waitFor(() => expect(document.body.textContent).toContain("photo-ready.jpg"));
+    await whenDocument(() => document.body.textContent?.includes("photo-ready.jpg") === true);
     const state = document.querySelector(".rename-preview-state")!;
     expect(state.children).toHaveLength(0);
     expect(state.textContent).not.toBe("");
@@ -374,7 +375,7 @@ async function renderModal(overrides: {
       onSetOutputDir: overrides.onSetOutputDir ?? (async () => undefined),
     })));
   });
-  await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+  await whenDocument(() => document.querySelector('[role="dialog"]') !== null);
 }
 
 function button(label: string): HTMLButtonElement | undefined {

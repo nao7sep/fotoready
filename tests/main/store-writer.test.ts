@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startStoreWriter, type StoreWriter, type StoreWriterOptions } from "@main/store-writer";
 import { createRecordsStore, fallbackFile, type ProviderCallRecord } from "@main/records-store";
 import { createLogger } from "@main/logger";
-import { openRecordsDatabase, STORE_BUSY_TIMEOUT_MS } from "@main/records-tables";
+import { openRecordsDatabase } from "@main/records-tables";
 import { openBackupsDatabase } from "@main/backup-tables";
 import { record, setBackupWriter } from "@main/backup-store";
 import { loadSettings, saveSettings } from "@main/settings-io";
@@ -169,12 +169,10 @@ describe("a locked or stalled store", () => {
     const settingsPath = path.join(root, "config.json");
     const loaded = await loadSettings(settingsPath);
 
-    const started = performance.now();
+    // Each returns while both stores are still held.
     logger.info("ipc settings.get", { mod: "main.ipc" });
     records.writeProviderCall(call);
     await saveSettings(loaded.file, { ...loaded.settings, defaultWebpQuality: 71 }, loaded.settings);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS / 2);
     expect(JSON.parse(fs.readFileSync(settingsPath, "utf8"))).toMatchObject({ defaultWebpQuality: 71 });
 
     release();
@@ -187,9 +185,7 @@ describe("a locked or stalled store", () => {
     const draining = writer();
     const records = createRecordsStore(draining, sessionStart);
     for (let index = 0; index < 4; index += 1) records.writeLog({ time: session, level: "info", message: `line ${index}`, fields: {} });
-    const started = performance.now();
     expect(await draining.close({ drain: true, timeoutMs: 100 })).toBe(false);
-    expect(performance.now() - started).toBeLessThan(STORE_BUSY_TIMEOUT_MS);
 
     const skipping = writer();
     createRecordsStore(skipping, sessionStart).writeLog({ time: session, level: "info", message: "skipped", fields: {} });

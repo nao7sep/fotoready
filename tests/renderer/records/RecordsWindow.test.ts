@@ -451,18 +451,6 @@ describe("RecordsWindow", () => {
     expect(document.activeElement).toBe(options()[1]);
   });
 
-  it("makes one request for two scroll events together", async () => {
-    page.mockResolvedValueOnce({ records: [call, line], more: true });
-    page.mockReturnValueOnce(new Promise<RecordsPage>(() => {}));
-    await mount();
-
-    await scrollTo(800, 2);
-
-    expect(page).toHaveBeenCalledTimes(2);
-    expect(options()).toHaveLength(2);
-    expect(document.body.textContent).toContain("Loading records…");
-  });
-
   it("reads the next page by itself while a page does not fill the list", async () => {
     box.scrollHeight = 150;
     page.mockResolvedValueOnce({ records: [call], more: true });

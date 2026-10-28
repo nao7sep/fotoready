@@ -171,8 +171,6 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const [shellWidth, setShellWidth] = useState<number | null>(null);
   const listGeneration = useRef(0);
-  // The busy claim for the next page (PLAYBOOK, Own the work in flight).
-  const fetchingMore = useRef(false);
   // The filters the current list was read for, for the live reads below.
   const filtersRef = useRef(filters);
   // New records arrived while the list was scrolled away from the top.
@@ -229,7 +227,6 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   useEffect(() => {
     filtersRef.current = filters;
     const generation = ++listGeneration.current;
-    fetchingMore.current = false;
     newestPending.current = false;
     setList({ status: "loading" });
     void api.records.page({ ...filters, after: null }).then(
@@ -318,15 +315,13 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
   // Loading more: the next page loads as the list's end is reached, and a failed page is read again
   // when the end is reached again.
   const loadMore = (): void => {
-    if (list.status !== "ready" || !list.more || fetchingMore.current) return;
-    fetchingMore.current = true;
+    if (list.status !== "ready" || !list.more || list.loadingMore) return;
     const generation = listGeneration.current;
     setList((current) => (current.status === "ready" ? { ...current, loadingMore: true, moreFailed: false } : current));
     const after = cursorAfter(list.records);
     void api.records.page({ ...filters, after }).then(
       (page) => {
         if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
         liveSuspended.current = false;
         setList((current) =>
           current.status !== "ready" ? current
@@ -337,7 +332,6 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
       },
       (error: unknown) => {
         if (generation !== listGeneration.current) return;
-        fetchingMore.current = false;
         liveSuspended.current = true;
         presentFailure(error, null, "records read failed");
         setList((current) => (current.status === "ready" ? { ...current, loadingMore: false, moreFailed: true } : current));

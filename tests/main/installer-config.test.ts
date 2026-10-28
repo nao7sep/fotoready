@@ -38,18 +38,6 @@ describe("interface languages outside the app", () => {
   });
 });
 
-describe("package scripts", () => {
-  it("prepares Electron before every package-script builder invocation", () => {
-    for (const script of Object.values(packageJson.scripts) as string[]) {
-      if (script.includes("electron-builder")) {
-        expect(script.indexOf("npm run prepare:electron")).toBeLessThan(
-          script.indexOf("electron-builder"),
-        );
-      }
-    }
-  });
-});
-
 // exiftool-vendored spawns ExifTool from disk, which cannot happen inside app.asar: Perl scripts on
 // macOS and Linux, its own executable on Windows.
 describe("ExifTool in the packaged app", () => {

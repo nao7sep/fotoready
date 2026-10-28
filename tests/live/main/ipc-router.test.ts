@@ -80,7 +80,7 @@ async function startApp(home: string) {
   handlers.clear();
   const { getAppPaths } = await import("@main/paths");
   const { createLogger } = await import("@main/logger");
-  const { createRecordsStore, droppedRecordsRow, fallbackFile } = await import("@main/records-store");
+  const { createRecordsStore, fallbackFile } = await import("@main/records-store");
   const { startStoreWriter } = await import("@main/store-writer");
   const { loadSettings } = await import("@main/settings-io");
   const { createStateCoordinator, loadState } = await import("@main/state-io");
@@ -98,7 +98,7 @@ async function startApp(home: string) {
   let logger: ReturnType<typeof createLogger> | null = null;
   const storeWriter = startStoreWriter({
     recordsPath: paths.recordsPath, backupsPath: paths.backupsPath, fallbackPath: fallbackFile(paths.logsDir, sessionStart),
-    session: sessionStart.toISOString(), droppedRecord: droppedRecordsRow, onWarning: ({ message, fields }) => logger?.warn(message, fields)
+    session: sessionStart.toISOString(), onWarning: ({ message, fields }) => logger?.warn(message, fields)
   });
   const records = createRecordsStore(storeWriter, sessionStart);
   logger = createLogger(records, { debug: false });

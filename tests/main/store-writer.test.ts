@@ -5,7 +5,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startStoreWriter, type StoreWriter, type StoreWriterOptions } from "@main/store-writer";
-import { createRecordsStore, droppedRecordsRow, fallbackFile, type ProviderCallRecord } from "@main/records-store";
+import { createRecordsStore, fallbackFile, type ProviderCallRecord } from "@main/records-store";
 import { createLogger } from "@main/logger";
 import { openRecordsDatabase, STORE_BUSY_TIMEOUT_MS } from "@main/records-tables";
 import { openBackupsDatabase } from "@main/backup-tables";
@@ -46,7 +46,6 @@ function writer(options: Partial<StoreWriterOptions> = {}): StoreWriter {
     backupsPath: backupsFile(),
     fallbackPath: fallbackFile(logsDir(), sessionStart),
     session,
-    droppedRecord: droppedRecordsRow,
     onWarning: (warning) => warnings.push(warning),
     ...options
   });
@@ -180,29 +179,6 @@ describe("a locked or stalled store", () => {
 
     release();
     await drain(target);
-  });
-
-  it("drops records beyond its bound while busy, and records how many once it catches up", async () => {
-    openRecordsDatabase(recordsFile()).close();
-    lock(recordsFile());
-    const target = writer({ maxPendingRecords: 2 });
-    const records = createRecordsStore(target, sessionStart);
-    for (let index = 0; index < 8; index += 1) {
-      records.writeLog({ time: sessionStart.toISOString(), level: "info", message: `line ${index}`, fields: {} });
-    }
-    release();
-    await drain(target);
-
-    const messages = [
-      ...query(recordsFile(), "SELECT message, fields FROM log_records ORDER BY id"),
-      ...fallbackLines().filter((line) => line.message !== "records database unavailable")
-    ].map((row) => row.message);
-    // The first line was already with the writer; two waited; the other five were dropped.
-    expect(messages).toEqual(expect.arrayContaining(["line 0", "line 1", "line 2", "records were dropped while the records store was busy"]));
-    expect(messages).toHaveLength(4);
-    const notice = query(recordsFile(), "SELECT fields FROM log_records WHERE message LIKE 'records were dropped%'")[0]
-      ?? { fields: JSON.stringify(fallbackLines().find((line) => String(line.message).startsWith("records were dropped"))) };
-    expect(JSON.parse(String(notice.fields))).toMatchObject({ count: 5 });
   });
 
   it("gives up the drain at its bound at quit, and skips it at OS session end", async () => {

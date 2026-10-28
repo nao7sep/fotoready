@@ -28,7 +28,7 @@ it("skips the drain at OS session end without waiting for worker termination to 
   };
   const writer = startStoreWriter({
     recordsPath: "unused-records.sqlite3", backupsPath: "unused-backups.sqlite3", fallbackPath: "unused.log",
-    session: row.time, droppedRecord: () => row, onWarning: vi.fn()
+    session: row.time, onWarning: vi.fn()
   });
   writer.writeRecord(row);
   const owner = workers[0]!;

@@ -117,16 +117,6 @@ export function providerCallRow(record: ProviderCallRecord): RecordRow {
   };
 }
 
-/** The record that reports how many records the busy writer dropped. */
-export function droppedRecordsRow(count: number): RecordRow {
-  return logRow({
-    time: new Date().toISOString(),
-    level: "warn",
-    message: "records were dropped while the records store was busy",
-    fields: { mod: "main.records", count }
-  });
-}
-
 /** This session's records, handed to the store writer; never waits and never throws. */
 export function createRecordsStore(writer: Pick<StoreWriter, "writeRecord">, sessionStart: Date): RecordsStore {
   return {

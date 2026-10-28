@@ -7,7 +7,7 @@ import { visionError } from "@main/queues/vision";
 import { GeminiVisionProvider } from "@adapters/gemini";
 import { ApiKeyStore } from "@adapters/api-keys";
 import { createLogger } from "@main/logger";
-import { createRecordsStore, droppedRecordsRow, fallbackFile } from "@main/records-store";
+import { createRecordsStore, fallbackFile } from "@main/records-store";
 import { startStoreWriter } from "@main/store-writer";
 
 // Credentials never reach a persistent, console or event sink, where they would outlive the key file
@@ -58,7 +58,7 @@ describe.each([
     const sessionStart = new Date("2026-10-09T06:00:00.000Z");
     const writer = startStoreWriter({
       recordsPath, backupsPath: path.join(root, "backups.sqlite3"), fallbackPath: fallbackFile(path.join(root, "logs"), sessionStart),
-      session: sessionStart.toISOString(), droppedRecord: droppedRecordsRow, onWarning: () => {}
+      session: sessionStart.toISOString(), onWarning: () => {}
     });
     if (sink === "console") expect(await writer.close({ drain: true, timeoutMs: 10_000 })).toBe(true);
     const records = createRecordsStore(writer, sessionStart);

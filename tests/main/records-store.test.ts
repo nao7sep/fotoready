@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { droppedRecordsRow, logRow, providerCallRow, writeFallbackRecord, type ProviderCallRecord } from "@main/records-store";
+import { logRow, providerCallRow, writeFallbackRecord, type ProviderCallRecord } from "@main/records-store";
 
 let root: string;
 const logsDir = () => path.join(root, "logs");
@@ -54,10 +54,6 @@ describe("records as the store writer receives them", () => {
     expect(failed).toMatchObject({ level: "error", response: null });
     expect(JSON.parse((failed as { error: string }).error)).toMatchObject({ name: "Error", message: "busy", status: 503 });
     expect(JSON.parse(failed.fallback)).toMatchObject({ level: "error", message: "provider call", taskId: "task-1" });
-  });
-
-  it("reports how many records were dropped while the store was busy", () => {
-    expect(droppedRecordsRow(7)).toMatchObject({ table: "log", level: "warn", message: "records were dropped while the records store was busy", fields: '{"mod":"main.records","count":7}' });
   });
 });
 

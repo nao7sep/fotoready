@@ -4,24 +4,16 @@ import type { RecordRow } from "./records-tables";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "./store-writer-protocol";
 import { settleWithin } from "./quit-save";
 
-/**
- * How many records may wait while the writer is busy. A healthy store keeps up with every record the
- * app makes; this bound only matters while the store is locked or stalled, when records beyond it are
- * dropped and their count is recorded once the writer catches up, so a stalled store cannot grow
- * memory without limit.
- */
-export const MAX_PENDING_RECORDS = 2_000;
-
 export type StoreWriterOptions = StoreWriterData & {
-  /** The record that reports how many records were dropped while the writer was busy. */
-  droppedRecord(count: number): RecordRow;
   /** Logs a failure the writer reported, such as a backup that could not be recorded. */
   onWarning(warning: StoreWriterWarning): void;
-  maxPendingRecords?: number;
 };
 
 export interface StoreWriter {
-  /** Queues a record; never waits and never throws. */
+  /**
+   * Queues a record; never waits and never throws. Records wait without a cap while the store is
+   * locked or stalled, until it recovers or the exit deadline ends the session.
+   */
   writeRecord(row: RecordRow): void;
   /** Queues a backup; a newer pending write of the same path replaces an older one. Never waits or throws. */
   writeBackup(write: BackupWrite): void;
@@ -37,7 +29,7 @@ export interface StoreWriter {
 
 /** Starts the one writer of records.sqlite3 and backups.sqlite3 on its own worker thread. */
 export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
-  const { droppedRecord, onWarning, maxPendingRecords = MAX_PENDING_RECORDS, ...data } = options;
+  const { onWarning, ...data } = options;
   // The tests run the source under Node's TypeScript stripping; the app runs electron-vite's
   // workers/store-writer.js entry beside the main bundle.
   const entry = import.meta.url.endsWith(".ts") ? "./workers/store-writer.ts" : "./workers/store-writer.js";
@@ -46,7 +38,6 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
 
   let pendingRecords: RecordRow[] = [];
   let pendingBackups = new Map<string, BackupWrite>();
-  let dropped = 0;
   let inFlight = false;
   let nextId = 1;
   let stopped = false;
@@ -74,10 +65,6 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
 
   const send = (): void => {
     if (stopped || inFlight) return;
-    if (dropped > 0) {
-      pendingRecords.unshift(droppedRecord(dropped));
-      dropped = 0;
-    }
     if (pendingRecords.length === 0 && pendingBackups.size === 0) {
       for (const resolve of idleWaiters.splice(0)) resolve();
       return;
@@ -112,7 +99,7 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   worker.on("exit", (code) => stop(closedWaiter === null ? new Error(`The store writer exited with code ${code}.`) : null));
 
   const whenIdle = (): Promise<void> => new Promise((resolve) => {
-    if (stopped || (!inFlight && pendingRecords.length === 0 && pendingBackups.size === 0 && dropped === 0)) resolve();
+    if (stopped || (!inFlight && pendingRecords.length === 0 && pendingBackups.size === 0)) resolve();
     else {
       idleWaiters.push(resolve);
       send();
@@ -123,10 +110,6 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
     writeRecord(row) {
       if (stopped) {
         toConsole(row);
-        return;
-      }
-      if (pendingRecords.length >= maxPendingRecords) {
-        dropped += 1;
         return;
       }
       pendingRecords.push(row);

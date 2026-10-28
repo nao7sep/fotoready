@@ -27,7 +27,7 @@ import type { ProviderCallRecord } from "@main/records-store";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import { DatabaseSync } from "node:sqlite";
 import { startStoreWriter } from "@main/store-writer";
-import { createRecordsStore, droppedRecordsRow, fallbackFile } from "@main/records-store";
+import { createRecordsStore, fallbackFile } from "@main/records-store";
 import { openRecordsDatabase, STORE_BUSY_TIMEOUT_MS } from "@main/records-tables";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
@@ -206,7 +206,7 @@ describe("VisionQueue with a locked records store", () => {
     held.exec("BEGIN EXCLUSIVE");
     const writer = startStoreWriter({
       recordsPath, backupsPath: path.join(tempDir, "backups.sqlite3"), fallbackPath: fallbackFile(path.join(tempDir, "logs"), sessionStart),
-      session: sessionStart.toISOString(), droppedRecord: droppedRecordsRow, onWarning: () => {}
+      session: sessionStart.toISOString(), onWarning: () => {}
     });
     try {
       let recordCall: ((call: GeminiCall) => void) | undefined;

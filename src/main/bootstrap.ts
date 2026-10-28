@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { getAppPaths } from "./paths";
 import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
-import { createRecordsStore, droppedRecordsRow, fallbackFile, writeFallbackRecord } from "./records-store";
+import { createRecordsStore, fallbackFile, writeFallbackRecord } from "./records-store";
 import { startStoreWriter } from "./store-writer";
 import { jsonSafe } from "./json-safe";
 import { loadSettings } from "./settings-io";
@@ -129,7 +129,6 @@ export async function bootstrap(): Promise<void> {
     backupsPath: paths.backupsPath,
     fallbackPath: fallbackFile(paths.logsDir, sessionStart),
     session: sessionStart.toISOString(),
-    droppedRecord: droppedRecordsRow,
     onWarning: ({ message, fields }) => sessionLogger?.warn(message, fields)
   });
   storeWriter.onStored(notifyRecordsChanged);

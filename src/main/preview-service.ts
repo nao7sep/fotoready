@@ -42,9 +42,10 @@ type TaskPreviewCache = {
 const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
 
 /**
- * How many original thumbnails decode at once. Each holds a thread of the shared I/O pool for the
- * whole decode, and one starts per new original, so a bulk import would otherwise hold every thread
- * while file I/O waits (see threadpool-size.ts).
+ * How many original thumbnails decode at once. Two earn their place: forty 24 MP JPEGs took 3.6 s one
+ * at a time and 1.8 s two at a time on a ten-core Mac, a delay the user watches while Originals fills.
+ * More would hold more threads of the shared I/O pool for whole decodes while file I/O waits (see
+ * threadpool-size.ts).
  */
 const ORIGINAL_THUMBNAIL_CONCURRENCY = 2;
 
@@ -140,28 +141,25 @@ export class PreviewService {
       previewLongEdge
     );
     if (signal?.aborted) return null;
-    const previews: LutPreviewEntry[] = new Array(luts.length);
-    let nextIndex = 0;
-    const workerCount = Math.min(luts.length, this.workerPool?.capacity ?? 1);
-    await Promise.all(Array.from({ length: workerCount }, async () => {
-      while (!signal?.aborted && nextIndex < luts.length) {
-        const index = nextIndex++;
-        const lut = luts[index];
-        try {
-          const op: OpInstance = {
-            id: `lut-preview:${lut.path}`, type: "lut", enabled: true,
-            params: { cubePath: lut.path, strength }
-          };
-          const result = await this.renderOpStage(base, op, task.pipeline);
-          const png = await sharp(result.data, {
-            raw: { width: result.width, height: result.height, channels: 4 }
-          }).png().toBuffer();
-          previews[index] = { ...lut, dataUrl: `data:image/png;base64,${png.toString("base64")}`, width: result.width, height: result.height };
-        } catch (error) {
-          previews[index] = { ...lut, dataUrl: "", width: 0, height: 0, error: error instanceof Error ? error.message : String(error) };
-        }
+    // One at a time: the bundled library's twelve LUTs render at the picker's size in tens of
+    // milliseconds together, so rendering several at once would save nothing a user notices.
+    const previews: LutPreviewEntry[] = [];
+    for (const lut of luts) {
+      if (signal?.aborted) return null;
+      try {
+        const op: OpInstance = {
+          id: `lut-preview:${lut.path}`, type: "lut", enabled: true,
+          params: { cubePath: lut.path, strength }
+        };
+        const result = await this.renderOpStage(base, op, task.pipeline);
+        const png = await sharp(result.data, {
+          raw: { width: result.width, height: result.height, channels: 4 }
+        }).png().toBuffer();
+        previews.push({ ...lut, dataUrl: `data:image/png;base64,${png.toString("base64")}`, width: result.width, height: result.height });
+      } catch (error) {
+        previews.push({ ...lut, dataUrl: "", width: 0, height: 0, error: error instanceof Error ? error.message : String(error) });
       }
-    }));
+    }
     return signal?.aborted ? null : previews;
   }
 

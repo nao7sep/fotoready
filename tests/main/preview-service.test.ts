@@ -26,11 +26,10 @@ const HEIGHT = 2;
 type StageCall = { strength: number; release(): void };
 
 /** A worker pool whose stage renders fill the bitmap with the LUT strength and can be held open. */
-function fakePool(options: { holdStages?: boolean; assetPixel?: number; capacity?: number } = {}) {
+function fakePool(options: { holdStages?: boolean; assetPixel?: number } = {}) {
   const baseCalls: string[] = [];
   const stageCalls: StageCall[] = [];
   const pool = {
-    capacity: options.capacity ?? 1,
     async renderBuffer(input: { sourcePath: string }) {
       baseCalls.push(input.sourcePath);
       return { kind: "preview" as const, bitmap: filled(1).buffer, width: WIDTH, height: HEIGHT, format: "rgba8" as const, appliedPipeline: defaultPipeline() };
@@ -261,20 +260,19 @@ async function until(condition: () => boolean): Promise<void> {
 describe("PreviewService LUT previews", () => {
   const luts = (count: number): LutEntry[] => Array.from({ length: count }, (_, index) => ({ name: `LUT ${index}`, path: `/luts/${index}.cube`, builtin: false }));
 
-  it("bounds admitted LUT work by pool capacity and stops future work on cancellation", async () => {
-    const { pool, stageCalls } = fakePool({ holdStages: true, capacity: 2 });
+  it("renders one LUT at a time and stops further work on cancellation", async () => {
+    const { pool, stageCalls } = fakePool({ holdStages: true });
     const service = new PreviewService(pool);
     const project: Project = { outputDir: null, originals: [], tasks: [] };
     const { task } = arrange(project);
     task.pipeline.ops = [];
     const controller = new AbortController();
     const pending = service.renderLutPreviews(project, task.id, luts(20), WIDTH, undefined, 0.5, controller.signal);
-    await until(() => stageCalls.length === 2);
+    await until(() => stageCalls.length === 1);
     controller.abort();
     stageCalls[0].release();
-    stageCalls[1].release();
     expect(await pending).toBeNull();
-    expect(stageCalls).toHaveLength(2);
+    expect(stageCalls).toHaveLength(1);
   });
 
   it("supersedes an old library run after its admitted LUT settles", async () => {

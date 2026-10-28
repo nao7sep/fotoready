@@ -7,9 +7,6 @@ import { PipelineError } from "@runtime/pipeline-error";
 
 export class PipelineWorkerPool {
   #pool: Piscina;
-  /** How many image jobs run at once; callers that fan out bound themselves by it. */
-  get capacity(): number { return this.#pool.options.maxThreads; }
-
   constructor(workerPoolSize: number) {
     this.#pool = new Piscina({
       filename: path.join(import.meta.dirname, "workers/pipeline-worker.js"),

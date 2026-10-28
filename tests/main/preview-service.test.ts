@@ -189,26 +189,20 @@ describe("PreviewService stage cache", () => {
     expect(await firstPixel(await render())).toBe(10);
   });
 
-  it("keeps recently previewed tasks within the byte budget and always keeps the active one", async () => {
+  it("keeps only the previewed task's chain", async () => {
     const { pool, baseCalls } = fakePool();
-    const bitmapBytes = WIDTH * HEIGHT * 4;
-    // Room for one other task's chain (base plus one stage) besides the task being previewed.
-    const service = new PreviewService(pool, { budgetBytes: bitmapBytes * 2 });
+    const service = new PreviewService(pool);
     const project: Project = { outputDir: null, originals: [], tasks: [] };
     const a = arrange(project, "a");
     const b = arrange(project, "b");
-    const c = arrange(project, "c");
 
     await service.renderTaskPreview(project, a.task.id, 1024);
-    await service.renderTaskPreview(project, b.task.id, 1024);
-    await service.renderTaskPreview(project, c.task.id, 1024);
-    expect(baseCalls).toEqual(["/source/a.jpg", "/source/b.jpg", "/source/c.jpg"]);
-
-    // b was kept; a, the least recently previewed, was dropped when c was rendered.
-    await service.renderTaskPreview(project, b.task.id, 1024);
-    expect(baseCalls).toHaveLength(3);
     await service.renderTaskPreview(project, a.task.id, 1024);
-    expect(baseCalls).toEqual(["/source/a.jpg", "/source/b.jpg", "/source/c.jpg", "/source/a.jpg"]);
+    expect(baseCalls).toEqual(["/source/a.jpg"]);
+
+    await service.renderTaskPreview(project, b.task.id, 1024);
+    await service.renderTaskPreview(project, a.task.id, 1024);
+    expect(baseCalls).toEqual(["/source/a.jpg", "/source/b.jpg", "/source/a.jpg"]);
   });
 });
 

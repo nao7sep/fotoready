@@ -25,7 +25,7 @@ type BasePreviewEntry = PreviewBitmap & {
 };
 
 /**
- * One task's cached preview chain. Each stage is keyed by the content that produced it — the base key
+ * The previewed task's cached preview chain. Each stage is keyed by the content that produced it — the base key
  * and every op up to and including it — so a render that finishes after a newer edit lands under a key
  * no current request asks for, instead of standing in for the edited stage.
  */
@@ -33,13 +33,6 @@ type TaskPreviewCache = {
   base: BasePreviewEntry | null;
   stages: Map<string, PreviewBitmap>;
 };
-
-/**
- * Bitmaps kept for tasks other than the one being previewed. At the default 1024px preview a stage is
- * about 3 MB, so this holds a few recently viewed tasks' chains; the task being previewed always keeps
- * its own chain whatever its size.
- */
-const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
 
 /**
  * How many original thumbnails decode at once. Two earn their place: forty 24 MP JPEGs took 3.6 s one
@@ -50,17 +43,18 @@ const DEFAULT_CACHE_BUDGET_BYTES = 256 * 1024 * 1024;
 const ORIGINAL_THUMBNAIL_CONCURRENCY = 2;
 
 export class PreviewService {
-  // Least recently previewed first: a render moves its task to the end.
-  #tasks = new Map<string, TaskPreviewCache>();
+  /**
+   * Only the task being previewed keeps its chain. Going back to another task renders it again,
+   * about 0.1 s for a 24 MP JPEG with a LUT and a text watermark at 1024px against 0.03 s from a
+   * kept chain, which a user does not notice on switching tasks.
+   */
+  #active: { taskId: string; cache: TaskPreviewCache } | null = null;
   readonly #thumbnails = new PQueue({ concurrency: ORIGINAL_THUMBNAIL_CONCURRENCY });
-  readonly #budgetBytes: number;
 
-  constructor(private readonly workerPool: PipelineWorkerPool | null, options: { budgetBytes?: number } = {}) {
-    this.#budgetBytes = options.budgetBytes ?? DEFAULT_CACHE_BUDGET_BYTES;
-  }
+  constructor(private readonly workerPool: PipelineWorkerPool | null) {}
 
   invalidateTask(taskId: string): void {
-    this.#tasks.delete(taskId);
+    if (this.#active?.taskId === taskId) this.#active = null;
   }
 
   async renderTaskPreview(
@@ -177,9 +171,7 @@ export class PreviewService {
       if (!current.has(key)) cache.stages.delete(key);
     }
 
-    const result = await this.renderChain(cache, original, pipeline, baseKey, stageKeys, previewLongEdge, targetStageIndex, fullInputSizes);
-    this.enforceBudget(task.id);
-    return result;
+    return this.renderChain(cache, original, pipeline, baseKey, stageKeys, previewLongEdge, targetStageIndex, fullInputSizes);
   }
 
   private async renderChain(
@@ -215,28 +207,8 @@ export class PreviewService {
   }
 
   private taskCache(taskId: string): TaskPreviewCache {
-    const cache = this.#tasks.get(taskId) ?? { base: null, stages: new Map() };
-    // Re-insert so the map stays ordered from least to most recently previewed.
-    this.#tasks.delete(taskId);
-    this.#tasks.set(taskId, cache);
-    return cache;
-  }
-
-  /** Drops the least recently previewed tasks' chains until the others fit the budget. */
-  private enforceBudget(activeTaskId: string): void {
-    let total = 0;
-    const sizes = new Map<string, number>();
-    for (const [taskId, cache] of this.#tasks) {
-      if (taskId === activeTaskId) continue;
-      const size = cacheBytes(cache);
-      sizes.set(taskId, size);
-      total += size;
-    }
-    for (const [taskId, size] of sizes) {
-      if (total <= this.#budgetBytes) break;
-      this.#tasks.delete(taskId);
-      total -= size;
-    }
+    if (this.#active?.taskId !== taskId) this.#active = { taskId, cache: { base: null, stages: new Map() } };
+    return this.#active.cache;
   }
 
   private async previewBase(cache: TaskPreviewCache, original: Original, pipeline: Pipeline, key: string, previewLongEdge: number): Promise<BasePreviewEntry> {
@@ -361,16 +333,6 @@ async function previewStageKeys(baseKey: string, ops: OpInstance[]): Promise<str
     keys.push(previous);
   }
   return keys;
-}
-
-function cacheBytes(cache: TaskPreviewCache): number {
-  // A pass-through stage shares its input's bitmap; count each buffer once.
-  const buffers = new Set<Buffer>();
-  if (cache.base) buffers.add(cache.base.data);
-  for (const stage of cache.stages.values()) buffers.add(stage.data);
-  let total = 0;
-  for (const buffer of buffers) total += buffer.byteLength;
-  return total;
 }
 
 function previewTargetStageIndex(task: Task, options?: PreviewRenderOptions): number {

@@ -33,7 +33,6 @@ const snapshot = {
   privacyWarnings: {}
 };
 const importResult: OriginalImportResult = {
-  snapshot,
   canceled: false,
   acceptedImages: 1,
   addedOriginals: 1,
@@ -52,7 +51,8 @@ const queue: QueueSnapshot = {
   activeTaskLabel: null
 };
 const addOriginals = vi.fn().mockResolvedValue(importResult);
-const queueSnapshot = vi.fn().mockResolvedValue(queue);
+let onProject!: (value: typeof snapshot) => void;
+let onQueue!: (value: QueueSnapshot) => void;
 Object.defineProperty(window, "api", {
   configurable: true,
   value: {
@@ -79,17 +79,16 @@ Object.defineProperty(window, "api", {
     },
     state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
     project: {
-      current: () => Promise.resolve(snapshot),
+      subscribe: async () => { onProject(snapshot); onQueue(queue); },
       addOriginals
     },
     ops: { list: () => Promise.resolve([]) },
-    queues: { snapshot: queueSnapshot },
     luts: { list: () => Promise.resolve([]) },
     stamps: { list: () => Promise.resolve([]) },
     events: {
       onOriginalImportActivity: () => vi.fn(),
-      onProjectSnapshot: () => vi.fn(),
-      onQueueSnapshot: () => vi.fn()
+      onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return vi.fn(); },
+      onQueueSnapshot: (callback: typeof onQueue) => { onQueue = callback; return vi.fn(); }
     },
     lifecycle: {
       onCloseRequest: () => vi.fn(),

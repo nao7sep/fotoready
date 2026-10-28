@@ -22,11 +22,6 @@ function shown(feedback: OriginalImportFeedback | null) {
 
 function result(overrides: Partial<OriginalImportResult> = {}): OriginalImportResult {
   return {
-    snapshot: {
-      project: { outputDir: null, originals: [], tasks: [] },
-      activeTaskId: null,
-      privacyWarnings: {},
-    },
     canceled: false,
     acceptedImages: 0,
     addedOriginals: 0,

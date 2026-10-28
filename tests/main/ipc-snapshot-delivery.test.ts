@@ -21,7 +21,7 @@ vi.mock("electron", () => ({
 }));
 const { registerIpcHandlers } = await import("@main/ipc-router");
 
-const snapshot = (revision: number): ProjectSnapshot => ({ revision, project: createEmptyProject(), activeTaskId: null, privacyWarnings: {} });
+const snapshot = (): ProjectSnapshot => ({ project: createEmptyProject(), activeTaskId: null, privacyWarnings: {} });
 const queue = (): QueueSnapshot => ({ saved: 0, total: 0, notSaved: 0, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null });
 const call = (channel: string, ...args: unknown[]) => owned.handlers.get(channel)!(...args);
 
@@ -33,14 +33,14 @@ function deferred<T>() {
 }
 
 function arrange() {
-  const selected = snapshot(2);
+  const selected = snapshot();
   const queued = queue();
   let listener!: (project: ProjectSnapshot, queues: QueueSnapshot) => void;
   const session = {
-    snapshot: vi.fn(() => snapshot(99)),
+    snapshot: vi.fn(() => snapshot()),
     queueSnapshot: vi.fn(() => queued),
     selectTask: vi.fn(() => selected),
-    addOriginals: vi.fn<(paths: string[], issues: unknown[]) => Promise<OriginalImportResult>>(),
+    addOriginals: vi.fn<(paths: string[], issues: unknown[]) => Promise<OriginalImportResult & { snapshot: ProjectSnapshot }>>(),
     setSnapshotListener: (callback: typeof listener) => { listener = callback; }
   };
   const work = registerIpcHandlers({
@@ -57,22 +57,32 @@ beforeEach(() => {
 });
 
 describe("IPC snapshot delivery", () => {
-  it("returns the mutation's exact snapshot once to its origin and broadcasts project plus queue to other windows", async () => {
+  it("replies to a mutation without a snapshot and sends its exact snapshot plus queue to every window, the caller's included", async () => {
     const { session, selected, queued } = arrange();
 
-    expect(await call("task.select", "task-1")).toBe(selected);
+    expect(await call("task.select", "task-1")).toBeUndefined();
 
     expect(session.selectTask).toHaveBeenCalledWith("task-1");
     expect(session.snapshot).not.toHaveBeenCalled();
     expect(session.queueSnapshot).toHaveBeenCalledOnce();
-    expect(owned.origin.webContents.send.mock.calls).toEqual([["queue.snapshot", queued]]);
-    expect(owned.other.webContents.send.mock.calls).toEqual([["project.snapshot", selected], ["queue.snapshot", queued]]);
-    expect(owned.other.webContents.send.mock.calls[0]![1]).toBe(selected);
+    for (const window of [owned.origin, owned.other]) {
+      expect(window.webContents.send.mock.calls).toEqual([["project.snapshot", selected], ["queue.snapshot", queued]]);
+      expect(window.webContents.send.mock.calls[0]![1]).toBe(selected);
+    }
+  });
+
+  it("starts a window's subscription with the current snapshots, sent to that window only", async () => {
+    const { session, queued } = arrange();
+
+    expect(await call("project.subscribe")).toBeUndefined();
+
+    expect(owned.origin.webContents.send.mock.calls).toEqual([["project.snapshot", session.snapshot.mock.results[0]!.value], ["queue.snapshot", queued]]);
+    expect(owned.other.webContents.send).not.toHaveBeenCalled();
   });
 
   it("delivers supplied background snapshots to every window without reading session state again", () => {
     const { session, publish } = arrange();
-    const suppliedProject = snapshot(7);
+    const suppliedProject = snapshot();
     const suppliedQueue = { ...queue(), total: 1, queued: 1 };
 
     publish(suppliedProject, suppliedQueue);
@@ -90,8 +100,8 @@ describe("IPC snapshot delivery", () => {
 describe("accepted original import activity", () => {
   it("counts overlapping accepted files until settlement, including a failed import", async () => {
     const { session, work } = arrange();
-    const first = deferred<OriginalImportResult>();
-    const second = deferred<OriginalImportResult>();
+    const first = deferred<OriginalImportResult & { snapshot: ProjectSnapshot }>();
+    const second = deferred<OriginalImportResult & { snapshot: ProjectSnapshot }>();
     session.addOriginals.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const importing = call("project.addOriginals", ["/one.png", "/two.jpg", "/one.png", "/unsupported.exe"]);
     const failure = new Error("import failed");
@@ -106,9 +116,9 @@ describe("accepted original import activity", () => {
     await failed;
     expect(activity()).toEqual([2, 3, 1]);
     expect(work.isIdle()).toBe(false);
-    const result: OriginalImportResult = { snapshot: snapshot(3), canceled: false, acceptedImages: 1, addedOriginals: 1, restoredTasks: 0, succeededPaths: ["/three.webp"], issues: [] };
-    second.resolve(result);
-    expect(await overlapping).toBe(result);
+    const result: OriginalImportResult = { canceled: false, acceptedImages: 1, addedOriginals: 1, restoredTasks: 0, succeededPaths: ["/three.webp"], issues: [] };
+    second.resolve({ snapshot: snapshot(), ...result });
+    expect(await overlapping).toEqual(result);
 
     expect(activity()).toEqual([2, 3, 1, 0]);
     expect(owned.other.webContents.send.mock.calls.filter(([channel]) => channel === "originals.importActivity")).toEqual([

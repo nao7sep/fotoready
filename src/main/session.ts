@@ -40,7 +40,6 @@ import { resolveConfiguredPath } from "@main/configured-path";
 import { UserWorkWrites } from "@main/quit-save";
 
 export type ProjectSessionSnapshot = {
-  revision?: number;
   project: Project;
   activeTaskId: string | null;
   privacyWarnings: Record<string, PrivacyWarning>;
@@ -57,7 +56,6 @@ export class ProjectSession {
   #assetFolders: (() => AssetFolders) | null = null;
   readonly #lutPreviews = new LatestOnly();
   #lutPreviewController: AbortController | null = null;
-  #snapshotRevision = 0;
   #snapshotListener: ((snapshot: ProjectSessionSnapshot, queue: QueueSnapshot) => void | Promise<void>) | null = null;
   #originalImportTail: Promise<unknown> = Promise.resolve();
   // Every change to saved output files after the save itself — sidecar rewrites, rename, deletion —
@@ -87,7 +85,6 @@ export class ProjectSession {
 
   snapshot(): ProjectSessionSnapshot {
     return {
-      revision: ++this.#snapshotRevision,
       project: this.#project,
       activeTaskId: this.#activeTaskId,
       privacyWarnings: this.#computePrivacyWarnings()
@@ -135,7 +132,7 @@ export class ProjectSession {
   addOriginals(
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[] = []
-  ): Promise<OriginalImportResult> {
+  ): Promise<OriginalImportResult & { snapshot: ProjectSessionSnapshot }> {
     const paths = [...sourcePaths];
     const issues = [...initialIssues];
     const operation = this.#originalImportTail.then(
@@ -149,7 +146,7 @@ export class ProjectSession {
   async #addOriginals(
     sourcePaths: string[],
     initialIssues: OriginalImportIssue[]
-  ): Promise<OriginalImportResult> {
+  ): Promise<OriginalImportResult & { snapshot: ProjectSessionSnapshot }> {
     const sidecarResult = await loadTaskSidecars(sourcePaths, this.bundledStampsDir, this.logger, this.#assetFolders?.());
     const issues: OriginalImportIssue[] = [...initialIssues, ...sidecarResult.rejected];
     const sidecars = [...sidecarResult.loaded];
@@ -751,7 +748,7 @@ export class ProjectSession {
     return previewRename(this.#project, templateId, taskIds, this.logger);
   }
 
-  async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenameRunResult> {
+  async runRename(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenameRunResult & { snapshot: ProjectSessionSnapshot }> {
     try {
       const result = await this.#serializeOutputFiles(() => runRename(this.#project, templateId, taskIds, this.logger));
       return { snapshot: this.snapshot(), status: "complete", ...result, partialTaskIds: [] };

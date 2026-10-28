@@ -39,9 +39,11 @@ async function mount() {
     privacyWarnings: {}
   };
   let importActivity!: (pending: number) => void;
-  const selectOriginal = vi.fn(async () => snapshot);
+  let onProject!: (value: ProjectSnapshot) => void;
+  let onQueue!: (value: unknown) => void;
+  const selectOriginal = vi.fn(async () => {});
   const addOriginalsFromDialog = vi.fn(async () => ({
-    snapshot, canceled: true, acceptedImages: 0, addedOriginals: 0, restoredTasks: 0, succeededPaths: [], issues: []
+    canceled: true, acceptedImages: 0, addedOriginals: 0, restoredTasks: 0, succeededPaths: [], issues: []
   }));
   const toggleHistogram = vi.fn<() => Promise<UiState>>();
   const updateState = vi.fn();
@@ -54,12 +56,18 @@ async function mount() {
     },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },
     state: { get: async () => defaultUiState(), toggleHistogram, update: updateState },
-    project: { current: async () => snapshot, selectOriginal, addOriginalsFromDialog },
+    project: {
+      subscribe: async () => {
+        onProject(snapshot);
+        onQueue({ saved: 0, total: 0, notSaved: 0, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null });
+      },
+      selectOriginal, addOriginalsFromDialog
+    },
     ops: { list: async () => [] }, luts: { list: async () => [] }, stamps: { list: async () => [] },
     preview: { originalThumbnail: async () => ({ originalId: "original-1", dataUrl: "data:image/png;base64,", width: 100, height: 80 }) },
-    queues: { snapshot: async () => ({ saved: 0, total: 0, notSaved: 0, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null }) },
     events: {
-      onProjectSnapshot: () => () => {}, onQueueSnapshot: () => () => {},
+      onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return () => {}; },
+      onQueueSnapshot: (callback: typeof onQueue) => { onQueue = callback; return () => {}; },
       onOriginalImportActivity: (callback: typeof importActivity) => { importActivity = callback; return () => {}; }
     },
     lifecycle: { onCloseRequest: () => () => {}, onWindowActivityChanged: () => () => {} }

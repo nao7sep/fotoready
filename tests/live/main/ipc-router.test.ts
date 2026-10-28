@@ -19,7 +19,6 @@ import type Piscina from "piscina";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { ProjectSessionSnapshot } from "@main/session";
 import { SUPPORTED_MODELS, defaultMediaResolutionFor, defaultModelFor, defaultThinkingFor } from "@shared/ai-models";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { TaskSidecar } from "@shared/task-sidecar";
@@ -132,10 +131,8 @@ async function startApp(home: string) {
   };
   return {
     invoke,
-    task: async (taskId: string): Promise<Task> => {
-      const snapshot = await invoke<ProjectSessionSnapshot>("project.current");
-      return snapshot.project.tasks.find((task) => task.id === taskId)!;
-    },
+    snapshot: () => projectSession.snapshot(),
+    task: async (taskId: string): Promise<Task> => projectSession.snapshot().project.tasks.find((task) => task.id === taskId)!,
     /** The close guard's flush and the will-quit handler, then what process exit would close. */
     shutdown: async () => {
       await stateCoordinator.flush();
@@ -177,7 +174,7 @@ async function addCorpusPhoto(app: App, home: string, relative: string): Promise
   const result = await app.invoke<OriginalImportResult>("project.addOriginals", [copy]);
   expect(result.issues).toEqual([]);
   expect(result.addedOriginals).toBe(1);
-  const snapshot = result.snapshot;
+  const snapshot = app.snapshot();
   return snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)!;
 }
 
@@ -247,7 +244,7 @@ describe("the live save and vision paths", () => {
     try {
       await withApp(home, async (app) => {
         const task = await addCorpusPhoto(app, home, RICH_METADATA);
-        const snapshot = await app.invoke<ProjectSessionSnapshot>("project.current");
+        const snapshot = app.snapshot();
         const original = snapshot.project.originals.find((item) => item.id === task.originalId)!;
         expect(original.metadataSummary.editorial.author).toBe("Synthetic Fixture Generator");
         // ExifTool joins the fixture's OffsetTimeOriginal to its DateTimeOriginal.

@@ -44,7 +44,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   showTasks: true,
   showOps: true,
   setProjectSnapshot: (snapshot) => set((state) => {
-    if (snapshot?.revision !== undefined && state.projectSnapshot?.revision !== undefined && snapshot.revision < state.projectSnapshot.revision) return state;
     const activeTaskChanged = state.projectSnapshot?.activeTaskId !== snapshot?.activeTaskId;
     return {
       projectSnapshot: snapshot,

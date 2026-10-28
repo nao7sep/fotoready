@@ -25,16 +25,22 @@ vi.mock("react-dom/client", async (load) => {
 
 async function mount(approveClose: ReturnType<typeof vi.fn>, settingsUpdate = vi.fn(async (value) => value)) {
   let requested!: (request: CloseRequest) => void;
+  let onProject!: (snapshot: unknown) => void;
+  let onQueue!: (snapshot: unknown) => void;
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   Object.defineProperty(window, "api", { configurable: true, value: {
     language: { current: async () => ({ language: "en", locale: "en-US" }), onChanged: () => () => {} },
     system: { getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", cpuCount: 8, platform: "darwin" }), log: vi.fn(async () => {}) },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false, update: settingsUpdate },
     state: { get: async () => defaultUiState(), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
-    project: { current: async () => ({ project: { originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }) },
+    project: { subscribe: async () => {
+      onProject({ project: { originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} });
+      onQueue({ saved: 0, total: 1, notSaved: 1, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null });
+    } },
     ops: { list: async () => [] }, luts: { list: async () => [] }, stamps: { list: async () => [] },
-    queues: { snapshot: async () => ({ saved: 0, total: 1, notSaved: 1, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null }) },
-    events: { onOriginalImportActivity: () => () => {}, onProjectSnapshot: () => () => {}, onQueueSnapshot: () => () => {} },
+    events: { onOriginalImportActivity: () => () => {},
+      onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return () => {}; },
+      onQueueSnapshot: (callback: typeof onQueue) => { onQueue = callback; return () => {}; } },
     lifecycle: { approveClose, onCloseRequest: (callback: typeof requested) => { requested = callback; return () => {}; }, onWindowActivityChanged: () => () => {} },
   } });
   document.body.innerHTML = '<div id="root"></div>';

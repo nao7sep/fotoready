@@ -100,7 +100,7 @@ describe("output picker context", () => {
 
   it("uses the project destination and leaves it unchanged on cancel, then uses the newly picked path", async () => {
     project.outputDir = "out";
-    await expect(call("project.setOutputDirFromDialog")).resolves.toEqual({ snapshot: snapshot(), cancelled: true });
+    await expect(call("project.setOutputDirFromDialog")).resolves.toEqual({ cancelled: true });
     expect(options().defaultPath).toBe(path.join(os.homedir(), "other/out"));
     expect(setOutputDir).not.toHaveBeenCalled();
     const picked = path.join(os.homedir(), "$FOTOREADY_PICKER_MISSING", " output ");

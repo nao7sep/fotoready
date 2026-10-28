@@ -52,7 +52,7 @@ const api: FotoReadyApi = {
     update: (patch) => invoke("state.update", patch)
   },
   project: {
-    current: () => invoke("project.current"),
+    subscribe: () => invoke("project.subscribe"),
     setOutputDirFromDialog: () => invoke("project.setOutputDirFromDialog"),
     clearOutputDir: () => invoke("project.clearOutputDir"),
     addOriginals: (sourcePaths) => invoke("project.addOriginals", sourcePaths),
@@ -113,9 +113,6 @@ const api: FotoReadyApi = {
     list: () => invoke("stamps.list"),
     import: (filePaths) => invoke("stamps.import", filePaths),
     delete: (filePaths) => invoke("stamps.delete", filePaths)
-  },
-  queues: {
-    snapshot: () => invoke("queues.snapshot")
   },
   records: {
     open: () => invoke("records.open"),

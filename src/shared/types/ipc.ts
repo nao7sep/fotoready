@@ -70,20 +70,16 @@ export type PrivacyWarning = {
 };
 
 export type ProjectSnapshot = {
-  /** Monotonic within the owning main-process session. */
-  revision?: number;
   project: Project;
   activeTaskId: string | null;
   privacyWarnings: Record<string, PrivacyWarning>;
 };
 
 export type OutputDirectorySelectionResult = {
-  snapshot: ProjectSnapshot;
   cancelled: boolean;
 };
 
 export type RenameRunResult = {
-  snapshot: ProjectSnapshot;
   status: "complete" | "stopped";
   completedTaskIds: string[];
   partialTaskIds: string[];
@@ -99,7 +95,6 @@ export type OriginalImportIssue = {
 };
 
 export type OriginalImportResult = {
-  snapshot: ProjectSnapshot;
   canceled: boolean;
   acceptedImages: number;
   addedOriginals: number;
@@ -253,38 +248,42 @@ export type FotoReadyApi = {
     update(patch: Partial<UiState>): Promise<UiState>;
   };
   project: {
-    current(): Promise<ProjectSnapshot>;
+    /**
+     * Subscribes this window to project and queue snapshots: the current ones arrive as the first
+     * events, before this resolves, and every change follows as another event.
+     */
+    subscribe(): Promise<void>;
     setOutputDirFromDialog(): Promise<OutputDirectorySelectionResult>;
-    clearOutputDir(): Promise<ProjectSnapshot>;
+    clearOutputDir(): Promise<void>;
     addOriginals(sourcePaths: string[]): Promise<OriginalImportResult>;
     addOriginalsFromDialog(): Promise<OriginalImportResult>;
-    removeOriginal(originalId: string): Promise<ProjectSnapshot>;
-    selectOriginal(originalId: string): Promise<ProjectSnapshot>;
+    removeOriginal(originalId: string): Promise<void>;
+    selectOriginal(originalId: string): Promise<void>;
   };
   task: {
-    select(taskId: string): Promise<ProjectSnapshot>;
-    fork(taskId: string): Promise<ProjectSnapshot>;
-    delete(taskId: string): Promise<ProjectSnapshot>;
-    deleteSavedOutput(taskId: string): Promise<ProjectSnapshot>;
-    dismissError(taskId: string): Promise<ProjectSnapshot>;
-    retry(taskId: string): Promise<ProjectSnapshot>;
-    save(taskId: string): Promise<ProjectSnapshot>;
-    saveAll(): Promise<ProjectSnapshot>;
-    cancel(taskId: string): Promise<ProjectSnapshot>;
-    cancelAll(): Promise<ProjectSnapshot>;
+    select(taskId: string): Promise<void>;
+    fork(taskId: string): Promise<void>;
+    delete(taskId: string): Promise<void>;
+    deleteSavedOutput(taskId: string): Promise<void>;
+    dismissError(taskId: string): Promise<void>;
+    retry(taskId: string): Promise<void>;
+    save(taskId: string): Promise<void>;
+    saveAll(): Promise<void>;
+    cancel(taskId: string): Promise<void>;
+    cancelAll(): Promise<void>;
     /** `sourcePath` is the file a LUT, stamp or image watermark is added with. */
-    addOp(taskId: string, opType: string, sourcePath?: string): Promise<ProjectSnapshot>;
-    removeOp(taskId: string, opId: string): Promise<ProjectSnapshot>;
-    moveOp(taskId: string, opId: string, toIndex: number): Promise<ProjectSnapshot>;
-    setOpEnabled(taskId: string, opId: string, enabled: boolean): Promise<ProjectSnapshot>;
-    updateOpParam(taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<ProjectSnapshot>;
-    updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<ProjectSnapshot>;
-    undo(taskId: string): Promise<ProjectSnapshot>;
-    setGenerateDescription(taskId: string, generateDescription: boolean): Promise<ProjectSnapshot>;
-    setGenerateSlug(taskId: string, generateSlug: boolean): Promise<ProjectSnapshot>;
-    setCustomSlug(taskId: string, customSlug: string | null): Promise<ProjectSnapshot>;
-    clearVision(taskId: string): Promise<ProjectSnapshot>;
-    updateOutput(taskId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<ProjectSnapshot>;
+    addOp(taskId: string, opType: string, sourcePath?: string): Promise<void>;
+    removeOp(taskId: string, opId: string): Promise<void>;
+    moveOp(taskId: string, opId: string, toIndex: number): Promise<void>;
+    setOpEnabled(taskId: string, opId: string, enabled: boolean): Promise<void>;
+    updateOpParam(taskId: string, opId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<void>;
+    updateOpParams(taskId: string, opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<void>;
+    undo(taskId: string): Promise<void>;
+    setGenerateDescription(taskId: string, generateDescription: boolean): Promise<void>;
+    setGenerateSlug(taskId: string, generateSlug: boolean): Promise<void>;
+    setCustomSlug(taskId: string, customSlug: string | null): Promise<void>;
+    clearVision(taskId: string): Promise<void>;
+    updateOutput(taskId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<void>;
   };
   ops: {
     list(): Promise<OpCatalogItem[]>;
@@ -299,7 +298,7 @@ export type FotoReadyApi = {
     originalThumbnail(originalId: string): Promise<OriginalThumbnail>;
   };
   vision: {
-    runForTask(taskId: string, options?: VisionRunOptions): Promise<ProjectSnapshot>;
+    runForTask(taskId: string, options?: VisionRunOptions): Promise<void>;
   };
   rename: {
     preview(templateId?: RenameTemplateId, taskIds?: string[]): Promise<RenamePreview>;
@@ -318,9 +317,6 @@ export type FotoReadyApi = {
     list(): Promise<StampEntry[]>;
     import(filePaths: string[]): Promise<AssetImportResult[]>;
     delete(filePaths: string[]): Promise<void>;
-  };
-  queues: {
-    snapshot(): Promise<QueueSnapshot>;
   };
   records: {
     /** Opens the Records window, or brings it forward. */

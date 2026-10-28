@@ -22,7 +22,7 @@ Object.defineProperty(globalThis, "ResizeObserver", {
 });
 afterEach(async () => { await act(async () => mounted.root?.unmount()); });
 
-it("keeps finished project and queue broadcasts while startup libraries are still loading", async () => {
+it("keeps project and queue changes that follow the subscription's first snapshots while startup libraries are still loading", async () => {
   let finishLibrary!: (value: []) => void;
   const heldLibrary = new Promise<[]>((resolve) => { finishLibrary = resolve; });
   let onProject!: (snapshot: ProjectSnapshot) => void;
@@ -48,8 +48,8 @@ it("keeps finished project and queue broadcasts while startup libraries are stil
     system: { getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", dataDir: "/fixtures/data",
       lutsDir: "/fixtures/luts", stampsDir: "/fixtures/stamps", cpuCount: 8, platform: "darwin" }), log: vi.fn().mockResolvedValue(undefined) },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },
-    state: { get: async () => defaultUiState(), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) }, project: { current: async () => structuredClone(early) },
-    ops: { list: async () => [] }, queues: { snapshot: async () => earlyQueue },
+    state: { get: async () => defaultUiState(), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) }, project: { subscribe: async () => { onProject(structuredClone(early)); onQueue(earlyQueue); } },
+    ops: { list: async () => [] },
     luts: { list: () => heldLibrary }, stamps: { list: async () => [] },
     preview: { originalThumbnail: async () => ({ dataUrl: "data:image/png;base64,", width: 100, height: 80 }) },
     events: { onOriginalImportActivity: () => () => {}, onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return () => {}; },

@@ -7,7 +7,7 @@ import { api } from "./ipc/client";
 import { reportRendererLog } from "./renderer-log";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { UiState } from "@shared/types/state";
-import type { LutEntry, OpCatalogItem, OriginalImportResult, PreviewRenderMode, PrivacyWarning, ProjectSnapshot, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
+import type { LutEntry, OpCatalogItem, OriginalImportResult, PreviewRenderMode, PrivacyWarning, QueueSnapshot, StampEntry, SystemInfo, TaskEditOptions, VisionRunMode, VisionRunOptions } from "@shared/types/ipc";
 import type { Project, Task } from "@shared/types/project";
 import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
 import type { InterfaceLanguage } from "@shared/i18n/languages";
@@ -107,8 +107,6 @@ function App(): React.JSX.Element {
   });
   const [originalImportFeedback, setOriginalImportFeedback] = useState<OriginalImportFeedback | null>(null);
   const [queue, setQueue] = useState<QueueSnapshot>(initialQueueSnapshot);
-  const projectBroadcasts = useRef(0);
-  const queueBroadcasts = useRef(0);
   const [pendingRevealOpId, setPendingRevealOpId] = useState<string | null>(null);
   const projectSnapshot = useEditorStore((state) => state.projectSnapshot);
   const setProjectSnapshot = useEditorStore((state) => state.setProjectSnapshot);
@@ -197,28 +195,26 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     let current = true;
-    const projectRevision = projectBroadcasts.current;
-    const queueRevision = queueBroadcasts.current;
+    // One subscription delivers project and queue state: its first events are the current
+    // snapshots, which arrive before subscribe resolves, and every change follows.
+    const offProject = api.events.onProjectSnapshot(setProjectSnapshot);
+    const offQueue = api.events.onQueueSnapshot(setQueue);
     void Promise.all([
       api.system.getInfo(),
       api.settings.get(),
       api.state.get(),
       api.settings.hasGeminiApiKey(),
-      api.project.current(),
+      api.project.subscribe(),
       api.ops.list(),
-      api.queues.snapshot(),
       listLibraries()
     ]).then(
-      ([info, loadedSettings, loadedState, geminiKeyConfigured, loadedProject, loadedOps, snapshot, [loadedLuts, loadedStamps]]) => {
+      ([info, loadedSettings, loadedState, geminiKeyConfigured, , loadedOps, [loadedLuts, loadedStamps]]) => {
         if (!current) return;
         setSystemInfo(info);
         setSettings(loadedSettings);
         setUiState(loadedState);
         setHasGeminiApiKey(geminiKeyConfigured);
-        // Reopening a window can receive worker completion while the startup reads are pending.
-        if (projectBroadcasts.current === projectRevision) setProjectSnapshot(loadedProject);
         setOpCatalog(loadedOps);
-        if (queueBroadcasts.current === queueRevision) setQueue(snapshot);
         showLibraries(loadedLuts, loadedStamps);
         setStartupStatus("ready");
       }
@@ -229,6 +225,8 @@ function App(): React.JSX.Element {
     });
     return () => {
       current = false;
+      offProject();
+      offQueue();
     };
   }, []);
 
@@ -336,21 +334,6 @@ function App(): React.JSX.Element {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeTask?.id, activeTask?.status, project?.tasks, uiState?.showHistogram, systemInfo, settings]);
-
-  useEffect(() => {
-    const offProject = api.events.onProjectSnapshot((snapshot) => {
-      projectBroadcasts.current += 1;
-      setProjectSnapshot(snapshot);
-    });
-    const offQueue = api.events.onQueueSnapshot((snapshot) => {
-      queueBroadcasts.current += 1;
-      setQueue(snapshot);
-    });
-    return () => {
-      offProject();
-      offQueue();
-    };
-  }, []);
 
   const [pendingOriginalFiles, setPendingOriginalFiles] = useState(0);
   useEffect(() => api.events.onOriginalImportActivity(setPendingOriginalFiles), []);
@@ -478,7 +461,6 @@ function App(): React.JSX.Element {
     result: OriginalImportResult,
     inaccessibleNames: string[] = []
   ): Promise<void> {
-    setProjectSnapshot(result.snapshot);
     setOriginalImportFeedback((current) => settleOriginalImportFeedback(current, result, inaccessibleNames));
   }
 
@@ -489,17 +471,15 @@ function App(): React.JSX.Element {
 
   async function setOutputDir(): Promise<OwnedActionOutcome> {
     const result = await api.project.setOutputDirFromDialog();
-    if (result.cancelled) return "cancelled";
-    await refreshProject(result.snapshot);
-    return "completed";
+    return result.cancelled ? "cancelled" : "completed";
   }
 
   async function clearOutputDir(): Promise<void> {
-    await refreshProject(await api.project.clearOutputDir());
+    await api.project.clearOutputDir();
   }
 
   async function selectOriginal(originalId: string): Promise<void> {
-    await refreshProject(await api.project.selectOriginal(originalId));
+    await api.project.selectOriginal(originalId);
   }
 
   async function removeOriginal(originalId: string): Promise<OwnedActionOutcome> {
@@ -513,16 +493,16 @@ function App(): React.JSX.Element {
       });
       if (!confirmed) return "cancelled";
     }
-    await refreshProject(await api.project.removeOriginal(originalId));
+    await api.project.removeOriginal(originalId);
     return "completed";
   }
 
   async function selectTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.select(taskId));
+    await api.task.select(taskId);
   }
 
   async function forkTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.fork(taskId));
+    await api.task.fork(taskId);
   }
 
   async function deleteTask(task: Task): Promise<OwnedActionOutcome> {
@@ -535,7 +515,7 @@ function App(): React.JSX.Element {
       });
       if (!confirmed) return "cancelled";
     }
-    await refreshProject(await api.task.delete(task.id));
+    await api.task.delete(task.id);
     return "completed";
   }
 
@@ -551,36 +531,36 @@ function App(): React.JSX.Element {
       });
       if (!confirmed) return "cancelled";
     }
-    await refreshProject(await api.task.deleteSavedOutput(task.id));
+    await api.task.deleteSavedOutput(task.id);
     return "completed";
   }
 
   async function retryTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.retry(taskId));
+    await api.task.retry(taskId);
   }
 
   async function dismissError(taskId: string): Promise<void> {
-    await refreshProject(await api.task.dismissError(taskId));
+    await api.task.dismissError(taskId);
   }
 
   async function undoTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.undo(taskId));
+    await api.task.undo(taskId);
   }
 
   async function saveTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.save(taskId));
+    await api.task.save(taskId);
   }
 
   async function saveAll(): Promise<void> {
-    await refreshProject(await api.task.saveAll());
+    await api.task.saveAll();
   }
 
   async function cancelTask(taskId: string): Promise<void> {
-    await refreshProject(await api.task.cancel(taskId));
+    await api.task.cancel(taskId);
   }
 
   async function cancelAll(): Promise<void> {
-    await refreshProject(await api.task.cancelAll());
+    await api.task.cancelAll();
   }
 
   /** Adds a step, first asking for its file when it needs one; a cancelled choice adds nothing. */
@@ -603,54 +583,54 @@ function App(): React.JSX.Element {
   }
 
   async function addOp(taskId: string, opType: string, sourcePath?: string): Promise<void> {
-    const snapshot = await api.task.addOp(taskId, opType, sourcePath);
-    await refreshProject(snapshot);
-    const addedOpId = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.at(-1)?.id ?? null;
+    await api.task.addOp(taskId, opType, sourcePath);
+    const snapshot = useEditorStore.getState().projectSnapshot;
+    const addedOpId = snapshot?.project.tasks.find((task) => task.id === snapshot.activeTaskId)?.pipeline.ops.at(-1)?.id ?? null;
     selectOp(addedOpId);
     setPendingRevealOpId(addedOpId);
   }
 
   async function removeOp(opId: string): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.removeOp(activeTask.id, opId));
+    await api.task.removeOp(activeTask.id, opId);
   }
 
   async function moveOp(opId: string, toIndex: number): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.moveOp(activeTask.id, opId, toIndex));
+    await api.task.moveOp(activeTask.id, opId, toIndex);
   }
 
   async function setOpEnabled(opId: string, enabled: boolean): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.setOpEnabled(activeTask.id, opId, enabled));
+    await api.task.setOpEnabled(activeTask.id, opId, enabled);
   }
 
   async function updateOpParam(opId: string, key: string, value: unknown, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParam(activeTask.id, opId, key, value, options));
+    await api.task.updateOpParam(activeTask.id, opId, key, value, options);
   }
 
   async function updateOpParams(opId: string, patch: Record<string, unknown>, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOpParams(activeTask.id, opId, patch, options?.expectedParams ? { ...options, expectedOriginalId: activeTask.originalId } : options));
+    await api.task.updateOpParams(activeTask.id, opId, patch, options?.expectedParams ? { ...options, expectedOriginalId: activeTask.originalId } : options);
     if (options?.expectedParams && typeof patch.assetPath === "string") setPreviewAttempt((attempt) => attempt + 1);
   }
 
   async function setGenerateDescription(generateDescription: boolean): Promise<void> {
     const task = activeTask;
     if (!task) return;
-    await refreshProject(await api.task.setGenerateDescription(task.id, generateDescription));
+    await api.task.setGenerateDescription(task.id, generateDescription);
   }
 
   async function setGenerateSlug(generateSlug: boolean): Promise<void> {
     const task = activeTask;
     if (!task) return;
-    await refreshProject(await api.task.setGenerateSlug(task.id, generateSlug));
+    await api.task.setGenerateSlug(task.id, generateSlug);
   }
 
   async function setCustomSlug(customSlug: string | null): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.setCustomSlug(activeTask.id, customSlug));
+    await api.task.setCustomSlug(activeTask.id, customSlug);
   }
 
   async function generateVision(mode: VisionRunMode): Promise<void> {
@@ -660,14 +640,13 @@ function App(): React.JSX.Element {
 
   async function clearVision(): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.clearVision(activeTask.id));
+    await api.task.clearVision(activeTask.id);
   }
 
   async function runVisionForTask(taskId: string, options?: VisionRunOptions): Promise<{ failure: Message | null } | null> {
     if (!await keyPrompt.ensureKey()) return null;
-    const snapshot = await api.vision.runForTask(taskId, options);
-    await refreshProject(snapshot);
-    const error = snapshot.project.tasks.find((task) => task.id === taskId)?.error;
+    await api.vision.runForTask(taskId, options);
+    const error = useEditorStore.getState().projectSnapshot?.project.tasks.find((task) => task.id === taskId)?.error;
     return { failure: error?.stage === "vision" ? error.message : null };
   }
 
@@ -795,11 +774,7 @@ function App(): React.JSX.Element {
 
   async function updateOutput(key: string, value: unknown, options?: TaskEditOptions): Promise<void> {
     if (!activeTask) return;
-    await refreshProject(await api.task.updateOutput(activeTask.id, key, value, options));
-  }
-
-  async function refreshProject(snapshot: ProjectSnapshot): Promise<void> {
-    setProjectSnapshot(snapshot);
+    await api.task.updateOutput(activeTask.id, key, value, options);
   }
 
   const cancellableActiveTask = activeTask && activeTask.status === "queued";
@@ -1099,7 +1074,6 @@ function App(): React.JSX.Element {
           }}
           onRun={async (templateId, summary) => {
             const result = await api.rename.run(templateId);
-            await refreshProject(result.snapshot);
             if (result.status === "stopped") return result;
             setRenameOpen(false);
             await confirmer.alert({
@@ -1109,7 +1083,7 @@ function App(): React.JSX.Element {
             return result;
           }}
           onSetRenameSlug={async (taskId, customSlug) => {
-            await refreshProject(await api.task.setCustomSlug(taskId, customSlug));
+            await api.task.setCustomSlug(taskId, customSlug);
           }}
           onSetOutputDir={setOutputDir}
         />

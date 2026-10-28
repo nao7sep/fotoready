@@ -102,6 +102,8 @@ async function mountApp({ revealInFolder = vi.fn(), select = vi.fn(async () => s
   select?: (taskId: string) => Promise<unknown>;
   withPhoto?: boolean;
 }): Promise<void> {
+  let onProject!: (value: unknown) => void;
+  let onQueue!: (value: unknown) => void;
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
@@ -126,15 +128,19 @@ async function mountApp({ revealInFolder = vi.fn(), select = vi.fn(async () => s
       luts: { list: async () => [] },
       stamps: { list: async () => [] },
       state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
-      project: { current: () => Promise.resolve(snapshot(withPhoto)) },
+      project: {
+        subscribe: async () => {
+          onProject(snapshot(withPhoto));
+          onQueue(withPhoto ? { ...queue, processing: 0, notSaved: 1, activeTaskId: null, activeTaskLabel: null } : queue);
+        }
+      },
       preview: { render: () => new Promise(() => {}), originalThumbnail: () => new Promise(() => {}) },
       task: { select },
       ops: { list: () => Promise.resolve([]) },
-      queues: { snapshot: () => Promise.resolve(withPhoto ? { ...queue, processing: 0, notSaved: 1, activeTaskId: null, activeTaskLabel: null } : queue) },
       events: {
         onOriginalImportActivity: () => vi.fn(),
-        onProjectSnapshot: () => vi.fn(),
-        onQueueSnapshot: () => vi.fn()
+        onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return vi.fn(); },
+        onQueueSnapshot: (callback: typeof onQueue) => { onQueue = callback; return vi.fn(); }
       },
       lifecycle: {
         onCloseRequest: () => vi.fn(),

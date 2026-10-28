@@ -107,6 +107,8 @@ describe.each([
 });
 
 function mountApi(overrides: Record<string, unknown>): void {
+  let onProject!: (value: unknown) => void;
+  let onQueue!: (value: unknown) => void;
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
@@ -127,13 +129,12 @@ function mountApi(overrides: Record<string, unknown>): void {
         log: vi.fn().mockResolvedValue(undefined)
       },
       state: { get: () => Promise.resolve(defaultUiState()), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) },
-      project: { current: () => Promise.resolve({ project: { outputDir: null, originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }) },
+      project: { subscribe: async () => { onProject({ project: { outputDir: null, originals: [], tasks: [] }, activeTaskId: null, privacyWarnings: {} }); onQueue(queue); } },
       ops: { list: () => Promise.resolve([]) },
-      queues: { snapshot: () => Promise.resolve(queue) },
       events: {
         onOriginalImportActivity: () => vi.fn(),
-        onProjectSnapshot: () => vi.fn(),
-        onQueueSnapshot: () => vi.fn()
+        onProjectSnapshot: (callback: typeof onProject) => { onProject = callback; return vi.fn(); },
+        onQueueSnapshot: (callback: typeof onQueue) => { onQueue = callback; return vi.fn(); }
       },
       lifecycle: {
         onCloseRequest: () => vi.fn(),

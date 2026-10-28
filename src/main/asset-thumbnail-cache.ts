@@ -4,48 +4,36 @@ import sharp from "sharp";
 import type { AssetThumbnail } from "@shared/types/ipc";
 import { NO_PIXEL_LIMIT } from "@runtime/decode";
 
-const MAX_THUMBNAIL_CACHE_ENTRIES = 512;
+type CacheEntry = { version: string; value: AssetThumbnail | Promise<AssetThumbnail> };
 
-type CacheValue = AssetThumbnail | Promise<AssetThumbnail>;
-
+/**
+ * One thumbnail per stamp file, so the cache holds at most the library; a new size or file version
+ * replaces it, and library changes clear it. Reopening the picker or switching its group asks for
+ * every visible thumbnail again: the bundled 363 stamps take 0.7 s six at a time to render and are
+ * immediate from here.
+ */
 export class AssetThumbnailCache {
-  private readonly entries = new Map<string, CacheValue>();
+  private readonly entries = new Map<string, CacheEntry>();
 
   clear(): void { this.entries.clear(); }
 
   async get(assetPath: string, longEdge?: number): Promise<AssetThumbnail> {
     const size = thumbnailSize(longEdge);
-    const key = await thumbnailCacheKey(assetPath, size);
-    const cached = this.entries.get(key);
-    if (cached) {
-      this.entries.delete(key);
-      this.entries.set(key, cached);
-      return cached;
-    }
+    const resolvedPath = path.resolve(assetPath);
+    const version = await thumbnailVersion(resolvedPath, size);
+    const cached = this.entries.get(resolvedPath);
+    if (cached?.version === version) return cached.value;
 
     const pending = renderThumbnail(assetPath, size);
-    this.entries.set(key, pending);
-    this.trim();
+    const entry: CacheEntry = { version, value: pending };
+    this.entries.set(resolvedPath, entry);
     try {
       const thumbnail = await pending;
-      if (this.entries.get(key) === pending) {
-        this.entries.set(key, thumbnail);
-        this.trim();
-      }
+      if (this.entries.get(resolvedPath) === entry) entry.value = thumbnail;
       return thumbnail;
     } catch (error) {
-      if (this.entries.get(key) === pending) {
-        this.entries.delete(key);
-      }
+      if (this.entries.get(resolvedPath) === entry) this.entries.delete(resolvedPath);
       throw error;
-    }
-  }
-
-  private trim(): void {
-    while (this.entries.size > MAX_THUMBNAIL_CACHE_ENTRIES) {
-      const firstKey = this.entries.keys().next().value;
-      if (firstKey === undefined) return;
-      this.entries.delete(firstKey);
     }
   }
 }
@@ -54,10 +42,9 @@ function thumbnailSize(longEdge?: number): number {
   return Number.isFinite(longEdge) ? Math.max(32, Math.min(512, Math.round(longEdge ?? 160))) : 160;
 }
 
-async function thumbnailCacheKey(assetPath: string, longEdge: number): Promise<string> {
-  const resolvedPath = path.resolve(assetPath);
+async function thumbnailVersion(resolvedPath: string, longEdge: number): Promise<string> {
   const stat = await fs.stat(resolvedPath);
-  return [resolvedPath, stat.size, stat.mtimeMs, longEdge].join("\0");
+  return [stat.size, stat.mtimeMs, longEdge].join("\0");
 }
 
 async function renderThumbnail(assetPath: string, longEdge: number): Promise<AssetThumbnail> {

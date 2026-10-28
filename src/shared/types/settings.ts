@@ -86,7 +86,6 @@ export type GlobalSettings = {
   preResizeLongEdge: number;
   visionDescriptionPrompt: string;
   visionSlugPrompt: string;
-  visionConcurrency: number;
   visionTimeoutMs: number;
   writeSoftwareTag: boolean;
   writeModifyDate: boolean;

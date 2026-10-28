@@ -85,9 +85,9 @@ describe("stores written by v0.1.0", () => {
     expect(saved.startsWith('{\n  "formatVersion": 1,')).toBe(true);
     const { formatVersion: _marker, ...sets } = JSON.parse(saved) as Record<string, unknown>;
     const old = JSON.parse(text) as Record<string, unknown>;
-    // The retired keys go at the next save: v0.1.0's model, the Concurrent saves setting, and the
-    // Gemini resend settings that became fixed policy.
-    const retired = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs"];
+    // The retired keys go at the next save: v0.1.0's model, the Concurrent saves and Concurrent vision
+    // requests settings, and the Gemini resend settings that became fixed policy.
+    const retired = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs", "visionConcurrency"];
     for (const key of retired) expect(old).toHaveProperty(key);
     const oldSets = Object.fromEntries(Object.entries(old).filter(([key]) => !retired.includes(key)));
     expect(sets).toEqual({ ...oldSets, defaultAvifQuality: 55 });

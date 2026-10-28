@@ -50,8 +50,9 @@ export class SettingsQuarantineError extends Error {
  * unknown key is kept. `model` was v0.1.0's one model id, now `gemini.description` and `gemini.slug`.
  */
 // `workerPoolSize` was the Concurrent saves setting: the number of saves at once now follows the
-// machine and each photo's size, which a user cannot judge in advance.
-const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs"];
+// machine and each photo's size, which a user cannot judge in advance. `visionConcurrency` was the
+// Concurrent vision requests setting, now a fixed width in the vision queue.
+const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs", "visionConcurrency"];
 
 /**
  * Store-recovery outcomes, decided once at load so a session never overwrites a file it could not

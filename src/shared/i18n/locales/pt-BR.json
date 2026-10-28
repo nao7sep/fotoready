@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "Altíssima",
   "settings.unsupportedModel": "Modelo não compatível. Pode não funcionar como esperado.",
   "settings.visionLongEdge": "Lado maior da imagem analisada",
-  "settings.visionConcurrency": "Solicitações de análise simultâneas",
   "settings.visionTimeout": "Tempo limite da solicitação (ms)",
   "settings.generateDescriptionDefault": "Gerar a descrição das novas tarefas depois de salvar",
   "settings.generateSlugDefault": "Gerar o slug das novas tarefas depois de salvar",

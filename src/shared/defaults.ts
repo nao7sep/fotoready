@@ -66,7 +66,6 @@ export function defaultGlobalSettings(): GlobalSettings {
     preResizeLongEdge: 1024,
     visionDescriptionPrompt: defaultVisionDescriptionPrompt,
     visionSlugPrompt: defaultVisionSlugPrompt,
-    visionConcurrency: 3,
     visionTimeoutMs: 60000,
     defaultOutputDirectory: "",
     lutFolder: "",

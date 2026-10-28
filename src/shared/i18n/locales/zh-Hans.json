@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "超高",
   "settings.unsupportedModel": "不受支持的模型，可能无法按预期工作。",
   "settings.visionLongEdge": "分析图像的长边",
-  "settings.visionConcurrency": "同时进行的分析请求",
   "settings.visionTimeout": "请求超时（毫秒）",
   "settings.generateDescriptionDefault": "新任务保存后生成描述",
   "settings.generateSlugDefault": "新任务保存后生成别名",

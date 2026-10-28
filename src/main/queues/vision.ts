@@ -59,6 +59,10 @@ const defaultDeps: VisionQueueDeps = {
   prepareInput: prepareVisionInput
 };
 
+// Three vision runs at once (developer decision): the Concurrent vision requests setting, 1 to 32, is
+// retired because few users would find or tune it, and its default of 3 keeps a batch's pace.
+const VISION_RUNS_AT_ONCE = 3;
+
 /**
  * Runs paid vision calls through a bounded queue, at most one run per task at a time.
  *
@@ -67,8 +71,7 @@ const defaultDeps: VisionQueueDeps = {
  */
 export class VisionQueue {
   #apiKeys: ApiKeyStore;
-  #queue: PQueue;
-  #currentConcurrency: number;
+  #queue = new PQueue({ concurrency: VISION_RUNS_AT_ONCE });
   #deps: VisionQueueDeps;
   // Scheduled runs that have not started. Cancellation is bound to the specific job, so a fresh request
   // for a task whose job is still pending revives it rather than being swallowed and then skipped.
@@ -88,8 +91,6 @@ export class VisionQueue {
     deps: VisionQueueDeps = defaultDeps
   ) {
     this.#apiKeys = new ApiKeyStore(paths.apiKeysPath, logger);
-    this.#currentConcurrency = Math.max(1, settings.visionConcurrency);
-    this.#queue = new PQueue({ concurrency: this.#currentConcurrency });
     this.#deps = deps;
   }
 
@@ -132,7 +133,6 @@ export class VisionQueue {
     const job: VisionJob = { mode, basis, cancelled: false, done: Promise.resolve() };
     this.#pending.set(taskId, job);
     this.#outstanding.set(taskId, (this.#outstanding.get(taskId) ?? 0) + 1);
-    this.#syncConcurrency();
     const previous = this.#tails.get(taskId) ?? Promise.resolve();
     job.done = previous
       .then(() => this.#queue.add(async () => {
@@ -175,14 +175,6 @@ export class VisionQueue {
       this.#outstanding.delete(task.id);
       this.#tails.delete(task.id);
       reports.running(task, null);
-    }
-  }
-
-  #syncConcurrency(): void {
-    const desired = Math.max(1, this.settings.visionConcurrency);
-    if (desired !== this.#currentConcurrency) {
-      this.#queue.concurrency = desired;
-      this.#currentConcurrency = desired;
     }
   }
 

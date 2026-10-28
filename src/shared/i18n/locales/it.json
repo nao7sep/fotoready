@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "Altissima",
   "settings.unsupportedModel": "Modello non supportato. Potrebbe non funzionare come previsto.",
   "settings.visionLongEdge": "Lato lungo dell’immagine analizzata",
-  "settings.visionConcurrency": "Richieste di analisi simultanee",
   "settings.visionTimeout": "Timeout della richiesta (ms)",
   "settings.generateDescriptionDefault": "Genera una descrizione per le nuove attività dopo il salvataggio",
   "settings.generateSlugDefault": "Genera uno slug per le nuove attività dopo il salvataggio",

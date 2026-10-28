@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "Très haute",
   "settings.unsupportedModel": "Ce modèle n’est pas pris en charge. Il risque de ne pas fonctionner comme prévu.",
   "settings.visionLongEdge": "Grand côté de l’image analysée",
-  "settings.visionConcurrency": "Requêtes d’analyse simultanées",
   "settings.visionTimeout": "Délai d’expiration des requêtes (ms)",
   "settings.generateDescriptionDefault": "Générer une description pour les nouvelles tâches après l’enregistrement",
   "settings.generateSlugDefault": "Générer un slug pour les nouvelles tâches après l’enregistrement",

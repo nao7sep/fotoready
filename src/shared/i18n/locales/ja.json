@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "超高",
   "settings.unsupportedModel": "対応していないモデルです。期待どおりに動作しない可能性があります。",
   "settings.visionLongEdge": "解析用画像の長辺",
-  "settings.visionConcurrency": "同時に送る解析リクエスト",
   "settings.visionTimeout": "リクエストのタイムアウト(ミリ秒)",
   "settings.generateDescriptionDefault": "新しいタスクで、保存後に説明文を生成する",
   "settings.generateSlugDefault": "新しいタスクで、保存後にスラッグを生成する",

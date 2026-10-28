@@ -198,7 +198,6 @@ export async function bootstrap(): Promise<void> {
       descriptionModel: settings["gemini.description"],
       slugModel: settings["gemini.slug"],
       cores,
-      visionConcurrency: settings.visionConcurrency,
       previewLongEdge: settings.previewLongEdge,
       lutFolder: settings.lutFolder,
       stampFolder: settings.stampFolder

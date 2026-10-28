@@ -354,7 +354,6 @@
   "settings.mediaResolutionLevel.ultraHigh": "Сверхвысокое",
   "settings.unsupportedModel": "Эта модель не поддерживается. Она может работать не так, как ожидается.",
   "settings.visionLongEdge": "Длинная сторона изображения для анализа",
-  "settings.visionConcurrency": "Одновременные запросы анализа",
   "settings.visionTimeout": "Тайм-аут запроса (мс)",
   "settings.generateDescriptionDefault": "Создавать описание для новых задач после сохранения",
   "settings.generateSlugDefault": "Создавать ярлык для новых задач после сохранения",

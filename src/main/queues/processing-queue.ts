@@ -2,7 +2,7 @@ import os from "node:os";
 import type { GlobalSettings } from "@shared/types/settings";
 import type { Project } from "@shared/types/project";
 import type { QueueSnapshot } from "@shared/types/ipc";
-import { processTask } from "./processing";
+import { processTask, type SaveUpdate } from "./processing";
 import { queueSnapshotFromProject } from "./snapshot";
 import { canStartSave, saveCost } from "./save-admission";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
@@ -16,7 +16,7 @@ export type TaskProcessor = (
   project: Project,
   taskId: string,
   settings: GlobalSettings,
-  onUpdate: (() => void | Promise<void>) | undefined,
+  report: (update: SaveUpdate) => void | Promise<void>,
   workerPool: PipelineWorkerPool,
   logger?: AppLogger,
   signal?: AbortSignal
@@ -37,8 +37,14 @@ type WaitingSave = { taskId: string; job: PendingJob; cost: number; run(): Promi
  * (the fresh save supersedes the cancel) instead of being swallowed as a duplicate and then skipped
  * — the bug that previously stranded a task in a permanent "queued" state with no in-flight work.
  */
+/**
+ * What the queue tells the session: a save's report for its task, or, without one, that the queue's
+ * own state changed.
+ */
+export type ProcessingListener = (save?: { taskId: string; update: SaveUpdate }) => void | Promise<void>;
+
 export class ProcessingQueue {
-  #onUpdate: (() => void | Promise<void>) | null;
+  #onUpdate: ProcessingListener | null;
   #afterTaskProcessed: ((taskId: string) => void | Promise<void>) | null = null;
   #pending = new Map<string, PendingJob>();
   #waiting: WaitingSave[] = [];
@@ -47,21 +53,20 @@ export class ProcessingQueue {
   // Each running save's abort handle, so shutting down can stop it mid-render.
   #active = new Map<string, AbortController>();
   #idleWaiters: Array<() => void> = [];
-  #closed = false;
 
   constructor(
     private readonly cores: number,
     private readonly settings: GlobalSettings,
     private readonly workerPool: PipelineWorkerPool,
     private readonly logger?: AppLogger,
-    onUpdate: (() => void | Promise<void>) | null = null,
+    onUpdate: ProcessingListener | null = null,
     private readonly processor: TaskProcessor = processTask,
     private readonly totalMemory: number = os.totalmem()
   ) {
     this.#onUpdate = onUpdate;
   }
 
-  setUpdateListener(listener: () => void | Promise<void>): void {
+  setUpdateListener(listener: ProcessingListener): void {
     this.#onUpdate = listener;
   }
 
@@ -70,7 +75,6 @@ export class ProcessingQueue {
   }
 
   async enqueueTask(project: Project, taskId: string): Promise<void> {
-    if (this.#closed) throw new Error("FotoReady is closing; no new saves start.");
     if (this.#active.has(taskId)) return;
 
     const existing = this.#pending.get(taskId);
@@ -116,7 +120,7 @@ export class ProcessingQueue {
     this.#active.set(taskId, controller);
     await this.#onUpdate?.();
     try {
-      await this.processor(project, taskId, this.settings, this.#onUpdate ?? undefined, this.workerPool, this.logger, controller.signal);
+      await this.processor(project, taskId, this.settings, (update) => this.#onUpdate?.({ taskId, update }), this.workerPool, this.logger, controller.signal);
       if (!controller.signal.aborted) await this.#afterTaskProcessed?.(taskId);
     } catch (error) {
       this.logger?.error("queued task failed outside task processor", { mod: "processing.queue", taskId, err: error });
@@ -163,9 +167,11 @@ export class ProcessingQueue {
     await this.#onIdle();
   }
 
-  /** Stops for quit as {@link abortAll} does, and takes no new saves; the caller bounds its wait and tears down workers. */
+  /**
+   * Stops for quit as {@link abortAll} does; IPC admission, already closed, keeps new saves from
+   * arriving. The caller bounds its wait and tears down workers.
+   */
   async shutdown(): Promise<void> {
-    this.#closed = true;
     await this.abortAll();
   }
 

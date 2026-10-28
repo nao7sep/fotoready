@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@adapters/exiftool", () => ({ applyMetadataToOutput: mocks.applyMetadataToOutput }));
 
-import { processTask } from "@main/queues/processing";
+import { applySaveUpdate, processTask, type SaveUpdate } from "@main/queues/processing";
 
 let dir: string;
 
@@ -46,7 +46,7 @@ describe("processTask output publication", () => {
     const logger = createLogger(records, { debug: false });
     let outputPath: string;
     try {
-      await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool(), logger);
+      await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), writingPool(), logger);
       expect(task.status).toBe("saved");
       outputPath = task.output!.stagedPath;
       project.tasks.splice(0);
@@ -73,7 +73,7 @@ describe("processTask output publication", () => {
   it("publishes into the literal selected output folder, including trailing spaces", async () => {
     const { project, task } = arrange();
     project.outputDir = path.join(dir, " $UNSET_OUTPUT %literal% ");
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), writingPool());
     expect(task.status).toBe("saved");
     expect(path.dirname(task.output!.stagedPath)).toBe(project.outputDir);
     expect(await fs.readFile(task.output!.stagedPath, "utf8")).toBe("rendered");
@@ -87,7 +87,7 @@ describe("processTask output publication", () => {
       seenAtMetadata.push(await fs.readdir(dir));
     });
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), writingPool());
 
     expect(task.status).toBe("saved");
     // While metadata was being written, nothing in the folder carried an image name.
@@ -105,7 +105,7 @@ describe("processTask output publication", () => {
       controller.abort();
     });
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool(), undefined, controller.signal);
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), writingPool(), undefined, controller.signal);
 
     expect(task.status).toBe("error");
     expect(task.output).toBeNull();
@@ -124,7 +124,7 @@ describe("processTask output publication", () => {
       }
     } as unknown as PipelineWorkerPool;
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, pool, undefined, controller.signal);
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), pool, undefined, controller.signal);
 
     expect(task.status).toBe("error");
     expect(await fs.readdir(dir)).toEqual([]);
@@ -144,7 +144,7 @@ describe("processTask out of memory", () => {
       }
     } as unknown as PipelineWorkerPool;
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, pool);
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), pool);
 
     expect(task.status).toBe("error");
     expect(task.error).toMatchObject({ message: message("processingError.memory"), retryable: true });
@@ -156,13 +156,13 @@ describe("processTask status times", () => {
   it("changes the task's status, not its modified time, whether the save succeeds or fails", async () => {
     const saved = arrange();
     const before = saved.task.updatedAt;
-    await processTask(saved.project, saved.task.id, defaultGlobalSettings(), undefined, writingPool());
+    await processTask(saved.project, saved.task.id, defaultGlobalSettings(), (update) => applySaveUpdate(saved.task, update), writingPool());
     expect(saved.task.status).toBe("saved");
     expect(saved.task.updatedAt).toBe(before);
 
     const failed = arrange();
     mocks.applyMetadataToOutput.mockRejectedValueOnce(new Error("exiftool failed"));
-    await processTask(failed.project, failed.task.id, defaultGlobalSettings(), undefined, writingPool());
+    await processTask(failed.project, failed.task.id, defaultGlobalSettings(), (update) => applySaveUpdate(failed.task, update), writingPool());
     expect(failed.task.status).toBe("error");
     expect(failed.task.updatedAt).toBe(before);
   });
@@ -188,7 +188,6 @@ describe("ProcessingQueue shutdown", () => {
 
     expect(settled).toBe(true);
     expect(started).toEqual(["A"]);
-    await expect(queue.enqueueTask(project, "C")).rejects.toThrow(/closing/);
   });
 });
 
@@ -237,7 +236,8 @@ describe("processTask after the save completes", () => {
   it("keeps the saved image and sidecar when announcing the save fails", async () => {
     const { project, task } = arrange();
     mocks.applyMetadataToOutput.mockImplementation(async () => undefined);
-    const onUpdate = vi.fn(async () => {
+    const onUpdate = vi.fn(async (update: SaveUpdate) => {
+      applySaveUpdate(task, update);
       if (task.status === "saved") throw new Error("window gone");
     });
 
@@ -265,7 +265,7 @@ describe("processTask sidecar failure", () => {
       await fs.mkdir(path.join(dir, `${finalStem}${TASK_SIDECAR_SUFFIX}`));
     });
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, pool);
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), pool);
 
     expect(task.status).toBe("error");
     expect(task.output).toBeNull();
@@ -284,7 +284,7 @@ describe("processTask with an output folder naming an unset variable", () => {
     // An expression starts with the variable; an absolute folder is taken as picked.
     project.outputDir = "$FOTOREADY_OUTPUT_TEST_UNSET/out";
 
-    await processTask(project, task.id, defaultGlobalSettings(), undefined, writingPool());
+    await processTask(project, task.id, defaultGlobalSettings(), (update) => applySaveUpdate(task, update), writingPool());
 
     expect(task.status).toBe("error");
     expect(task.error?.message).toEqual(message("failure.withReason", {

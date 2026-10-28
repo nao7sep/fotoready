@@ -18,11 +18,36 @@ import { PipelineError, isMemoryFailure, isRetryableCategory } from "@runtime/pi
 import { message, type Message } from "@shared/i18n/translate";
 import { PathVariableError, pathVariableReason } from "@main/configured-path";
 
+/** What a save reports to the session, which owns the task and applies each update in turn. */
+export type SaveUpdate =
+  | { kind: "processing" }
+  | { kind: "saved"; pipeline: Pipeline; output: NonNullable<Task["output"]> }
+  | { kind: "failed"; error: TaskError };
+
+/** The task change a save update stands for. */
+export function applySaveUpdate(task: Task, update: SaveUpdate): void {
+  if (update.kind === "processing") {
+    task.status = "processing";
+    task.error = null;
+  } else if (update.kind === "saved") {
+    task.pipeline = update.pipeline;
+    task.output = update.output;
+    task.status = "saved";
+  } else {
+    task.status = "error";
+    task.error = update.error;
+  }
+}
+
+/**
+ * Saves one task. It reads the task and reports its progress and outcome; it never writes the task,
+ * so between reports the task is the session's alone.
+ */
 export async function processTask(
   project: Project,
   taskId: string,
   settings: GlobalSettings,
-  onUpdate: (() => void | Promise<void>) | undefined,
+  report: (update: SaveUpdate) => void | Promise<void>,
   workerPool: PipelineWorkerPool,
   logger?: AppLogger,
   signal?: AbortSignal
@@ -40,15 +65,14 @@ export async function processTask(
   const startedAt = performance.now();
   logger?.info("task processing started", { mod: "processing", taskId: task.id, originalId: original.id });
 
-  task.status = "processing";
-  task.error = null;
-  await onUpdate?.();
+  await report({ kind: "processing" });
 
   // The image is rendered and given its metadata under a temporary name in the output folder, and
   // takes its final name only when complete. Until then nothing in the folder looks like an output,
   // so a quit or crash mid-save never leaves a truncated image or one still carrying stripped tags.
   let tempPath: string | null = null;
   let writtenOutputPath: string | null = null;
+  let saved: Extract<SaveUpdate, { kind: "saved" }>;
   try {
     const sourcePath = original.sourcePath;
     const outputPath = await stagedOutputPath(project, task, original, sourcePath);
@@ -72,22 +96,24 @@ export async function processTask(
     writtenOutputPath = outputPath;
 
     const stagedParamsPath = await writeTaskSidecarFile(outputPath, original, task, result.appliedPipeline);
-    // Publish the output and `saved` only after every output artifact is complete, so a failed sidecar
+    // Report the output and `saved` only after every output artifact is complete, so a failed sidecar
     // write never leaves the task pointing at the image the failure path removes. Until then the task
     // remains `processing`, which also keeps task/original removal from dropping ownership of work
     // that can still mutate the filesystem.
-    task.pipeline = result.appliedPipeline;
-    task.output = {
-      stagedPath: outputPath,
-      stagedParamsPath,
-      stagedAt: savedAt.toISOString(),
-      outputHash: finalFacts.outputHash,
-      vision: null,
-      finalPath: null,
-      finalParamsPath: null,
-      renamedAt: null
+    saved = {
+      kind: "saved",
+      pipeline: result.appliedPipeline,
+      output: {
+        stagedPath: outputPath,
+        stagedParamsPath,
+        stagedAt: savedAt.toISOString(),
+        outputHash: finalFacts.outputHash,
+        vision: null,
+        finalPath: null,
+        finalParamsPath: null,
+        renamedAt: null
+      }
     };
-    task.status = "saved";
     logger?.info("task processing done", { mod: "processing", taskId: task.id, sourcePath, outputPath, ms: Math.round(performance.now() - startedAt) });
   } catch (error) {
     for (const strandedPath of [tempPath, writtenOutputPath]) {
@@ -104,8 +130,6 @@ export async function processTask(
         });
       }
     }
-    task.status = "error";
-    task.error = taskError(error);
     logger?.error("task processing failed", {
       mod: "processing",
       taskId: task.id,
@@ -113,11 +137,11 @@ export async function processTask(
       sourcePath: original.sourcePath,
       err: error
     });
-    await onUpdate?.();
+    await report({ kind: "failed", error: taskError(error) });
     return;
   }
   // Outside the try: the save is complete, so failing to announce it must not remove its files.
-  await onUpdate?.();
+  await report(saved);
 }
 
 async function processOutputPipeline(

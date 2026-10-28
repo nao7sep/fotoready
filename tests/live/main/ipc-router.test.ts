@@ -112,7 +112,7 @@ async function startApp(home: string) {
   const processingQueue = new ProcessingQueue(cores, settings, pipelineWorkerPool, logger);
   const userWork = new UserWorkWrites();
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger, userWork);
-  processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
+  processingQueue.setUpdateListener((save) => projectSession.onProcessingUpdate(save));
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
   const recordsReader = createRecordsReader(paths.recordsPath);
   registerIpcHandlers({

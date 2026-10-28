@@ -16,7 +16,8 @@ import { getOpDefinition, getOpModule } from "@core/ops/catalog";
 import { PreviewService } from "@main/preview-service";
 import type { OriginalThumbnail, PreviewResult } from "@shared/types/ipc";
 import { previewRename, RenameBatchStoppedError, runRename } from "@main/rename-service";
-import type { VisionCommit, VisionQueue } from "@main/queues/vision";
+import { outputKey, type VisionQueue, type VisionReports } from "@main/queues/vision";
+import { applySaveUpdate, type SaveUpdate } from "@main/queues/processing";
 import type { ProcessingQueue } from "@main/queues/processing-queue";
 import type { PipelineWorkerPool } from "@main/workers/pipeline-pool";
 import { deleteSelectedFiles, FileTrashError } from "@main/safe-delete";
@@ -61,7 +62,8 @@ export class ProjectSession {
   // Every change to saved output files after the save itself — sidecar rewrites, rename, deletion —
   // runs through this one lane, in order, so no two of them interleave on the same files.
   #outputFilesTail: Promise<unknown> = Promise.resolve();
-  #closing = false;
+  // Aborted at quit: imports stop between files and saved output files are no longer changed.
+  #shutdown = new AbortController();
   // Retry identity belongs to the authored field; removed tasks are retained only by admitted work.
   #metadataIntents = new WeakMap<Task, Map<string, { value?: boolean }>>();
 
@@ -124,6 +126,17 @@ export class ProjectSession {
     await this.#snapshotListener?.(this.snapshot(), this.queueSnapshot());
   }
 
+  /** What the processing queue reports: a save's update, applied to its task here, or a queue change. */
+  async onProcessingUpdate(save?: { taskId: string; update: SaveUpdate }): Promise<void> {
+    if (save) {
+      const task = this.#project.tasks.find((item) => item.id === save.taskId);
+      // A task under save cannot be removed (isTaskBusyForRemoval), so it is always found.
+      if (!task) throw new Error(`Task not found: ${save.taskId}`);
+      applySaveUpdate(task, save.update);
+    }
+    await this.emitSnapshot();
+  }
+
   setOutputDir(outputDir: string | null): ProjectSessionSnapshot {
     this.#project.outputDir = outputDir && outputDir.trim().length > 0 ? outputDir : null;
     return this.snapshot();
@@ -157,7 +170,7 @@ export class ProjectSession {
     const succeededPaths = new Set<string>();
 
     for (const sourcePath of sourcePaths) {
-      if (this.#closing) break;
+      if (this.#shutdown.signal.aborted) break;
       if (isTaskSidecarPath(sourcePath)) continue;
       let original: Original;
       try {
@@ -175,7 +188,7 @@ export class ProjectSession {
         });
         continue;
       }
-      if (this.#closing) break;
+      if (this.#shutdown.signal.aborted) break;
       if (original.metadataSummary.inspectionFailed) this.logger?.warn("source metadata inspection is unknown", { mod: "main.session", sourcePath });
       const existing = this.#project.originals.find((item) => item.sourceHash === original.sourceHash);
       const targetOriginal = existing ?? original;
@@ -212,7 +225,7 @@ export class ProjectSession {
     }
 
     for (const sidecar of sidecars) {
-      if (this.#closing) break;
+      if (this.#shutdown.signal.aborted) break;
       if (usedSidecarPaths.has(sidecar.path)) continue;
       const targetOriginal = this.#project.originals.find((original) => matchingTaskSidecar(original, [sidecar]));
       if (!targetOriginal) {
@@ -473,7 +486,7 @@ export class ProjectSession {
    * bounds its wait and worker teardown.
    */
   async shutdown(): Promise<void> {
-    this.#closing = true;
+    this.#shutdown.abort();
     this.cancelLutPreview();
     await Promise.allSettled([this.processingQueue.shutdown(), this.visionQueue.shutdown(), this.#outputFilesTail]);
   }
@@ -522,13 +535,13 @@ export class ProjectSession {
     return this.#previewService.renderOriginalThumbnail(original);
   }
 
+  /** Starts the automatic description of a saved task; after quit has begun, the vision queue starts none. */
   async afterTaskProcessed(taskId: string): Promise<void> {
-    if (this.#closing) return;
     const task = this.#project.tasks.find((item) => item.id === taskId);
     if (!task || task.status !== "saved" || !task.output || (!task.generateDescription && !task.generateSlug)) {
       return;
     }
-    if (!(await this.visionQueue.hasGeminiApiKey()) || this.#closing) {
+    if (!(await this.visionQueue.hasGeminiApiKey())) {
       return;
     }
     void this.runVision(taskId, { mode: task.generateSlug ? "description-and-slug" : "description" }).then(async (snapshot) => {
@@ -765,8 +778,8 @@ export class ProjectSession {
   }
 
   async runVision(taskId: string, options?: VisionRunOptions): Promise<ProjectSessionSnapshot> {
-    // The queue owns the task's running flags; they are already set when runForTask returns.
-    const run = this.visionQueue.runForTask(this.#project, taskId, options, this.#commitVision);
+    // The task's running flags are already set when runForTask returns.
+    const run = this.visionQueue.runForTask(this.#project, taskId, options, this.#visionReports);
     try { await this.emitSnapshot(); }
     catch (error) {
       this.logger?.warn("vision start notification failed", { mod: "main.session", taskId, err: error });
@@ -783,15 +796,47 @@ export class ProjectSession {
     return this.snapshot();
   }
 
-  #commitVision: VisionCommit = async (task, apply) => {
-    const changed = await this.commitTaskMetadata(task, apply, this.metadataIntent(task, "vision"));
-    if (changed) {
-      try { await this.emitSnapshot(); }
-      catch (error) {
-        this.logger?.warn("vision progress notification failed", { mod: "main.session", taskId: task.id, err: error });
+  /** What the vision queue reports, applied to the task here in the order it arrives. */
+  #visionReports: VisionReports = {
+    running: (task, mode, requested) => {
+      if (requested && task.error?.stage === "vision") task.error = null;
+      task.visionRunning = mode !== null;
+      task.visionRunMode = mode;
+    },
+    step: async (task, step) => {
+      // A step belongs only to the saved output it was requested for.
+      const isCurrent = (): boolean => task.output !== null && outputKey(task.output) === step.basis.outputKey;
+      if (step.kind === "failed") {
+        if (!isCurrent()) return false;
+        task.error = step.error;
+        return true;
       }
+      const changed = await this.commitTaskMetadata(task, () => {
+        if (!task.output || !isCurrent()) return false;
+        if (step.kind === "description") {
+          task.output.vision = { ...step.described, slugCandidates: [] };
+          task.updatedAt = step.described.ranAt;
+        } else {
+          const previous = task.output.vision;
+          const descriptionStep = step.described ?? previous;
+          if (!descriptionStep) return false;
+          task.output.vision = { slugCandidates: [], ...previous, ...descriptionStep, ...step.slugged };
+          // A slug the user typed while the run was in flight is theirs; only an untouched one is replaced.
+          const generatedSlug = step.slugged?.slugCandidates[0];
+          if (generatedSlug && task.customSlug === step.basis.customSlug) task.customSlug = generatedSlug;
+          task.updatedAt = step.slugged?.slugRanAt ?? descriptionStep.ranAt;
+        }
+        task.error = null;
+        return true;
+      }, this.metadataIntent(task, "vision"));
+      if (changed) {
+        try { await this.emitSnapshot(); }
+        catch (error) {
+          this.logger?.warn("vision progress notification failed", { mod: "main.session", taskId: task.id, err: error });
+        }
+      }
+      return changed;
     }
-    return changed;
   };
 
   async clearVision(taskId: string): Promise<ProjectSessionSnapshot> {
@@ -856,7 +901,7 @@ export class ProjectSession {
   }
 
   #serializeOutputFiles<T>(work: () => Promise<T>): Promise<T> {
-    if (this.#closing) return Promise.reject(new Error("FotoReady is closing; saved files are no longer changed."));
+    if (this.#shutdown.signal.aborted) return Promise.reject(new Error("FotoReady is closing; saved files are no longer changed."));
     const run = this.#outputFilesTail.then(work, work);
     this.#outputFilesTail = run.catch(() => undefined);
     return run;

@@ -168,7 +168,7 @@ export async function bootstrap(): Promise<void> {
     bundledLuts: paths.bundledLutsDir,
     importedLuts: folderOrNull(() => resolveLutDir(settings.lutFolder, paths.lutsDir))
   }));
-  processingQueue.setUpdateListener(() => projectSession.emitSnapshot());
+  processingQueue.setUpdateListener((save) => projectSession.onProcessingUpdate(save));
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
 
   const ipcWork = registerIpcHandlers({

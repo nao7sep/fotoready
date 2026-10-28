@@ -118,14 +118,14 @@ it("includes a description held at its image-read boundary in session shutdown",
   } as Task;
   const project = owner.session.snapshot().project;
   project.tasks.push(task);
-  const run = owner.queue.runForTask(project, task.id, { mode: "description" }, async () => false);
+  const run = owner.queue.runForTask(project, task.id, { mode: "description" }, { running: () => {}, step: async () => false });
   await vi.advanceTimersByTimeAsync(0);
   expect(prepare).toHaveBeenCalledOnce();
   const force = quitWith(owner);
   await vi.advanceTimersByTimeAsync(1_500);
   expect(force).toHaveBeenCalledOnce();
   expect(boundary.exits).toBe(0);
-  await owner.queue.runForTask(project, task.id, { mode: "description" }, async () => false);
+  await owner.queue.runForTask(project, task.id, { mode: "description" }, { running: () => {}, step: async () => false });
   expect(prepare).toHaveBeenCalledOnce();
   read.resolve({ bytes: Buffer.from("image"), width: 4, height: 3 }); await run;
 });

@@ -130,7 +130,6 @@ describe("ProcessingQueue abort", () => {
     await settle();
     expect(started).toEqual(["A", "C"]);
     await queue.shutdown();
-    await expect(queue.enqueueTask(project, "D")).rejects.toThrow("closing");
   });
 });
 

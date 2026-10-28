@@ -16,7 +16,7 @@ import { message, type Message } from "@shared/i18n/translate";
 import { isRecord } from "@shared/validation/common";
 
 /** What a vision request was computed from: the saved output it describes and the slug the user had. */
-type VisionBasis = { outputKey: string; customSlug: string | null };
+export type VisionBasis = { outputKey: string; customSlug: string | null };
 
 /**
  * One scheduled vision run. Until it starts, a newer request for the same task updates it in place
@@ -32,11 +32,27 @@ export type VisionQueueDeps = {
   prepareInput(stagedPath: string, longEdge: number): Promise<{ bytes: Buffer; width: number; height: number }>;
 };
 
+/** A finished step of a vision run, for the task it was requested for. */
+export type VisionStep =
+  | { kind: "description"; basis: VisionBasis; described: Pick<VisionResult, "description" | "model" | "ranAt"> }
+  | {
+    kind: "result";
+    basis: VisionBasis;
+    described: Pick<VisionResult, "description" | "model" | "ranAt"> | null;
+    slugged: Pick<VisionResult, "slugCandidates" | "slugModel" | "slugRanAt"> | null;
+  }
+  | { kind: "failed"; basis: VisionBasis; error: TaskError };
+
 /**
- * Applies a vision result to its task and persists it. `apply` re-checks that the result is still
- * current and returns false to decline; the commit then changes nothing and resolves false.
+ * The owner of the task state a vision run changes: the session. The queue reports to it and never
+ * writes a task itself.
  */
-export type VisionCommit = (task: Task, apply: () => boolean) => Promise<boolean>;
+export type VisionReports = {
+  /** The task's running state: the mode of the run in progress or waiting, or null once none is. Applied at once. */
+  running(task: Task, mode: VisionRunMode | null, requested?: boolean): void;
+  /** Applies a step if it still belongs to the task's current output, and resolves whether it did. */
+  step(task: Task, step: VisionStep): Promise<boolean>;
+};
 
 const defaultDeps: VisionQueueDeps = {
   createProvider: (apiKey, endpoint, recordCall, recordLifecycle) => new GeminiVisionProvider(apiKey, endpoint, recordCall, recordLifecycle),
@@ -46,10 +62,8 @@ const defaultDeps: VisionQueueDeps = {
 /**
  * Runs paid vision calls through a bounded queue, at most one run per task at a time.
  *
- * The queue owns `task.visionRunning` and `task.visionRunMode`: they turn on when a run is scheduled
- * and off only when the task's last run settles. A run commits a result only while the saved output it
- * was requested for is still the task's output, and replaces the custom slug only if the user left it
- * as it was when the run was requested.
+ * The queue decides when a task's runs are running: from when one is scheduled until the task's last
+ * run settles. It reports that and each finished step to the session, which owns the task.
  */
 export class VisionQueue {
   #apiKeys: ApiKeyStore;
@@ -63,7 +77,7 @@ export class VisionQueue {
   #tails = new Map<string, Promise<void>>();
   // Runs per task that have not settled (at most one running plus one pending).
   #outstanding = new Map<string, number>();
-  #closing = false;
+  // Aborted at quit: provider calls and retry waits stop, and no new run or phase starts.
   #shutdown = new AbortController();
 
   constructor(
@@ -95,8 +109,8 @@ export class VisionQueue {
    * Schedules a vision run and resolves when it settles. The task's running flags are set before the
    * first await, so a caller may publish them right after calling.
    */
-  runForTask(project: Project, taskId: string, options: VisionRunOptions | undefined, commit: VisionCommit): Promise<void> {
-    if (this.#closing) return Promise.resolve();
+  runForTask(project: Project, taskId: string, options: VisionRunOptions | undefined, reports: VisionReports): Promise<void> {
+    if (this.#shutdown.signal.aborted) return Promise.resolve();
     const task = project.tasks.find((item) => item.id === taskId);
     if (!task) return Promise.reject(new Error(`Task not found: ${taskId}`));
     if (!task.output) return Promise.reject(new Error("Task must be saved before vision can run."));
@@ -104,9 +118,7 @@ export class VisionQueue {
     if (!mode) return Promise.resolve();
 
     const basis: VisionBasis = { outputKey: outputKey(task.output), customSlug: task.customSlug };
-    if (task.error?.stage === "vision") task.error = null;
-    task.visionRunning = true;
-    task.visionRunMode = mode;
+    reports.running(task, mode, true);
 
     const existing = this.#pending.get(taskId);
     if (existing) {
@@ -126,10 +138,10 @@ export class VisionQueue {
       .then(() => this.#queue.add(async () => {
         this.#pending.delete(taskId);
         if (job.cancelled) return;
-        task.visionRunMode = job.mode;
-        await this.#run(task, job, commit);
+        reports.running(task, job.mode);
+        await this.#run(task, job, reports);
       }))
-      .finally(() => this.#settle(task));
+      .finally(() => this.#settle(task, reports));
     this.#tails.set(taskId, job.done);
     return job.done;
   }
@@ -149,22 +161,20 @@ export class VisionQueue {
 
   /** Stop unsent phases and retries; active reads and provider calls remain owned until settlement. */
   async shutdown(): Promise<void> {
-    this.#closing = true;
     this.#shutdown.abort();
     this.cancelAll();
     await Promise.allSettled([...this.#tails.values()]);
   }
 
-  #settle(task: Task): void {
+  #settle(task: Task, reports: VisionReports): void {
     const remaining = (this.#outstanding.get(task.id) ?? 1) - 1;
     if (remaining > 0) {
       this.#outstanding.set(task.id, remaining);
-      task.visionRunMode = this.#pending.get(task.id)?.mode ?? task.visionRunMode;
+      reports.running(task, this.#pending.get(task.id)?.mode ?? task.visionRunMode);
     } else {
       this.#outstanding.delete(task.id);
       this.#tails.delete(task.id);
-      task.visionRunning = false;
-      task.visionRunMode = null;
+      reports.running(task, null);
     }
   }
 
@@ -176,19 +186,21 @@ export class VisionQueue {
     }
   }
 
-  async #run(task: Task, job: VisionJob, commit: VisionCommit): Promise<void> {
+  async #run(task: Task, job: VisionJob, reports: VisionReports): Promise<void> {
     const { mode, basis } = job;
     const settings = structuredClone(this.settings);
+    const closing = this.#shutdown.signal;
     // The saved output can be deleted, re-saved or renamed while the key is fetched or a Gemini call is
-    // in flight. A result belongs only to the output it was requested for.
+    // in flight; no paid step starts for an output that is no longer the task's. The session decides
+    // whether a finished step still applies.
     const isCurrent = (): boolean => task.output !== null && outputKey(task.output) === basis.outputKey;
     // The step a retry resumes from: once the description is committed, only the slug remains.
     let remaining: VisionRunMode = mode;
     try {
-      if (this.#closing || !isCurrent()) return;
+      if (closing.aborted || !isCurrent()) return;
       const startedAt = performance.now();
       const apiKey = await this.#apiKeys.resolve("gemini");
-      if (this.#closing) return;
+      if (closing.aborted) return;
       if (!apiKey) {
         throw new VisionProviderFailure("missing-api-key", "Gemini API key is missing.");
       }
@@ -211,7 +223,7 @@ export class VisionQueue {
       if (includesDescriptionGeneration(mode)) {
         const sourcePath = task.output.finalPath ?? task.output.stagedPath;
         const input = await this.#deps.prepareInput(sourcePath, settings.preResizeLongEdge);
-        if (this.#closing || !isCurrent()) return;
+        if (closing.aborted || !isCurrent()) return;
         const description = await provider.describeImage(
           { imageBytes: input.bytes, mimeType: "image/jpeg", width: input.width, height: input.height, sourcePath },
           {
@@ -224,22 +236,14 @@ export class VisionQueue {
         );
         described = { description, model: settings["gemini.description"], ranAt: nowIso() };
         if (includesSlugGeneration(mode)) {
-          const descriptionOnly = described;
-          const committed = await commit(task, () => {
-            if (!task.output || !isCurrent()) return false;
-            task.output.vision = { ...descriptionOnly, slugCandidates: [] };
-            task.error = null;
-            task.updatedAt = descriptionOnly.ranAt;
-            return true;
-          });
-          if (!committed) return;
+          if (!await reports.step(task, { kind: "description", basis, described })) return;
           remaining = "slug";
         }
       }
       const description = described?.description ?? task.output.vision?.description ?? "";
       let slugged: Pick<VisionResult, "slugCandidates" | "slugModel" | "slugRanAt"> | null = null;
       if (includesSlugGeneration(mode)) {
-        if (this.#closing || !isCurrent()) return;
+        if (closing.aborted || !isCurrent()) return;
         if (!described && !description.trim()) throw new Error("Generate description first, then regenerate the slug.");
         const slugCandidates = await provider.suggestSlugs(description, {
           model: settings["gemini.slug"],
@@ -249,38 +253,22 @@ export class VisionQueue {
         });
         slugged = { slugCandidates, slugModel: settings["gemini.slug"], slugRanAt: nowIso() };
       }
-      const committed = await commit(task, () => {
-        if (!task.output || !isCurrent()) return false;
-        const previous = task.output.vision;
-        const descriptionStep = described ?? previous;
-        if (!descriptionStep) return false;
-        task.output.vision = { slugCandidates: [], ...previous, ...descriptionStep, ...slugged };
-        // A slug the user typed while the run was in flight is theirs; only an untouched one is replaced.
-        const generatedSlug = slugged?.slugCandidates[0];
-        if (generatedSlug && task.customSlug === basis.customSlug) {
-          task.customSlug = generatedSlug;
-        }
-        task.error = null;
-        task.updatedAt = slugged?.slugRanAt ?? descriptionStep.ranAt;
-        return true;
-      });
-      if (!committed) return;
+      if (!await reports.step(task, { kind: "result", basis, described, slugged })) return;
       this.logger?.info("vision completed", { mod: "vision", taskId: task.id, mode, ms: Math.round(performance.now() - startedAt) });
     } catch (error) {
       const signal = this.#shutdown.signal;
       if (signal.aborted && (error === signal.reason || (error instanceof Error && error.name === "AbortError" && error.cause === signal.reason))) return;
-      if (!isCurrent()) {
+      if (!await reports.step(task, { kind: "failed", basis, error: visionError(error, remaining) })) {
         this.logger?.warn("vision failed for an output that is no longer current", { mod: "vision", taskId: task.id, mode, err: error });
         return;
       }
-      task.error = visionError(error, remaining);
       this.logger?.error("vision task failed", { mod: "vision", taskId: task.id, mode, err: error });
     }
   }
 }
 
 /** Identifies one saved output; a re-save produces a new key even when it lands at the same path. */
-function outputKey(output: NonNullable<Task["output"]>): string {
+export function outputKey(output: NonNullable<Task["output"]>): string {
   return `${output.stagedAt}:${output.outputHash}`;
 }
 

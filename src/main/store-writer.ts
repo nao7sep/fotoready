@@ -45,6 +45,8 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   let pendingBackups: BackupWrite[] = [];
   const pendingReads = new Map<number, { resolve: (value: never) => void; reject: (error: Error) => void }>();
   let closing = false;
+  // Set once the close message is sent: the worker closes its stores then, and nothing after it may reopen them.
+  let closeSent = false;
   let inFlight = false;
   let nextId = 1;
   let stopped = false;
@@ -73,7 +75,7 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   };
 
   const send = (): void => {
-    if (stopped || inFlight) return;
+    if (stopped || inFlight || closeSent) return;
     if (pendingRecords.length === 0 && pendingBackups.length === 0) {
       for (const resolve of idleWaiters.splice(0)) resolve();
       return;
@@ -163,6 +165,7 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
       await whenIdle();
       if (!stopped) {
         const closed = new Promise<void>((resolve) => { closedWaiter = resolve; });
+        closeSent = true;
         worker.postMessage({ kind: "close" } satisfies StoreWriterRequest);
         await closed;
       }

@@ -10,8 +10,8 @@ import {
   type RecordSummary
 } from "../shared/records.ts";
 
-// The Records window's reads of records.sqlite3 (records-tables.ts owns the schema). They run on the
-// records worker, never on the main process, and only read.
+// The Records window's reads of records.sqlite3 (records-tables.ts owns the schema). The store
+// writer's worker runs them on its one connection, in order with its writes, never on the main process.
 //
 // The worker loads this module under Node's own TypeScript stripping in the tests, so its imports
 // are relative and spelled with their extension.
@@ -123,12 +123,3 @@ function readDetail(db: DatabaseSync, kind: RecordKind, id: number): RecordDetai
   ).get(id);
   return (row as unknown as RecordDetail | undefined) ?? null;
 }
-
-// What the main process and the records worker say to each other.
-export type RecordsWorkerData = { databasePath: string };
-
-export type RecordsWorkerRequest = { id: number; read: RecordsRead };
-
-export type RecordsWorkerResponse =
-  | { id: number; ok: true; value: RecordsReadResults[RecordsRead["op"]] }
-  | { id: number; ok: false; error: string };

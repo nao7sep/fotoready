@@ -12,6 +12,7 @@ import { openBackupsDatabase } from "@main/backup-tables";
 import { record, setBackupWriter } from "@main/backup-store";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import type { StoreWriterWarning } from "@main/store-writer-protocol";
+import type { RecordsQuery } from "@shared/records";
 
 // The real store writer on its own worker thread, as the app runs it, over real databases.
 
@@ -153,6 +154,45 @@ describe("records", () => {
     createRecordsStore(target, sessionStart).writeLog({ time: "2026-10-09T05:06:08.000Z", level: "info", message: "kept", fields: {} });
     await drain(target);
     expect(query(recordsFile(), "SELECT message FROM log_records")).toEqual([{ message: "kept" }]);
+  });
+});
+
+describe("records reads", () => {
+  const ALL: RecordsQuery = { session: null, kind: null, level: null, taskId: null, search: "", after: null };
+
+  it("reads the records it has stored, in turn with its writes", async () => {
+    const target = writer();
+    const records = createRecordsStore(target, sessionStart);
+    records.writeLog({ time: "2026-10-09T05:06:08.000Z", level: "info", message: "first", fields: {} });
+    records.writeLog({ time: "2026-10-09T05:06:09.000Z", level: "warn", message: "second", fields: { taskId: "task-1" } });
+    await new Promise<void>((resolve) => target.onStored(resolve));
+    expect((await target.read({ op: "page", query: ALL })).records.map((record) => record.title)).toEqual(["second", "first"]);
+    expect(await target.read({ op: "sources" })).toEqual({ sessions: [session], taskIds: ["task-1"] });
+  });
+
+  it("refuses a database a newer build wrote, and leaves it byte-identical", async () => {
+    const db = new DatabaseSync(recordsFile());
+    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = 2");
+    db.close();
+    const before = fs.readFileSync(recordsFile());
+
+    await expect(writer().read({ op: "sources" })).rejects.toThrow(/NewerFormatError/);
+    expect(fs.readFileSync(recordsFile()).equals(before)).toBe(true);
+  });
+
+  it("refuses a database with tables but no recorded version", async () => {
+    const db = new DatabaseSync(recordsFile());
+    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY)");
+    db.close();
+
+    await expect(writer().read({ op: "sources" })).rejects.toThrow(/no format version/);
+  });
+
+  it("fails a read once it is closing", async () => {
+    const target = writer();
+    const closing = drain(target);
+    await expect(target.read({ op: "sources" })).rejects.toThrow("closed");
+    await closing;
   });
 });
 

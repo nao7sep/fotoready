@@ -1,3 +1,4 @@
+import type { RecordsRead, RecordsReadResults } from "../shared/records.ts";
 import type { BackupWrite } from "./backup-tables.ts";
 import type { RecordRow } from "./records-tables.ts";
 
@@ -14,6 +15,7 @@ export type StoreWriterData = {
 
 export type StoreWriterRequest =
   | { kind: "batch"; id: number; records: RecordRow[]; backups: BackupWrite[] }
+  | { kind: "read"; id: number; read: RecordsRead }
   | { kind: "close" };
 
 /** A failure the main process logs: the writer cannot log through the records it writes. */
@@ -21,4 +23,6 @@ export type StoreWriterWarning = { message: string; fields: Record<string, unkno
 
 export type StoreWriterResponse =
   | { kind: "done"; id: number; stored: number; warnings: StoreWriterWarning[] }
+  | { kind: "read"; id: number; ok: true; value: RecordsReadResults[RecordsRead["op"]] }
+  | { kind: "read"; id: number; ok: false; error: string }
   | { kind: "closed" };

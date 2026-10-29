@@ -4,8 +4,8 @@ import type { LogLevel } from "../shared/types/log.ts";
 import { openSqliteStore } from "./sqlite-format-version.ts";
 
 // The records database's tables (data-lifecycle-conventions, Records; logging-conventions). The store
-// writer opens it on its worker thread and the records reader reads it; both load this module under
-// Node's TypeScript stripping in the tests, so it imports only relative `.ts` files.
+// writer opens it on its worker thread, which loads this module under Node's TypeScript stripping in
+// the tests, so it imports only relative `.ts` files.
 
 /**
  * One record ready to store: its column values, already JSON-safe and serialized on the main process,
@@ -61,14 +61,11 @@ DROP INDEX IF EXISTS idx_provider_calls_session;
 DROP INDEX IF EXISTS idx_provider_calls_task_id;
 `;
 
-/** How long a write waits for SQLite's lock (data-backup-conventions: a short busy_timeout). */
-export const STORE_BUSY_TIMEOUT_MS = 500;
-
 export type RecordsDatabase = { db: DatabaseSync; insert(session: string, row: RecordRow): void; close(): void };
 
 /** Opens records.sqlite3 for one writer; throws when it cannot be opened or admitted. */
 export function openRecordsDatabase(file: string): RecordsDatabase {
-  const db = openSqliteStore(file, FORMAT_VERSIONS.records, SCHEMA, { busyTimeoutMs: STORE_BUSY_TIMEOUT_MS });
+  const db = openSqliteStore(file, FORMAT_VERSIONS.records, SCHEMA);
   let insertLog: StatementSync;
   let insertCall: StatementSync;
   try {

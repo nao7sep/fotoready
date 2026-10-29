@@ -1,4 +1,5 @@
 import { Worker } from "node:worker_threads";
+import type { RecordsRead, RecordsReadResults } from "@shared/records";
 import type { BackupWrite } from "./backup-tables";
 import type { RecordRow } from "./records-tables";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "./store-writer-protocol";
@@ -14,8 +15,13 @@ export interface StoreWriter {
    * locked or stalled, until it recovers or the exit deadline ends the session.
    */
   writeRecord(row: RecordRow): void;
-  /** Queues a backup; a newer pending write of the same path replaces an older one. Never waits or throws. */
+  /** Queues a backup, applied in save order. Never waits or throws. */
   writeBackup(write: BackupWrite): void;
+  /**
+   * Reads records.sqlite3 for the Records window, answered in turn with the writes. Fails once the
+   * writer is closing or has stopped.
+   */
+  read<R extends RecordsRead>(read: R): Promise<RecordsReadResults[R["op"]]>;
   /** Called after each batch the database stored records from; the Records window follows it. */
   onStored(listener: () => void): void;
   /**
@@ -26,7 +32,7 @@ export interface StoreWriter {
   close(options: { drain: boolean }): Promise<boolean>;
 }
 
-/** Starts the one writer of records.sqlite3 and backups.sqlite3 on its own worker thread. */
+/** Starts the one owner of records.sqlite3 and backups.sqlite3 on its own worker thread. */
 export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   const { onWarning, ...data } = options;
   // The tests run the source under Node's TypeScript stripping; the app runs electron-vite's
@@ -36,7 +42,9 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   worker.unref();
 
   let pendingRecords: RecordRow[] = [];
-  let pendingBackups = new Map<string, BackupWrite>();
+  let pendingBackups: BackupWrite[] = [];
+  const pendingReads = new Map<number, { resolve: (value: never) => void; reject: (error: Error) => void }>();
+  let closing = false;
   let inFlight = false;
   let nextId = 1;
   let stopped = false;
@@ -55,8 +63,10 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
     if (reason !== null) console.error("[store-writer] the store writer stopped; writing records to the console", reason);
     for (const row of pendingRecords) toConsole(row);
     pendingRecords = [];
-    pendingBackups = new Map();
+    pendingBackups = [];
     inFlight = false;
+    for (const read of pendingReads.values()) read.reject(new Error("The store writer stopped."));
+    pendingReads.clear();
     for (const resolve of idleWaiters.splice(0)) resolve();
     closedWaiter?.();
     void worker.terminate().catch(() => undefined);
@@ -64,13 +74,13 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
 
   const send = (): void => {
     if (stopped || inFlight) return;
-    if (pendingRecords.length === 0 && pendingBackups.size === 0) {
+    if (pendingRecords.length === 0 && pendingBackups.length === 0) {
       for (const resolve of idleWaiters.splice(0)) resolve();
       return;
     }
-    const request: StoreWriterRequest = { kind: "batch", id: nextId++, records: pendingRecords, backups: [...pendingBackups.values()] };
+    const request: StoreWriterRequest = { kind: "batch", id: nextId++, records: pendingRecords, backups: pendingBackups };
     pendingRecords = [];
-    pendingBackups = new Map();
+    pendingBackups = [];
     inFlight = true;
     try {
       worker.postMessage(request);
@@ -82,6 +92,14 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   worker.on("message", (message: StoreWriterResponse) => {
     if (message.kind === "closed") {
       closedWaiter?.();
+      return;
+    }
+    if (message.kind === "read") {
+      const read = pendingReads.get(message.id);
+      if (!read) return;
+      pendingReads.delete(message.id);
+      if (message.ok) read.resolve(message.value as never);
+      else read.reject(new Error(message.error));
       return;
     }
     inFlight = false;
@@ -98,7 +116,7 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   worker.on("exit", (code) => stop(closedWaiter === null ? new Error(`The store writer exited with code ${code}.`) : null));
 
   const whenIdle = (): Promise<void> => new Promise((resolve) => {
-    if (stopped || (!inFlight && pendingRecords.length === 0 && pendingBackups.size === 0)) resolve();
+    if (stopped || (!inFlight && pendingRecords.length === 0 && pendingBackups.length === 0)) resolve();
     else {
       idleWaiters.push(resolve);
       send();
@@ -116,15 +134,27 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
     },
     writeBackup(write) {
       if (stopped) return;
-      pendingBackups.delete(write.path);
-      pendingBackups.set(write.path, write);
+      pendingBackups.push(write);
       send();
+    },
+    read<R extends RecordsRead>(read: R): Promise<RecordsReadResults[R["op"]]> {
+      if (stopped || closing) return Promise.reject(new Error("The store writer is closed."));
+      return new Promise((resolve, reject) => {
+        const id = nextId++;
+        pendingReads.set(id, { resolve: resolve as (value: never) => void, reject });
+        try {
+          worker.postMessage({ kind: "read", id, read } satisfies StoreWriterRequest);
+        } catch (error) {
+          stop(error);
+        }
+      });
     },
     onStored(listener) {
       storedListener = listener;
     },
     async close({ drain }) {
       if (stopped) return true;
+      closing = true;
       if (!drain) {
         const idle = !inFlight;
         stop(null);

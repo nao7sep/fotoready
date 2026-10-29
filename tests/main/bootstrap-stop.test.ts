@@ -68,7 +68,7 @@ function owners(prepareInput: () => Promise<{ bytes: Buffer; width: number; heig
   const unsavedWork = () => unsavedUserWork(ipcWork, queue, session);
   const stop = () => stopAppWork({ logger, exitReason: "user-quit", statePath: "/unused/state.json",
     stateCoordinator: { flush: async () => {} }, projectSession: session,
-    pipelineWorkerPool: { destroy: async () => {} }, recordsReader: { close: async () => {} },
+    pipelineWorkerPool: { destroy: async () => {} },
     storeWriter: { close: async () => true }, unsavedWork, ipcWork, sessionEnding: () => false,
   });
   return { unsavedWork, queue, session, ipcWork, stop };

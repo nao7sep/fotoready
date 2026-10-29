@@ -30,7 +30,7 @@ import { deleteStamps, importStamps, listStamps } from "@main/stamp-catalog";
 import { isRecord } from "@shared/validation/common";
 import type { RenameTemplateId } from "@shared/rename-template";
 import { message } from "@shared/i18n/translate";
-import type { RecordsReader } from "@main/records-reader";
+import type { StoreWriter } from "@main/store-writer";
 import { recordSources } from "@main/records-sources";
 import { assertRecordId, assertRecordKind, parseRecordsQuery } from "@shared/validation/records";
 
@@ -44,7 +44,7 @@ export type RouterContext = {
   logger: AppLogger;
   version: string;
   records: {
-    reader: RecordsReader;
+    reader: Pick<StoreWriter, "read">;
     /** This launch's session, as its records carry it. */
     session: string;
     openWindow(): Promise<void>;

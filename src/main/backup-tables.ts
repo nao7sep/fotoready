@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import { FORMAT_VERSIONS } from "../shared/format-versions.ts";
 import { openSqliteStore } from "./sqlite-format-version.ts";
-import { STORE_BUSY_TIMEOUT_MS } from "./records-tables.ts";
 
 // The backup history's table (data-backup-conventions, The store). The store writer opens it on its
 // worker thread, so this module imports only relative `.ts` files.
@@ -40,7 +39,7 @@ export type BackupsDatabase = { db: DatabaseSync; record(session: string, write:
 /** Opens backups.sqlite3 for one writer; throws when it cannot be opened or admitted. */
 export function openBackupsDatabase(file: string): BackupsDatabase {
   // not recorded: backups.sqlite3 is the history itself, written here and never through the managed save.
-  const db = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA, { upgrades: UPGRADES, busyTimeoutMs: STORE_BUSY_TIMEOUT_MS });
+  const db = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA, { upgrades: UPGRADES });
   let ownRow: StatementSync;
   let latestRow: StatementSync;
   let upsert: StatementSync;

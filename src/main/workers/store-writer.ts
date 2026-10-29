@@ -5,13 +5,14 @@ import { openBackupsDatabase, type BackupsDatabase } from "../backup-tables.ts";
 import { NewerFormatError } from "../../shared/format-versions.ts";
 import { InvalidSqliteFormatError } from "../sqlite-format-version.ts";
 import { jsonSafe } from "../json-safe.ts";
+import { readRecords } from "../records-queries.ts";
 import { openRecordsDatabase, type RecordRow, type RecordsDatabase } from "../records-tables.ts";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "../store-writer-protocol.ts";
 
-// The one writer of records.sqlite3 and backups.sqlite3, off the main process:
-// the main process posts each batch and never waits on it, so a locked or stalled store cannot hold up
-// a save, an IPC call or quitting. Batches arrive one at a time and in order, so backup writes for a
-// path apply in save order. The Records window reads through its own worker.
+// The owner of records.sqlite3 and backups.sqlite3, off the main process, with one connection to
+// each: the main process posts each batch and never waits on it, so a stalled store cannot hold up a
+// save, an IPC call or quitting. Batches arrive one at a time and in order, so backup writes for a
+// path apply in save order. The Records window's reads arrive here too and are answered in turn.
 
 if (parentPort === null) {
   throw new Error("The store writer requires a parent port.");
@@ -21,7 +22,8 @@ const port = parentPort;
 const data = workerData as StoreWriterData;
 
 let records: RecordsDatabase | null = null;
-let recordsUnavailable = false;
+// Why the records database is refused for the session, once it is.
+let recordsRefusal: unknown = null;
 let recordsFailureNoted = false;
 let fallbackFailureNoted = false;
 let backups: BackupsDatabase | null = null;
@@ -30,8 +32,7 @@ let backupsOpenWarned = false;
 
 /**
  * A store a newer build wrote, or one with no version, is left exactly as it is for the session.
- * Any other failure to open, such as a lock held past the busy timeout, is tried again with the
- * next batch.
+ * Any other failure to open is tried again with the next batch or read.
  */
 function refusedForSession(error: unknown): boolean {
   return error instanceof NewerFormatError || error instanceof InvalidSqliteFormatError;
@@ -62,14 +63,17 @@ function noteRecordsFailure(error: unknown): void {
   }), "warn");
 }
 
-function recordsDatabase(): RecordsDatabase | null {
-  if (records !== null || recordsUnavailable) return records;
+/** The open records database; throws when it cannot be opened or is refused for the session. */
+function recordsDatabase(): RecordsDatabase {
+  if (records !== null) return records;
+  if (recordsRefusal !== null) throw recordsRefusal;
   try {
     fs.mkdirSync(path.dirname(data.recordsPath), { recursive: true });
     records = openRecordsDatabase(data.recordsPath);
   } catch (error) {
-    recordsUnavailable = refusedForSession(error);
+    if (refusedForSession(error)) recordsRefusal = error;
     noteRecordsFailure(error);
+    throw error;
   }
   return records;
 }
@@ -77,9 +81,12 @@ function recordsDatabase(): RecordsDatabase | null {
 /** Stores each record, or writes it to the text file when the database cannot take it; returns how many it stored. */
 function writeRecords(rows: RecordRow[]): number {
   let stored = 0;
-  // One failed attempt spends this batch's busy timeout. Let its remaining records fall back so
-  // backups can progress too, then try the database again when the next batch arrives.
-  let db = rows.length > 0 ? recordsDatabase() : null;
+  // One failed attempt per batch: its remaining records fall back so backups progress too, and the
+  // database is tried again when the next batch arrives.
+  let db: RecordsDatabase | null = null;
+  if (rows.length > 0) {
+    try { db = recordsDatabase(); } catch { /* Noted once; the rows fall back below. */ }
+  }
   for (const row of rows) {
     if (db !== null) {
       try {
@@ -122,6 +129,16 @@ port.on("message", (request: StoreWriterRequest) => {
     records = null;
     backups = null;
     port.postMessage({ kind: "closed" } satisfies StoreWriterResponse);
+    return;
+  }
+  if (request.kind === "read") {
+    let response: StoreWriterResponse;
+    try {
+      response = { kind: "read", id: request.id, ok: true, value: readRecords(recordsDatabase().db, request.read) };
+    } catch (error) {
+      response = { kind: "read", id: request.id, ok: false, error: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
+    }
+    port.postMessage(response);
     return;
   }
   const warnings: StoreWriterWarning[] = [];

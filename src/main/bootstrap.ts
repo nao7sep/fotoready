@@ -36,7 +36,6 @@ import { applyLanguagePreference, detectComputerLanguage, mainTranslator, setLan
 import { installApplicationMenu } from "./menu";
 import { revealWindow } from "./reveal-window";
 import type { CloseRequest } from "@shared/types/ipc";
-import { createRecordsReader } from "./records-reader";
 import { closeRecordsWindow, notifyRecordsChanged, openRecordsWindow } from "./records-window";
 import { describeUnsaved, saveUserWorkBeforeQuit, type QuitChoice, type QuitDeadline, type UnsavedWrite, type UserWork } from "./quit-save";
 import { askDiscardWorkspace, askWorkNotSaved } from "./quit-dialog";
@@ -133,7 +132,6 @@ export async function bootstrap(): Promise<void> {
   });
   storeWriter.onStored(notifyRecordsChanged);
   const records = createRecordsStore(storeWriter, sessionStart);
-  const recordsReader = createRecordsReader(paths.recordsPath);
   const logger = createLogger(records, { debug });
   sessionLogger = logger;
   installCrashHandlers(logger);
@@ -180,7 +178,7 @@ export async function bootstrap(): Promise<void> {
     logger,
     version: __APP_VERSION__,
     records: {
-      reader: recordsReader,
+      reader: storeWriter,
       session: records.session,
       openWindow: () => openRecordsWindow({ title: mainTranslator().t("records.title"), logger })
     }
@@ -221,8 +219,8 @@ export async function bootstrap(): Promise<void> {
   // window is (re)created below, so it must never be redone on re-activate.
   // Every quit path (unsaved-edits-conventions, Quitting) first asks the window's pre-quit
   // confirmations and waits for the user's own work, then cancels in-flight saves (unfinished
-  // temporary files may remain), lands the last UI state write, and closes the workers and the
-  // records reader, all within the one exit deadline.
+  // temporary files may remain), lands the last UI state write, closes the workers and drains the
+  // store writer, all within the one exit deadline.
   const quit = installQuitShutdown({
     prepare: (deadline) => prepareQuit({
       unsavedWork,
@@ -239,7 +237,7 @@ export async function bootstrap(): Promise<void> {
     },
     approved: () => ipcWork.closeAdmission(),
     stop: () => stopAppWork({ logger, exitReason: exitState.reason, statePath: paths.statePath,
-      stateCoordinator, projectSession, pipelineWorkerPool, recordsReader, storeWriter,
+      stateCoordinator, projectSession, pipelineWorkerPool, storeWriter,
       unsavedWork, ipcWork, sessionEnding: quit.sessionEnding }),
     sessionEnded: () => {
       logger.warn("the session ended before quitting finished", { mod: "main.quit", ...describeUnsaved(unsavedWork()) });
@@ -363,19 +361,17 @@ export async function prepareQuit({ unsavedWork, deadline, exitState, sessionEnd
 
 /**
  * Bootstrap's actual stop wiring: in-flight saves stop and the last UI state write lands, then the
- * workers and the records reader close, then the store writer writes its pending records and
- * backups. Each step draws on what remains of the exit deadline, which ends FotoReady if one stalls.
+ * workers close, then the store writer writes its pending records and backups. Each step draws on what remains of the exit deadline, which ends FotoReady if one stalls.
  * Normal teardown is allowed only after owned work settles.
  */
 export async function stopAppWork({ logger, exitReason, statePath, stateCoordinator, projectSession,
-  pipelineWorkerPool, recordsReader, storeWriter, unsavedWork, ipcWork, sessionEnding }: {
+  pipelineWorkerPool, storeWriter, unsavedWork, ipcWork, sessionEnding }: {
   logger: Pick<AppLogger, "info" | "warn">;
   exitReason: string;
   statePath: string;
   stateCoordinator: Pick<ReturnType<typeof createStateCoordinator>, "flush">;
   projectSession: Pick<ProjectSession, "shutdown">;
   pipelineWorkerPool: Pick<PipelineWorkerPool, "destroy">;
-  recordsReader: Pick<ReturnType<typeof createRecordsReader>, "close">;
   storeWriter: Pick<ReturnType<typeof startStoreWriter>, "close">;
   unsavedWork(): UnsavedWrite[];
   ipcWork: IpcWork;
@@ -387,7 +383,7 @@ export async function stopAppWork({ logger, exitReason, statePath, stateCoordina
     logger.warn("the UI state was not saved before quit", { mod: "main.quit", statePath, err: error });
   });
   await Promise.allSettled([projectSession.shutdown(), stateSaved]);
-  await Promise.allSettled([pipelineWorkerPool.destroy(), recordsReader.close()]);
+  await pipelineWorkerPool.destroy().catch(() => undefined);
   // An ending session skips the drain; the batch already sent may still be writing.
   const drained = await storeWriter.close({ drain: !sessionEnding() });
   // Quit anyway does not cancel primary writes, and IPC may still own native image/file reads.
@@ -428,7 +424,7 @@ export type QuitSteps = {
   answerForSessionEnd(): void;
   /**
    * Runs once the windows have closed, within what remains of the exit deadline. Resolves true when
-   * every tracked operation settled (primary writes, IPC, processing, vision, readers and writers),
+   * every tracked operation settled (primary writes, IPC, processing, vision, the store writer),
    * so the ordinary exit cannot hang on one of them. Never rejects.
    */
   stop(): Promise<boolean>;

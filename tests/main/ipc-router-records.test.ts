@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RouterContext } from "@main/ipc-router";
-import type { RecordsReader } from "@main/records-reader";
+import type { StoreWriter } from "@main/store-writer";
 import type { RecordsQuery } from "@shared/records";
 
 // The Records window's channels, through the real IPC chokepoint with Electron's glue stubbed.
@@ -23,7 +23,7 @@ vi.mock("electron", () => ({
 const { registerIpcHandlers } = await import("@main/ipc-router");
 
 const ALL: RecordsQuery = { session: null, kind: null, level: null, taskId: null, search: "", after: null };
-const read = vi.fn<RecordsReader["read"]>();
+const read = vi.fn<StoreWriter["read"]>();
 const openWindow = vi.fn(async () => undefined);
 const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), close: vi.fn() };
 const project = { originals: [{ id: "o1", sourcePath: "/photos/harbour.jpg" }], tasks: [{ id: "task-1", originalId: "o1" }] };
@@ -36,7 +36,7 @@ beforeEach(() => {
   registerIpcHandlers({
     logger,
     projectSession: { setSnapshotListener: () => {}, snapshot: () => ({ project }), project: () => project },
-    records: { reader: { read, close: async () => {} }, session: "s2", openWindow }
+    records: { reader: { read }, session: "s2", openWindow }
   } as unknown as RouterContext);
 });
 

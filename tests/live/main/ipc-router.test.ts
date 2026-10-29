@@ -91,7 +91,6 @@ async function startApp(home: string) {
   const { VisionQueue } = await import("@main/queues/vision");
   const { ProcessingQueue } = await import("@main/queues/processing-queue");
   const { PipelineWorkerPool } = await import("@main/workers/pipeline-pool");
-  const { createRecordsReader } = await import("@main/records-reader");
 
   const paths = getAppPaths();
   const sessionStart = new Date();
@@ -114,11 +113,10 @@ async function startApp(home: string) {
   const projectSession = new ProjectSession(settings, visionQueue, processingQueue, pipelineWorkerPool, paths.bundledStampsDir, logger);
   processingQueue.setUpdateListener((save) => projectSession.onProcessingUpdate(save));
   processingQueue.setAfterTaskProcessed((taskId) => projectSession.afterTaskProcessed(taskId));
-  const recordsReader = createRecordsReader(paths.recordsPath);
   registerIpcHandlers({
     paths, settings, settingsFile, uiState, stateCoordinator, projectSession, logger, version: "0.0.0-live",
     records: {
-      reader: recordsReader,
+      reader: storeWriter,
       session: records.session,
       openWindow: () => Promise.reject(new Error("No windows in this test."))
     }
@@ -138,7 +136,6 @@ async function startApp(home: string) {
     shutdown: async () => {
       await stateCoordinator.flush();
       await pipelineWorkerPool.destroy();
-      await recordsReader.close();
       setBackupWriter(null);
       await storeWriter.close({ drain: true });
     },

@@ -16,6 +16,7 @@ export function TasksPanel({
   tasks,
   privacyWarnings,
   failures,
+  saveBlockedTaskIds,
   onRename,
   onDismissFailure,
   onSaveAll,
@@ -28,6 +29,7 @@ export function TasksPanel({
   tasks: Task[];
   privacyWarnings: Record<string, PrivacyWarning>;
   failures: OwnedFailures;
+  saveBlockedTaskIds: ReadonlySet<string>;
   onDismissFailure(key: string): void;
   onRename(): void;
   onSaveAll(): void;
@@ -37,6 +39,7 @@ export function TasksPanel({
   const { t } = useI18n();
   const originalsById = React.useMemo(() => new Map(originals.map((original) => [original.id, original])), [originals]);
   const hasPending = tasks.some((task) => task.status === "not-saved");
+  const saveBlockedTask = tasks.find((task) => saveBlockedTaskIds.has(task.id)) ?? null;
   const hasQueued = queue.queued > 0;
   const listbox = useListbox({
     ids: tasks.map((task) => task.id),
@@ -71,7 +74,8 @@ export function TasksPanel({
         ))}
       </div>
       <div className="panel-footer">
-        <button className="toolbar-button" type="button" onClick={onSaveAll} disabled={!hasPending}>
+        {saveBlockedTask ? <span className="blocked-reason">{t("tasks.fixToSaveAll", { name: taskLabel(saveBlockedTask, originalsById) })}</span> : null}
+        <button className="toolbar-button" type="button" onClick={onSaveAll} disabled={!hasPending || saveBlockedTask !== null}>
           <Save size={14} /> {t("tasks.saveAll")}
         </button>
         <button className="toolbar-button" type="button" onClick={onCancelAll} disabled={!hasQueued}>

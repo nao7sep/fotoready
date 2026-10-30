@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "从应用中移除原图前先确认",
   "settings.confirmDeleteTasks": "从应用中删除任务前先确认",
   "settings.confirmTrashOutput": "将已保存的文件移到废纸篓前先确认",
-  "settings.wholeNumber": "请输入整数。",
-  "settings.numberRange": "必须介于 {min} 和 {max} 之间。",
+  "number.wholeRange": "请输入 {min} 到 {max} 之间的整数。",
+  "number.aboveZero": "请输入大于 0 的数。",
+  "settings.fixNumbers": "请先修正{tabs}中标出的数字再保存。",
+  "editor.fixToSave": "请先修正操作中标出的数字再保存。",
+  "tasks.fixToSaveAll": "请先修正 {name} 中标出的数字再全部保存。",
   "settings.closePathResult": "关闭路径结果",
 
   "metadataField.source": "来源",

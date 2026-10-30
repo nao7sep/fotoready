@@ -2898,6 +2898,7 @@ button.output-badge-label:focus-visible {
 .settings-page .toggle-row,
 .settings-page .settings-summary,
 .settings-page .field-help,
+.settings-page .field-error,
 .settings-page .row-detail {
   font-size: 12px;
   line-height: 1.45;
@@ -2906,6 +2907,7 @@ button.output-badge-label:focus-visible {
 .settings-page .stacked-field,
 .settings-page .toggle-row,
 .settings-page .field-help,
+.settings-page .field-error,
 .settings-page .row-detail,
 .settings-page .settings-summary span,
 .settings-page .settings-summary code {
@@ -3055,6 +3057,26 @@ button.output-badge-label:focus-visible {
 
 .field-help {
   color: var(--text-soft-color);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Why an action is disabled, beside it: a number field to fix first. */
+.blocked-reason {
+  min-width: 0;
+  color: var(--danger-text);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.modal-actions .blocked-reason {
+  margin-right: auto;
+}
+
+/* What a number field accepts, under it while its text is not that. */
+.field-error {
+  color: var(--danger-text);
   font-size: 12px;
   line-height: 1.4;
 }

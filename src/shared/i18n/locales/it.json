@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Chiedi conferma prima di rimuovere originali dall’app",
   "settings.confirmDeleteTasks": "Chiedi conferma prima di eliminare attività dall’app",
   "settings.confirmTrashOutput": "Chiedi conferma prima di spostare i file salvati nel cestino",
-  "settings.wholeNumber": "Inserisci un numero intero.",
-  "settings.numberRange": "Deve essere compreso tra {min} e {max}.",
+  "number.wholeRange": "Inserisci un numero intero da {min} a {max}.",
+  "number.aboveZero": "Inserisci un numero maggiore di 0.",
+  "settings.fixNumbers": "Correggi i numeri segnalati in {tabs} per salvare.",
+  "editor.fixToSave": "Correggi i numeri segnalati in Operazioni per salvare.",
+  "tasks.fixToSaveAll": "Correggi i numeri segnalati in {name} per salvare tutto.",
   "settings.closePathResult": "Chiudi il risultato del percorso",
 
   "metadataField.source": "Fonte",

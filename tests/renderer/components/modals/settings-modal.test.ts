@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultGlobalSettings } from "@shared/defaults";
 import type { FotoReadyApi, SystemInfo } from "@shared/types/ipc";
 import type { GlobalSettings } from "@shared/types/settings";
-import { AppSettingsModal } from "@renderer/components/modals/settings-modal";
+import { AppSettingsModal, type SettingNumberTexts, type SettingsTab } from "@renderer/components/modals/settings-modal";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -322,6 +322,54 @@ describe("AppSettingsModal Gemini section", () => {
   });
 });
 
+describe("AppSettingsModal number fields", () => {
+  const LONG_EDGE = "Preview image long edge";
+  const error = (label: string): string | null =>
+    [...document.querySelectorAll(".settings-page .stacked-field")].find((field) => field.firstChild?.textContent === label)!
+      .querySelector(".field-error")?.textContent ?? null;
+  const save = (): HTMLButtonElement => document.querySelector<HTMLButtonElement>("button.primary-action")!;
+  const reason = (): string | null => document.querySelector(".modal-actions .blocked-reason")?.textContent ?? null;
+
+  it("keeps what was typed, commits only a valid value and shows what the field accepts under it", async () => {
+    const latest = await renderEditableSettings(defaultGlobalSettings(), "app");
+    const saved = latest().previewLongEdge;
+
+    await typeInto(fieldOf(LONG_EDGE).input, "12a");
+    expect(fieldOf(LONG_EDGE).input.value).toBe("12a");
+    expect(error(LONG_EDGE)).toBe("Enter a whole number from 320 to 4,096.");
+    expect(latest().previewLongEdge).toBe(saved);
+    expect(save().disabled).toBe(true);
+    expect(reason()).toBe("Fix the numbers marked on App to save.");
+
+    await act(async () => fieldOf(LONG_EDGE).input.dispatchEvent(new FocusEvent("blur")));
+    expect(fieldOf(LONG_EDGE).input.value).toBe("12a");
+
+    await typeInto(fieldOf(LONG_EDGE).input, "");
+    expect(error(LONG_EDGE)).toBe("Enter a whole number from 320 to 4,096.");
+    await typeInto(fieldOf(LONG_EDGE).input, "5000");
+    expect(error(LONG_EDGE)).toBe("Enter a whole number from 320 to 4,096.");
+    expect(latest().previewLongEdge).toBe(saved);
+
+    await typeInto(fieldOf(LONG_EDGE).input, "0800");
+    expect(fieldOf(LONG_EDGE).input.value).toBe("0800");
+    expect(error(LONG_EDGE)).toBeNull();
+    expect(latest().previewLongEdge).toBe(800);
+    expect(save().disabled).toBe(false);
+    expect(reason()).toBeNull();
+  });
+
+  it("keeps an invalid text and the blocked Save across a tab switch, naming the tab", async () => {
+    await renderEditableSettings(defaultGlobalSettings(), "app");
+    await typeInto(fieldOf(LONG_EDGE).input, "1.5");
+    const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((entry) => entry.textContent === label)!;
+    await act(async () => tab("Save").click());
+    expect(save().disabled).toBe(true);
+    expect(reason()).toBe("Fix the numbers marked on App to save.");
+    await act(async () => tab("App").click());
+    expect(fieldOf(LONG_EDGE).input.value).toBe("1.5");
+  });
+});
+
 describe("Settings picker context", () => {
   it("uses typed output drafts, retains cancellation and reuses literal selections", async () => {
     const latest = await renderEditableSettings(defaultGlobalSettings());
@@ -472,6 +520,8 @@ async function renderSettings({
       hasChanges: true,
       hasGeminiApiKey,
       initialTab,
+      numberTexts: {},
+      onNumberTextChange: () => undefined,
       onApiKeyDraftChange: () => undefined,
       onClearApiKey: () => undefined,
       onKeepApiKey: () => undefined,
@@ -485,16 +535,19 @@ async function renderSettings({
 }
 
 /** Renders Settings over a draft that each edit replaces, as the app does; returns the latest draft. */
-async function renderEditableSettings(settings: GlobalSettings): Promise<() => GlobalSettings> {
+async function renderEditableSettings(settings: GlobalSettings, initialTab: SettingsTab = "vision"): Promise<() => GlobalSettings> {
   let latest = settings;
   function Editable(): React.JSX.Element {
     const [draft, setDraft] = useState(settings);
+    const [numberTexts, setNumberTexts] = useState<SettingNumberTexts>({});
     return createElement(AppSettingsModal, {
       apiKeyClearRequested: false,
       apiKeyDraft: "",
       hasChanges: true,
       hasGeminiApiKey: false,
-      initialTab: "vision",
+      initialTab,
+      numberTexts,
+      onNumberTextChange: (name, text) => setNumberTexts((current) => ({ ...current, [name]: text })),
       onApiKeyDraftChange: () => undefined,
       onClearApiKey: () => undefined,
       onKeepApiKey: () => undefined,

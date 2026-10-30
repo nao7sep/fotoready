@@ -2,7 +2,10 @@ import { useI18n } from "@renderer/i18n/I18nContext";
 import React from "react";
 import { MAX_RESIZE_DIMENSION, MAX_RESIZE_PIXELS } from "@shared/constants";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
-import type { OpRenderer } from "./op-renderer";
+import { NumberField } from "@renderer/components/number-field";
+import { opFieldKey, useEditorStore } from "@renderer/state/editor-store";
+import { readWholeNumber } from "@shared/number-text";
+import type { OpCardContext, OpRenderer } from "./op-renderer";
 import type { MessageKey } from "@shared/i18n/catalogues";
 
 type ResizeMode = "fit" | "exact";
@@ -16,13 +19,15 @@ const resizeModeOptions: ReadonlyArray<{ id: ResizeUiMode; label: MessageKey }> 
 const resizePresets = [200, 256, 400, 512, 800, 1024, 1280, 1600, 1920, 2048, 2560, 3200, 3840] as const;
 
 export const resizeRenderer: OpRenderer<ResizeParams> = {
-  Card({ params, disabled, onParamChange, onParamsChange }) {
+  Card({ params, disabled, ctx, onParamChange, onParamsChange }) {
     const { t, rich } = useI18n();
     const activeMode = toUiMode(params.mode);
     const widthMax = maxResizeDimension(params.height);
     const heightMax = maxResizeDimension(params.width);
     const widthSliderValue = dimensionToSliderValue(params.width, widthMax);
     const heightSliderValue = dimensionToSliderValue(params.height, heightMax);
+    const width = useDimensionText(ctx, "width", params.width, widthMax, (value) => onParamChange("width", value));
+    const height = useDimensionText(ctx, "height", params.height, heightMax, (value) => onParamChange("height", value));
 
     // The preset sizes are a toolbar of quick actions (no persistent selection):
     // one tab stop via roving tabindex, arrow keys move focus, Home/End jump, and
@@ -92,30 +97,22 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
           ))}
         </div>
         <div className="field-grid">
-          <label className="stacked-field geometry-number-field">
-            {t("geometry.width")}
-            <input
-              disabled={disabled}
-              max={widthMax}
-              min={1}
-              step={1}
-              type="number"
-              value={params.width}
-              onChange={(event) => onParamChange("width", clampResizeDimension(event.currentTarget.valueAsNumber, params.height))}
-            />
-          </label>
-          <label className="stacked-field geometry-number-field">
-            {t("geometry.height")}
-            <input
-              disabled={disabled}
-              max={heightMax}
-              min={1}
-              step={1}
-              type="number"
-              value={params.height}
-              onChange={(event) => onParamChange("height", clampResizeDimension(event.currentTarget.valueAsNumber, params.width))}
-            />
-          </label>
+          <NumberField
+            className="stacked-field geometry-number-field"
+            disabled={disabled}
+            error={width.error}
+            label={t("geometry.width")}
+            text={width.text}
+            onTextChange={width.change}
+          />
+          <NumberField
+            className="stacked-field geometry-number-field"
+            disabled={disabled}
+            error={height.error}
+            label={t("geometry.height")}
+            text={height.text}
+            onTextChange={height.change}
+          />
         </div>
         <label className="slider-row">
           <span>{t("geometry.width")}</span>
@@ -149,9 +146,50 @@ export const resizeRenderer: OpRenderer<ResizeParams> = {
   }
 };
 
-function clampResizeDimension(value: number, otherDimension: number): number {
-  if (!Number.isFinite(value)) return 1;
-  return Math.max(1, Math.min(Math.round(value), maxResizeDimension(otherDimension)));
+/**
+ * A width or height field: whole numbers from 1 to `max`, which the other dimension sets (the core
+ * checks the same bounds). A typed value commits as soon as it is valid; text that is not stays in
+ * the field and in the editor store, so the task cannot be saved, and the op keeps its last value.
+ */
+function useDimensionText(
+  ctx: OpCardContext,
+  field: "width" | "height",
+  value: number,
+  max: number,
+  commit: (value: number) => void
+): { text: string; error: string | null; change(text: string): void } {
+  const { t } = useI18n();
+  const key = ctx.activeTaskId === null ? null : opFieldKey(ctx.activeTaskId, ctx.opId, field);
+  const setInvalidOpField = useEditorStore((state) => state.setInvalidOpField);
+  const [text, setText] = React.useState(() => (key === null ? undefined : useEditorStore.getState().invalidOpFields[key]) ?? String(value));
+  const valid = readWholeNumber(text, 1, max);
+  const error = valid === null ? t("number.wholeRange", { min: 1, max }) : null;
+
+  // The value the field last showed. When the other dimension changes the bound, typed text that
+  // now fits commits; when this value changes from elsewhere (a slider, a preset, undo), the field
+  // shows it instead.
+  const shownValue = React.useRef(value);
+  React.useEffect(() => {
+    if (shownValue.current === value && valid !== null && valid !== value) commit(valid);
+  }, [max]);
+  React.useEffect(() => {
+    if (shownValue.current === value) return;
+    shownValue.current = value;
+    setText((current) => (readWholeNumber(current, 1, MAX_RESIZE_DIMENSION) === value ? current : String(value)));
+  }, [value]);
+  React.useEffect(() => {
+    if (key !== null) setInvalidOpField(key, error === null ? null : text);
+  }, [key, error === null, text]);
+
+  return {
+    text,
+    error,
+    change(next) {
+      setText(next);
+      const parsed = readWholeNumber(next, 1, max);
+      if (parsed !== null && parsed !== value) commit(parsed);
+    }
+  };
 }
 
 function maxResizeDimension(otherDimension: number): number {

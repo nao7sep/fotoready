@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Спрашивать перед тем, как убрать оригиналы из приложения",
   "settings.confirmDeleteTasks": "Спрашивать перед удалением задач из приложения",
   "settings.confirmTrashOutput": "Спрашивать перед перемещением сохранённых файлов в корзину",
-  "settings.wholeNumber": "Введите целое число.",
-  "settings.numberRange": "Значение должно быть от {min} до {max}.",
+  "number.wholeRange": "Введите целое число от {min} до {max}.",
+  "number.aboveZero": "Введите число больше 0.",
+  "settings.fixNumbers": "Чтобы сохранить, исправьте отмеченные числа: {tabs}.",
+  "editor.fixToSave": "Чтобы сохранить, исправьте отмеченные числа в разделе «Операции».",
+  "tasks.fixToSaveAll": "Чтобы сохранить всё, исправьте отмеченные числа в {name}.",
   "settings.closePathResult": "Закрыть результат выбора пути",
 
   "metadataField.source": "Источник",

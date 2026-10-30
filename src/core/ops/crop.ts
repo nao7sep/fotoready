@@ -1,6 +1,7 @@
 import type { OpModule } from "./op-module";
 import { assertFiniteNumber, assertParamsShape, materialize } from "./_shared";
 import { cropExtractRegion } from "./_crop-region";
+import { customAspectRatio } from "@shared/crop-aspect";
 
 export type CropAspectLock = number | string | null;
 
@@ -34,7 +35,7 @@ export const cropModule: OpModule<CropParams> = {
 
 function validateAspectLock(value: unknown): CropAspectLock {
   if (value === null) return null;
-  if (typeof value === "string" && value.trim().length > 0) return value;
+  if (value === "original" || (typeof value === "string" && customAspectRatio(value) !== null)) return value;
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
-  throw new Error('crop.params.aspectLock must be null, a non-empty string (e.g. "1:1"), or a positive number.');
+  throw new Error('crop.params.aspectLock must be null, "original", a ratio of two numbers above 0 (e.g. "1:1" or "1.5:1"), or a positive number.');
 }

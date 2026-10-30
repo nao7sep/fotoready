@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "元画像をアプリから取り除く前に確認する",
   "settings.confirmDeleteTasks": "タスクをアプリから削除する前に確認する",
   "settings.confirmTrashOutput": "保存したファイルをゴミ箱に入れる前に確認する",
-  "settings.wholeNumber": "整数を入力してください。",
-  "settings.numberRange": "{min}〜{max} の範囲で入力してください。",
+  "number.wholeRange": "{min}〜{max} の整数を入力してください。",
+  "number.aboveZero": "0 より大きい数を入力してください。",
+  "settings.fixNumbers": "保存するには、{tabs} で示された数値を直してください。",
+  "editor.fixToSave": "保存するには、操作で示された数値を直してください。",
+  "tasks.fixToSaveAll": "すべて保存するには、{name} で示された数値を直してください。",
   "settings.closePathResult": "パスの結果を閉じる",
 
   "metadataField.source": "ソース",

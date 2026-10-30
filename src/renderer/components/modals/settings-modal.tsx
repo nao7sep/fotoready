@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SystemChoices, SystemInfo } from "@shared/types/ipc";
 import { SYSTEM_TIME_ZONE, computerTimeZone, timeZoneChoices } from "@shared/time-zone";
 import { EDITABLE_METADATA_FIELDS, type GlobalSettings, type MetadataFields, type ThemePreference } from "@shared/types/settings";
@@ -11,6 +11,8 @@ import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor, supportedModel
 import { defaultVisionDescriptionPrompt, defaultVisionSlugPrompt } from "@shared/defaults";
 import { metadataFieldLabel } from "@renderer/metadata-field-label";
 import { ModalShell } from "./modal-shell";
+import { NumberField } from "../number-field";
+import { readWholeNumber } from "@shared/number-text";
 import { OperationResult } from "../operation-result";
 import { presentFailure } from "../../present-failure";
 import { useI18n } from "@renderer/i18n/I18nContext";
@@ -19,6 +21,41 @@ import { LANGUAGE_NAMES, LANGUAGES, languageNameIn, normalizeLanguagePreference 
 import { message, type Message } from "@shared/i18n/translate";
 
 export type SettingsTab = "save" | "metadata" | "vision" | "assets" | "app";
+
+type SettingNumber = keyof typeof SETTING_BOUNDS;
+
+/**
+ * What the user typed into Settings' number fields while the dialog is open, as typed. A text that is
+ * a valid value is also in the draft; one that is not keeps Save disabled and the saved value in force.
+ */
+export type SettingNumberTexts = Partial<Record<SettingNumber, string>>;
+
+const SETTING_NUMBER_TABS: Record<SettingNumber, SettingsTab> = {
+  jpegFixedQuality: "save",
+  defaultWebpQuality: "save",
+  webpMethod: "save",
+  defaultAvifQuality: "save",
+  avifEffort: "save",
+  preResizeLongEdge: "vision",
+  visionTimeoutMs: "vision",
+  previewLongEdge: "app",
+  assetPickerPreviewLongEdge: "app",
+  previewDebounceMs: "app"
+};
+
+function readSettingNumber(name: SettingNumber, text: string): number | null {
+  return readWholeNumber(text, SETTING_BOUNDS[name].min, SETTING_BOUNDS[name].max);
+}
+
+/** The number fields whose text is not a value they accept. */
+export function invalidSettingNumbers(texts: SettingNumberTexts): SettingNumber[] {
+  return (Object.keys(texts) as SettingNumber[]).filter((name) => readSettingNumber(name, texts[name]!) === null);
+}
+
+const SettingNumberTextsContext = createContext<{ texts: SettingNumberTexts; change(name: SettingNumber, text: string): void }>({
+  texts: {},
+  change: () => {}
+});
 
 const tabs: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
   { id: "save", label: "settings.tab.save" },
@@ -67,6 +104,8 @@ export function AppSettingsModal({
   hasChanges,
   hasGeminiApiKey,
   initialTab,
+  numberTexts,
+  onNumberTextChange,
   onApiKeyDraftChange,
   onClearApiKey,
   onKeepApiKey,
@@ -81,6 +120,8 @@ export function AppSettingsModal({
   hasChanges: boolean;
   hasGeminiApiKey: boolean;
   initialTab: SettingsTab;
+  numberTexts: SettingNumberTexts;
+  onNumberTextChange(name: SettingNumber, text: string): void;
   onApiKeyDraftChange(value: string): void;
   onClearApiKey(): void;
   onKeepApiKey(): void;
@@ -90,9 +131,18 @@ export function AppSettingsModal({
   setSettingsDraft(settings: GlobalSettings): void;
   systemInfo: SystemInfo | null;
 }): React.JSX.Element {
-  const { t, text } = useI18n();
+  const { t, text, list } = useI18n();
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [saveFailure, setSaveFailure] = useState<Message | null>(null);
+  const invalidNumbers = invalidSettingNumbers(numberTexts);
+  const invalidTabs = tabs.filter((entry) => invalidNumbers.some((name) => SETTING_NUMBER_TABS[name] === entry.id));
+  const numberTextsContext = useMemo(() => ({
+    texts: numberTexts,
+    change(name: SettingNumber, next: string) {
+      setSaveFailure(null);
+      onNumberTextChange(name, next);
+    }
+  }), [numberTexts, onNumberTextChange]);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   // The last listed row each model field held while Settings is open, kept across tab switches.
@@ -155,11 +205,15 @@ export function AppSettingsModal({
       onClose={onClose}
       footer={
         <>
+          {invalidTabs.length > 0 ? (
+            <span className="blocked-reason">{t("settings.fixNumbers", { tabs: list(invalidTabs.map((entry) => t(entry.label))) })}</span>
+          ) : null}
           <button className="toolbar-button" type="button" disabled={saving} onClick={onClose}>{t("common.cancel")}</button>
-          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges || !validModelSettings(settingsDraft)} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</button>
+          <button className="primary-action" type="button" disabled={saving || !settingsDraft || !hasChanges || invalidNumbers.length > 0 || !validModelSettings(settingsDraft)} onClick={() => void save()}>{saving ? t("common.saving") : t("common.save")}</button>
         </>
       }
     >
+      <SettingNumberTextsContext.Provider value={numberTextsContext}>
       <fieldset className="settings-busy-fieldset" disabled={saving} aria-busy={saving ? "true" : undefined}>
       <div
         ref={tablistRef}
@@ -215,6 +269,7 @@ export function AppSettingsModal({
         </div>
       ) : null}
       </fieldset>
+      </SettingNumberTextsContext.Provider>
     </ModalShell>
   );
 }
@@ -291,7 +346,7 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
               <option value="fixed">{t("settings.useFixedQuality")}</option>
             </select>
           </label>
-          <NumberField label={t("settings.fixedQuality")} {...SETTING_BOUNDS.jpegFixedQuality} value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
+          <SettingNumberField label={t("settings.fixedQuality")} name="jpegFixedQuality" value={settings.jpegFixedQuality} onChange={(value) => setSettings({ ...settings, jpegFixedQuality: value })} />
           <SelectField
             className="span-two"
             label={t("settings.chromaSubsampling")}
@@ -323,16 +378,16 @@ function SaveTab({ settings, setSettings }: SettingsProps): React.JSX.Element {
       <section>
         <h3>WebP</h3>
         <div className="settings-grid">
-          <NumberField label={t("settings.quality")} {...SETTING_BOUNDS.defaultWebpQuality} value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
-          <NumberField label={t("settings.webpMethod")} {...SETTING_BOUNDS.webpMethod} value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
+          <SettingNumberField label={t("settings.quality")} name="defaultWebpQuality" value={settings.defaultWebpQuality} onChange={(value) => setSettings({ ...settings, defaultWebpQuality: value })} />
+          <SettingNumberField label={t("settings.webpMethod")} name="webpMethod" value={settings.webpMethod} onChange={(value) => setSettings({ ...settings, webpMethod: value })} />
         </div>
       </section>
 
       <section>
         <h3>AVIF</h3>
         <div className="settings-grid">
-          <NumberField label={t("settings.quality")} {...SETTING_BOUNDS.defaultAvifQuality} value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
-          <NumberField label={t("settings.avifEffort")} {...SETTING_BOUNDS.avifEffort} value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
+          <SettingNumberField label={t("settings.quality")} name="defaultAvifQuality" value={settings.defaultAvifQuality} onChange={(value) => setSettings({ ...settings, defaultAvifQuality: value })} />
+          <SettingNumberField label={t("settings.avifEffort")} name="avifEffort" value={settings.avifEffort} onChange={(value) => setSettings({ ...settings, avifEffort: value })} />
         </div>
       </section>
     </div>
@@ -507,8 +562,8 @@ function VisionTab({
 
       <section>
         <div className="settings-grid">
-          <NumberField label={t("settings.visionLongEdge")} {...SETTING_BOUNDS.preResizeLongEdge} value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
-          <NumberField label={t("settings.visionTimeout")} {...SETTING_BOUNDS.visionTimeoutMs} value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
+          <SettingNumberField label={t("settings.visionLongEdge")} name="preResizeLongEdge" value={settings.preResizeLongEdge} onChange={(value) => setSettings({ ...settings, preResizeLongEdge: value })} />
+          <SettingNumberField label={t("settings.visionTimeout")} name="visionTimeoutMs" value={settings.visionTimeoutMs} onChange={(value) => setSettings({ ...settings, visionTimeoutMs: value })} />
           <label className="toggle-row settings-toggle-card span-two">
             <input
               type="checkbox"
@@ -735,26 +790,26 @@ function AppTab({ settings, setSettings, systemInfo }: SettingsProps & { systemI
       <section>
         <h3>{t("settings.performance")}</h3>
         <div className="settings-grid">
-          <NumberField
+          <SettingNumberField
             className="span-two"
             label={t("settings.previewLongEdge")}
-            {...SETTING_BOUNDS.previewLongEdge}
+            name="previewLongEdge"
             value={settings.previewLongEdge}
             onChange={(value) => setSettings({ ...settings, previewLongEdge: value })}
           />
           <div className="row-detail">{t("settings.previewLongEdgeDetail")}</div>
-          <NumberField
+          <SettingNumberField
             className="span-two"
             label={t("settings.assetPreviewSize")}
-            {...SETTING_BOUNDS.assetPickerPreviewLongEdge}
+            name="assetPickerPreviewLongEdge"
             value={settings.assetPickerPreviewLongEdge}
             onChange={(value) => setSettings({ ...settings, assetPickerPreviewLongEdge: value })}
           />
           <div className="row-detail">{t("settings.assetPreviewSizeDetail")}</div>
-          <NumberField
+          <SettingNumberField
             className="span-two"
             label={t("settings.previewDebounce")}
-            {...SETTING_BOUNDS.previewDebounceMs}
+            name="previewDebounceMs"
             value={settings.previewDebounceMs}
             onChange={(value) => setSettings({ ...settings, previewDebounceMs: value })}
           />
@@ -790,55 +845,37 @@ type SettingsProps = {
   setSettings(settings: GlobalSettings): void;
 };
 
-function NumberField({
+function SettingNumberField({
   className,
   label,
-  max,
-  min,
+  name,
   onChange,
   value
 }: {
   className?: string;
   label: string;
-  max: number;
-  min: number;
+  name: SettingNumber;
   onChange(value: number): void;
   value: number;
 }): React.JSX.Element {
-  const { t, number } = useI18n();
-  const [draftValue, setDraftValue] = useState(String(value));
-
-  useEffect(() => {
-    setDraftValue(String(value));
-  }, [value]);
-
-  const issue = getNumberFieldIssue(draftValue, min, max);
-  const issueText = issue === "whole-number"
-    ? t("settings.wholeNumber")
-    : issue === "out-of-range"
-      ? t("settings.numberRange", { min: number(min), max: number(max) })
-      : null;
-
+  const { t } = useI18n();
+  const { texts, change } = useContext(SettingNumberTextsContext);
+  // The typed text, unless the value changed elsewhere since; a valid text is always the draft's value.
+  const typed = texts[name];
+  const text = typed !== undefined && [null, value].includes(readSettingNumber(name, typed)) ? typed : String(value);
+  const { min, max } = SETTING_BOUNDS[name];
   return (
-    <label className={`stacked-field${className ? ` ${className}` : ""}`}>
-      {label}
-      <input
-        aria-invalid={issue ? true : undefined}
-        inputMode="numeric"
-        type="text"
-        value={draftValue}
-        onBlur={() => {
-          if (issue || draftValue.length === 0) setDraftValue(String(value));
-        }}
-        onChange={(event) => {
-          const nextValue = cleanIntegerDraft(event.currentTarget.value);
-          setDraftValue(nextValue);
-          const parsed = parseIntegerDraft(nextValue);
-          if (parsed !== null && parsed >= min && parsed <= max) onChange(parsed);
-        }}
-      />
-      {issueText ? <span className="field-help">{issueText}</span> : null}
-    </label>
+    <NumberField
+      className={`stacked-field${className ? ` ${className}` : ""}`}
+      error={readSettingNumber(name, text) === null ? t("number.wholeRange", { min, max }) : null}
+      label={label}
+      text={text}
+      onTextChange={(next) => {
+        change(name, next);
+        const parsed = readSettingNumber(name, next);
+        if (parsed !== null && parsed !== value) onChange(parsed);
+      }}
+    />
   );
 }
 
@@ -952,24 +989,6 @@ function AutoTextarea({ value, onChange, onCommit, minRows = 1 }: { value: strin
       onBlur={(event) => onCommit(event.currentTarget.value)}
     />
   );
-}
-
-function cleanIntegerDraft(value: string): string {
-  return value.replace(/[^\d]/g, "");
-}
-
-function parseIntegerDraft(value: string): number | null {
-  if (!/^\d+$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function getNumberFieldIssue(value: string, min: number, max: number): "whole-number" | "out-of-range" | null {
-  if (value.length === 0) return null;
-  const parsed = parseIntegerDraft(value);
-  if (parsed === null) return "whole-number";
-  if (parsed < min || parsed > max) return "out-of-range";
-  return null;
 }
 
 function validModelSettings(settings: GlobalSettings): boolean {

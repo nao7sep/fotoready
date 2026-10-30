@@ -6,7 +6,7 @@ import { createTranslator, message } from "@shared/i18n/translate";
 describe("createTranslator", () => {
   it("fills placeholders and formats numbers for the locale", () => {
     expect(createTranslator("en").t("about.version", { version: "1.2.0" })).toBe("Version 1.2.0");
-    expect(createTranslator("en", "en-US").t("settings.numberRange", { min: 1000, max: 600000 })).toBe("Must be between 1,000 and 600,000.");
+    expect(createTranslator("en", "en-US").t("number.wholeRange", { min: 1000, max: 600000 })).toBe("Enter a whole number from 1,000 to 600,000.");
   });
 
   it("chooses the plural form by the language's own rules", () => {

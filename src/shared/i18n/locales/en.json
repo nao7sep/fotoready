@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Confirm before removing originals from the app",
   "settings.confirmDeleteTasks": "Confirm before deleting tasks from the app",
   "settings.confirmTrashOutput": "Confirm before moving saved files to the trash",
-  "settings.wholeNumber": "Enter a whole number.",
-  "settings.numberRange": "Must be between {min} and {max}.",
+  "number.wholeRange": "Enter a whole number from {min} to {max}.",
+  "number.aboveZero": "Enter a number above 0.",
+  "settings.fixNumbers": "Fix the numbers marked on {tabs} to save.",
+  "editor.fixToSave": "Fix the numbers marked in Ops to save.",
+  "tasks.fixToSaveAll": "Fix the numbers marked in {name} to save all.",
   "settings.closePathResult": "Close path result",
 
   "metadataField.source": "Source",

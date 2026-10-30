@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "앱에서 원본을 제거하기 전에 확인",
   "settings.confirmDeleteTasks": "앱에서 작업을 삭제하기 전에 확인",
   "settings.confirmTrashOutput": "저장된 파일을 휴지통으로 옮기기 전에 확인",
-  "settings.wholeNumber": "정수를 입력하십시오.",
-  "settings.numberRange": "{min}~{max} 사이여야 합니다.",
+  "number.wholeRange": "{min}~{max} 사이의 정수를 입력하십시오.",
+  "number.aboveZero": "0보다 큰 수를 입력하십시오.",
+  "settings.fixNumbers": "저장하려면 {tabs}에 표시된 숫자를 고치십시오.",
+  "editor.fixToSave": "저장하려면 편집에 표시된 숫자를 고치십시오.",
+  "tasks.fixToSaveAll": "모두 저장하려면 {name}에 표시된 숫자를 고치십시오.",
   "settings.closePathResult": "경로 결과 닫기",
 
   "metadataField.source": "출처",

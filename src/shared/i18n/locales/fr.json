@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Demander avant de retirer des originaux de l’application",
   "settings.confirmDeleteTasks": "Demander avant de supprimer des tâches de l’application",
   "settings.confirmTrashOutput": "Demander avant de placer des fichiers enregistrés dans la corbeille",
-  "settings.wholeNumber": "Saisissez un nombre entier.",
-  "settings.numberRange": "Doit être compris entre {min} et {max}.",
+  "number.wholeRange": "Saisissez un nombre entier de {min} à {max}.",
+  "number.aboveZero": "Saisissez un nombre supérieur à 0.",
+  "settings.fixNumbers": "Corrigez les nombres signalés dans {tabs} pour enregistrer.",
+  "editor.fixToSave": "Corrigez les nombres signalés dans Opérations pour enregistrer.",
+  "tasks.fixToSaveAll": "Corrigez les nombres signalés dans {name} pour tout enregistrer.",
   "settings.closePathResult": "Fermer le résultat du chemin",
 
   "metadataField.source": "Source",

@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Vor dem Entfernen von Originalen aus der App nachfragen",
   "settings.confirmDeleteTasks": "Vor dem Löschen von Aufgaben aus der App nachfragen",
   "settings.confirmTrashOutput": "Vor dem Verschieben gespeicherter Dateien in den Papierkorb nachfragen",
-  "settings.wholeNumber": "Geben Sie eine ganze Zahl ein.",
-  "settings.numberRange": "Muss zwischen {min} und {max} liegen.",
+  "number.wholeRange": "Geben Sie eine ganze Zahl von {min} bis {max} ein.",
+  "number.aboveZero": "Geben Sie eine Zahl über 0 ein.",
+  "settings.fixNumbers": "Korrigieren Sie zum Speichern die markierten Zahlen unter {tabs}.",
+  "editor.fixToSave": "Korrigieren Sie zum Speichern die markierten Zahlen unter Operationen.",
+  "tasks.fixToSaveAll": "Korrigieren Sie die markierten Zahlen in {name}, um alle zu speichern.",
   "settings.closePathResult": "Pfad-Ergebnis schließen",
 
   "metadataField.source": "Quelle",

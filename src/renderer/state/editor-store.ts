@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { PreviewResult, ProjectSnapshot } from "@shared/types/ipc";
+import type { Task } from "@shared/types/project";
 
 type PreviewState = "idle" | "loading" | "error";
 
@@ -16,6 +17,13 @@ type EditorStore = {
   showOriginals: boolean;
   showTasks: boolean;
   showOps: boolean;
+  /**
+   * What the user typed into an op card's number field that is not a value the op accepts, keyed by
+   * `opFieldKey`. It stays while the user goes to another task and back, and its task cannot be
+   * saved until it is fixed; the op keeps its last valid value meanwhile.
+   */
+  invalidOpFields: Readonly<Record<string, string>>;
+  setInvalidOpField(key: string, text: string | null): void;
   setProjectSnapshot(snapshot: ProjectSnapshot | null): void;
   setPreview(preview: PreviewResult | null): void;
   setPreviewState(previewState: PreviewState): void;
@@ -43,6 +51,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
   showOriginals: true,
   showTasks: true,
   showOps: true,
+  invalidOpFields: {},
+  setInvalidOpField: (key, text) => set((state) => {
+    if ((state.invalidOpFields[key] ?? null) === text) return state;
+    const invalidOpFields = { ...state.invalidOpFields };
+    if (text === null) delete invalidOpFields[key];
+    else invalidOpFields[key] = text;
+    return { invalidOpFields };
+  }),
   setProjectSnapshot: (snapshot) => set((state) => {
     const activeTaskChanged = state.projectSnapshot?.activeTaskId !== snapshot?.activeTaskId;
     return {
@@ -67,4 +83,16 @@ function selectedOpStillExists(snapshot: ProjectSnapshot | null, selectedOpId: s
   if (!snapshot || !selectedOpId) return false;
   const activeTask = snapshot.project.tasks.find((task) => task.id === snapshot.activeTaskId);
   return activeTask?.pipeline.ops.some((op) => op.id === selectedOpId) ?? false;
+}
+
+export function opFieldKey(taskId: string, opId: string, field: string): string {
+  return `${taskId}\0${opId}\0${field}`;
+}
+
+/** Whether an op the task still has holds a number field the user must fix before the task saves. */
+export function taskHasInvalidOpField(invalidOpFields: Readonly<Record<string, string>>, task: Task): boolean {
+  return task.pipeline.ops.some((op) => {
+    const prefix = `${task.id}\0${op.id}\0`;
+    return Object.keys(invalidOpFields).some((key) => key.startsWith(prefix));
+  });
 }

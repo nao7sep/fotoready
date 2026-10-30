@@ -1,8 +1,12 @@
 import { useI18n } from "@renderer/i18n/I18nContext";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InteractiveOverlayRect } from "@renderer/components/canvas/interactive-overlays";
 import { SegmentedRadioGroup } from "@renderer/components/SegmentedRadioGroup";
-import type { OpRenderer } from "./op-renderer";
+import { NumberField } from "@renderer/components/number-field";
+import { opFieldKey, useEditorStore } from "@renderer/state/editor-store";
+import { customAspectLock, customAspectRatio } from "@shared/crop-aspect";
+import { readPositiveNumber } from "@shared/number-text";
+import type { OpCardContext, OpRenderer } from "./op-renderer";
 import type { Translator } from "@shared/i18n/translate";
 import { clampFractionRect, CropDarkenMask, type FractionRect, imageBoundsFromOriginalSize, OverlayRect, rectFromStage, rectToStage } from "./_overlay-primitives";
 
@@ -27,14 +31,9 @@ export const cropRenderer: OpRenderer<CropParams> = {
     const imageBounds = imageBoundsFromOriginalSize(ctx.inputSize ?? ctx.originalSize);
     const currentRect = clampFractionRect({ x: params.x, y: params.y, w: params.w, h: params.h }, imageBounds);
     const activeAspectId = identifyAspect(params.aspectLock, originalAspectRatio);
-    const customAspectDraft = useMemo(() => readCustomAspectDraft(params.aspectLock), [params.aspectLock]);
-    const [customWidth, setCustomWidth] = useState(customAspectDraft.width);
-    const [customHeight, setCustomHeight] = useState(customAspectDraft.height);
-
-    useEffect(() => {
-      setCustomWidth(customAspectDraft.width);
-      setCustomHeight(customAspectDraft.height);
-    }, [customAspectDraft.height, customAspectDraft.width]);
+    const custom = useCustomAspectText(ctx, params.aspectLock, (ratio, lock) => {
+      onParamsChange({ ...cropRectParams(fitAspect(currentRect, ratio, imageBounds)), aspectLock: lock });
+    });
 
     function handleAspectChange(nextAspectId: CropAspectOptionId): void {
       if (nextAspectId === "free") {
@@ -45,14 +44,6 @@ export const cropRenderer: OpRenderer<CropParams> = {
       if (!aspectRatio) return;
       const nextRect = fitAspect(currentRect, aspectRatio, imageBounds);
       onParamsChange({ ...cropRectParams(nextRect), aspectLock: nextAspectId });
-    }
-
-    function updateCustomAspect(nextWidth: string, nextHeight: string): void {
-      const width = parseCustomAspectPart(nextWidth);
-      const height = parseCustomAspectPart(nextHeight);
-      if (width === null || height === null) return;
-      const nextRect = fitAspect(currentRect, width / height, imageBounds);
-      onParamsChange({ ...cropRectParams(nextRect), aspectLock: `${width}:${height}` });
     }
 
     return (
@@ -73,34 +64,24 @@ export const cropRenderer: OpRenderer<CropParams> = {
           disabled={disabled}
         />
         <div className="field-grid">
-          <label className="stacked-field geometry-number-field">
-            {t("crop.ratioWidth")}
-            <input
-              disabled={disabled}
-              inputMode="numeric"
-              type="text"
-              value={customWidth}
-              onChange={(event) => {
-                const nextWidth = cleanCustomAspectPart(event.currentTarget.value);
-                setCustomWidth(nextWidth);
-                updateCustomAspect(nextWidth, customHeight);
-              }}
-            />
-          </label>
-          <label className="stacked-field geometry-number-field">
-            {t("crop.ratioHeight")}
-            <input
-              disabled={disabled}
-              inputMode="numeric"
-              type="text"
-              value={customHeight}
-              onChange={(event) => {
-                const nextHeight = cleanCustomAspectPart(event.currentTarget.value);
-                setCustomHeight(nextHeight);
-                updateCustomAspect(customWidth, nextHeight);
-              }}
-            />
-          </label>
+          <NumberField
+            className="stacked-field geometry-number-field"
+            disabled={disabled}
+            error={custom.widthError}
+            inputMode="decimal"
+            label={t("crop.ratioWidth")}
+            text={custom.width}
+            onTextChange={(width) => custom.change(width, custom.height)}
+          />
+          <NumberField
+            className="stacked-field geometry-number-field"
+            disabled={disabled}
+            error={custom.heightError}
+            inputMode="decimal"
+            label={t("crop.ratioHeight")}
+            text={custom.height}
+            onTextChange={(height) => custom.change(custom.width, height)}
+          />
         </div>
       </div>
     );
@@ -165,11 +146,7 @@ function resolveAspectRatio(aspectLock: unknown, originalAspectRatio: number | n
   if (typeof aspectLock === "number" && Number.isFinite(aspectLock) && aspectLock > 0) return aspectLock;
   if (typeof aspectLock !== "string") return null;
   if (aspectLock === "original") return originalAspectRatio && Number.isFinite(originalAspectRatio) && originalAspectRatio > 0 ? originalAspectRatio : null;
-  const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(aspectLock.trim());
-  if (!match) return null;
-  const w = Number(match[1]);
-  const h = Number(match[2]);
-  return w > 0 && h > 0 ? w / h : null;
+  return customAspectRatio(aspectLock);
 }
 
 function fitAspect(rect: FractionRect, aspectRatio: number, imageBounds: { maxX: number; maxY: number }): FractionRect {
@@ -194,22 +171,58 @@ function aspectLabel(activeId: CropAspectOptionId | "custom", rect: { w: number;
 }
 
 function readCustomAspectDraft(aspectLock: CropAspectLock): { width: string; height: string } {
-  if (typeof aspectLock !== "string") {
-    return { width: "", height: "" };
-  }
-  const match = /^(\d+):(\d+)$/.exec(aspectLock.trim());
-  if (!match) {
-    return { width: "", height: "" };
-  }
-  return { width: match[1], height: match[2] };
+  if (typeof aspectLock !== "string" || customAspectRatio(aspectLock) === null) return { width: "", height: "" };
+  const [width, height] = aspectLock.split(":") as [string, string];
+  return { width: width.trim(), height: height.trim() };
 }
 
-function cleanCustomAspectPart(value: string): string {
-  return value.replace(/[^\d]/g, "");
-}
+/**
+ * The custom ratio's two parts: any number above 0, decimals included (the core checks the same).
+ * Both empty means no custom ratio. A ratio commits as soon as both parts are valid; text that is
+ * not stays in the fields and in the editor store, so the task cannot be saved, and the crop keeps
+ * its last ratio. A ratio set elsewhere (a preset, Reset, undo) replaces what the fields show.
+ */
+function useCustomAspectText(
+  ctx: OpCardContext,
+  aspectLock: CropAspectLock,
+  commit: (ratio: number, lock: string) => void
+): { width: string; height: string; widthError: string | null; heightError: string | null; change(width: string, height: string): void } {
+  const { t } = useI18n();
+  const taskId = ctx.activeTaskId;
+  const keys = taskId === null ? null : { width: opFieldKey(taskId, ctx.opId, "ratioWidth"), height: opFieldKey(taskId, ctx.opId, "ratioHeight") };
+  const setInvalidOpField = useEditorStore((state) => state.setInvalidOpField);
+  const [text, setText] = useState(() => {
+    const shown = readCustomAspectDraft(aspectLock);
+    const invalid = useEditorStore.getState().invalidOpFields;
+    return keys === null ? shown : { width: invalid[keys.width] ?? shown.width, height: invalid[keys.height] ?? shown.height };
+  });
+  const bothEmpty = text.width.trim() === "" && text.height.trim() === "";
+  const partError = (part: string): string | null => (bothEmpty || readPositiveNumber(part) !== null ? null : t("number.aboveZero"));
+  const widthError = partError(text.width);
+  const heightError = partError(text.height);
 
-function parseCustomAspectPart(value: string): number | null {
-  if (!/^\d+$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  const shownLock = useRef(aspectLock);
+  useEffect(() => {
+    if (shownLock.current === aspectLock) return;
+    shownLock.current = aspectLock;
+    setText((current) => (customAspectLock(current.width, current.height) === aspectLock ? current : readCustomAspectDraft(aspectLock)));
+  }, [aspectLock]);
+  useEffect(() => {
+    if (keys === null) return;
+    setInvalidOpField(keys.width, widthError === null ? null : text.width);
+    setInvalidOpField(keys.height, heightError === null ? null : text.height);
+  }, [keys?.width, keys?.height, widthError === null, heightError === null, text.width, text.height]);
+
+  return {
+    ...text,
+    widthError,
+    heightError,
+    change(width, height) {
+      setText({ width, height });
+      const w = readPositiveNumber(width);
+      const h = readPositiveNumber(height);
+      const lock = customAspectLock(width, height);
+      if (w !== null && h !== null && lock !== aspectLock) commit(w / h, lock);
+    }
+  };
 }

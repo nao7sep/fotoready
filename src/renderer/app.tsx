@@ -22,7 +22,7 @@ import { resolveSlugRegenerationMode } from "@shared/vision-run-mode";
 import { EditorCanvas } from "./components/canvas/editor-canvas";
 import { HistogramOverlay } from "./components/canvas/histogram-overlay";
 import { RenameModal, type RenameRunSummary } from "./components/modals/rename-modal";
-import { AppSettingsModal, type SettingsTab } from "./components/modals/settings-modal";
+import { AppSettingsModal, invalidSettingNumbers, type SettingNumberTexts, type SettingsTab } from "./components/modals/settings-modal";
 import { GeminiKeyModal } from "./components/modals/gemini-key-modal";
 import { useGeminiKeyPrompt } from "./use-gemini-key-prompt";
 import { AboutModal } from "./components/modals/about-modal";
@@ -44,7 +44,7 @@ import { TasksPanel } from "./components/panels/tasks-panel";
 import { useWorkspaceLayout, type WorkspaceWidths } from "./layout/workspace-layout";
 import { PANE_DEFAULTS, computeMinWindowWidth, computeMinWindowHeight } from "@shared/layout/workspace-metrics";
 import type { ImageFitMode } from "./ops/_overlay-primitives";
-import { useEditorStore } from "./state/editor-store";
+import { taskHasInvalidOpField, useEditorStore } from "./state/editor-store";
 import { useOriginalThumbnails } from "./state/original-thumbnails";
 import { taskStateLabel } from "./task-visual-state";
 import { isTextEditingTarget } from "./utils/editing-target";
@@ -98,6 +98,10 @@ function App(): React.JSX.Element {
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiKeyClearRequested, setApiKeyClearRequested] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState<GlobalSettings | null>(null);
+  const [settingsNumberTexts, setSettingsNumberTexts] = useState<SettingNumberTexts>({});
+  const changeSettingsNumberText = useCallback((name: keyof SettingNumberTexts, text: string): void => {
+    setSettingsNumberTexts((current) => ({ ...current, [name]: text }));
+  }, []);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("save");
   const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
   const keyPrompt = useGeminiKeyPrompt({
@@ -116,6 +120,7 @@ function App(): React.JSX.Element {
   const setPreviewState = useEditorStore((state) => state.setPreviewState);
   const [previewAttempt, setPreviewAttempt] = useState(0);
   const selectedOpId = useEditorStore((state) => state.selectedOpId);
+  const invalidOpFields = useEditorStore((state) => state.invalidOpFields);
   const selectOp = useEditorStore((state) => state.selectOp);
   const renameOpen = useEditorStore((state) => state.renameOpen);
   const setRenameOpen = useEditorStore((state) => state.setRenameOpen);
@@ -158,9 +163,16 @@ function App(): React.JSX.Element {
   const activeTask = project?.tasks.find((task) => task.id === projectSnapshot?.activeTaskId) ?? null;
   const activeOriginal = activeTask ? project?.originals.find((original) => original.id === activeTask.originalId) ?? null : null;
   const activePreview = preview?.taskId === activeTask?.id ? preview : null;
+  // A task with a number field the user must fix does not save, alone or with the others.
+  const saveBlockedTaskIds = useMemo(
+    () => new Set((project?.tasks ?? []).filter((task) => task.status === "not-saved" && taskHasInvalidOpField(invalidOpFields, task)).map((task) => task.id)),
+    [project?.tasks, invalidOpFields]
+  );
+  const activeTaskSaveBlocked = activeTask !== null && saveBlockedTaskIds.has(activeTask.id);
   const showHistogram = uiState?.showHistogram ?? false;
   const outputDirLabel = !project?.outputDir ? t("topBar.sameAsOriginal") : project.outputDir;
-  const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings));
+  const settingsDirty = Boolean(settingsDraft && settings && JSON.stringify(settingsDraft) !== JSON.stringify(settings))
+    || invalidSettingNumbers(settingsNumberTexts).length > 0;
   const apiKeyDirty = apiKeyDraft.trim().length > 0 || apiKeyClearRequested;
   const activeTaskVisionMode = activeTask?.visionRunMode ?? null;
   const activeTaskVisionGenerating = Boolean(activeTask?.visionRunning);
@@ -286,7 +298,7 @@ function App(): React.JSX.Element {
       } else if (mod && event.key.toLowerCase() === "s" && event.shiftKey) {
         event.preventDefault();
         commitFocusedField();
-        void runOwnedAction({
+        if (saveBlockedTaskIds.size === 0) void runOwnedAction({
           action: saveAll,
           key: "save-all",
           operation: "save all tasks failed",
@@ -296,7 +308,7 @@ function App(): React.JSX.Element {
       } else if (mod && event.key.toLowerCase() === "s") {
         event.preventDefault();
         commitFocusedField();
-        if (activeTask?.status === "not-saved") void runOwnedAction({
+        if (activeTask?.status === "not-saved" && !activeTaskSaveBlocked) void runOwnedAction({
           action: () => saveTask(activeTask.id),
           fields: { taskId: activeTask.id },
           key: ownedKeyForTask(activeTask.id, "save"),
@@ -653,6 +665,7 @@ function App(): React.JSX.Element {
   function openSettings(initialTab: SettingsTab = "save"): void {
     setSettingsInitialTab(initialTab);
     setSettingsDraft(settings);
+    setSettingsNumberTexts({});
     setApiKeyClearRequested(false);
     setSettingsOpen(true);
   }
@@ -718,6 +731,7 @@ function App(): React.JSX.Element {
     setApiKeyDraft("");
     setApiKeyClearRequested(false);
     setSettingsDraft(null);
+    setSettingsNumberTexts({});
     setSettingsOpen(false);
   }
 
@@ -913,6 +927,7 @@ function App(): React.JSX.Element {
             tasks={project?.tasks ?? []}
             privacyWarnings={projectSnapshot?.privacyWarnings ?? {}}
             failures={taskFailures}
+            saveBlockedTaskIds={saveBlockedTaskIds}
             onRename={() => setRenameOpen(true)}
             onDismissFailure={(key) => dismissOwnedFailure(setTaskFailures, key)}
             onSaveAll={() => void runOwnedAction({ action: saveAll, key: "save-all", operation: "save all tasks failed", setFailures: setTaskFailures, userMessage: message("failure.saveAll") })}
@@ -940,8 +955,9 @@ function App(): React.JSX.Element {
               ) : null}
               {activeOriginal && activeTask ? <span className="preview-state">{t(taskStateLabel(activeTask, queue))}</span> : null}
             </span>
+            {activeTaskSaveBlocked ? <span className="blocked-reason">{t("editor.fixToSave")}</span> : null}
             {activeTask?.status === "not-saved" ? (
-              <button className="inline-action" type="button" onClick={() => void runOwnedAction({ action: () => saveTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("save"), operation: "task save failed", setFailures: setEditorFailures, userMessage: message("failure.saveTask") })}>
+              <button className="inline-action" type="button" disabled={activeTaskSaveBlocked} onClick={() => void runOwnedAction({ action: () => saveTask(activeTask.id), fields: { taskId: activeTask.id }, key: taskOwnedKey("save"), operation: "task save failed", setFailures: setEditorFailures, userMessage: message("failure.saveTask") })}>
                 <Save size={14} /> {t("common.save")}
               </button>
             ) : null}
@@ -1122,6 +1138,8 @@ function App(): React.JSX.Element {
           hasChanges={settingsDirty || apiKeyDirty}
           hasGeminiApiKey={hasGeminiApiKey}
           initialTab={settingsInitialTab}
+          numberTexts={settingsNumberTexts}
+          onNumberTextChange={changeSettingsNumberText}
           onClose={() => void requestCloseSettings()}
           onSaveSettings={saveSettingsDraft}
           settingsDraft={settingsDraft}

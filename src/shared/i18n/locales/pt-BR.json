@@ -405,8 +405,11 @@
   "settings.confirmRemoveOriginals": "Confirmar antes de remover originais do aplicativo",
   "settings.confirmDeleteTasks": "Confirmar antes de apagar tarefas do aplicativo",
   "settings.confirmTrashOutput": "Confirmar antes de mover arquivos salvos para a lixeira",
-  "settings.wholeNumber": "Digite um número inteiro.",
-  "settings.numberRange": "Deve estar entre {min} e {max}.",
+  "number.wholeRange": "Digite um número inteiro de {min} a {max}.",
+  "number.aboveZero": "Digite um número maior que 0.",
+  "settings.fixNumbers": "Corrija os números marcados em {tabs} para salvar.",
+  "editor.fixToSave": "Corrija os números marcados em Operações para salvar.",
+  "tasks.fixToSaveAll": "Corrija os números marcados em {name} para salvar tudo.",
   "settings.closePathResult": "Fechar o resultado do caminho",
 
   "metadataField.source": "Origem",

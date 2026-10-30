@@ -24,12 +24,12 @@ function original(id: string, sourcePath: string): Original {
   };
 }
 
-async function render(root: Root, originals: Original[], tasks: Task[]): Promise<void> {
+async function render(root: Root, originals: Original[], tasks: Task[], saveBlockedTaskIds: ReadonlySet<string> = new Set()): Promise<void> {
   const noop = (): void => undefined;
   await act(async () => root.render(createElement(TasksPanel, {
     activeTaskId: null, originals, tasks,
     queue: { saved: 0, total: tasks.length, notSaved: tasks.length, queued: 0, processing: 0, errors: 0, activeTaskId: null, activeTaskLabel: null },
-    privacyWarnings: {}, failures: {},
+    privacyWarnings: {}, failures: {}, saveBlockedTaskIds,
     onDismissFailure: noop, onRename: noop, onSaveAll: noop, onCancelAll: noop, onSelect: noop
   })));
 }
@@ -48,6 +48,23 @@ it("refreshes original labels on collection replacement and falls back to task i
 
     await render(root, [], tasks);
     expect(labels()).toEqual(["task-a", "task-b"]);
+  } finally { await act(async () => root.unmount()); }
+});
+
+it("disables Save all while a task has a number to fix, naming its photo beside the button", async () => {
+  document.body.innerHTML = '<div id="root"></div>';
+  const root = createRoot(document.querySelector("#root")!);
+  const saveAll = () => [...document.querySelectorAll<HTMLButtonElement>(".panel-footer button")].find((button) => button.textContent?.trim() === "Save all")!;
+  const reason = () => document.querySelector(".panel-footer .blocked-reason")?.textContent ?? null;
+  try {
+    const tasks = [task("task-a", {})];
+    await render(root, [original("original-1", "/photos/harbor.jpg")], tasks, new Set(["task-a"]));
+    expect(saveAll().disabled).toBe(true);
+    expect(reason()).toBe("Fix the numbers marked in harbor.jpg to save all.");
+
+    await render(root, [original("original-1", "/photos/harbor.jpg")], tasks);
+    expect(saveAll().disabled).toBe(false);
+    expect(reason()).toBeNull();
   } finally { await act(async () => root.unmount()); }
 });
 
@@ -86,6 +103,7 @@ it("tells each task's state in a coloured word, with no icon repeating it", asyn
     tasks: [task("a", {}), task("b", { error: { stage: "save", message: { key: "failure.saveTask" }, retryable: true } as never })],
     privacyWarnings: {},
     failures: {},
+    saveBlockedTaskIds: new Set<string>(),
     onDismissFailure: noop, onRename: noop, onSaveAll: noop, onCancelAll: noop, onSelect: noop
   })));
 

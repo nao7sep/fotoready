@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceLayout } from "@renderer/layout/workspace-layout";
+import { STEP_SAVE_DELAY_MS } from "@renderer/layout/save-after-pause";
 import { PANE_DEFAULTS, PANE_MAXES, PANE_MINS, computeMinWindowWidth, type WorkspacePaneKey } from "@shared/layout/workspace-metrics";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -17,12 +18,19 @@ beforeEach(() => {
   containerWidth = 4000;
   persist.mockReset();
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => ({ width: containerWidth }) as DOMRect);
+  vi.useFakeTimers();
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
+
+/** Lets the pause after the last arrow step run out. */
+async function pause(ms = STEP_SAVE_DELAY_MS): Promise<void> {
+  await act(async () => vi.advanceTimersByTime(ms));
+}
 
 function Harness(): React.JSX.Element {
   const layout = useWorkspaceLayout({ showOps: true, showOriginals: true, showTasks: true, widths: PANE_DEFAULTS, onWidthsChange: persist });
@@ -54,8 +62,9 @@ describe("workspace resize gestures", () => {
     await key(pane, "keydown", "ArrowRight");
     const keyboardWidth = shown(pane);
     expect(keyboardWidth).toBe(PANE_DEFAULTS[pane] + (pane === "ops" ? -16 : 16));
-    expect(persist).not.toHaveBeenCalled();
     await key(pane, "keyup", "ArrowRight");
+    expect(persist).not.toHaveBeenCalled();
+    await pause();
     expect(persist).toHaveBeenCalledExactlyOnceWith({ ...PANE_DEFAULTS, [pane]: keyboardWidth });
 
     await act(async () => root.unmount());
@@ -63,15 +72,17 @@ describe("workspace resize gestures", () => {
     persist.mockClear();
     await render();
     await act(async () => splitter(pane).dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 100 })));
+    await act(async () => window.dispatchEvent(new MouseEvent("pointermove", { clientX: 108 })));
     await act(async () => window.dispatchEvent(new MouseEvent("pointermove", { clientX: 116 })));
     expect(shown(pane)).toBe(keyboardWidth);
-    expect(persist).toHaveBeenLastCalledWith({ ...PANE_DEFAULTS, [pane]: keyboardWidth });
+    expect(persist).not.toHaveBeenCalled();
     await act(async () => window.dispatchEvent(new MouseEvent("pointerup")));
+    expect(persist).toHaveBeenCalledExactlyOnceWith({ ...PANE_DEFAULTS, [pane]: keyboardWidth });
     expect(document.body.classList.contains("is-resizing-workspace")).toBe(false);
     expect(splitter(pane).classList.contains("is-resizing")).toBe(false);
   });
 
-  it("shows repeated arrow presses immediately and saves once on keyup or blur", async () => {
+  it("shows each arrow press at once and saves once a pause after the last, or when the handle is left", async () => {
     await render();
     await act(async () => splitter("tasks").focus());
     // A held key can deliver several repeats before React paints.
@@ -80,17 +91,21 @@ describe("workspace resize gestures", () => {
     });
     expect(shown("tasks")).toBe(PANE_DEFAULTS.tasks + 48);
     expect(document.querySelector<HTMLElement>(".workspace")!.style.gridTemplateColumns).toContain("248px");
-    expect(persist).not.toHaveBeenCalled();
     await key("tasks", "keyup", "ArrowRight");
-    await act(async () => splitter("tasks").blur());
-    expect(persist).toHaveBeenCalledTimes(1);
+    // Separate presses, each released, inside the pause: still one save, of the last width.
+    await pause(STEP_SAVE_DELAY_MS - 1);
+    await key("tasks", "keydown", "ArrowRight");
+    await key("tasks", "keyup", "ArrowRight");
+    await pause(STEP_SAVE_DELAY_MS - 1);
+    expect(persist).not.toHaveBeenCalled();
+    await pause(1);
+    expect(persist).toHaveBeenCalledExactlyOnceWith({ ...PANE_DEFAULTS, tasks: PANE_DEFAULTS.tasks + 64 });
 
-    await act(async () => splitter("tasks").focus());
     await key("tasks", "keydown", "ArrowLeft");
     await act(async () => splitter("tasks").blur());
-    expect(shown("tasks")).toBe(PANE_DEFAULTS.tasks + 32);
+    expect(shown("tasks")).toBe(PANE_DEFAULTS.tasks + 48);
     expect(persist).toHaveBeenCalledTimes(2);
-    await key("tasks", "keyup", "ArrowLeft");
+    await pause();
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
@@ -99,11 +114,11 @@ describe("workspace resize gestures", () => {
     await key(pane, "keydown", "End");
     expect(shown(pane)).toBe(PANE_MAXES[pane]);
     expect(splitter(pane).getAttribute("aria-valuemax")).toBe(String(PANE_MAXES[pane]));
-    await key(pane, "keyup", "End");
+    await pause();
     await key(pane, "keydown", "Home");
     expect(shown(pane)).toBe(PANE_MINS[pane]);
     expect(splitter(pane).getAttribute("aria-valuemin")).toBe(String(PANE_MINS[pane]));
-    await key(pane, "keyup", "Home");
+    await pause();
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
@@ -116,10 +131,10 @@ describe("workspace resize gestures", () => {
       expect(splitter(pane).getAttribute("aria-valuemax")).toBe(String(PANE_MINS[pane]));
     }
     await key("ops", "keydown", "Tab");
-    await key("ops", "keyup", "Tab");
+    await pause();
     expect(persist).not.toHaveBeenCalled();
     await key("ops", "keydown", "End");
-    await key("ops", "keyup", "End");
+    await pause();
     expect(persist).toHaveBeenCalledExactlyOnceWith({ ...PANE_DEFAULTS, ops: PANE_MINS.ops });
     expect(shown("ops")).toBe(PANE_MINS.ops);
   });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HTMLAttributes, PointerEvent as ReactPointerEvent } from "react";
+import { useSaveAfterPause } from "./save-after-pause";
 import {
   CHROME,
   PANE_MAXES,
@@ -17,7 +18,7 @@ import {
 type PaneKey = WorkspacePaneKey;
 
 export type WorkspaceWidths = Record<PaneKey, number>;
-type SplitterControls = Pick<HTMLAttributes<HTMLButtonElement>, "aria-valuemin" | "aria-valuemax" | "aria-valuenow" | "onKeyDown" | "onKeyUp" | "onBlur">;
+type SplitterControls = Pick<HTMLAttributes<HTMLButtonElement>, "aria-valuemin" | "aria-valuemax" | "aria-valuenow" | "onKeyDown" | "onBlur">;
 
 // Defaults and maximums live in @shared so the state layer (defaults + normalization) and the main
 // process's window sizing read the same numbers. The minimum stays PANE_MINS; the max caps growth.
@@ -46,7 +47,7 @@ export function useWorkspaceLayout({
   showTasks: boolean;
   // The persisted intent, supplied by the app once state.json has loaded (PANE_DEFAULTS until then).
   widths: WorkspaceWidths;
-  // Persist a new intent from a pointer drag or completed keyboard gesture.
+  // Persist a new intent: at the end of a pointer drag, and a short pause after the last arrow step.
   onWidthsChange(widths: WorkspaceWidths): void;
 }): {
   gridTemplateColumns: string;
@@ -62,8 +63,13 @@ export function useWorkspaceLayout({
   // its async load, or a future reset). The value compare means our own persisted drag echoing back
   // through the prop is a no-op, so a drag is never fought by the sync.
   const [intent, setIntent] = useState<WorkspaceWidths>(widths);
-  // A held arrow can repeat before React paints; retain its live width and save only at gesture end.
+  // A held arrow can repeat before React paints; retain its live width. Steps save a short pause
+  // after the last one, so a run of presses saves once.
   const keyedResize = useRef<{ pane: PaneKey; width: number; intent: WorkspaceWidths } | null>(null);
+  const keyedSave = useSaveAfterPause<WorkspaceWidths>((updated) => {
+    keyedResize.current = null;
+    onWidthsChange(updated);
+  });
   const widthsKey = `${widths.originals},${widths.tasks},${widths.ops},${widths.addOps}`;
   useEffect(() => {
     setIntent((current) =>
@@ -119,6 +125,8 @@ export function useWorkspaceLayout({
     // Ops splitters grow the pane when dragged left (toward the editor); the left panes grow right.
     const direction = pane === "ops" || pane === "addOps" ? -1 : 1;
     const container = workspaceContainerWidth(event.currentTarget);
+    // Only the drag's end is saved.
+    let dragged: WorkspaceWidths | null = null;
 
     function onMove(moveEvent: PointerEvent): void {
       const requested = startWidth + (moveEvent.clientX - startX) * direction;
@@ -126,14 +134,12 @@ export function useWorkspaceLayout({
       // can't push a sibling below its minimum. This clamped width is also what fits right now, so it
       // doubles as the intent: a window-grow later cannot widen a pane past where the user dragged it.
       const next = resizeWidth(pane, requested, container);
-      setIntent((current) => {
-        const updated = { ...current, [pane]: next };
-        onWidthsChange(updated);
-        return updated;
-      });
+      dragged = { ...intent, [pane]: next };
+      setIntent(dragged);
     }
 
     function onUp(): void {
+      if (dragged !== null) onWidthsChange(dragged);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       document.body.classList.remove("is-resizing-workspace");
@@ -145,13 +151,6 @@ export function useWorkspaceLayout({
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
   }, [intent, onWidthsChange]);
-
-  function commitKeyedResize(): void {
-    if (!keyedResize.current) return;
-    const updated = keyedResize.current.intent;
-    keyedResize.current = null;
-    onWidthsChange(updated);
-  }
 
   function splitterControls(pane: PaneKey): SplitterControls {
     const maximum = resizeWidth(pane, limits[pane].max, containerWidth);
@@ -174,9 +173,9 @@ export function useWorkspaceLayout({
         const updated = { ...(current?.intent ?? intent), [pane]: width };
         keyedResize.current = { pane, width, intent: updated };
         setIntent(updated);
+        keyedSave.schedule(updated);
       },
-      onKeyUp: commitKeyedResize,
-      onBlur: commitKeyedResize
+      onBlur: keyedSave.flush
     };
   }
 

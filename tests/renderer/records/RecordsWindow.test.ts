@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RECORDS_DETAIL_MIN_WIDTH, RECORDS_LIST_WIDTH } from "@shared/layout/records-metrics";
 import { SPLITTER_WIDTH } from "@shared/layout/workspace-metrics";
+import { STEP_SAVE_DELAY_MS } from "@renderer/layout/save-after-pause";
 import type { RecordDetail, RecordsPage, RecordsQuery, RecordSummary } from "@shared/records";
 import type { FotoReadyApi } from "@shared/types/ipc";
 import type { UiState } from "@shared/types/state";
@@ -615,8 +616,9 @@ describe("RecordsWindow", () => {
     expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.max}px`);
   });
 
-  it("moves the divider by keyboard and saves once when the key is released or the handle is left", async () => {
+  it("moves the divider by keyboard and saves once a pause after the last step, or when the handle is left", async () => {
     await mount();
+    vi.useFakeTimers();
     const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
     const shell = document.querySelector<HTMLElement>(".records-shell")!;
     expect(splitter.tabIndex).toBe(0);
@@ -624,21 +626,28 @@ describe("RecordsWindow", () => {
     const key = (type: "keydown" | "keyup", name: string) => act(async () => {
       splitter.dispatchEvent(new KeyboardEvent(type, { key: name, bubbles: true }));
     });
+    const pause = (ms = STEP_SAVE_DELAY_MS) => act(async () => vi.advanceTimersByTime(ms));
 
     await key("keydown", "ArrowRight");
-    await key("keydown", "ArrowRight");
-    expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.default + 32}px`);
-    expect(update).not.toHaveBeenCalled();
     await key("keyup", "ArrowRight");
+    await pause(STEP_SAVE_DELAY_MS - 1);
+    await key("keydown", "ArrowRight");
+    await key("keyup", "ArrowRight");
+    expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.default + 32}px`);
+    await pause(STEP_SAVE_DELAY_MS - 1);
+    expect(update).not.toHaveBeenCalled();
+    await pause(1);
     expect(update).toHaveBeenCalledExactlyOnceWith({ recordsListWidth: RECORDS_LIST_WIDTH.default + 32 });
 
     await key("keydown", "Home");
     expect(shell.style.getPropertyValue("--records-list-width")).toBe(`${RECORDS_LIST_WIDTH.min}px`);
     await act(async () => splitter.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
     expect(update).toHaveBeenLastCalledWith({ recordsListWidth: RECORDS_LIST_WIDTH.min });
+    await pause();
+    expect(update).toHaveBeenCalledTimes(2);
 
     await key("keydown", "End");
-    await key("keyup", "End");
+    await pause();
     expect(update).toHaveBeenLastCalledWith({ recordsListWidth: RECORDS_LIST_WIDTH.max });
     expect(update).toHaveBeenCalledTimes(3);
   });

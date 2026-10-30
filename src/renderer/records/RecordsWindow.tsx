@@ -24,6 +24,7 @@ import {
   type RecordSummary
 } from "@shared/records";
 import { useListbox } from "@renderer/components/useListbox";
+import { useSaveAfterPause } from "@renderer/layout/save-after-pause";
 import { I18nProvider, useI18n } from "@renderer/i18n/I18nContext";
 import { api } from "@renderer/ipc/client";
 import { useDisplayTimeZone } from "@renderer/use-display-time-zone";
@@ -516,7 +517,8 @@ const KEY_RESIZE_STEP = 16;
  * The drag handle between the list and the detail pane. It owns only the gesture: it streams the
  * dragged width, held to the list's bounds, and reports the last one when the drag ends. From the
  * keyboard (the window splitter pattern), arrows move it by KEY_RESIZE_STEP, Home and End take it to
- * either bound, and releasing the key or leaving the handle saves, so a held arrow saves once.
+ * either bound, and the width saves a short pause after the last step, or when the handle is left,
+ * so a run of presses saves once.
  */
 function RecordsSplitter({
   label,
@@ -531,6 +533,10 @@ function RecordsSplitter({
 }): React.JSX.Element {
   // A held key moves on from where the last press left it, rendered or not.
   const keyedWidth = useRef<number | null>(null);
+  const keyedSave = useSaveAfterPause<number>((saved) => {
+    keyedWidth.current = null;
+    onCommit(saved);
+  });
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const from = keyedWidth.current ?? width;
     const target =
@@ -543,11 +549,7 @@ function RecordsSplitter({
     event.preventDefault();
     keyedWidth.current = clampRecordsListWidth(target);
     onResize(keyedWidth.current);
-  };
-  const commitKeyedWidth = (): void => {
-    if (keyedWidth.current === null) return;
-    onCommit(keyedWidth.current);
-    keyedWidth.current = null;
+    keyedSave.schedule(keyedWidth.current);
   };
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     event.preventDefault();
@@ -586,8 +588,7 @@ function RecordsSplitter({
       tabIndex={0}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
-      onKeyUp={commitKeyedWidth}
-      onBlur={commitKeyedWidth}
+      onBlur={keyedSave.flush}
     />
   );
 }

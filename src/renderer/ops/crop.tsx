@@ -178,7 +178,8 @@ function readCustomAspectDraft(aspectLock: CropAspectLock): { width: string; hei
 
 /**
  * The custom ratio's two parts: any number above 0, decimals included (the core checks the same).
- * Both empty means no custom ratio. A ratio commits as soon as both parts are valid; text that is
+ * Both empty is no custom ratio while the crop has none (Free or Original); while it has a ratio,
+ * empty parts are an error like any other, since that ratio would stay and save. A ratio commits as soon as both parts are valid; text that is
  * not stays in the fields and in the editor store, so the task cannot be saved, and the crop keeps
  * its last ratio. A ratio set elsewhere (a preset, Reset, undo) replaces what the fields show.
  */
@@ -196,8 +197,9 @@ function useCustomAspectText(
     const invalid = useEditorStore.getState().invalidOpFields;
     return keys === null ? shown : { width: invalid[keys.width] ?? shown.width, height: invalid[keys.height] ?? shown.height };
   });
-  const bothEmpty = text.width.trim() === "" && text.height.trim() === "";
-  const partError = (part: string): string | null => (bothEmpty || readPositiveNumber(part) !== null ? null : t("number.aboveZero"));
+  const noRatio = text.width.trim() === "" && text.height.trim() === "" &&
+    (typeof aspectLock !== "string" || customAspectRatio(aspectLock) === null);
+  const partError = (part: string): string | null => (noRatio || readPositiveNumber(part) !== null ? null : t("number.aboveZero"));
   const widthError = partError(text.width);
   const heightError = partError(text.height);
 

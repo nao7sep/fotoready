@@ -156,11 +156,22 @@ describe("crop custom aspect parts", () => {
     expect(blocked("task")).toBe(true);
   });
 
-  it("treats both parts empty as no custom ratio", async () => {
+  it("treats both parts empty as no custom ratio while the crop has none", async () => {
     await renderCard(cropRenderer, { ...params });
     expect(field("Ratio width").error).toBeNull();
     expect(field("Ratio height").error).toBeNull();
     expect(blocked("task")).toBe(false);
+  });
+
+  it("shows clearing both parts of a ratio in force as an error and blocks Save, keeping the ratio", async () => {
+    const card = await renderCard(cropRenderer, { ...params, aspectLock: "3:2" });
+    await type("Ratio width", "");
+    await type("Ratio height", "");
+    expect(field("Ratio width").error).toBe("Enter a number above 0.");
+    expect(field("Ratio height").error).toBe("Enter a number above 0.");
+    expect(card.commits).toEqual([]);
+    expect(card.params().aspectLock).toBe("3:2");
+    expect(blocked("task")).toBe(true);
   });
 
   it("refuses an aspect lock the field would not write", () => {

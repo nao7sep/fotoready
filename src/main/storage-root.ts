@@ -41,14 +41,12 @@ function expandOverride(value: string, homeDir: string): string {
 /**
  * Resolve the storage root, honoring FOTOREADY_DATA_DIR. A relative override is made
  * absolute against the HOME directory (never `process.cwd()`); the default root
- * is `<homeDir>/<defaultDirName>`. The chosen root and its standard subdirs are
- * created (`mkdir -p`); if the root cannot be created or is not a usable
- * directory, this throws a clear startup error and does not fall back.
+ * is `<homeDir>/<defaultDirName>`. The chosen root is created (`mkdir -p`); the
+ * folders under it are created by what first writes into them. If the root
+ * cannot be created or is not a usable directory, this throws a clear startup
+ * error and does not fall back.
  */
-export function resolveStorageRoot(
-  defaultDirName: string,
-  subDirs: readonly string[] = []
-): string {
+export function resolveStorageRoot(defaultDirName: string): string {
   const homeDir = os.homedir();
   const override = process.env[DATA_DIR_ENV_VAR];
   const trimmed = typeof override === "string" ? override.trim() : "";
@@ -67,9 +65,6 @@ export function resolveStorageRoot(
     const stat = fs.statSync(root);
     if (!stat.isDirectory()) {
       throw new Error(`path exists but is not a directory: ${root}`);
-    }
-    for (const sub of subDirs) {
-      fs.mkdirSync(path.join(root, sub), { recursive: true });
     }
     tightenRootPermissions(root);
   } catch (error) {

@@ -31,23 +31,23 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
   });
 
   it("defaults to <homedir>/.fotoready when the override is unset", () => {
-    const root = resolveStorageRoot(DATA_DIR_NAME, ["logs"]);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(root).toBe(path.join(tmpHome, DATA_DIR_NAME));
   });
 
   it("treats an empty or whitespace override as unset (uses the default)", () => {
     process.env[ENV_VAR] = "   ";
-    const root = resolveStorageRoot(DATA_DIR_NAME, []);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(root).toBe(path.join(tmpHome, DATA_DIR_NAME));
   });
 
-  it("relocates the whole root to an absolute override and creates standard subdirs", () => {
+  it("relocates the whole root to an absolute override and creates no folder under it", () => {
     const target = path.join(tmpBase, "relocated");
     process.env[ENV_VAR] = target;
-    const root = resolveStorageRoot(DATA_DIR_NAME, ["logs"]);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(root).toBe(path.resolve(target));
     expect(fs.statSync(root).isDirectory()).toBe(true);
-    expect(fs.statSync(path.join(root, "logs")).isDirectory()).toBe(true);
+    expect(fs.readdirSync(root)).toEqual([]);
   });
 
   it.each(["$FOTOREADY_ROOT_TEST_SET", "${FOTOREADY_ROOT_TEST_SET}", "%FOTOREADY_ROOT_TEST_SET%"])(
@@ -56,8 +56,8 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
       vi.stubEnv("FOTOREADY_ROOT_TEST_SET", "expanded");
       process.env[ENV_VAR] = path.join(tmpBase, reference, "profile");
       const expected = path.join(tmpBase, "expanded", "profile");
-      expect(resolveStorageRoot(DATA_DIR_NAME, ["logs"])).toBe(expected);
-      expect(fs.statSync(path.join(expected, "logs")).isDirectory()).toBe(true);
+      expect(resolveStorageRoot(DATA_DIR_NAME)).toBe(expected);
+      expect(fs.statSync(expected).isDirectory()).toBe(true);
       expect(fs.existsSync(path.join(tmpBase, reference))).toBe(false);
     }
   );
@@ -70,13 +70,13 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
 
   it("expands a leading ~ in the override against the home directory", () => {
     process.env[ENV_VAR] = "~/.fotoready-test-home-expand";
-    const root = resolveStorageRoot(DATA_DIR_NAME, []);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(root).toBe(path.join(tmpHome, ".fotoready-test-home-expand"));
   });
 
   it("resolves a relative override against HOME, never the working directory", () => {
     process.env[ENV_VAR] = "relative-fotoready-root-xyz";
-    const root = resolveStorageRoot(DATA_DIR_NAME, []);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(root).toBe(path.resolve(tmpHome, "relative-fotoready-root-xyz"));
     expect(root).not.toBe(path.resolve(process.cwd(), "relative-fotoready-root-xyz"));
   });
@@ -85,7 +85,7 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
     const filePath = path.join(tmpBase, "not-a-dir");
     fs.writeFileSync(filePath, "x");
     process.env[ENV_VAR] = filePath;
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_DATA_DIR/);
   });
 
   it("hard-errors on a reference to an unset $VAR, naming the variable (never a literal $VAR directory)", () => {
@@ -93,9 +93,9 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
     // A literal `$VAR` path segment would be a silent misconfiguration — the
     // app would create a directory literally named "$FOTOREADY_ROOT_TEST_UNSET",
     // so it is a reported startup error instead.
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/not set/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_DATA_DIR/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_ROOT_TEST_UNSET/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/not set/);
     // And no literal-$VAR directory was materialized under HOME.
     expect(fs.existsSync(path.join(tmpHome, "$FOTOREADY_ROOT_TEST_UNSET"))).toBe(false);
   });
@@ -103,15 +103,15 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
   it("hard-errors on a reference to a $VAR set to the empty string, naming it, never collapsing onto bare HOME", () => {
     process.env[ENV_VAR] = "$FOTOREADY_ROOT_TEST_EMPTY";
     // Must throw rather than silently resolving to path.resolve(homeDir, "") === homeDir.
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_DATA_DIR/);
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/FOTOREADY_ROOT_TEST_EMPTY/);
-    expect(() => resolveStorageRoot(DATA_DIR_NAME, [])).toThrow(/is empty/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_DATA_DIR/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/FOTOREADY_ROOT_TEST_EMPTY/);
+    expect(() => resolveStorageRoot(DATA_DIR_NAME)).toThrow(/is empty/);
   });
 
   it.skipIf(process.platform === "win32")("creates a fresh root as owner-only (0700)", () => {
     const target = path.join(tmpBase, "fresh-root");
     process.env[ENV_VAR] = target;
-    const root = resolveStorageRoot(DATA_DIR_NAME, []);
+    const root = resolveStorageRoot(DATA_DIR_NAME);
     expect(fs.statSync(root).mode & 0o777).toBe(0o700);
   });
 
@@ -122,7 +122,7 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
       fs.mkdirSync(target, { mode: 0o755 });
       expect(fs.statSync(target).mode & 0o777).toBe(0o755);
       process.env[ENV_VAR] = target;
-      const root = resolveStorageRoot(DATA_DIR_NAME, []);
+      const root = resolveStorageRoot(DATA_DIR_NAME);
       expect(fs.statSync(root).mode & 0o777).toBe(0o700);
     }
   );
@@ -131,7 +131,7 @@ describe("resolveStorageRoot (FOTOREADY_DATA_DIR)", () => {
     const target = path.join(tmpBase, "windows-root");
     fs.mkdirSync(target, { mode: 0o755 });
     process.env[ENV_VAR] = target;
-    const root = await asPlatform("win32", () => resolveStorageRoot(DATA_DIR_NAME, []));
+    const root = await asPlatform("win32", () => resolveStorageRoot(DATA_DIR_NAME));
     expect(fs.statSync(root).mode & 0o777).toBe(0o755);
   });
 });

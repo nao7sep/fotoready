@@ -17,14 +17,12 @@ export type AppPaths = {
   bundledStampsDir: string;
 };
 
-// Standard subdirectories created under the storage root on first use.
-const STANDARD_SUBDIRS = ["logs"] as const;
-
 // Resolves the storage root from the home directory (honoring FOTOREADY_DATA_DIR),
-// never from the working directory or the code's location, and creates the root
-// plus its standard subdirs. An unusable override is a reported startup error.
+// never from the working directory or the code's location, and creates it. `logs/`
+// is created only when the first fallback record is written into it. An unusable
+// override is a reported startup error.
 export function getDataDir(): string {
-  return resolveStorageRoot(DATA_DIR_NAME, STANDARD_SUBDIRS);
+  return resolveStorageRoot(DATA_DIR_NAME);
 }
 
 export function getAppPaths(): AppPaths {

@@ -517,6 +517,25 @@ describe("RecordsWindow", () => {
     expect(titles()).toEqual(["app later", "gemini description", "vision retry"]);
   });
 
+  it("holds a newest page that arrives after the list left the top until it is back there", async () => {
+    await mount();
+    vi.useFakeTimers();
+    const next = deferred<RecordsPage>();
+    page.mockReturnValueOnce(next.promise);
+    page.mockResolvedValueOnce({ records: [newer, call, line], more: false });
+
+    await signal();
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(page).toHaveBeenCalledTimes(2);
+    await scrollTo(300);
+    await act(async () => next.resolve({ records: [newer, call, line], more: false }));
+    expect(titles()).toEqual(["gemini description", "vision retry"]);
+
+    await scrollTo(0);
+    expect(page).toHaveBeenCalledTimes(3);
+    expect(titles()).toEqual(["app later", "gemini description", "vision retry"]);
+  });
+
   it("keeps the selected record selected through an update", async () => {
     await mount();
     await act(async () => options()[1]!.click());

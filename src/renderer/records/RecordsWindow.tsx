@@ -246,13 +246,20 @@ export function RecordsWindow({ initialListWidth }: { initialListWidth: number }
 
   // The newest page read again for new records. It joins the rows already shown rather than
   // replacing them, so the list never falls back to the loading note and the pages already read
-  // stay. It reads only refs, so one copy serves the live subscription below.
+  // stay. A page that arrives after the list left the top is dropped and read again once the list
+  // is back there, so it never moves under the reader. It reads only refs, so one copy serves the
+  // live subscription below.
   const readNewest = useCallback((): void => {
     const generation = listGeneration.current;
     void api.records.page({ ...filtersRef.current, after: null }).then(
       (page) => {
         if (generation !== listGeneration.current) return;
         liveSuspended.current = false;
+        const scroll = scrollRef.current;
+        if (scroll !== null && !atTop(scroll)) {
+          newestPending.current = true;
+          return;
+        }
         setList((current) =>
           current.status === "ready"
             ? { ...current, ...mergeNewestPage(current.records, current.more, page) }

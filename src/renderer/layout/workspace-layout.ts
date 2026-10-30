@@ -114,6 +114,8 @@ export function useWorkspaceLayout({
 
   const startResize = useCallback((pane: PaneKey) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    // A width still waiting from arrow steps saves first, so what is stored always matches the screen.
+    keyedSave.flush();
     // Highlight only the splitter being dragged. The body class below is for the global resize
     // cursor + text-select lock, not the highlight — keying the highlight off it lit up every
     // splitter at once. Captured synchronously since the React event is reused after this handler.
@@ -150,7 +152,7 @@ export function useWorkspaceLayout({
     splitter.classList.add("is-resizing");
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
-  }, [intent, onWidthsChange]);
+  }, [intent, onWidthsChange, keyedSave.flush]);
 
   function splitterControls(pane: PaneKey): SplitterControls {
     const maximum = resizeWidth(pane, limits[pane].max, containerWidth);

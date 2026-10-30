@@ -553,6 +553,8 @@ function RecordsSplitter({
   };
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     event.preventDefault();
+    // A width still waiting from arrow steps saves first, so what is stored always matches the screen.
+    keyedSave.flush();
     const splitter = event.currentTarget;
     const startX = event.clientX;
     const startWidth = width;

@@ -652,6 +652,23 @@ describe("RecordsWindow", () => {
     expect(update).toHaveBeenCalledTimes(3);
   });
 
+  it("saves a width still waiting from arrow steps before a drag starts, then the drag's end", async () => {
+    await mount();
+    vi.useFakeTimers();
+    const splitter = document.querySelector<HTMLElement>('[role="separator"]')!;
+    await act(async () => splitter.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    expect(update).not.toHaveBeenCalled();
+    await act(async () => splitter.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 0 })));
+    expect(update).toHaveBeenCalledExactlyOnceWith({ recordsListWidth: RECORDS_LIST_WIDTH.default + 16 });
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("pointermove", { clientX: 20 }));
+      window.dispatchEvent(new MouseEvent("pointerup"));
+    });
+    expect(update).toHaveBeenLastCalledWith({ recordsListWidth: RECORDS_LIST_WIDTH.default + 36 });
+    await act(async () => vi.advanceTimersByTime(STEP_SAVE_DELAY_MS));
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
   it("narrows the list when the window narrows, saving nothing", async () => {
     await mount();
     const shell = document.querySelector<HTMLElement>(".records-shell")!;

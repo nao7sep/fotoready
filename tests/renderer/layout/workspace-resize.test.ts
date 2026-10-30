@@ -109,6 +109,21 @@ describe("workspace resize gestures", () => {
     expect(persist).toHaveBeenCalledTimes(2);
   });
 
+  it("saves a width still waiting from arrow steps before a drag starts, then the drag's end", async () => {
+    await render();
+    await key("tasks", "keydown", "ArrowRight");
+    expect(persist).not.toHaveBeenCalled();
+    await act(async () => splitter("tasks").dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 100 })));
+    expect(persist).toHaveBeenCalledExactlyOnceWith({ ...PANE_DEFAULTS, tasks: PANE_DEFAULTS.tasks + 16 });
+    await act(async () => window.dispatchEvent(new MouseEvent("pointermove", { clientX: 132 })));
+    await act(async () => window.dispatchEvent(new MouseEvent("pointerup")));
+    expect(persist).toHaveBeenLastCalledWith({ ...PANE_DEFAULTS, tasks: PANE_DEFAULTS.tasks + 48 });
+    expect(shown("tasks")).toBe(PANE_DEFAULTS.tasks + 48);
+    // Nothing older is left to land after the drag.
+    await pause();
+    expect(persist).toHaveBeenCalledTimes(2);
+  });
+
   it.each(["originals", "tasks", "ops"] as const)("uses Home and End at the supported bounds for %s", async (pane) => {
     await render();
     await key(pane, "keydown", "End");

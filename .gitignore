@@ -3,6 +3,7 @@ node_modules/
 
 # Build and packaging output
 out/
+out-records-demo/
 release/
 release.candidate/
 release.previous/

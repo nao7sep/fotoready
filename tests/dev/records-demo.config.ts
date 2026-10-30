@@ -1,7 +1,8 @@
 /**
  * Builds the Records window demo (`records-demo.ts`): the app's own build with the demo as one
- * more main-process entry, written to `out/records-demo/` so the app's `out/` parts, which the
- * package is made from, stay as they were. `npm run demo:records` builds and opens it; the live
+ * more main-process entry, written to `out-records-demo/`: outside `out/`, which the package is
+ * made from, and at the same depth, so the app finds its bundled resources from there as it does
+ * from `out/`. `npm run demo:records` builds and opens it; the live
  * test builds it too.
  */
 
@@ -12,7 +13,7 @@ import app from "../../electron.vite.config";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const repo = fileURLToPath(new URL("../..", import.meta.url));
-const out = resolve(repo, "out/records-demo");
+const out = resolve(repo, "out-records-demo");
 // The app's config resolves its paths from the working folder, which the build runs in: the
 // repository. Its single preload input is named here so the demo's entries can join the main ones.
 const inputs = (input: unknown): Record<string, string> =>

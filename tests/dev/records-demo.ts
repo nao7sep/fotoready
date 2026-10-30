@@ -71,7 +71,7 @@ void app.whenReady().then(async () => {
   }, LIVE_MS);
   if (check) {
     try {
-      const result = await runCheck((script) => run(records.webContents, script));
+      const result = await runCheck((script) => run(records.webContents, script), holdNewestRead(main.webContents, records.webContents));
       process.stdout.write(`RECORDS-CHECK ${JSON.stringify(result)}\n`);
       app.exit(0);
     } catch (error) {
@@ -98,7 +98,7 @@ async function loaded(contents: WebContents): Promise<void> {
 interface Row { key: string; title: string; top: number; bottom: number }
 interface Snapshot { scrollTop: number; first: Row; size: number; selected: string | null; detail: string | null }
 
-async function runCheck(page: <T>(script: string) => Promise<T>) {
+async function runCheck(page: <T>(script: string) => Promise<T>, holdNewest: () => HeldRead) {
   await page(PAGE_HELPERS);
 
   step("check (a)");
@@ -117,6 +117,31 @@ async function runCheck(page: <T>(script: string) => Promise<T>) {
     return rc.rows()[0];
   })()`);
   const c = { pass: top.title.startsWith("live record"), title: top.title };
+
+  step("check (f)");
+  // (f) A newest page read while the list is at its top, held until the list has scrolled down,
+  // moves nothing when it lands; back at the top its records are there.
+  const late = holdNewest();
+  await late.reading;
+  const lateBefore = await page<Snapshot>(`(async () => {
+    const scroll = rc.scroll();
+    scroll.scrollTop = 3000;
+    await rc.until(() => scroll.scrollTop === 3000);
+    await rc.frame();
+    return rc.snapshot();
+  })()`);
+  await late.release();
+  const lateAfter = await page<Snapshot>(`(async () => { await rc.wait(300); await rc.frame(); return rc.snapshot(); })()`);
+  const lateBack = await page<Snapshot>(`(async () => {
+    const before = rc.size();
+    rc.scroll().scrollTop = 0;
+    await rc.until(() => rc.size() > before && rc.rows()[0].title.startsWith("live record"));
+    return rc.snapshot();
+  })()`);
+  const f = {
+    pass: same(lateBefore, lateAfter) && late.newerRecords() > 0 && lateBack.size > lateBefore.size,
+    newerRecords: late.newerRecords(), before: lateBefore, after: lateAfter, back: lateBack
+  };
 
   step("check (d)");
   // (d) Scrolled down with a record selected, five stored records and the reads they start move
@@ -144,9 +169,6 @@ async function runCheck(page: <T>(script: string) => Promise<T>) {
     const back = rc.snapshot();
     return { before, after, back };
   })()`);
-  const same = (x: Snapshot, y: Snapshot) =>
-    x.scrollTop === y.scrollTop && x.first.key === y.first.key && x.first.top === y.first.top && x.size === y.size &&
-    x.selected === y.selected && x.detail === y.detail;
   const d = {
     pass: same(held.before, held.after) && held.back.size > held.before.size &&
       held.back.selected === held.before.selected && held.back.detail === held.before.detail,
@@ -189,7 +211,63 @@ async function runCheck(page: <T>(script: string) => Promise<T>) {
   await page("1");
   const e = { longestFrameMsWhileWalking: Math.round(walk.longestFrameMs), roundTripMs: Date.now() - roundTrip };
 
-  return { pass: a.pass && b.pass && c.pass && d.pass, seed, a, b, c, d, e };
+  return { pass: a.pass && b.pass && c.pass && d.pass && f.pass, seed, a, b, c, d, e, f };
+}
+
+function same(x: Snapshot, y: Snapshot): boolean {
+  return x.scrollTop === y.scrollTop && x.first.key === y.first.key && x.first.top === y.first.top && x.size === y.size &&
+    x.selected === y.selected && x.detail === y.detail;
+}
+
+interface HeldRead {
+  /** Settles once the window has asked for its newest page and the page has been read. */
+  reading: Promise<void>;
+  /** Hands the held page to the window and settles once it has it. */
+  release(): Promise<void>;
+  /** How many records the held page has that the window did not show when it asked. */
+  newerRecords(): number;
+}
+
+/**
+ * Holds the Records window's next newest-page read in flight. Its page reads are answered for
+ * the while through the main window's own `records.page` call, so they still come from the
+ * records store; the newest one is read at once, then kept until `release`, which hands it over
+ * and gives the reads back to the app's own handler.
+ */
+function holdNewestRead(main: WebContents, records: WebContents): () => HeldRead {
+  return () => {
+    let reading!: () => void;
+    let release!: () => void;
+    let answered!: () => void;
+    const released = new Promise<void>((resolve) => { release = resolve; });
+    const delivered = new Promise<void>((resolve) => { answered = resolve; });
+    let newer = 0;
+    let held = false;
+    const shownKeys = (): Promise<string[]> =>
+      records.executeJavaScript(`[...document.querySelectorAll('[role="option"]')].map((option) => option.dataset.listboxOption)`) as Promise<string[]>;
+    records.ipc.handle("records.page", async (_event, query: { after: unknown }) => {
+      const read = (): Promise<{ records: Array<{ kind: string; id: number }> }> =>
+        main.executeJavaScript(`window.api.records.page(${JSON.stringify(query)})`) as Promise<{ records: Array<{ kind: string; id: number }> }>;
+      if (held || query.after !== null) return read();
+      held = true;
+      const shown = new Set(await shownKeys());
+      const page = await read();
+      newer = page.records.filter((record) => !shown.has(`${record.kind}:${record.id}`)).length;
+      reading();
+      await released;
+      records.ipc.removeHandler("records.page");
+      setTimeout(answered, 0);
+      return page;
+    });
+    return {
+      reading: new Promise<void>((resolve) => { reading = resolve; }),
+      async release() {
+        release();
+        await delivered;
+      },
+      newerRecords: () => newer
+    };
+  };
 }
 
 /** Every record's key, newest first, as the records store pages them. */

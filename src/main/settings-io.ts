@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
-import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson } from "@shared/format-versions";
+import { FILE_FORMATS, headeredJson, NewerFormatError, parseHeaderedJson } from "@shared/file-header";
+import { APP_WRITER } from "./app-writer";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
@@ -61,9 +62,9 @@ async function readSettingsFile(settingsPath: string, logger?: AppLogger): Promi
     logger?.warn("settings file could not be read; using built-ins and leaving it as it is for this session", { mod: "settings", settingsPath, err: error });
     return { file: { path: settingsPath, stored: {}, writable: false }, notice: { kind: "unreadable", path: settingsPath } };
   }
-  const read = parseVersionedJson(text, FORMAT_VERSIONS.config);
+  const read = parseHeaderedJson(text, "config");
   if (read.kind === "current") return { file: { path: settingsPath, stored: read.body, writable: true }, notice: null };
-  if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FORMAT_VERSIONS.config);
+  if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FILE_FORMATS.config);
   let setAsidePath: string;
   // not recorded: preserve the unreadable bytes; no replacement config is seeded.
   try { setAsidePath = await setAsideStore(settingsPath); } catch (cause) { throw new SettingsQuarantineError(settingsPath, cause); }
@@ -150,7 +151,7 @@ export async function saveSettings(
   // First run writes nothing while every set is at its built-in (config-sets-conventions).
   if (Object.keys(next).length === 0 && !(await fileExists(file.path))) return effective;
   // recorded: durable config sets use the managed atomic write and backup history.
-  await writeManagedFile(file.path, versionedJson(FORMAT_VERSIONS.config, next));
+  await writeManagedFile(file.path, headeredJson("config", APP_WRITER, next));
   file.stored = next;
   return effective;
 }

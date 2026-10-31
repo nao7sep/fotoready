@@ -9,6 +9,7 @@ import { ApiKeyStore } from "@adapters/api-keys";
 import { createLogger } from "@main/logger";
 import { createRecordsStore, fallbackFile } from "@main/records-store";
 import { startStoreWriter } from "@main/store-writer";
+import { header } from "../helpers/file-header";
 
 // Credentials never reach a persistent, console or event sink, where they would outlive the key file
 // or leave the app: a fake key goes
@@ -88,7 +89,7 @@ describe.each([
     expect(rawFailure.message).toContain(FAKE_KEY);
 
     const keysPath = path.join(root, "api-keys.json");
-    fs.writeFileSync(keysPath, `{"formatVersion":1,"keys":{"gemini":${STORED}}}`, { mode: 0o600 });
+    fs.writeFileSync(keysPath, `{"format":${JSON.stringify(header("apiKeys").format)},"keys":{"gemini":${STORED}}}`, { mode: 0o600 });
     await expect(new ApiKeyStore(keysPath, logger).resolve("gemini")).resolves.toBeNull();
 
     expect(await writer.close({ drain: true })).toBe(true);

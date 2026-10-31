@@ -1,5 +1,5 @@
 import type { DatabaseSync, StatementSync } from "node:sqlite";
-import { FORMAT_VERSIONS } from "../shared/format-versions.ts";
+import type { FileWriter } from "../shared/file-header.ts";
 import type { LogLevel } from "../shared/types/log.ts";
 import { openSqliteStore } from "./sqlite-format-version.ts";
 
@@ -56,8 +56,8 @@ CREATE INDEX IF NOT EXISTS idx_provider_calls_task_time ON provider_calls (task_
 export type RecordsDatabase = { db: DatabaseSync; insert(session: string, row: RecordRow): void; close(): void };
 
 /** Opens records.sqlite3 for one writer; throws when it cannot be opened or admitted. */
-export function openRecordsDatabase(file: string): RecordsDatabase {
-  const db = openSqliteStore(file, FORMAT_VERSIONS.records, SCHEMA);
+export function openRecordsDatabase(file: string, writer: FileWriter): RecordsDatabase {
+  const db = openSqliteStore(file, "records", SCHEMA, writer);
   let insertLog: StatementSync;
   let insertCall: StatementSync;
   try {

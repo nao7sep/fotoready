@@ -1,7 +1,7 @@
 import type { OutputSettings, Pipeline } from "./types/pipeline";
 import type { VisionResult } from "./types/project";
 
-/** A task sidecar's contents; its file also records the format version (`FORMAT_VERSIONS.taskSidecar`). */
+/** A task sidecar's contents; its file also carries the identity header (`file-header.ts`, kind `sidecar`). */
 export type TaskSidecar = {
   original: {
     fileName: string;

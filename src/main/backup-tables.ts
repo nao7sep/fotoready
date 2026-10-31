@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
-import { FORMAT_VERSIONS } from "../shared/format-versions.ts";
+import type { FileWriter } from "../shared/file-header.ts";
 import { openSqliteStore } from "./sqlite-format-version.ts";
 
 // The backup history's table (data-backup-conventions, The store). The store writer opens it on its
@@ -26,9 +26,9 @@ CREATE INDEX idx_backups_path_id ON backups (path, id);
 export type BackupsDatabase = { db: DatabaseSync; record(session: string, write: BackupWrite): void; close(): void };
 
 /** Opens backups.sqlite3 for one writer; throws when it cannot be opened or admitted. */
-export function openBackupsDatabase(file: string): BackupsDatabase {
+export function openBackupsDatabase(file: string, writer: FileWriter): BackupsDatabase {
   // not recorded: backups.sqlite3 is the history itself, written here and never through the managed save.
-  const db = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA);
+  const db = openSqliteStore(file, "backups", SCHEMA, writer);
   let ownRow: StatementSync;
   let latestRow: StatementSync;
   let upsert: StatementSync;

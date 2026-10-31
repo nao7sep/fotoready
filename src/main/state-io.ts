@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import type { UiState } from "@shared/types/state";
 import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } from "@shared/validation/state";
-import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
+import { headeredJson, parseHeaderedJson, type HeaderedJsonRead } from "@shared/file-header";
+import { APP_WRITER } from "./app-writer";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import type { AppLogger } from "./logger";
 
@@ -20,9 +21,9 @@ export type LoadedState = {
  * defaults, in memory only when the file cannot be read or written, so it never stops startup.
  */
 export async function loadState(statePath: string, logger?: AppLogger): Promise<LoadedState> {
-  let read: VersionedJsonRead;
+  let read: HeaderedJsonRead;
   try {
-    read = parseVersionedJson(await fs.readFile(statePath, "utf8"), FORMAT_VERSIONS.state);
+    read = parseHeaderedJson(await fs.readFile(statePath, "utf8"), "state");
   } catch (error) {
     // Missing state is the normal first-run case: return defaults WITHOUT writing. state.json is
     // volatile UI state and is deliberately not materialized on first run (storage-path
@@ -63,7 +64,7 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
 export async function saveState(statePath: string, state: UiState): Promise<void> {
   const normalized = normalizeUiState(state, defaultUiState()).state;
   // not recorded: state.json is UI state (pane widths, histogram placement), not the user's work.
-  await atomicWriteFile(statePath, versionedJson(FORMAT_VERSIONS.state, normalized));
+  await atomicWriteFile(statePath, headeredJson("state", APP_WRITER, normalized));
 }
 
 export type StateCoordinator = {

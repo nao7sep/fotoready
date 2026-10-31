@@ -4,7 +4,7 @@ import { app } from "electron";
 import { bootstrap, recordStartupFailure } from "./bootstrap";
 import { notifyNewerFormat, notifySettingsQuarantineFailure, notifyStartupFailure } from "./startup-dialog";
 import { SettingsQuarantineError } from "./settings-io";
-import { NewerFormatError } from "@shared/format-versions";
+import { NewerFormatError } from "@shared/file-header";
 
 // A bootstrap failure is recorded (see recordStartupFailure), shown in the startup dialog, and
 // ends the process here. Uncaught exceptions are logged and rethrown; unhandled rejections

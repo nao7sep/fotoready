@@ -3,11 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTaskSidecar } from "@shared/task-sidecar";
-import { FORMAT_VERSIONS, versionedJson } from "@shared/format-versions";
+import { headeredJson } from "@shared/file-header";
+import { APP_WRITER } from "@main/app-writer";
 import { defaultPipeline } from "@shared/defaults";
 import { loadTaskSidecars, matchingTaskSidecar, writeTaskSidecarFile } from "@main/task-sidecar";
 import type { Original, Task } from "@shared/types/project";
 import { getOpModule } from "@core/ops/catalog";
+import { header } from "../helpers/file-header";
 
 const roots: string[] = [];
 
@@ -78,7 +80,7 @@ describe("task sidecar import", () => {
       pipeline: defaultPipeline(),
       vision: null,
     });
-    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, sidecar), "utf8");
+    await fs.writeFile(sidecarPath, headeredJson("sidecar", APP_WRITER, sidecar), "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
 
@@ -106,7 +108,7 @@ describe("task sidecar import", () => {
     const body = createTaskSidecar({
       original: original as never, generateDescription: false, generateSlug: false, customSlug: null, pipeline: defaultPipeline(), vision: null,
     });
-    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, body), "utf8");
+    await fs.writeFile(sidecarPath, headeredJson("sidecar", APP_WRITER, body), "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
 
@@ -123,7 +125,7 @@ describe("task sidecar import", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "fotoready-sidecar-"));
     roots.push(root);
     const sidecarPath = path.join(root, "photo.json");
-    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, createTaskSidecar({
+    await fs.writeFile(sidecarPath, headeredJson("sidecar", APP_WRITER, createTaskSidecar({
       original: { fileName: "photo.jpg", sourceHash: "source-hash", size: 100, format: "jpeg", width: 20, height: 10 },
       generateDescription: false, generateSlug: false, customSlug: null, pipeline: defaultPipeline(), vision: null,
     })), "utf8");
@@ -156,7 +158,7 @@ describe("task sidecar import", () => {
       pipeline,
       vision: null,
     });
-    await fs.writeFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, sidecar), "utf8");
+    await fs.writeFile(sidecarPath, headeredJson("sidecar", APP_WRITER, sidecar), "utf8");
     const bundledStampsDir = path.resolve("resources/stamps");
 
     const result = await loadTaskSidecars([sidecarPath], bundledStampsDir);
@@ -193,7 +195,7 @@ describe("the task sidecar format version", () => {
       { id: "same-id", type: "stamp", enabled: true, params: structuredClone(getOpModule("stamp")!.defaultParams) },
       { id: "same-id", type: "watermark-text", enabled: false, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
     ];
-    const text = versionedJson(FORMAT_VERSIONS.taskSidecar, body);
+    const text = headeredJson("sidecar", APP_WRITER, body);
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
@@ -215,7 +217,7 @@ describe("the task sidecar format version", () => {
       { id: "second", type: "watermark-text", enabled: true, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
       { id: "first", type: "watermark-text", enabled: false, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
     ];
-    const text = versionedJson(FORMAT_VERSIONS.taskSidecar, body);
+    const text = headeredJson("sidecar", APP_WRITER, body);
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
@@ -255,8 +257,9 @@ describe("the task sidecar format version", () => {
 
     const sidecarPath = await writeTaskSidecarFile(path.join(root, "photo-out.jpg"), original, task, defaultPipeline());
 
-    expect(Object.keys(JSON.parse(await fs.readFile(sidecarPath, "utf8")))[0]).toBe("formatVersion");
-    expect(JSON.parse(await fs.readFile(sidecarPath, "utf8")).formatVersion).toBe(1);
+    const written = JSON.parse(await fs.readFile(sidecarPath, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(written).slice(0, 2)).toEqual(["format", "writer"]);
+    expect(written.format).toEqual({ owner: "fotoready", kind: "sidecar", version: 1 });
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
     expect(result.rejected).toEqual([]);
     expect(result.loaded[0]!.sidecar).toEqual(sidecarBody());
@@ -264,7 +267,7 @@ describe("the task sidecar format version", () => {
 
   it("refuses a sidecar a newer FotoReady saved and leaves it byte-identical", async () => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
-    const text = `${JSON.stringify({ formatVersion: 2, ...sidecarBody() }, null, 2)}\n`;
+    const text = `${JSON.stringify({ ...header("sidecar", 2), ...sidecarBody() }, null, 2)}\n`;
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");

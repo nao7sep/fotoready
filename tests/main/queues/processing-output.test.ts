@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@adapters/exiftool", () => ({ applyMetadataToOutput: mocks.applyMetadataToOutput }));
 
 import { applySaveUpdate, processTask, type SaveUpdate } from "@main/queues/processing";
+import { APP_WRITER } from "@main/app-writer";
 
 let dir: string;
 
@@ -41,7 +42,7 @@ describe("processTask output publication", () => {
     const sourcePath = project.originals[0]!.sourcePath;
     const databasePath = path.join(dir, "records.sqlite3");
     const sessionStart = new Date("2026-10-23T01:00:00.000Z");
-    const database = openRecordsDatabase(databasePath);
+    const database = openRecordsDatabase(databasePath, APP_WRITER);
     const records = createRecordsStore({ writeRecord: (row) => database.insert(sessionStart.toISOString(), row) }, sessionStart);
     const logger = createLogger(records, { debug: false });
     let outputPath: string;

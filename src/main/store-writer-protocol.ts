@@ -1,6 +1,7 @@
 import type { RecordsRead, RecordsReadResults } from "../shared/records.ts";
 import type { BackupWrite } from "./backup-tables.ts";
 import type { RecordRow } from "./records-tables.ts";
+import type { FileWriter } from "../shared/file-header.ts";
 
 // Messages between the main process and the store writer's worker thread.
 
@@ -11,6 +12,8 @@ export type StoreWriterData = {
   fallbackPath: string;
   /** This launch's session: every record carries it, and the backup history keeps one row per path in it. */
   session: string;
+  /** The build that writes both stores, named in their headers. */
+  writer: FileWriter;
 };
 
 export type StoreWriterRequest =

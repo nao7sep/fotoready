@@ -29,6 +29,8 @@ import { DatabaseSync } from "node:sqlite";
 import { startStoreWriter } from "@main/store-writer";
 import { createRecordsStore, fallbackFile } from "@main/records-store";
 import { openRecordsDatabase } from "@main/records-tables";
+import { header } from "../../helpers/file-header";
+import { APP_WRITER } from "@main/app-writer";
 
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
 
@@ -207,7 +209,7 @@ describe("VisionQueue with a locked records store", () => {
   it("finishes a description while the store is held and stays successful, the call recorded once the writer can", async () => {
     const recordsPath = path.join(tempDir, "records.sqlite3");
     const sessionStart = new Date("2026-10-09T05:00:00.000Z");
-    openRecordsDatabase(recordsPath).close();
+    openRecordsDatabase(recordsPath, APP_WRITER).close();
     const held = new DatabaseSync(recordsPath);
     held.exec("BEGIN EXCLUSIVE");
     const writer = startStoreWriter({
@@ -280,7 +282,7 @@ describe("VisionQueue requests after a relaunch", () => {
     try {
       const { settings: previous, file } = await loadSettings(settingsPath);
       await saveSettings(file, { ...previous, ...chosen }, previous);
-      expect(JSON.parse(await fs.readFile(settingsPath, "utf8"))).toEqual({ formatVersion: 1, "gemini.description": "gemini-3.5-flash-lite", "gemini.slug": "gemini-3.8-flash" });
+      expect(JSON.parse(await fs.readFile(settingsPath, "utf8"))).toEqual({ ...header("config"), "gemini.description": "gemini-3.5-flash-lite", "gemini.slug": "gemini-3.8-flash" });
 
       const settings = (await loadSettings(settingsPath)).settings;
       expect(settings).toMatchObject(chosen);

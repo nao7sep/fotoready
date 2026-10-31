@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStateCoordinator, loadState, saveState } from "@main/state-io";
 import { defaultUiState } from "@shared/validation/state";
 import type { AppLogger } from "@main/logger";
+import { header } from "../helpers/file-header";
 
 // Real filesystem (a temp dir) so loadState's read → parse → (materialize?) path is exercised end
 // to end. state.json is volatile UI state: it must NOT be created on a first run, only once there
@@ -43,18 +44,18 @@ describe("loadState", () => {
   it("reads back state once it has actually been written, with its format version", async () => {
     const saved = { ...defaultUiState(), showHistogram: true };
     await saveState(statePath(), saved);
-    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: true });
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ ...header("state"), showHistogram: true });
     expect(await loadState(statePath())).toEqual({ state: saved, writable: true });
   });
 
   it("replaces a file with no format version with defaults", async () => {
     await fs.writeFile(statePath(), JSON.stringify({ showHistogram: true }), "utf8");
     expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
-    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: false });
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ ...header("state"), showHistogram: false });
   });
 
   it("uses defaults for a newer file, never writes it, and leaves it byte-identical", async () => {
-    const text = `${JSON.stringify({ formatVersion: 2, showHistogram: true, futureField: [1] })}\n`;
+    const text = `${JSON.stringify({ ...header("state", 2), showHistogram: true, futureField: [1] })}\n`;
     await fs.writeFile(statePath(), text, "utf8");
     const warn = vi.fn();
 
@@ -83,7 +84,7 @@ describe("loadState", () => {
   });
 
   it.runIf(process.platform !== "win32" && process.getuid?.() !== 0)("uses defaults in memory for a file it cannot read, leaving it in place and unwritten for the session", async () => {
-    const text = `${JSON.stringify({ formatVersion: 1, showHistogram: true })}\n`;
+    const text = `${JSON.stringify({ ...header("state"), showHistogram: true })}\n`;
     await fs.writeFile(statePath(), text, "utf8");
     await fs.chmod(statePath(), 0o000);
     const warn = vi.fn();
@@ -107,10 +108,10 @@ describe("loadState", () => {
   });
 
   it("treats a format version that is not a positive integer as unreadable", async () => {
-    await fs.writeFile(statePath(), JSON.stringify({ formatVersion: "2", showHistogram: true }), "utf8");
+    await fs.writeFile(statePath(), JSON.stringify({ format: { ...header("state").format, version: "2" }, showHistogram: true }), "utf8");
 
     expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
-    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ formatVersion: 1, showHistogram: false });
+    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ ...header("state"), showHistogram: false });
   });
 });
 

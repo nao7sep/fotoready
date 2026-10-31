@@ -82,7 +82,7 @@ describe("one failed records attempt per batch", () => {
   });
 
   it.each(["newer", "invalid"] as const)("continues refusing a %s format in later batches", async (format) => {
-    const { NewerFormatError } = await import("@shared/format-versions");
+    const { NewerFormatError } = await import("@shared/file-header");
     const { InvalidSqliteFormatError } = await import("@main/sqlite-format-version");
     boundary.openRecords.mockImplementationOnce(() => {
       throw format === "newer" ? new NewerFormatError(boundary.data.recordsPath, 2, 1) : new InvalidSqliteFormatError(boundary.data.recordsPath);

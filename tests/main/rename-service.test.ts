@@ -8,6 +8,7 @@ import { ProjectSession } from "@main/session";
 import { defaultGlobalSettings, defaultPipeline } from "@shared/defaults";
 import { BUILTIN_RENAME_TEMPLATE_IDS } from "@shared/rename-template";
 import type { Original, Project, Task, TaskOutput } from "@shared/types/project";
+import { header } from "../helpers/file-header";
 
 let workDir: string;
 
@@ -32,7 +33,7 @@ async function writeImage(name: string, width = 1024, height = 768): Promise<str
 async function writeSidecar(imagePath: string): Promise<string> {
   const parsed = path.parse(imagePath);
   const sidecarPath = path.join(parsed.dir, `${parsed.name}.json`);
-  await fs.writeFile(sidecarPath, '{"formatVersion":1}\n');
+  await fs.writeFile(sidecarPath, `${JSON.stringify(header("sidecar"))}\n`);
   return sidecarPath;
 }
 
@@ -388,12 +389,12 @@ describe("runRename", () => {
   it("moves the sidecar without reading it, since editing it outside FotoReady during a session is unsupported", async () => {
     const staged = await writeImage("unread.jpg", 8, 8);
     const params = await writeSidecar(staged);
-    await fs.writeFile(params, '{"formatVersion":2,"future":"keep"}');
+    await fs.writeFile(params, '{"format":{"owner":"fotoready","kind":"sidecar","version":2},"future":"keep"}');
     const task = makeTask({ id: "t1", originalId: "o1", customSlug: "final", stagedPath: staged });
     const readFile = vi.spyOn(fs, "readFile");
     expect(await runRename({ outputDir: workDir, originals: [makeOriginal("o1", "original.jpg")], tasks: [task] }, SLUG_ONLY)).toEqual({ completedTaskIds: ["t1"], warnings: [] });
     expect(readFile.mock.calls.map(([file]) => file)).not.toContain(params);
-    expect(await fs.readFile(path.join(workDir, "final.json"), "utf8")).toBe('{"formatVersion":2,"future":"keep"}');
+    expect(await fs.readFile(path.join(workDir, "final.json"), "utf8")).toBe('{"format":{"owner":"fotoready","kind":"sidecar","version":2},"future":"keep"}');
   });
 
   it("reports the committed image as partial if sidecar failure cannot be rolled back", async () => {

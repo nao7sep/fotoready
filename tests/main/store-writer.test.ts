@@ -13,6 +13,7 @@ import { record, setBackupWriter } from "@main/backup-store";
 import { loadSettings, saveSettings } from "@main/settings-io";
 import type { StoreWriterWarning } from "@main/store-writer-protocol";
 import type { RecordsQuery } from "@shared/records";
+import { APP_WRITER } from "@main/app-writer";
 
 // The real store writer on its own worker thread, as the app runs it, over real databases.
 
@@ -130,7 +131,8 @@ describe("records", () => {
   });
 
   it.each([
-    ["a newer database", (db: DatabaseSync) => db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = 2"), "NewerFormatError"],
+    ["a newer database", (db: DatabaseSync) => db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO file_header VALUES ('format.owner', 'fotoready'), ('format.kind', 'records'); PRAGMA user_version = 2"), "NewerFormatError"],
+    ["a database of another kind", (db: DatabaseSync) => db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO file_header VALUES ('format.owner', 'fotoready'), ('format.kind', 'backups'); PRAGMA user_version = 1"), "InvalidSqliteFormatError"],
     ["a database with tables but no version", (db: DatabaseSync) => db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY)"), "InvalidSqliteFormatError"],
     ["an empty database with version -1", (db: DatabaseSync) => db.exec("PRAGMA user_version = -1"), "InvalidSqliteFormatError"],
   ])("leaves %s byte-identical and writes this session's records to the text file", async (_label, prepare, errorName) => {
@@ -172,7 +174,7 @@ describe("records reads", () => {
 
   it("refuses a database a newer build wrote, and leaves it byte-identical", async () => {
     const db = new DatabaseSync(recordsFile());
-    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); PRAGMA user_version = 2");
+    db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY); CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO file_header VALUES ('format.owner', 'fotoready'), ('format.kind', 'records'); PRAGMA user_version = 2");
     db.close();
     const before = fs.readFileSync(recordsFile());
 
@@ -185,7 +187,7 @@ describe("records reads", () => {
     db.exec("CREATE TABLE elsewhere (id INTEGER PRIMARY KEY)");
     db.close();
 
-    await expect(writer().read({ op: "sources" })).rejects.toThrow(/no format version/);
+    await expect(writer().read({ op: "sources" })).rejects.toThrow(/not a FotoReady store/);
   });
 
   it("fails a read once it is closing", async () => {
@@ -198,8 +200,8 @@ describe("records reads", () => {
 
 describe("a locked or stalled store", () => {
   it("never holds up the main process: a log line, a provider call and a settings save return at once", async () => {
-    openRecordsDatabase(recordsFile()).close();
-    openBackupsDatabase(backupsFile()).close();
+    openRecordsDatabase(recordsFile(), APP_WRITER).close();
+    openBackupsDatabase(backupsFile(), APP_WRITER).close();
     lock(recordsFile());
     lock(backupsFile());
     const target = writer();
@@ -264,7 +266,7 @@ describe("backups", () => {
 
   it("writes nothing for a session's first save equal to the latest earlier row, and a row once it differs", async () => {
     const file = path.join(root, "config.json");
-    const earlier = openBackupsDatabase(backupsFile());
+    const earlier = openBackupsDatabase(backupsFile(), APP_WRITER);
     earlier.record("2026-10-08T00:00:00.000Z", { path: file, bytes: Buffer.from("same"), writtenAt: "2026-10-08T00:00:00.000Z" });
     earlier.close();
 
@@ -283,7 +285,7 @@ describe("backups", () => {
 
   it("leaves a newer store byte-identical, records nothing and warns once", async () => {
     const newer = new DatabaseSync(backupsFile());
-    newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); PRAGMA user_version = 2");
+    newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO file_header VALUES ('format.owner', 'fotoready'), ('format.kind', 'backups'); PRAGMA user_version = 2");
     newer.close();
     const before = fs.readFileSync(backupsFile());
     const target = writer();

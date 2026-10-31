@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parentPort, workerData } from "node:worker_threads";
 import { openBackupsDatabase, type BackupsDatabase } from "../backup-tables.ts";
-import { NewerFormatError } from "../../shared/format-versions.ts";
+import { NewerFormatError } from "../../shared/file-header.ts";
 import { InvalidSqliteFormatError } from "../sqlite-format-version.ts";
 import { jsonSafe } from "../json-safe.ts";
 import { readRecords } from "../records-queries.ts";
@@ -69,7 +69,7 @@ function recordsDatabase(): RecordsDatabase {
   if (recordsRefusal !== null) throw recordsRefusal;
   try {
     fs.mkdirSync(path.dirname(data.recordsPath), { recursive: true });
-    records = openRecordsDatabase(data.recordsPath);
+    records = openRecordsDatabase(data.recordsPath, data.writer);
   } catch (error) {
     if (refusedForSession(error)) recordsRefusal = error;
     noteRecordsFailure(error);
@@ -107,7 +107,7 @@ function backupsDatabase(warnings: StoreWriterWarning[]): BackupsDatabase | null
   if (backups !== null || backupsUnavailable) return backups;
   try {
     fs.mkdirSync(path.dirname(data.backupsPath), { recursive: true });
-    backups = openBackupsDatabase(data.backupsPath);
+    backups = openBackupsDatabase(data.backupsPath, data.writer);
   } catch (error) {
     backupsUnavailable = refusedForSession(error);
     if (!backupsOpenWarned) {

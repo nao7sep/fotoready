@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSettings } from "../../src/main/settings-io";
+import { header } from "../helpers/file-header";
 
 // End-to-end on a REAL corrupt file. The classify-then-act split in settings-io is
 // what keeps a failed quarantine from being reclassified as an unreadable file and
@@ -29,7 +30,7 @@ describe("a corrupt settings file on disk", () => {
 
   it("reports nothing for a sound file and leaves it untouched", async () => {
     const path = join(dir, "config.json");
-    const before = JSON.stringify({ formatVersion: 1, defaultWebpQuality: 71 }, null, 2) + "\n";
+    const before = JSON.stringify({ ...header("config"), defaultWebpQuality: 71 }, null, 2) + "\n";
     writeFileSync(path, before);
     const { notice } = await loadSettings(path);
     expect(notice).toBeNull();

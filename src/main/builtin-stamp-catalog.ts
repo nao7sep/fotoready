@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { checkFormat } from "@shared/file-header";
 import { isBuiltinStampGroupId, type BuiltinStampGroupId } from "@shared/stamp-groups";
 
 const CATALOG_FILE_NAME = "catalog.json";
@@ -44,8 +45,9 @@ export function builtinStampPathFor(
 
 export function parseBuiltinStampCatalog(value: unknown): BuiltinStampCatalogEntry[] {
   const root = objectValue(value, "catalog");
-  if (root.version !== 1) {
-    throw new Error("Built-in stamp catalog version must be 1.");
+  const format = checkFormat(root.format, "stampCatalog");
+  if (format.kind !== "current") {
+    throw new Error(format.kind === "newer" ? `Built-in stamp catalog format version ${format.found} is newer than this build reads.` : `Built-in stamp catalog: ${format.error.message}`);
   }
   if (!Array.isArray(root.stamps)) {
     throw new Error("Built-in stamp catalog stamps must be an array.");

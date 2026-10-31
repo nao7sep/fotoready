@@ -52,7 +52,7 @@ describe("deleting an output and its sidecar", () => {
     await expect(fs.access(sidecar)).rejects.toMatchObject({ code: "ENOENT" });
   });
   it("trashes the image and its sidecar without reading the sidecar", async () => {
-    await fs.writeFile(sidecar, '{"formatVersion":2,"future":"kept"}');
+    await fs.writeFile(sidecar, '{"format":{"owner":"fotoready","kind":"sidecar","version":2},"future":"kept"}');
     const readFile = vi.spyOn(fs, "readFile");
     await deleteSelectedFiles([image, sidecar]);
     expect(trashItem.mock.calls).toEqual([[image], [sidecar]]);

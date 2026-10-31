@@ -8,6 +8,7 @@ import { openRecordsDatabase } from "@main/records-tables";
 import { readRecords } from "@main/records-queries";
 import { RECORDS_PAGE_SIZE, type RecordsQuery, type RecordSummary } from "@shared/records";
 import { createLogger } from "@main/logger";
+import { APP_WRITER } from "@main/app-writer";
 
 let root: string;
 let db: DatabaseSync | null = null;
@@ -44,7 +45,7 @@ const call = (time: string, overrides: Partial<ProviderCallRecord> = {}): Provid
 
 /** Writes records as the store writer does, synchronously, so each test reads exactly what it wrote. */
 function store(sessionStart: Date, write: (records: RecordsStore) => void): void {
-  const database = openRecordsDatabase(dbFile());
+  const database = openRecordsDatabase(dbFile(), APP_WRITER);
   const session = sessionStart.toISOString();
   write({
     session,
@@ -99,7 +100,7 @@ describe("readRecords: page", () => {
 
   it("creates its ordered indexes with a new database", () => {
     seed();
-    const reopened = openRecordsDatabase(dbFile());
+    const reopened = openRecordsDatabase(dbFile(), APP_WRITER);
     try {
       expect(reopened.db.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 1 });
       const indexRows = reopened.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[];

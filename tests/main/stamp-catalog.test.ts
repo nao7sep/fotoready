@@ -7,6 +7,7 @@ vi.mock("electron", () => ({ shell: { trashItem: vi.fn() } }));
 
 import { importLuts, listLuts } from "@main/lut-catalog";
 import { importStamps, listStamps } from "@main/stamp-catalog";
+import { header } from "../helpers/file-header";
 
 const roots: string[] = [];
 
@@ -21,7 +22,7 @@ describe("selected asset library folders", () => {
     const selected = path.join(root, " $UNSET_LIBRARY %literal% ");
     fs.mkdirSync(bundled);
     fs.mkdirSync(selected);
-    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ version: 1, stamps: [] }));
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ ...header("stampCatalog"), stamps: [] }));
     const fileName = kind === "lut" ? "warm.cube" : "mark.svg";
     const source = path.join(root, fileName);
     fs.writeFileSync(source, kind === "lut" ? "LUT_3D_SIZE 2" : "<svg />");
@@ -45,7 +46,7 @@ describe("listStamps", () => {
     fs.writeFileSync(path.join(bundled, "cover-blob.png"), "png");
     fs.writeFileSync(path.join(bundled, "heart.png"), "png");
     fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
-      version: 1,
+      ...header("stampCatalog"),
       stamps: [
         { slug: "cover-blob", file: "cover-blob.png", group: "cover", label: "Cover blob" },
         { slug: "heart", file: "heart.png", group: "marks", label: "Heart" }
@@ -87,7 +88,7 @@ describe("listStamps", () => {
     const imported = path.join(root, "imported");
     fs.mkdirSync(bundled);
     fs.writeFileSync(path.join(bundled, "orphan.png"), "png");
-    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ version: 1, stamps: [] }));
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ ...header("stampCatalog"), stamps: [] }));
 
     await expect(listStamps("", imported, bundled)).rejects.toThrow(/uncatalogued assets: orphan\.png/i);
   });
@@ -101,7 +102,7 @@ describe("listStamps", () => {
     fs.mkdirSync(source);
     fs.writeFileSync(path.join(bundled, "heart.webp"), "webp");
     fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
-      version: 1,
+      ...header("stampCatalog"),
       stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
     }));
     fs.writeFileSync(path.join(source, "sticker.webp"), "webp");
@@ -126,7 +127,7 @@ describe("listStamps", () => {
     fs.mkdirSync(source);
     fs.writeFileSync(path.join(bundled, "heart.png"), "built-in");
     fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
-      version: 1,
+      ...header("stampCatalog"),
       stamps: [{ slug: "heart", file: "heart.png", group: "marks", label: "Heart" }]
     }));
     fs.writeFileSync(path.join(source, "HEART.PNG"), "import");

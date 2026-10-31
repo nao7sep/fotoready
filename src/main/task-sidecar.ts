@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { TASK_SIDECAR_SUFFIX } from "@shared/constants";
 import { createTaskSidecar, isTaskSidecar, type TaskSidecar } from "@shared/task-sidecar";
-import { FORMAT_VERSIONS, parseVersionedJson, versionedJson } from "@shared/format-versions";
+import { headeredJson, parseHeaderedJson } from "@shared/file-header";
 import type { Original, Task, TaskOutput } from "@shared/types/project";
 import type { Pipeline } from "@shared/types/pipeline";
 import { validateOpInstance } from "@shared/validation/ops";
@@ -13,6 +13,7 @@ import { atomicWriteFile } from "@adapters/atomic-file";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
+import { APP_WRITER } from "./app-writer";
 import { relinkMissingAssets, type AssetFolders } from "./asset-relink";
 
 export type LoadedTaskSidecar = {
@@ -49,7 +50,7 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
   });
   // not recorded: the sidecar is output, like the saved image it sits beside; once the app hands
   // them to the user, the user owns them (data-backup-conventions, What is protected).
-  await atomicWriteFile(sidecarPath, versionedJson(FORMAT_VERSIONS.taskSidecar, payload));
+  await atomicWriteFile(sidecarPath, headeredJson("sidecar", APP_WRITER, payload));
   return sidecarPath;
 }
 
@@ -78,7 +79,7 @@ export async function loadTaskSidecars(
       continue;
     }
 
-    const read = parseVersionedJson(source, FORMAT_VERSIONS.taskSidecar);
+    const read = parseHeaderedJson(source, "sidecar");
     if (read.kind === "newer") {
       // Left exactly as it is, so the newer FotoReady that wrote it can still read it.
       logger?.warn("task sidecar was written by a newer FotoReady", { mod: "main.task-sidecar", filePath, formatVersion: read.found });

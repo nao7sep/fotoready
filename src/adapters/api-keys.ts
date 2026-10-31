@@ -1,5 +1,6 @@
 import fs, { type FileHandle } from "node:fs/promises";
-import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
+import { headeredJson, parseHeaderedJson, type HeaderedJsonRead } from "@shared/file-header";
+import { APP_WRITER } from "@main/app-writer";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import { setAsideStore, StoreNotWritableError, type StoreLeftReason } from "./json-store";
 import type { Logger } from "@shared/types/log";
@@ -210,7 +211,7 @@ export class ApiKeyStore {
   private async write(data: ApiKeysFile): Promise<void> {
     // not recorded: api-keys.json is a secret, kept out of the history so its lifetime is not extended
     // there (data-backup-conventions); the 0600 mode below is where this file's protection lives.
-    await atomicWriteFile(this.filePath, versionedJson(FORMAT_VERSIONS.apiKeys, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
+    await atomicWriteFile(this.filePath, headeredJson("apiKeys", APP_WRITER, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -260,11 +261,11 @@ export class ApiKeyStore {
 
   private async readFile(): Promise<ApiKeysFile> {
     if (this.#left) return { keys: {} };
-    let read: VersionedJsonRead;
+    let read: HeaderedJsonRead;
     try {
       const file = await fs.open(this.filePath, "r");
       try {
-        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys);
+        read = parseHeaderedJson(await file.readFile("utf8"), "apiKeys");
         if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
       } finally {
         await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));

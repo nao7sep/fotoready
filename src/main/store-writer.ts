@@ -2,9 +2,10 @@ import { Worker } from "node:worker_threads";
 import type { RecordsRead, RecordsReadResults } from "@shared/records";
 import type { BackupWrite } from "./backup-tables";
 import type { RecordRow } from "./records-tables";
+import { APP_WRITER } from "./app-writer";
 import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWriterWarning } from "./store-writer-protocol";
 
-export type StoreWriterOptions = StoreWriterData & {
+export type StoreWriterOptions = Omit<StoreWriterData, "writer"> & {
   /** Logs a failure the writer reported, such as a backup that could not be recorded. */
   onWarning(warning: StoreWriterWarning): void;
 };
@@ -38,7 +39,7 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   // The tests run the source under Node's TypeScript stripping; the app runs electron-vite's
   // workers/store-writer.js entry beside the main bundle.
   const entry = import.meta.url.endsWith(".ts") ? "./workers/store-writer.ts" : "./workers/store-writer.js";
-  const worker = new Worker(new URL(entry, import.meta.url), { workerData: data satisfies StoreWriterData });
+  const worker = new Worker(new URL(entry, import.meta.url), { workerData: { ...data, writer: APP_WRITER } satisfies StoreWriterData });
   worker.unref();
 
   let pendingRecords: RecordRow[] = [];

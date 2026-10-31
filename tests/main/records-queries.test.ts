@@ -97,18 +97,11 @@ describe("readRecords: page", () => {
     expect(readRecords(reopened, { op: "page", query: { ...ALL, kind: "provider-call", taskId: "removed-task" } }).records).toEqual([]);
   });
 
-  it("adds ordered indexes to an existing admitted database without changing its records or version", () => {
+  it("creates its ordered indexes with a new database", () => {
     seed();
-    const before = page().records;
-    db!.close(); db = null;
-    const old = new DatabaseSync(dbFile());
-    const indexes = old.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[];
-    for (const { name } of indexes) old.exec(`DROP INDEX "${name}"`);
-    old.close();
     const reopened = openRecordsDatabase(dbFile());
     try {
       expect(reopened.db.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 1 });
-      expect(readRecords(reopened.db, { op: "page", query: ALL }).records).toEqual(before);
       const indexRows = reopened.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[];
       expect(indexRows.map((row) => row.name)).toEqual(expect.arrayContaining([
         "idx_log_records_time", "idx_log_records_session_time", "idx_log_records_task_time",

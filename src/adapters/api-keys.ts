@@ -1,5 +1,5 @@
 import fs, { type FileHandle } from "node:fs/promises";
-import { FORMAT_VERSIONS, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
+import { FORMAT_VERSIONS, parseVersionedJson, versionedJson, type VersionedJsonRead } from "@shared/format-versions";
 import { atomicWriteFile } from "@adapters/atomic-file";
 import { setAsideStore, StoreNotWritableError, type StoreLeftReason } from "./json-store";
 import type { Logger } from "@shared/types/log";
@@ -31,7 +31,7 @@ import type { Logger } from "@shared/types/log";
  *     aside to a timestamped neighbour and treated as empty; a file that cannot be
  *     read, cannot be moved aside, or was written by a newer build reads as empty, is
  *     warned about once and left exactly as it is, and storing a key throws
- *     {@link StoreNotWritableError}. v0.1.0's unmarked file is read as it is.
+ *     {@link StoreNotWritableError}.
  */
 
 const MARKER = "obf:";
@@ -264,7 +264,7 @@ export class ApiKeyStore {
     try {
       const file = await fs.open(this.filePath, "r");
       try {
-        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys, UNMARKED_EARLIER_FORM);
+        read = parseVersionedJson(await file.readFile("utf8"), FORMAT_VERSIONS.apiKeys);
         if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
       } finally {
         await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));

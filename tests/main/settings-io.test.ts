@@ -47,13 +47,13 @@ async function save(changes: Record<string, unknown>, logger?: AppLogger): Promi
 const accessDeniable = process.platform !== "win32" && process.getuid?.() !== 0;
 
 describe("the settings format version", () => {
-  it("reads a file with no format version as v0.1.0's form, leaving it as it is until the next save", async () => {
+  it("sets a file with no format version aside and uses the built-ins", async () => {
     const text = JSON.stringify({ defaultWebpQuality: 71 });
     await fs.writeFile(settingsPath(), text);
     const { settings, notice } = await loadSettings(settingsPath());
-    expect(settings).toEqual({ ...defaults(), defaultWebpQuality: 71 });
-    expect(notice).toBeNull();
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
+    expect(settings).toEqual(defaults());
+    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
+    expect(await fs.readFile(notice!.path, "utf8")).toBe(text);
   });
 
   it("writes the current version first and reads it back", async () => {
@@ -145,8 +145,8 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ defaultWebpQuality: 71, version: 99, schemaVersion: 99, future: { kept: true }, confirmDeleteTasks: false });
   });
 
-  it("drops the retired selection key and writes only the changed role", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1, model: "old-model" }));
+  it("writes only the changed role", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ formatVersion: 1 }));
     const effective = await save({ "gemini.slug": "typed-new-model", "gemini.thinking.slug": null });
     expect(await written()).toEqual({ "gemini.slug": "typed-new-model" });
     expect(effective["gemini.description"]).toBe("gemini-3.8-flash");

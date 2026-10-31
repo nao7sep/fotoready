@@ -23,23 +23,12 @@ CREATE UNIQUE INDEX idx_backups_path_session ON backups (path, session_id);
 CREATE INDEX idx_backups_path_id ON backups (path, id);
 `;
 
-/**
- * Version 1 had no sessions. Its rows keep a NULL session as earlier history; SQLite's unique index
- * treats each NULL as distinct, so they never conflict.
- */
-const UPGRADES: Record<number, string> = {
-  1: `
-ALTER TABLE backups ADD COLUMN session_id TEXT;
-CREATE UNIQUE INDEX idx_backups_path_session ON backups (path, session_id);
-`
-};
-
 export type BackupsDatabase = { db: DatabaseSync; record(session: string, write: BackupWrite): void; close(): void };
 
 /** Opens backups.sqlite3 for one writer; throws when it cannot be opened or admitted. */
 export function openBackupsDatabase(file: string): BackupsDatabase {
   // not recorded: backups.sqlite3 is the history itself, written here and never through the managed save.
-  const db = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA, { upgrades: UPGRADES });
+  const db = openSqliteStore(file, FORMAT_VERSIONS.backups, SCHEMA);
   let ownRow: StatementSync;
   let latestRow: StatementSync;
   let upsert: StatementSync;

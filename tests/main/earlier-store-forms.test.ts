@@ -9,14 +9,11 @@ vi.mock("@adapters/exiftool", () => ({
 }));
 
 import { ProjectSession } from "@main/session";
-import { loadSettings, saveSettings } from "@main/settings-io";
-import { ApiKeyStore } from "@adapters/api-keys";
 import { defaultGlobalSettings } from "@shared/defaults";
 
-// Files exactly as FotoReady v0.1.0 (published 2026-07-07) wrote them, made by running v0.1.0's own
-// `createTaskSidecar`, op catalogue defaults and settings normalization: a sidecar with every op
-// v0.1.0 offered, a settings file holding every set and the retired `model`, and an unmarked key
-// file. They must keep working without a migration step, so the released version's data loads as it is.
+// A sidecar exactly as FotoReady v0.1.0 (published 2026-07-07) wrote it, made by running v0.1.0's own
+// `createTaskSidecar` and op catalogue defaults, with every op v0.1.0 offered. A sidecar sits beside
+// a saved image and belongs to the user, so it keeps opening as it is.
 const FIXTURES = path.join(import.meta.dirname, "fixtures", "v0.1.0");
 
 const roots: string[] = [];
@@ -35,7 +32,7 @@ async function tempRoot(): Promise<string> {
   return root;
 }
 
-describe("stores written by v0.1.0", () => {
+describe("files written by v0.1.0", () => {
   it("imports a v0.1.0 task sidecar and reopens its task", async () => {
     const root = await tempRoot();
     const imagePath = path.join(root, "IMG_0412.png");
@@ -66,49 +63,5 @@ describe("stores written by v0.1.0", () => {
     ]);
     expect(task.pipeline.output).toMatchObject({ format: "webp", quality: 82 });
     expect(task).toMatchObject({ generateDescription: true, generateSlug: true, customSlug: null });
-  });
-
-  it("loads v0.1.0's config.json as it is, then writes the marker and drops the retired keys at the next save", async () => {
-    const root = await tempRoot();
-    const settingsPath = path.join(root, "config.json");
-    const text = await fs.readFile(path.join(FIXTURES, "config.json"), "utf8");
-    await fs.writeFile(settingsPath, text);
-
-    const loaded = await loadSettings(settingsPath);
-    expect(loaded.notice).toBeNull();
-    expect(loaded.settings).toMatchObject({ defaultWebpQuality: 71, defaultOutputFormat: "webp", injectFields: { author: "Jane Example" }, confirmDeleteTasks: false });
-    expect(await fs.readFile(settingsPath, "utf8")).toBe(text);
-    expect(await fs.readdir(root)).toEqual(["config.json"]);
-
-    await saveSettings(loaded.file, { ...loaded.settings, defaultAvifQuality: 55 }, loaded.settings);
-    const saved = await fs.readFile(settingsPath, "utf8");
-    expect(saved.startsWith('{\n  "formatVersion": 1,')).toBe(true);
-    const { formatVersion: _marker, ...sets } = JSON.parse(saved) as Record<string, unknown>;
-    const old = JSON.parse(text) as Record<string, unknown>;
-    // The retired keys go at the next save: v0.1.0's model, the Concurrent saves and Concurrent vision
-    // requests settings, and the Gemini resend settings that became fixed policy.
-    const retired = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs", "visionConcurrency"];
-    for (const key of retired) expect(old).toHaveProperty(key);
-    const oldSets = Object.fromEntries(Object.entries(old).filter(([key]) => !retired.includes(key)));
-    expect(sets).toEqual({ ...oldSets, defaultAvifQuality: 55 });
-  });
-
-  it("reads v0.1.0's api-keys.json with its key, then writes the marker at the next save", async () => {
-    const root = await tempRoot();
-    const apiKeysPath = path.join(root, "api-keys.json");
-    await fs.copyFile(path.join(FIXTURES, "api-keys.json"), apiKeysPath);
-    await fs.chmod(apiKeysPath, 0o600);
-    const warn = vi.fn();
-    const store = new ApiKeyStore(apiKeysPath, { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() });
-
-    expect(await store.peek("gemini")).toBe("v010-fixture-key");
-    expect(warn).not.toHaveBeenCalled();
-    expect(await fs.readdir(root)).toEqual(["api-keys.json"]);
-
-    await store.set("gemini.vision", "second-key");
-    const saved = JSON.parse(await fs.readFile(apiKeysPath, "utf8")) as { formatVersion: number; keys: Record<string, string> };
-    expect(saved.formatVersion).toBe(1);
-    expect(Object.keys(saved.keys).sort()).toEqual(["gemini", "gemini.vision"]);
-    expect(await store.peek("gemini")).toBe("v010-fixture-key");
   });
 });

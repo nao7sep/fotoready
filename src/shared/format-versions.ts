@@ -15,7 +15,7 @@ export const FORMAT_VERSIONS = {
   taskSidecar: 1,
   /** `records.sqlite3`. */
   records: 1,
-  /** `backups.sqlite3`; 2 added per-session rows, and a version 1 store is upgraded in place. */
+  /** `backups.sqlite3`. */
   backups: 2
 } as const;
 
@@ -46,9 +46,6 @@ export type VersionedJsonRead =
  * current-format body, or null when it is not that store's known earlier form.
  */
 export type EarlierJsonForm = (root: Record<string, unknown>) => Record<string, unknown> | null;
-
-/** v0.1.0's `config.json` and `api-keys.json`: the current body with no marker. */
-export const UNMARKED_EARLIER_FORM: EarlierJsonForm = (root) => root;
 
 /**
  * Parses a JSON store's text against the format version this build writes. Text that is not a JSON

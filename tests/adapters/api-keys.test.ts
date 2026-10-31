@@ -348,12 +348,11 @@ describe("ApiKeyStore", () => {
   });
 
   describe("format version", () => {
-    it("reads a file with no format version as v0.1.0's form, leaving it as it is", async () => {
+    it("moves a file with no format version aside and reads no key", async () => {
       const text = `${JSON.stringify({ keys: { gemini: "stored-key" } })}\n`;
       fs.writeFileSync(filePath, text, { mode: 0o600 });
-      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
-      expect(fs.readFileSync(filePath, "utf8")).toBe(text);
-      expect(fs.readdirSync(tmpDir)).toEqual(["api-keys.json"]);
+      await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBeNull();
+      expect(fs.readdirSync(tmpDir)).not.toContain("api-keys.json");
     });
 
     it("writes the current version first and reads it back", async () => {

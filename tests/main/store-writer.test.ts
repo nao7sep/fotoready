@@ -281,26 +281,6 @@ describe("backups", () => {
     expect(rows().map((row) => [row.session_id, row.content])).toEqual([["2026-10-08T00:00:00.000Z", "same"], [session, "changed"]]);
   });
 
-  it("upgrades a store from before sessions in place, keeping its rows as earlier history", async () => {
-    const file = path.join(root, "config.json");
-    const old = new DatabaseSync(backupsFile());
-    old.exec(`
-CREATE TABLE backups (id INTEGER PRIMARY KEY, path TEXT NOT NULL, content BLOB NOT NULL, content_sha256 TEXT NOT NULL, byte_size INTEGER NOT NULL, written_at_utc TEXT NOT NULL);
-CREATE INDEX idx_backups_path_id ON backups (path, id);
-PRAGMA user_version = 1;`);
-    old.prepare("INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?, ?, ?, ?, ?)").run(file, Buffer.from("one"), "h1", 3, "2026-07-06T04:05:12.345Z");
-    old.prepare("INSERT INTO backups (path, content, content_sha256, byte_size, written_at_utc) VALUES (?, ?, ?, ?, ?)").run(file, Buffer.from("two"), "h2", 3, "2026-07-07T04:05:12.345Z");
-    old.close();
-
-    const target = writer();
-    setBackupWriter(target);
-    record(file, Buffer.from("three"));
-    await drain(target);
-
-    expect(rows().map((row) => [row.session_id, row.content])).toEqual([[null, "one"], [null, "two"], [session, "three"]]);
-    expect(query(backupsFile(), "PRAGMA user_version")).toEqual([{ user_version: 2 }]);
-  });
-
   it("leaves a newer store byte-identical, records nothing and warns once", async () => {
     const newer = new DatabaseSync(backupsFile());
     newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); PRAGMA user_version = 3");

@@ -44,22 +44,14 @@ CREATE TABLE IF NOT EXISTS provider_calls (
   response    TEXT,
   error       TEXT
 );
-`;
-
-// Compatible query indexes belong to writer admission too, so existing version-1 stores receive
-// them. Their session/task prefixes replace the earlier single-column indexes without changing rows.
-const INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_log_records_time ON log_records (time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_log_records_session_time ON log_records (session, time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_log_records_task_time ON log_records (task_id, time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_provider_calls_time ON provider_calls (time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_provider_calls_session_time ON provider_calls (session, time DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_provider_calls_task_time ON provider_calls (task_id, time DESC, id DESC);
-DROP INDEX IF EXISTS idx_log_records_session;
-DROP INDEX IF EXISTS idx_log_records_task_id;
-DROP INDEX IF EXISTS idx_provider_calls_session;
-DROP INDEX IF EXISTS idx_provider_calls_task_id;
 `;
+
 
 export type RecordsDatabase = { db: DatabaseSync; insert(session: string, row: RecordRow): void; close(): void };
 
@@ -71,7 +63,6 @@ export function openRecordsDatabase(file: string): RecordsDatabase {
   try {
     db.exec("PRAGMA journal_mode = WAL");
     db.exec("PRAGMA synchronous = NORMAL");
-    db.exec(`BEGIN; ${INDEXES} COMMIT;`);
     insertLog = db.prepare("INSERT INTO log_records (time, session, task_id, level, message, fields) VALUES (?, ?, ?, ?, ?, ?)");
     insertCall = db.prepare(
       "INSERT INTO provider_calls (time, session, task_id, provider, endpoint, role, model, attempt, duration_ms, request, response, error) " +

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
-import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, UNMARKED_EARLIER_FORM, versionedJson } from "@shared/format-versions";
+import { FORMAT_VERSIONS, NewerFormatError, parseVersionedJson, versionedJson } from "@shared/format-versions";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
@@ -46,20 +46,11 @@ export class SettingsQuarantineError extends Error {
 }
 
 /**
- * Keys an earlier FotoReady stored that no build reads, dropped at the next save; every other
- * unknown key is kept. `model` was v0.1.0's one model id, now `gemini.description` and `gemini.slug`.
- */
-// `workerPoolSize` was the Concurrent saves setting: the number of saves at once now follows the
-// machine and each photo's size, which a user cannot judge in advance. `visionConcurrency` was the
-// Concurrent vision requests setting, now a fixed width in the vision queue.
-const RETIRED_SETTINGS_KEYS: readonly string[] = ["model", "workerPoolSize", "visionMaxRetries", "visionInitialBackoffMs", "visionConcurrency"];
-
-/**
  * Store-recovery outcomes, decided once at load so a session never overwrites a file it could not
  * read correctly: a file that cannot be read
  * for access reasons is left in place, unwritten for the session and reported as such, never as
  * corruption; malformed content is set aside with one notice, and startup stops when that fails; a
- * newer file stops startup and is left exactly as it is. v0.1.0's unmarked file is read as it is.
+ * newer file stops startup and is left exactly as it is.
  */
 async function readSettingsFile(settingsPath: string, logger?: AppLogger): Promise<Omit<SettingsLoadResult, "settings">> {
   let text: string;
@@ -70,7 +61,7 @@ async function readSettingsFile(settingsPath: string, logger?: AppLogger): Promi
     logger?.warn("settings file could not be read; using built-ins and leaving it as it is for this session", { mod: "settings", settingsPath, err: error });
     return { file: { path: settingsPath, stored: {}, writable: false }, notice: { kind: "unreadable", path: settingsPath } };
   }
-  const read = parseVersionedJson(text, FORMAT_VERSIONS.config, UNMARKED_EARLIER_FORM);
+  const read = parseVersionedJson(text, FORMAT_VERSIONS.config);
   if (read.kind === "current") return { file: { path: settingsPath, stored: read.body, writable: true }, notice: null };
   if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FORMAT_VERSIONS.config);
   let setAsidePath: string;
@@ -133,7 +124,7 @@ function builtInsFor(settings: GlobalSettings): GlobalSettings {
 /**
  * Saves the sets the user changed (config-sets-conventions). A changed set equal to its built-in is
  * removed so it follows the built-in; every set the user did not change keeps its stored value, valid
- * or not, as do unknown keys, except {@link RETIRED_SETTINGS_KEYS}. An invalid set is reported and
+ * or not, as do unknown keys. An invalid set is reported and
  * keeps its value from `previous`. Throws {@link StoreNotWritableError} when load left the file as it is.
  */
 export async function saveSettings(
@@ -150,7 +141,6 @@ export async function saveSettings(
   for (const issue of issues) logger?.warn("settings contained invalid data; its previous value is kept", { mod: "settings", issue });
   const builtIns = builtInsFor(effective);
   const next = { ...file.stored };
-  for (const key of RETIRED_SETTINGS_KEYS) delete next[key];
   for (const key of SETTINGS_KEYS) {
     // Compared in cleaned form, so a stored value that differs only by cleanup is not taken as changed.
     if (JSON.stringify(effective[key]) === JSON.stringify(cleanSet(key, previous[key]))) continue;

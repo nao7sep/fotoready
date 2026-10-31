@@ -31,7 +31,7 @@ let backupsUnavailable = false;
 let backupsOpenWarned = false;
 
 /**
- * A store a newer build wrote, or one with no version, is left exactly as it is for the session.
+ * A store a newer build wrote, or one with no or an earlier version, is left exactly as it is for the session.
  * Any other failure to open is tried again with the next batch or read.
  */
 function refusedForSession(error: unknown): boolean {

@@ -60,20 +60,7 @@ it("refuses a store with tables but no version, having written nothing", () => {
   expect(fs.readFileSync(file)).toEqual(before);
 });
 
-it("upgrades a store at a known earlier version in place, keeping its rows", () => {
-  const db = new DatabaseSync(file);
-  db.exec(schema);
-  db.exec("INSERT INTO facts (note) VALUES ('kept')");
-  db.exec("PRAGMA user_version = 1");
-  db.close();
-  openSqliteStore(file, 2, `${schema}; CREATE TABLE more (id INTEGER PRIMARY KEY)`, { upgrades: { 1: "CREATE TABLE more (id INTEGER PRIMARY KEY)" } }).close();
-  expect(inspect()).toEqual({ version: 2, tables: ["facts", "more"] });
-  const check = new DatabaseSync(file);
-  expect(check.prepare("SELECT note FROM facts").all()).toEqual([{ note: "kept" }]);
-  check.close();
-});
-
-it("refuses an earlier version it has no upgrade for, having written nothing", () => {
+it("refuses an earlier version, having written nothing", () => {
   const db = new DatabaseSync(file);
   db.exec(schema);
   db.exec("PRAGMA user_version = 1");

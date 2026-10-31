@@ -59,8 +59,8 @@ const defaultDeps: VisionQueueDeps = {
   prepareInput: prepareVisionInput
 };
 
-// Three vision runs at once (developer decision): the Concurrent vision requests setting, 1 to 32, is
-// retired because few users would find or tune it, and its default of 3 keeps a batch's pace.
+// Three vision runs at once (developer decision): few users would find or tune a setting for it, and
+// three keeps a batch's pace.
 const VISION_RUNS_AT_ONCE = 3;
 
 /**

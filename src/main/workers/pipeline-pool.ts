@@ -7,10 +7,10 @@ import { PipelineError } from "@runtime/pipeline-error";
 
 export class PipelineWorkerPool {
   #pool: Piscina;
-  constructor(workerPoolSize: number) {
+  constructor(threadCount: number) {
     this.#pool = new Piscina({
       filename: path.join(import.meta.dirname, "workers/pipeline-worker.js"),
-      maxThreads: Math.max(1, workerPoolSize)
+      maxThreads: Math.max(1, threadCount)
     });
   }
 

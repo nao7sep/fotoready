@@ -26,7 +26,7 @@
   "app.loadFailed": "FotoReady 无法载入工作区",
   "app.hydrationFailed": "FotoReady 无法读取安全打开所需的设置、工作区或相关数据。请恢复对应用数据文件夹的访问，然后重新载入。",
   "errorBoundary.title": "FotoReady 遇到了意外错误",
-  "errorBoundary.body": "无法绘制窗口。请重新载入后再试；磁盘上已保存的文件不受影响。完整的详细信息已写入日志。",
+  "errorBoundary.body": "无法绘制窗口。请重新载入后再试；磁盘上已保存的文件不受影响。完整的详细信息已写入“日志”。",
 
   "topBar.output": "输出：{folder}",
   "topBar.sameAsOriginal": "与原图相同位置",
@@ -97,7 +97,7 @@
   "renameComplete.before": "之前",
   "renameComplete.after": "之后",
   "renameComplete.sourceRetained": "重命名后的文件已准备好，但无法删除原来的副本：{path}",
-  "renameComplete.cleanupPending": "重命名后的文件已准备好，但清理未完成。删除剩余副本前，请查看会话日志。",
+  "renameComplete.cleanupPending": "重命名后的文件已准备好，但清理未完成。删除剩余副本前，请查看“日志”。",
   "renameComplete.name": "名称",
 
   "confirm.discardSettings.title": "放弃更改？",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "在 FotoReady 能够打开此文件之前，无法保存设置更改。请检查其权限及其所在的磁盘，然后重新启动 FotoReady：{path}",
   "startup.failedTitle": "FotoReady 无法启动",
   "startup.failedMessage": "FotoReady 无法完成打开设置和工作区。",
-  "startup.failedDetail": "没有更改任何照片或项目文件。请查看会话日志，然后重新启动 FotoReady。",
+  "startup.failedDetail": "没有更改任何照片或项目文件。请在下次启动 FotoReady 时查看“日志”。",
   "startup.newerFileTitle": "有文件来自较新版本的 FotoReady",
   "startup.newerFileMessage": "FotoReady 的一个文件由较新版本保存，因此此版本无法读取。该文件保持原样。",
   "startup.newerFileDetail": "请打开较新版本的 FotoReady，或将此文件移到别处，以便在没有它的情况下启动此版本：{path}",

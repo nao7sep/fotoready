@@ -3,7 +3,7 @@ import type { LogFields, LogLevel, Logger } from "@shared/types/log";
 import { jsonSafeObject } from "./json-safe";
 import type { LogRecord, RecordsStore } from "./records-store";
 
-/** The session logger; its records are flushed by the store writer's bounded drain at quit. */
+/** The launch's logger; its records are flushed by the store writer's bounded drain at quit. */
 export type AppLogger = Logger;
 
 export type CreateLoggerOptions = {

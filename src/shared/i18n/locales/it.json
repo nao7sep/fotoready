@@ -26,7 +26,7 @@
   "app.loadFailed": "FotoReady non è riuscito a caricare lo spazio di lavoro",
   "app.hydrationFailed": "FotoReady non è riuscito a leggere le impostazioni, lo spazio di lavoro o i dati necessari per aprirsi in sicurezza. Ricarica dopo aver ripristinato l’accesso alla cartella dati dell’applicazione.",
   "errorBoundary.title": "FotoReady ha riscontrato un errore imprevisto",
-  "errorBoundary.body": "Non è stato possibile disegnare la finestra. Ricarica per riprovare; i file salvati sul disco non sono interessati. Tutti i dettagli sono stati scritti nel registro.",
+  "errorBoundary.body": "Non è stato possibile disegnare la finestra. Ricarica per riprovare; i file salvati sul disco non sono interessati. Tutti i dettagli sono stati scritti in Registro.",
 
   "topBar.output": "Uscita: {folder}",
   "topBar.sameAsOriginal": "Come l’originale",
@@ -97,7 +97,7 @@
   "renameComplete.before": "Prima",
   "renameComplete.after": "Dopo",
   "renameComplete.sourceRetained": "Il file rinominato è pronto, ma non è stato possibile rimuovere la copia precedente: {path}",
-  "renameComplete.cleanupPending": "I file rinominati sono pronti, ma la pulizia non è stata completata. Controlla il registro della sessione prima di rimuovere le copie rimaste.",
+  "renameComplete.cleanupPending": "I file rinominati sono pronti, ma la pulizia non è stata completata. Controlla Registro prima di rimuovere le copie rimaste.",
   "renameComplete.name": "Nome",
 
   "confirm.discardSettings.title": "Scartare le modifiche?",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "Le modifiche alle impostazioni non potranno essere salvate finché FotoReady non potrà aprire questo file. Controlla i permessi e il disco su cui si trova, poi riavvia FotoReady: {path}",
   "startup.failedTitle": "Impossibile avviare FotoReady",
   "startup.failedMessage": "FotoReady non è riuscito a completare l’apertura delle impostazioni e dello spazio di lavoro.",
-  "startup.failedDetail": "Nessuna foto e nessun file di progetto sono stati modificati. Controlla il registro della sessione, poi avvia di nuovo FotoReady.",
+  "startup.failedDetail": "Nessuna foto e nessun file di progetto sono stati modificati. Controlla Registro al prossimo avvio di FotoReady.",
   "startup.newerFileTitle": "Un file proviene da una versione più recente di FotoReady",
   "startup.newerFileMessage": "Uno dei file di FotoReady è stato salvato da una versione più recente, quindi questa versione non può leggerlo. Il file è stato lasciato così com’è.",
   "startup.newerFileDetail": "Apri la versione più recente di FotoReady oppure sposta questo file altrove per avviare questa versione senza di esso: {path}",

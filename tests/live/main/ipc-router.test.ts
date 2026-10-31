@@ -6,7 +6,7 @@
 // Vitest runs the main process from src/, but the worker pool loads its worker
 // from the built bundle beside it, so the lane builds the app into its cache
 // first and points the pool there; that location is the only change. Each test
-// starts the app on its own throwaway home and saves copies of corpus photos.
+// starts the app on its own throwaway data folder and saves copies of corpus photos.
 
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -75,9 +75,9 @@ vi.mock("piscina", async (importOriginal) => {
 
 type App = Awaited<ReturnType<typeof startApp>>;
 
-/** Starts the main process on `home` the way src/main/bootstrap.ts does, minus the window. */
-async function startApp(home: string) {
-  process.env.FOTOREADY_DATA_DIR = home;
+/** Starts the main process on `dataDir` the way src/main/bootstrap.ts does, minus the window. */
+async function startApp(dataDir: string) {
+  process.env.FOTOREADY_DATA_DIR = dataDir;
   handlers.clear();
   const { getAppPaths } = await import("@main/paths");
   const { createLogger } = await import("@main/logger");
@@ -142,9 +142,9 @@ async function startApp(home: string) {
   };
 }
 
-/** Runs `body` against the app on `home`, then shuts it down and proves its worker threads are gone. */
-async function withApp<T>(home: string, body: (app: App) => Promise<T>): Promise<T> {
-  const app = await startApp(home);
+/** Runs `body` against the app on `dataDir`, then shuts it down and proves its worker threads are gone. */
+async function withApp<T>(dataDir: string, body: (app: App) => Promise<T>): Promise<T> {
+  const app = await startApp(dataDir);
   let result: T;
   try {
     result = await body(app);
@@ -155,13 +155,13 @@ async function withApp<T>(home: string, body: (app: App) => Promise<T>): Promise
   return result;
 }
 
-async function freshHome(label: string): Promise<string> {
+async function freshDataDir(label: string): Promise<string> {
   return mkdtemp(join(CACHE, `${label}-`));
 }
 
-/** Copies a corpus photo into the home and adds it through the IPC path a drop takes. */
-async function addCorpusPhoto(app: App, home: string, relative: string): Promise<Task> {
-  const sources = join(home, "sources");
+/** Copies a corpus photo into the data folder and adds it through the IPC path a drop takes. */
+async function addCorpusPhoto(app: App, dataDir: string, relative: string): Promise<Task> {
+  const sources = join(dataDir, "sources");
   await mkdir(sources, { recursive: true });
   const copy = join(sources, basename(relative));
   await copyFile(join(CORPUS, relative), copy).catch(() => {
@@ -230,10 +230,10 @@ function isRunning(pid: number): boolean {
 
 describe("the live save and vision paths", () => {
   it("saves a corpus photo through the built worker and writes its metadata policy with ExifTool", async () => {
-    const home = await freshHome("save");
+    const dataDir = await freshDataDir("save");
     try {
-      await withApp(home, async (app) => {
-        const task = await addCorpusPhoto(app, home, RICH_METADATA);
+      await withApp(dataDir, async (app) => {
+        const task = await addCorpusPhoto(app, dataDir, RICH_METADATA);
         const snapshot = app.snapshot();
         const original = snapshot.project.originals.find((item) => item.id === task.originalId)!;
         expect(original.metadataSummary.editorial.author).toBe("Synthetic Fixture Generator");
@@ -274,17 +274,17 @@ describe("the live save and vision paths", () => {
         expect((await stat(output.stagedPath)).size).toBeGreaterThan(0);
       });
     } finally {
-      await rm(home, { recursive: true, force: true });
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 
   it("describes and names a saved photo through the real Gemini API on the default models", async () => {
     requireGeminiKey();
     const { normalizeSlugCandidate } = await import("@shared/slug-rules");
-    const home = await freshHome("vision");
+    const dataDir = await freshDataDir("vision");
     try {
-      await withApp(home, async (app) => {
-        const task = await addCorpusPhoto(app, home, CAT_PHOTO);
+      await withApp(dataDir, async (app) => {
+        const task = await addCorpusPhoto(app, dataDir, CAT_PHOTO);
         expect(task.generateDescription && task.generateSlug, "new tasks generate both by default").toBe(true);
         await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
 
@@ -310,7 +310,7 @@ describe("the live save and vision paths", () => {
         expect(sidecar.task.vision?.description).toBe(vision.description);
       });
     } finally {
-      await rm(home, { recursive: true, force: true });
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 
@@ -320,9 +320,9 @@ describe("the live save and vision paths", () => {
     "describes a saved photo through the real Gemini API on %s",
     async (model) => {
       requireGeminiKey();
-      const home = await freshHome("vision-row");
+      const dataDir = await freshDataDir("vision-row");
       try {
-        await withApp(home, async (app) => {
+        await withApp(dataDir, async (app) => {
           const current = await app.invoke<GlobalSettings>("settings.get");
           await app.invoke("settings.update", {
             ...current,
@@ -330,7 +330,7 @@ describe("the live save and vision paths", () => {
             "gemini.thinking.description": defaultThinkingFor("gemini", model),
             "gemini.mediaResolution.description": defaultMediaResolutionFor("gemini", model),
           });
-          const task = await addCorpusPhoto(app, home, CAT_PHOTO);
+          const task = await addCorpusPhoto(app, dataDir, CAT_PHOTO);
           await app.invoke("task.setGenerateSlug", task.id, false);
           await addOp(app, task.id, "resize", { mode: "fit", width: TINY_LONG_EDGE, height: TINY_LONG_EDGE });
 
@@ -349,7 +349,7 @@ describe("the live save and vision paths", () => {
           expect(vision.slugCandidates).toEqual([]);
         });
       } finally {
-        await rm(home, { recursive: true, force: true });
+        await rm(dataDir, { recursive: true, force: true });
       }
     },
   );

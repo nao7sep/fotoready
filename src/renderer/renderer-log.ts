@@ -1,6 +1,6 @@
 import type { RendererLogEntry } from "@shared/types/ipc";
 
-// Capture the native sink before App mirrors console calls into the session log,
+// Capture the native sink before App mirrors console calls into Records,
 // so a failed bridge can never recurse through that mirror.
 const consoleFallback = console.error.bind(console);
 

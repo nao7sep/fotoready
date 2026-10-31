@@ -26,7 +26,7 @@
   "app.loadFailed": "O FotoReady não conseguiu carregar o espaço de trabalho",
   "app.hydrationFailed": "O FotoReady não conseguiu ler as configurações, o espaço de trabalho ou os dados necessários para abrir com segurança. Recarregue depois de restabelecer o acesso à pasta de dados do aplicativo.",
   "errorBoundary.title": "O FotoReady encontrou um erro inesperado",
-  "errorBoundary.body": "Não foi possível desenhar a janela. Recarregue para tentar de novo; seus arquivos salvos no disco não foram afetados. Todos os detalhes foram gravados no registro.",
+  "errorBoundary.body": "Não foi possível desenhar a janela. Recarregue para tentar de novo; seus arquivos salvos no disco não foram afetados. Todos os detalhes foram gravados em Registros.",
 
   "topBar.output": "Saída: {folder}",
   "topBar.sameAsOriginal": "Igual ao original",
@@ -97,7 +97,7 @@
   "renameComplete.before": "Antes",
   "renameComplete.after": "Depois",
   "renameComplete.sourceRetained": "O arquivo renomeado está pronto, mas não foi possível remover a cópia anterior: {path}",
-  "renameComplete.cleanupPending": "Os arquivos renomeados estão prontos, mas a limpeza não foi concluída. Confira o registro da sessão antes de remover as cópias restantes.",
+  "renameComplete.cleanupPending": "Os arquivos renomeados estão prontos, mas a limpeza não foi concluída. Confira Registros antes de remover as cópias restantes.",
   "renameComplete.name": "Nome",
 
   "confirm.discardSettings.title": "Descartar as alterações?",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "As alterações de configuração não poderão ser salvas até que o FotoReady consiga abrir este arquivo. Verifique as permissões e o disco em que ele está e inicie o FotoReady novamente: {path}",
   "startup.failedTitle": "O FotoReady não pôde ser iniciado",
   "startup.failedMessage": "O FotoReady não conseguiu terminar de abrir as configurações e o espaço de trabalho.",
-  "startup.failedDetail": "Nenhuma foto nem arquivo de projeto foi alterado. Confira o registro da sessão e inicie o FotoReady de novo.",
+  "startup.failedDetail": "Nenhuma foto nem arquivo de projeto foi alterado. Confira Registros na próxima vez que o FotoReady iniciar.",
   "startup.newerFileTitle": "Um arquivo é de uma versão mais recente do FotoReady",
   "startup.newerFileMessage": "Um dos arquivos do FotoReady foi salvo por uma versão mais recente, por isso esta versão não consegue lê-lo. O arquivo foi mantido como está.",
   "startup.newerFileDetail": "Abra a versão mais recente do FotoReady ou mova este arquivo para outro lugar para iniciar esta versão sem ele: {path}",

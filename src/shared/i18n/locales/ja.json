@@ -26,7 +26,7 @@
   "app.loadFailed": "FotoReady のワークスペースを読み込めませんでした",
   "app.hydrationFailed": "安全に開くために必要な設定、ワークスペース、または関連データを FotoReady が読み込めませんでした。アプリケーションのデータフォルダーにアクセスできる状態に戻してから、再読み込みしてください。",
   "errorBoundary.title": "FotoReady で予期しないエラーが発生しました",
-  "errorBoundary.body": "ウインドウを描画できませんでした。再読み込みしてもう一度お試しください。ディスク上の保存済みファイルには影響ありません。詳細はログに記録されています。",
+  "errorBoundary.body": "ウインドウを描画できませんでした。再読み込みしてもう一度お試しください。ディスク上の保存済みファイルには影響ありません。詳細は「ログ」に記録されています。",
 
   "topBar.output": "出力先: {folder}",
   "topBar.sameAsOriginal": "元画像と同じ場所",
@@ -97,7 +97,7 @@
   "renameComplete.before": "変更前",
   "renameComplete.after": "変更後",
   "renameComplete.sourceRetained": "名前を変更したファイルは準備できていますが、変更前のコピーを削除できませんでした：{path}",
-  "renameComplete.cleanupPending": "名前を変更したファイルは準備できていますが、後片付けが完了しませんでした。残ったコピーを削除する前にセッションログを確認してください。",
+  "renameComplete.cleanupPending": "名前を変更したファイルは準備できていますが、後片付けが完了しませんでした。残ったコピーを削除する前に「ログ」を確認してください。",
   "renameComplete.name": "名前",
 
   "confirm.discardSettings.title": "変更を破棄しますか？",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "FotoReady がこのファイルを開けるようになるまで、設定の変更は保存できません。アクセス権とファイルがあるディスクを確認してから、FotoReady を再起動してください：{path}",
   "startup.failedTitle": "FotoReady を起動できませんでした",
   "startup.failedMessage": "FotoReady は設定とワークスペースを開き終えられませんでした。",
-  "startup.failedDetail": "写真やプロジェクトのファイルは変更されていません。セッションログを確認してから、FotoReady をもう一度起動してください。",
+  "startup.failedDetail": "写真やプロジェクトのファイルは変更されていません。次に FotoReady を起動したときに「ログ」を確認してください。",
   "startup.newerFileTitle": "新しいバージョンで保存されたファイルがあります",
   "startup.newerFileMessage": "FotoReady のファイルのひとつが新しいバージョンで保存されたため、このバージョンでは読み込めません。ファイルはそのまま残してあります。",
   "startup.newerFileDetail": "新しいバージョンの FotoReady を使うか、このファイルを別の場所に移してから、このバージョンを起動してください：{path}",

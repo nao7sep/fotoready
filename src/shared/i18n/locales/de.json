@@ -26,7 +26,7 @@
   "app.loadFailed": "FotoReady konnte seinen Arbeitsbereich nicht laden",
   "app.hydrationFailed": "FotoReady konnte die Einstellungen, den Arbeitsbereich oder die Daten, die zum sicheren Öffnen nötig sind, nicht lesen. Stellen Sie den Zugriff auf den Datenordner der App wieder her und laden Sie dann neu.",
   "errorBoundary.title": "In FotoReady ist ein unerwarteter Fehler aufgetreten",
-  "errorBoundary.body": "Das Fenster konnte nicht gezeichnet werden. Laden Sie neu, um es noch einmal zu versuchen; Ihre gespeicherten Dateien auf dem Datenträger sind nicht betroffen. Alle Einzelheiten stehen im Protokoll.",
+  "errorBoundary.body": "Das Fenster konnte nicht gezeichnet werden. Laden Sie neu, um es noch einmal zu versuchen; Ihre gespeicherten Dateien auf dem Datenträger sind nicht betroffen. Alle Einzelheiten stehen unter „Protokoll“.",
 
   "topBar.output": "Ausgabe: {folder}",
   "topBar.sameAsOriginal": "Wie beim Original",
@@ -97,7 +97,7 @@
   "renameComplete.before": "Vorher",
   "renameComplete.after": "Nachher",
   "renameComplete.sourceRetained": "Die umbenannte Datei ist bereit, aber ihre vorherige Kopie konnte nicht entfernt werden: {path}",
-  "renameComplete.cleanupPending": "Die umbenannten Dateien sind bereit, aber die Bereinigung wurde nicht abgeschlossen. Prüfen Sie das Sitzungsprotokoll, bevor Sie verbliebene Kopien entfernen.",
+  "renameComplete.cleanupPending": "Die umbenannten Dateien sind bereit, aber die Bereinigung wurde nicht abgeschlossen. Prüfen Sie „Protokoll“, bevor Sie verbliebene Kopien entfernen.",
   "renameComplete.name": "Name",
 
   "confirm.discardSettings.title": "Änderungen verwerfen?",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "Änderungen an den Einstellungen können erst gespeichert werden, wenn FotoReady diese Datei öffnen kann. Prüfen Sie ihre Zugriffsrechte und das Laufwerk, auf dem sie liegt, und starten Sie FotoReady dann erneut: {path}",
   "startup.failedTitle": "FotoReady konnte nicht starten",
   "startup.failedMessage": "FotoReady konnte seine Einstellungen und seinen Arbeitsbereich nicht fertig öffnen.",
-  "startup.failedDetail": "Es wurden keine Fotos oder Projektdateien geändert. Prüfen Sie das Sitzungsprotokoll und starten Sie FotoReady dann erneut.",
+  "startup.failedDetail": "Es wurden keine Fotos oder Projektdateien geändert. Prüfen Sie „Protokoll“, wenn FotoReady das nächste Mal startet.",
   "startup.newerFileTitle": "Eine Datei stammt aus einer neueren FotoReady-Version",
   "startup.newerFileMessage": "Eine Datei von FotoReady wurde von einer neueren Version gespeichert, daher kann diese Version die Datei nicht lesen. Die Datei wurde unverändert gelassen.",
   "startup.newerFileDetail": "Öffnen Sie die neuere FotoReady-Version oder verschieben Sie diese Datei an einen anderen Ort, um diese Version ohne diese Datei zu starten: {path}",

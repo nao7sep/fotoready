@@ -81,15 +81,15 @@ export type ExitState = { reason: string };
 // This launch: the records' session, and the name of the text file a failure before the records
 // store opens falls back to.
 const sessionStart = new Date();
-let sessionLogger: AppLogger | null = null;
+let launchLogger: AppLogger | null = null;
 
 /**
  * Records a startup failure: through the logger once it exists, before then in a text file under
  * `logs/`, then on the console (logging-conventions, When logging itself fails). Never throws.
  */
 export function recordStartupFailure(message: string, error: unknown): void {
-  if (sessionLogger) {
-    sessionLogger.error(message, { mod: "main.bootstrap", err: error });
+  if (launchLogger) {
+    launchLogger.error(message, { mod: "main.bootstrap", err: error });
     return;
   }
   const line = { time: nowIso(), level: "error", message, mod: "main.bootstrap", err: jsonSafe(error) };
@@ -128,12 +128,12 @@ export async function bootstrap(): Promise<void> {
     backupsPath: paths.backupsPath,
     fallbackPath: fallbackFile(paths.logsDir, sessionStart),
     session: sessionStart.toISOString(),
-    onWarning: ({ message, fields }) => sessionLogger?.warn(message, fields)
+    onWarning: ({ message, fields }) => launchLogger?.warn(message, fields)
   });
   storeWriter.onStored(notifyRecordsChanged);
   const records = createRecordsStore(storeWriter, sessionStart);
   const logger = createLogger(records, { debug });
-  sessionLogger = logger;
+  launchLogger = logger;
   installCrashHandlers(logger);
   // Before any protected save, so config.json saves and imported LUTs and stamps reach the history.
   setBackupWriter(storeWriter);

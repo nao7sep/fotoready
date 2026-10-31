@@ -26,7 +26,7 @@
   "app.loadFailed": "FotoReady could not load its workspace",
   "app.hydrationFailed": "FotoReady could not read the settings, workspace, or supporting data needed to open safely. Reload after restoring access to the application data folder.",
   "errorBoundary.title": "FotoReady hit an unexpected error",
-  "errorBoundary.body": "The window could not be drawn. Reload to try again; your saved files on disk are not affected. Complete details were written to the log.",
+  "errorBoundary.body": "The window could not be drawn. Reload to try again; your saved files on disk are not affected. Complete details were written to Records.",
 
   "topBar.output": "Output: {folder}",
   "topBar.sameAsOriginal": "Same as original",
@@ -97,7 +97,7 @@
   "renameComplete.before": "Before",
   "renameComplete.after": "After",
   "renameComplete.sourceRetained": "The renamed file is ready, but its previous copy could not be removed: {path}",
-  "renameComplete.cleanupPending": "The renamed files are ready, but cleanup did not finish. Check the session log before removing leftover copies.",
+  "renameComplete.cleanupPending": "The renamed files are ready, but cleanup did not finish. Check Records before removing leftover copies.",
   "renameComplete.name": "Name",
 
   "confirm.discardSettings.title": "Discard changes?",
@@ -723,7 +723,7 @@
   "startup.settingsUnreadableDetail": "Settings changes cannot be saved until FotoReady can open this file. Check its permissions and the disk it is on, then start FotoReady again: {path}",
   "startup.failedTitle": "FotoReady could not start",
   "startup.failedMessage": "FotoReady could not finish opening its settings and workspace.",
-  "startup.failedDetail": "No photos or project files were changed. Check the session log, then start FotoReady again.",
+  "startup.failedDetail": "No photos or project files were changed. Check Records the next time FotoReady starts.",
   "startup.newerFileTitle": "A file is from a newer FotoReady",
   "startup.newerFileMessage": "One of FotoReady’s files was saved by a newer version, so this version cannot read it. The file was left as it is.",
   "startup.newerFileDetail": "Open the newer version of FotoReady, or move this file elsewhere to start this version without it: {path}",

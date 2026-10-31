@@ -227,7 +227,7 @@ describe("the task sidecar format version", () => {
 
   it.each([
     ["no marker at all", {}],
-    ["v0.1.0's `version: 1`", { version: 1 }],
+    ["a `version` key instead of `formatVersion`", { version: 1 }],
   ])("rejects a sidecar with %s as invalid", async (_label, marker) => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
     const text = JSON.stringify({ ...marker, ...sidecarBody() });

@@ -44,10 +44,10 @@ it("opens a current store without changing it", () => {
 it("refuses a newer store, having written nothing", () => {
   const db = new DatabaseSync(file);
   db.exec(schema);
-  db.exec("PRAGMA user_version = 3");
+  db.exec("PRAGMA user_version = 2");
   db.close();
   const before = fs.readFileSync(file);
-  expect(() => openSqliteStore(file, 2, schema)).toThrow(expect.objectContaining({ name: "NewerFormatError", found: 3, supported: 2 }));
+  expect(() => openSqliteStore(file, 1, schema)).toThrow(expect.objectContaining({ name: "NewerFormatError", found: 2, supported: 1 }));
   expect(fs.readFileSync(file)).toEqual(before);
 });
 
@@ -57,15 +57,5 @@ it("refuses a store with tables but no version, having written nothing", () => {
   db.close();
   const before = fs.readFileSync(file);
   expect(() => openSqliteStore(file, 1, schema)).toThrow(expect.objectContaining({ name: "InvalidSqliteFormatError" }));
-  expect(fs.readFileSync(file)).toEqual(before);
-});
-
-it("refuses an earlier version, having written nothing", () => {
-  const db = new DatabaseSync(file);
-  db.exec(schema);
-  db.exec("PRAGMA user_version = 1");
-  db.close();
-  const before = fs.readFileSync(file);
-  expect(() => openSqliteStore(file, 2, schema)).toThrow(expect.objectContaining({ name: "InvalidSqliteFormatError" }));
   expect(fs.readFileSync(file)).toEqual(before);
 });

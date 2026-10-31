@@ -52,7 +52,7 @@ async function mount() {
   Object.defineProperty(window, "api", { configurable: true, value: {
     language: { current: async () => ({ language: "en", locale: "en-US" }), onChanged: () => () => {} },
     system: {
-      getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", cpuCount: 8, platform: "darwin" }),
+      getInfo: async () => ({ appName: "FotoReady", version: "1.0.0", cpuCount: 8, platform: "darwin" }),
       log: vi.fn(async () => {})
     },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },

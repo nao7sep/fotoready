@@ -46,7 +46,7 @@ it("keeps project and queue changes that follow the subscription's first snapsho
   const finishedQueue: QueueSnapshot = { ...earlyQueue, saved: 1, processing: 0, activeTaskId: null, activeTaskLabel: null };
   Object.defineProperty(window, "api", { configurable: true, value: {
     language: { current: async () => ({ language: "en", locale: "en-US" }), onChanged: () => () => {} },
-    system: { getInfo: async () => ({ appName: "FotoReady", version: "0.1.0", dataDir: "/fixtures/data",
+    system: { getInfo: async () => ({ appName: "FotoReady", version: "1.0.0", dataDir: "/fixtures/data",
       lutsDir: "/fixtures/luts", stampsDir: "/fixtures/stamps", cpuCount: 8, platform: "darwin" }), log: vi.fn().mockResolvedValue(undefined) },
     settings: { get: async () => defaultGlobalSettings(), hasGeminiApiKey: async () => false },
     state: { get: async () => defaultUiState(), toggleHistogram: async () => ({ ...defaultUiState(), showHistogram: true }) }, project: { subscribe: async () => { onProject(structuredClone(early)); onQueue(earlyQueue); } },

@@ -112,7 +112,7 @@ async function mountApp({ revealInFolder = vi.fn(), select = vi.fn(async () => s
       system: {
         getInfo: () => Promise.resolve({
           appName: "FotoReady",
-          version: "0.1.0",
+          version: "1.0.0",
           dataDir: "/fixtures/data",
           lutsDir: "/fixtures/luts",
           stampsDir: "/fixtures/stamps",

@@ -20,7 +20,7 @@ function userVersion(db: DatabaseSync): number {
  * Opens a store and checks its format version once, here; a session's writes do not check it again,
  * since only this process writes the store while it runs (single-instance lock). A database with no
  * tables and no version, whether new or left empty by an interrupted creation, gets `schema` and the
- * version in one transaction. A newer, earlier or unversioned store is refused, having written nothing.
+ * version in one transaction. A newer or unversioned store is refused, having written nothing.
  * The store writer's connection is the store's only one, so it sets no busy timeout.
  */
 export function openSqliteStore(file: string, supported: number, schema: string): DatabaseSync {

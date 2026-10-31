@@ -246,7 +246,7 @@ describe("backups", () => {
       { session_id: session, path: file, content: "version 19", byte_size: 10 },
       { session_id: session, path: path.join(root, "luts", "warm.cube"), content: "LUT_3D_SIZE 2", byte_size: 13 }
     ]);
-    expect(query(backupsFile(), "PRAGMA user_version")).toEqual([{ user_version: 2 }]);
+    expect(query(backupsFile(), "PRAGMA user_version")).toEqual([{ user_version: 1 }]);
   });
 
   it("stores the exact bytes: CR/LF and a non-UTF-8 byte, with their SHA-256", async () => {
@@ -283,7 +283,7 @@ describe("backups", () => {
 
   it("leaves a newer store byte-identical, records nothing and warns once", async () => {
     const newer = new DatabaseSync(backupsFile());
-    newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); PRAGMA user_version = 3");
+    newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); PRAGMA user_version = 2");
     newer.close();
     const before = fs.readFileSync(backupsFile());
     const target = writer();

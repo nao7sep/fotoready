@@ -16,7 +16,7 @@ export const FORMAT_VERSIONS = {
   /** `records.sqlite3`. */
   records: 1,
   /** `backups.sqlite3`. */
-  backups: 2
+  backups: 1
 } as const;
 
 export const FORMAT_VERSION_KEY = "formatVersion";

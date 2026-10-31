@@ -6,13 +6,8 @@ vi.mock("@main/plain-message-dialog", () => ({ showPlainMessageDialog }));
 vi.mock("electron", () => ({ app: { isPackaged: false }, systemPreferences: {} }));
 
 import { applyLanguagePreference } from "@main/i18n";
-import {
-  notifyNewerFormat,
-  notifySettingsRecovery,
-  notifyStartupFailure,
-  notifySettingsQuarantineFailure,
-  showSettingsNotice,
-} from "@main/startup-dialog";
+import { notifyRefusedFiles, notifyStartupFailure, showSideStoreOff } from "@main/startup-dialog";
+import { RefusedFileError } from "@adapters/json-store";
 
 beforeEach(() => {
   showPlainMessageDialog.mockClear();
@@ -20,32 +15,38 @@ beforeEach(() => {
 });
 
 describe("startup recovery dialog", () => {
-  it("names the set-aside settings file and says every setting started at its default", async () => {
-    await notifySettingsRecovery({ kind: "setAside", path: "/Users/someone/.fotoready/config-20261006-031340-utc.invalid" });
+  it("names every refused file in one stop, saying which a newer version wrote and which could not be read", async () => {
+    await notifyRefusedFiles([
+      new RefusedFileError("/Users/someone/.fotoready/config.json", "unreadable"),
+      new RefusedFileError("/Users/someone/.fotoready/state.json", "newer")
+    ]);
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: "Settings could not be read",
-      detail: expect.stringMatching(/every setting at its default.*\/Users\/someone\/\.fotoready\/config-20261006-031340-utc\.invalid$/),
+      title: "FotoReady could not start",
+      message: "FotoReady stopped because it cannot use these files. It changed nothing.",
+      detail: [
+        "Could not be read: /Users/someone/.fotoready/config.json",
+        "Saved by a newer version of FotoReady: /Users/someone/.fotoready/state.json",
+        "Open the newer version of FotoReady, or repair or restore the file, or move it elsewhere to start this version without it."
+      ].join("\n\n"),
     }));
   });
 
-  it("reports settings it could not open as left in place, not as damaged", async () => {
-    await notifySettingsRecovery({ kind: "unreadable", path: "/Users/someone/.fotoready/config.json" });
+  it("says visibly that Records are off, naming the database left as it is", async () => {
+    await showSideStoreOff({ error: vi.fn() }, "records", "/Users/someone/.fotoready/records.sqlite3", "newer");
 
     expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: "Settings could not be read",
-      message: "FotoReady could not open its settings file. It started with every setting at its default and left the file as it is.",
-      detail: "Settings changes cannot be saved until FotoReady can open this file. Check its permissions and the disk it is on, then start FotoReady again: /Users/someone/.fotoready/config.json",
+      title: "Records are off for this session",
+      detail: expect.stringContaining("newer version of FotoReady and was left as it is: /Users/someone/.fotoready/records.sqlite3"),
     }));
   });
 
-  it("logs a notice that cannot be shown and does not retry it", async () => {
+  it("logs a side-store notice that cannot be shown and does not retry it", async () => {
     const cause = new Error("dialog unavailable");
     showPlainMessageDialog.mockRejectedValueOnce(cause);
     const logger = { error: vi.fn() };
-    const notice = { kind: "setAside", path: "/config.invalid" } as const;
-    await expect(showSettingsNotice(logger, notice)).resolves.toBeUndefined();
-    expect(logger.error).toHaveBeenCalledWith("could not show the settings recovery notice", { mod: "main", notice, err: cause });
+    await expect(showSideStoreOff(logger, "backups", "/backups.sqlite3", "unreadable")).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledWith("could not show the notice that a side store is off", { mod: "main", store: "backups", filePath: "/backups.sqlite3", err: cause });
     expect(showPlainMessageDialog).toHaveBeenCalledOnce();
   });
 
@@ -60,26 +61,6 @@ describe("startup recovery dialog", () => {
       detailsLabel: "Message details",
       lang: "en",
     });
-  });
-
-  it("names the file a newer FotoReady wrote, which was left as it is", async () => {
-    await notifyNewerFormat("/Users/someone/.fotoready/config.json");
-
-    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: "A file is from a newer FotoReady",
-      message: expect.stringContaining("left as it is"),
-      detail: expect.stringContaining("/Users/someone/.fotoready/config.json"),
-      lang: "en",
-    }));
-  });
-
-  it("names the unreadable settings left in place and explains repair or move recovery", async () => {
-    await notifySettingsQuarantineFailure("/chosen/config.json");
-    expect(showPlainMessageDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: "Settings could not be read",
-      message: expect.stringContaining("original file was left in place"),
-      detail: "Repair or move this file, then start FotoReady again: /chosen/config.json",
-    }));
   });
 
   it("speaks the interface language, in its words and its document language", async () => {

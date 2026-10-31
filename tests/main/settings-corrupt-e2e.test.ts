@@ -5,9 +5,8 @@ import { join } from "node:path";
 import { loadSettings } from "../../src/main/settings-io";
 import { header } from "../helpers/file-header";
 
-// End-to-end on a REAL corrupt file. The classify-then-act split in settings-io is
-// what keeps a failed quarantine from being reclassified as an unreadable file and
-// resetting over bytes that were never preserved; these pin the observable result.
+// End-to-end on a REAL corrupt file: settings are valuable content, so an unreadable file stops
+// startup and stays byte-identical, with nothing set aside (store-recovery-conventions).
 describe("a corrupt settings file on disk", () => {
   let dir: string;
   beforeEach(() => {
@@ -15,25 +14,24 @@ describe("a corrupt settings file on disk", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("preserves the bytes in a .invalid copy and reports the path", async () => {
+  it("is refused as unreadable and left exactly as it is", async () => {
     const path = join(dir, "config.json");
     const corrupt = "{ not json at all";
     writeFileSync(path, corrupt);
 
-    const { notice } = await loadSettings(path);
+    await expect(loadSettings(path)).rejects.toMatchObject({ name: "RefusedFileError", filePath: path, reason: "unreadable" });
 
-    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
-    expect(readFileSync(notice!.path, "utf8")).toBe(corrupt);
-    // Recovery starts as a fresh install, leaving no seeded replacement.
-    expect(readdirSync(dir)).not.toContain("config.json");
+    expect(readFileSync(path, "utf8")).toBe(corrupt);
+    expect(readdirSync(dir)).toEqual(["config.json"]);
   });
 
-  it("reports nothing for a sound file and leaves it untouched", async () => {
+  it("loads a sound file and leaves it untouched", async () => {
     const path = join(dir, "config.json");
     const before = JSON.stringify({ ...header("config"), defaultWebpQuality: 71 }, null, 2) + "\n";
     writeFileSync(path, before);
-    const { notice } = await loadSettings(path);
-    expect(notice).toBeNull();
-    expect(readdirSync(dir).filter((f) => f.endsWith(".invalid"))).toEqual([]);
+    const { settings } = await loadSettings(path);
+    expect(settings.defaultWebpQuality).toBe(71);
+    expect(readFileSync(path, "utf8")).toBe(before);
+    expect(readdirSync(dir)).toEqual(["config.json"]);
   });
 });

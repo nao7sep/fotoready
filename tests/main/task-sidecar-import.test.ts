@@ -265,6 +265,23 @@ describe("the task sidecar format version", () => {
     expect(result.loaded[0]!.sidecar).toEqual(sidecarBody());
   });
 
+  it.each([
+    ["a newer sidecar", JSON.stringify(header("sidecar", 2)), "failure.storeLeftNewer"],
+    ["a file it cannot read", "{ someone else's notes", "failure.storeLeftUnreadable"]
+  ])("never writes over %s at the sidecar's path", async (_label, text, key) => {
+    const root = await tempRoot();
+    const sidecarPath = path.join(root, "photo-out.json");
+    await fs.writeFile(sidecarPath, text, "utf8");
+    const original = {
+      id: "original-id", sourcePath: path.join(root, "photo.jpg"), ...sidecarOriginal,
+      metadataSummary: { editorial: {}, dates: {}, gps: {} }, jpegQualityEstimate: null, addedAt: "2026-08-28T00:00:00.000Z",
+    } as unknown as Original;
+    const task = { generateDescription: false, generateSlug: true, customSlug: "pier", output: null } as unknown as Task;
+
+    await expect(writeTaskSidecarFile(path.join(root, "photo-out.jpg"), original, task, defaultPipeline())).rejects.toMatchObject({ name: "StoreNotWritableError", reason: { key } });
+    expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
+  });
+
   it("refuses a sidecar a newer FotoReady saved and leaves it byte-identical", async () => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
     const text = `${JSON.stringify({ ...header("sidecar", 2), ...sidecarBody() }, null, 2)}\n`;

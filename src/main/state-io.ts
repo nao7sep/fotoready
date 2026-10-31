@@ -4,12 +4,13 @@ import { defaultUiState, normalizeUiState, type UiStateNormalizationResult } fro
 import { headeredJson, parseHeaderedJson, type HeaderedJsonRead } from "@shared/file-header";
 import { APP_WRITER } from "./app-writer";
 import { atomicWriteFile } from "@adapters/atomic-file";
+import { refusalOf, StoreNotWritableError } from "@adapters/json-store";
 import type { AppLogger } from "./logger";
 
 export type LoadedState = {
   state: UiState;
   /**
-   * Decided once at load: false when a newer build wrote the file or it could not be read or reset,
+   * Decided once at load: false when a newer build wrote the file or it could not be opened at all,
    * which leaves it exactly as it is for the session.
    */
   writable: boolean;
@@ -17,8 +18,9 @@ export type LoadedState = {
 
 /**
  * `state.json` is disposable UI state, so losing it never costs more than a pane width or window
- * position: what cannot be read is replaced by
- * defaults, in memory only when the file cannot be read or written, so it never stops startup.
+ * position: content that cannot be read takes defaults with no notice, and the next ordinary save
+ * replaces it. A newer file stops startup before this runs (`launch-files.ts`); one that appears
+ * during the session is left as it is.
  */
 export async function loadState(statePath: string, logger?: AppLogger): Promise<LoadedState> {
   let read: HeaderedJsonRead;
@@ -41,27 +43,18 @@ export async function loadState(statePath: string, logger?: AppLogger): Promise<
     return { state: defaultUiState(), writable: false };
   }
 
-  let state: UiState;
   if (read.kind === "current") {
     const normalized = normalizeUiState(read.body, defaultUiState());
-    if (normalized.issues.length === 0) return { state: normalized.state, writable: true };
-    // Nothing in this file has recovery value; log the invalid state and reset it.
-    logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, issues: normalized.issues });
-    state = normalized.state;
-  } else {
-    logger?.warn("state file was unreadable; using defaults", { mod: "state", statePath, err: read.error });
-    state = defaultUiState();
+    if (normalized.issues.length > 0) logger?.warn("state file contained invalid data; using fallback values", { mod: "state", statePath, issues: normalized.issues });
+    return { state: normalized.state, writable: true };
   }
-  try {
-    await saveState(statePath, state);
-  } catch (error) {
-    logger?.warn("state file could not be reset; leaving it as it is for this session", { mod: "state", statePath, err: error });
-    return { state, writable: false };
-  }
-  return { state, writable: true };
+  logger?.warn("state file was unreadable; using defaults until the next save replaces it", { mod: "state", statePath, err: read.error });
+  return { state: defaultUiState(), writable: true };
 }
 
+/** Throws {@link StoreNotWritableError} when a newer FotoReady has written the file, which is left as it is. */
 export async function saveState(statePath: string, state: UiState): Promise<void> {
+  if (await refusalOf(statePath, "state") === "newer") throw new StoreNotWritableError(statePath, "newer");
   const normalized = normalizeUiState(state, defaultUiState()).state;
   // not recorded: state.json is UI state (pane widths, histogram placement), not the user's work.
   await atomicWriteFile(statePath, headeredJson("state", APP_WRITER, normalized));

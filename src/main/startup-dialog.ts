@@ -3,10 +3,10 @@ import { mainTranslator } from "./i18n";
 import type { Logger } from "@shared/types/log";
 import type { MessageKey } from "@shared/i18n/catalogues";
 import type { MessageValues } from "@shared/i18n/translate";
-import type { SettingsNotice } from "./settings-io";
+import type { RefusedFileError, StoreLeftReason } from "@adapters/json-store";
 
-// Every notice speaks the interface language: the corrupt-settings notice shows after the settings
-// were read, and a startup failure before then speaks the computer's language (System).
+// Every notice speaks the interface language: a side-store notice shows after the settings were read,
+// and a startup stop before then speaks the computer's language (System).
 async function showNotice(title: MessageKey, message: MessageKey, detail: MessageKey, detailValues?: MessageValues): Promise<void> {
   const { language, t } = mainTranslator();
   await showPlainMessageDialog({
@@ -19,40 +19,36 @@ async function showNotice(title: MessageKey, message: MessageKey, detail: Messag
   });
 }
 
-/**
- * App-authored recovery surface (store-recovery-conventions): it names the set-aside `.invalid` file
- * and the defaults started with, or the settings file left in place because it could not be read.
- */
-export async function notifySettingsRecovery(notice: SettingsNotice): Promise<void> {
-  if (notice.kind === "setAside") {
-    await showNotice("startup.corruptSettingsTitle", "startup.corruptSettingsMessage", "startup.corruptSettingsDetail", { path: notice.path });
-  } else {
-    await showNotice("startup.corruptSettingsTitle", "startup.settingsUnreadableMessage", "startup.settingsUnreadableDetail", { path: notice.path });
-  }
-}
-
-/**
- * Shows the settings notice once. The recovery it reports has already happened, so a notice that
- * cannot be shown is logged and not retried.
- */
-export async function showSettingsNotice(logger: Pick<Logger, "error">, notice: SettingsNotice): Promise<void> {
-  try {
-    await notifySettingsRecovery(notice);
-  } catch (error) {
-    logger.error("could not show the settings recovery notice", { mod: "main", notice, err: error });
-  }
-}
-
-/** Failed settings quarantine reports the original file left in place. */
-export async function notifySettingsQuarantineFailure(filePath: string): Promise<void> {
-  await showNotice("startup.corruptSettingsTitle", "startup.settingsLeftMessage", "startup.settingsLeftDetail", { path: filePath });
-}
-
 export async function notifyStartupFailure(): Promise<void> {
   await showNotice("startup.failedTitle", "startup.failedMessage", "startup.failedDetail");
 }
 
-/** The halt for a store a newer FotoReady wrote: it names the file, which is left as it is. */
-export async function notifyNewerFormat(filePath: string): Promise<void> {
-  await showNotice("startup.newerFileTitle", "startup.newerFileMessage", "startup.newerFileDetail", { path: filePath });
+/**
+ * The launch stop (store-recovery-conventions, What a refused file does): one message naming every
+ * file FotoReady refused, whether a newer version wrote it or it could not be read, and what to do.
+ */
+export async function notifyRefusedFiles(files: readonly RefusedFileError[]): Promise<void> {
+  const { language, t } = mainTranslator();
+  const lines = files.map((file) => t(file.reason === "newer" ? "startup.refusedNewer" : "startup.refusedUnreadable", { path: file.filePath }));
+  await showPlainMessageDialog({
+    title: t("startup.failedTitle"),
+    message: t("startup.refusedMessage"),
+    detail: [...lines, t("startup.refusedAdvice")].join("\n\n"),
+    buttons: [t("common.ok")],
+    detailsLabel: t("dialog.messageDetails"),
+    lang: language,
+  });
+}
+
+/**
+ * Says once, while FotoReady keeps running, that Records or backups are off for this session because
+ * their database is refused; the database is left as it is. A notice that cannot be shown is logged.
+ */
+export async function showSideStoreOff(logger: Pick<Logger, "error">, store: "records" | "backups", filePath: string, reason: StoreLeftReason): Promise<void> {
+  const prefix = store === "records" ? "store.recordsOff" : "store.backupsOff";
+  try {
+    await showNotice(`${prefix}Title`, `${prefix}Message`, reason === "newer" ? "store.offNewerDetail" : "store.offUnreadableDetail", { path: filePath });
+  } catch (error) {
+    logger.error("could not show the notice that a side store is off", { mod: "main", store, filePath, err: error });
+  }
 }

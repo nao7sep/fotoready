@@ -48,10 +48,22 @@ describe("loadState", () => {
     expect(await loadState(statePath())).toEqual({ state: saved, writable: true });
   });
 
-  it("replaces a file with no format version with defaults", async () => {
-    await fs.writeFile(statePath(), JSON.stringify({ showHistogram: true }), "utf8");
-    expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
+  it("takes defaults for a file with no header, writing nothing until the next save replaces it", async () => {
+    const text = JSON.stringify({ showHistogram: true });
+    await fs.writeFile(statePath(), text, "utf8");
+    const loaded = await loadState(statePath());
+    expect(loaded).toEqual({ state: defaultUiState(), writable: true });
+    expect(await fs.readFile(statePath(), "utf8")).toBe(text);
+    await createStateCoordinator(statePath(), loaded).update({ showHistogram: false });
     expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ ...header("state"), showHistogram: false });
+  });
+
+  it("refuses a save once a newer FotoReady has written the file, leaving it byte-identical", async () => {
+    const loaded = await loadState(statePath());
+    const text = JSON.stringify(header("state", 2));
+    await fs.writeFile(statePath(), text, "utf8");
+    await expect(createStateCoordinator(statePath(), loaded).update({ showHistogram: true })).rejects.toMatchObject({ name: "StoreNotWritableError" });
+    expect(await fs.readFile(statePath(), "utf8")).toBe(text);
   });
 
   it("uses defaults for a newer file, never writes it, and leaves it byte-identical", async () => {
@@ -98,20 +110,12 @@ describe("loadState", () => {
     expect(await fs.readdir(dir)).toEqual(["state.json"]);
   });
 
-  it("keeps defaults in memory when unreadable state cannot be reset, instead of stopping startup", async () => {
-    await fs.writeFile(statePath(), "{ not valid json", "utf8");
-    vi.spyOn(fs, "rename").mockRejectedValueOnce(Object.assign(new Error("read-only folder"), { code: "EROFS" }));
-    const warn = vi.fn();
-    expect(await loadState(statePath(), { warn } as unknown as AppLogger)).toEqual({ state: defaultUiState(), writable: false });
-    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/could not be reset/), expect.objectContaining({ statePath: statePath() }));
-    expect(await fs.readFile(statePath(), "utf8")).toBe("{ not valid json");
-  });
-
   it("treats a format version that is not a positive integer as unreadable", async () => {
-    await fs.writeFile(statePath(), JSON.stringify({ format: { ...header("state").format, version: "2" }, showHistogram: true }), "utf8");
+    const text = JSON.stringify({ format: { ...header("state").format, version: "2" }, showHistogram: true });
+    await fs.writeFile(statePath(), text, "utf8");
 
     expect(await loadState(statePath())).toEqual({ state: defaultUiState(), writable: true });
-    expect(JSON.parse(await fs.readFile(statePath(), "utf8"))).toMatchObject({ ...header("state"), showHistogram: false });
+    expect(await fs.readFile(statePath(), "utf8")).toBe(text);
   });
 });
 

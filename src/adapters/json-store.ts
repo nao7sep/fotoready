@@ -1,36 +1,52 @@
 import fs from "node:fs/promises";
-import path from "node:path";
+import { parseHeaderedJson, type FileKind } from "@shared/file-header";
 import { message, type Message } from "@shared/i18n/translate";
-import { utcStamp } from "@shared/time";
 
-/** Why a store found at load is left exactly as it is for the session. */
+/** Why a file is refused (store-recovery-conventions, What a refused file does). */
 export type StoreLeftReason = "unreadable" | "newer";
 
 /**
- * A save to a store that load decided not to write this session (store-recovery-conventions): it
- * could not be read or set aside, or a newer FotoReady wrote it. `reason` is shown beneath the failed
- * save.
+ * A save to a file that is refused (store-recovery-conventions): it could not be read, or a newer
+ * FotoReady wrote it, so it is left exactly as it is. `reason` is shown beneath the failed save.
  */
 export class StoreNotWritableError extends Error {
   readonly reason: Message;
 
   constructor(readonly filePath: string, left: StoreLeftReason) {
-    super(`${filePath} was left as it is when FotoReady started, so this session does not write it.`);
+    super(`${filePath} is refused, so FotoReady leaves it as it is and does not write it.`);
     this.name = "StoreNotWritableError";
     this.reason = message(left === "newer" ? "failure.storeLeftNewer" : "failure.storeLeftUnreadable", { path: filePath });
   }
 }
 
+/** A file FotoReady opens to start that it refuses; it is left exactly as it is. */
+export class RefusedFileError extends Error {
+  constructor(readonly filePath: string, readonly reason: StoreLeftReason, cause?: unknown) {
+    super(reason === "newer" ? `${filePath} was written by a newer FotoReady.` : `${filePath} could not be read.`, { cause });
+    this.name = "RefusedFileError";
+  }
+}
+
+/** Startup stops: every file it refused, named in one message, with nothing written. */
+export class LaunchRefusedError extends Error {
+  constructor(readonly files: readonly RefusedFileError[]) {
+    super(`FotoReady stopped because it refuses ${files.map((file) => file.filePath).join(", ")}.`);
+    this.name = "LaunchRefusedError";
+  }
+}
+
 /**
- * Sets an unreadable store aside as `<stem>-<timestamp>.invalid` beside it (derived-filename grammar)
- * and returns that path. The copy is created exclusively, so a second set-aside within the same second
- * fails instead of replacing the first; the original is removed only after its copy exists. Throws when
- * either step fails, leaving the original in place.
+ * Why the file at `filePath` is refused as `kind` now, or null when it is missing or readable. A file
+ * that cannot be read at all is unreadable. Checked at the write itself, so no save reaches a refused
+ * file, whatever was read earlier in the session.
  */
-export async function setAsideStore(filePath: string): Promise<string> {
-  const { dir, name } = path.parse(filePath);
-  const setAsidePath = path.join(dir, `${name}-${utcStamp()}.invalid`);
-  await fs.copyFile(filePath, setAsidePath, fs.constants.COPYFILE_EXCL);
-  await fs.rm(filePath);
-  return setAsidePath;
+export async function refusalOf(filePath: string, kind: FileKind): Promise<StoreLeftReason | null> {
+  let text: string;
+  try {
+    text = await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? null : "unreadable";
+  }
+  const read = parseHeaderedJson(text, kind);
+  return read.kind === "current" ? null : read.kind === "newer" ? "newer" : "unreadable";
 }

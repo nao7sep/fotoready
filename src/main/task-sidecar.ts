@@ -10,6 +10,7 @@ import { validateOutputSettings } from "@shared/validation/pipeline";
 import { assertBoolean, assertNonEmptyString, assertString } from "@shared/validation/common";
 import { getOpModule } from "@core/ops/catalog";
 import { atomicWriteFile } from "@adapters/atomic-file";
+import { refusalOf, StoreNotWritableError } from "@adapters/json-store";
 import type { OriginalImportIssue } from "@shared/types/ipc";
 import type { Logger } from "@shared/types/log";
 import { message } from "@shared/i18n/translate";
@@ -48,6 +49,9 @@ export async function writeTaskSidecarFile(outputPath: string, original: Origina
     pipeline,
     vision: task.output?.vision ?? null
   });
+  // A file at that path this build cannot read is never replaced (store-recovery-conventions).
+  const refused = await refusalOf(sidecarPath, "sidecar");
+  if (refused) throw new StoreNotWritableError(sidecarPath, refused);
   // not recorded: the sidecar is output, like the saved image it sits beside; once the app hands
   // them to the user, the user owns them (data-backup-conventions, What is protected).
   await atomicWriteFile(sidecarPath, headeredJson("sidecar", APP_WRITER, payload));

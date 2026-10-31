@@ -2,13 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { AI_ROLES, defaultMediaResolutionFor, defaultThinkingFor } from "@shared/ai-models";
 import { defaultGlobalSettings, SETTINGS_KEYS } from "@shared/defaults";
-import { FILE_FORMATS, headeredJson, NewerFormatError, parseHeaderedJson } from "@shared/file-header";
+import { headeredJson, parseHeaderedJson } from "@shared/file-header";
 import { APP_WRITER } from "./app-writer";
 import type { GlobalSettings, MetadataFields } from "@shared/types/settings";
 import { normalizeGlobalSettings } from "@shared/validation/settings";
 import { isRecord } from "@shared/validation/common";
 import { cleanMetadataField, multiline, singleLine } from "@shared/text-cleanup";
-import { setAsideStore, StoreNotWritableError } from "@adapters/json-store";
+import { RefusedFileError, refusalOf, StoreNotWritableError } from "@adapters/json-store";
 import { writeManagedFile } from "./write-managed-file";
 import type { AppLogger } from "./logger";
 
@@ -24,67 +24,43 @@ export type SettingsFile = {
    * this map, so nothing the user did not change is erased.
    */
   stored: Record<string, unknown>;
-  /** Whether load allowed this session to write the file; decided once, from the whole read. */
-  readonly writable: boolean;
 };
-
-/** What startup tells the user about the settings file, once. */
-export type SettingsNotice =
-  | { kind: "setAside"; path: string }
-  | { kind: "unreadable"; path: string };
 
 export type SettingsLoadResult = {
   settings: GlobalSettings;
   file: SettingsFile;
-  notice: SettingsNotice | null;
 };
 
-export class SettingsQuarantineError extends Error {
-  constructor(readonly filePath: string, cause: unknown) {
-    super("Unreadable settings could not be set aside and were left in place.", { cause });
-    this.name = "SettingsQuarantineError";
-  }
-}
-
 /**
- * Store-recovery outcomes, decided once at load so a session never overwrites a file it could not
- * read correctly: a file that cannot be read
- * for access reasons is left in place, unwritten for the session and reported as such, never as
- * corruption; malformed content is set aside with one notice, and startup stops when that fails; a
- * newer file stops startup and is left exactly as it is.
+ * Reads `config.json` at launch. A missing file is first run. A file that cannot be read, has no
+ * readable header, or that a newer FotoReady wrote,
+ * is refused: {@link RefusedFileError} stops startup and the file is left exactly as it is
+ * (store-recovery-conventions, What a refused file does).
  */
-async function readSettingsFile(settingsPath: string, logger?: AppLogger): Promise<Omit<SettingsLoadResult, "settings">> {
+export async function readSettingsFile(settingsPath: string): Promise<SettingsFile> {
   let text: string;
   try {
     text = await fs.readFile(settingsPath, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { file: { path: settingsPath, stored: {}, writable: true }, notice: null };
-    logger?.warn("settings file could not be read; using built-ins and leaving it as it is for this session", { mod: "settings", settingsPath, err: error });
-    return { file: { path: settingsPath, stored: {}, writable: false }, notice: { kind: "unreadable", path: settingsPath } };
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { path: settingsPath, stored: {} };
+    throw new RefusedFileError(settingsPath, "unreadable", error);
   }
   const read = parseHeaderedJson(text, "config");
-  if (read.kind === "current") return { file: { path: settingsPath, stored: read.body, writable: true }, notice: null };
-  if (read.kind === "newer") throw new NewerFormatError(settingsPath, read.found, FILE_FORMATS.config);
-  let setAsidePath: string;
-  // not recorded: preserve the unreadable bytes; no replacement config is seeded.
-  try { setAsidePath = await setAsideStore(settingsPath); } catch (cause) { throw new SettingsQuarantineError(settingsPath, cause); }
-  logger?.warn("settings file was unreadable; using defaults", { mod: "settings", settingsPath, setAsidePath, err: read.error });
-  return { file: { path: settingsPath, stored: {}, writable: true }, notice: { kind: "setAside", path: setAsidePath } };
+  if (read.kind === "newer") throw new RefusedFileError(settingsPath, "newer");
+  if (read.kind === "invalid") throw new RefusedFileError(settingsPath, "unreadable", read.error);
+  return { path: settingsPath, stored: read.body };
 }
 
-function effectiveSettings(sets: Record<string, unknown>, logger?: AppLogger): GlobalSettings {
+export function effectiveSettings(sets: Record<string, unknown>, logger?: AppLogger): GlobalSettings {
   const { settings, issues } = normalizeGlobalSettings(sets, defaults());
   for (const issue of issues) logger?.warn("settings set contained invalid data; using its built-in", { mod: "settings", issue });
   return settings;
 }
 
-/**
- * Throws {@link NewerFormatError} when a newer build wrote the file and {@link SettingsQuarantineError}
- * when malformed content could not be set aside.
- */
+/** The settings in effect and the file they came from; throws {@link RefusedFileError} as {@link readSettingsFile} does. */
 export async function loadSettings(settingsPath: string, logger?: AppLogger): Promise<SettingsLoadResult> {
-  const read = await readSettingsFile(settingsPath, logger);
-  return { settings: effectiveSettings(read.file.stored, logger), ...read };
+  const file = await readSettingsFile(settingsPath);
+  return { settings: effectiveSettings(file.stored, logger), file };
 }
 
 const MULTILINE_SETS: ReadonlySet<keyof GlobalSettings> = new Set(["visionDescriptionPrompt", "visionSlugPrompt"]);
@@ -126,7 +102,8 @@ function builtInsFor(settings: GlobalSettings): GlobalSettings {
  * Saves the sets the user changed (config-sets-conventions). A changed set equal to its built-in is
  * removed so it follows the built-in; every set the user did not change keeps its stored value, valid
  * or not, as do unknown keys. An invalid set is reported and
- * keeps its value from `previous`. Throws {@link StoreNotWritableError} when load left the file as it is.
+ * keeps its value from `previous`. Throws {@link StoreNotWritableError} when the file on disk is refused
+ * now, so a save never replaces a file this build cannot read.
  */
 export async function saveSettings(
   file: SettingsFile,
@@ -134,7 +111,6 @@ export async function saveSettings(
   previous: GlobalSettings,
   logger?: AppLogger
 ): Promise<GlobalSettings> {
-  if (!file.writable) throw new StoreNotWritableError(file.path, "unreadable");
   const cleaned = isRecord(settings)
     ? Object.fromEntries(SETTINGS_KEYS.map((key) => [key, cleanSet(key, settings[key])]))
     : settings;
@@ -150,6 +126,8 @@ export async function saveSettings(
   }
   // First run writes nothing while every set is at its built-in (config-sets-conventions).
   if (Object.keys(next).length === 0 && !(await fileExists(file.path))) return effective;
+  const refused = await refusalOf(file.path, "config");
+  if (refused) throw new StoreNotWritableError(file.path, refused);
   // recorded: durable config sets use the managed atomic write and backup history.
   await writeManagedFile(file.path, headeredJson("config", APP_WRITER, next));
   file.stored = next;

@@ -140,11 +140,16 @@ describe("records", () => {
     prepare(existing);
     existing.close();
     const before = fs.readFileSync(recordsFile());
-    const target = writer();
-    createRecordsStore(target, sessionStart).writeLog({ time: "2026-10-09T05:06:08.000Z", level: "info", message: "still recorded", fields: {} });
+    const refused: unknown[] = [];
+    const target = writer({ onRefused: (store, reason) => refused.push({ store, reason }) });
+    const records = createRecordsStore(target, sessionStart);
+    records.writeLog({ time: "2026-10-09T05:06:08.000Z", level: "info", message: "still recorded", fields: {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    records.writeLog({ time: "2026-10-09T05:06:09.000Z", level: "info", message: "and again", fields: {} });
     await drain(target);
 
     expect(fs.readFileSync(recordsFile()).equals(before)).toBe(true);
+    expect(refused).toEqual([{ store: "records", reason: errorName === "NewerFormatError" ? "newer" : "unreadable" }]);
     const [notice, log] = fallbackLines();
     expect(notice).toMatchObject({ message: "records database unavailable", err: { name: errorName } });
     expect(log).toMatchObject({ message: "still recorded" });
@@ -288,13 +293,16 @@ describe("backups", () => {
     newer.exec("CREATE TABLE backups (id INTEGER PRIMARY KEY); CREATE TABLE file_header (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO file_header VALUES ('format.owner', 'fotoready'), ('format.kind', 'backups'); PRAGMA user_version = 2");
     newer.close();
     const before = fs.readFileSync(backupsFile());
-    const target = writer();
+    const refused: unknown[] = [];
+    const target = writer({ onRefused: (store, reason) => refused.push({ store, reason }) });
     setBackupWriter(target);
     record(path.join(root, "config.json"), Buffer.from("a"));
     record(path.join(root, "config.json"), Buffer.from("b"));
     await drain(target);
 
     expect(fs.readFileSync(backupsFile()).equals(before)).toBe(true);
+    // Said once, so the main process can show it visibly.
+    expect(refused).toEqual([{ store: "backups", reason: "newer" }]);
     expect(warnings).toEqual([{ message: "backup store: could not open; recording disabled for this session", fields: expect.objectContaining({ err: expect.objectContaining({ name: "NewerFormatError" }) }) }]);
   });
 });

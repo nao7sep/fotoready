@@ -48,13 +48,22 @@ async function save(changes: Record<string, unknown>, logger?: AppLogger): Promi
 const accessDeniable = process.platform !== "win32" && process.getuid?.() !== 0;
 
 describe("the settings format version", () => {
-  it("sets a file with no format version aside and uses the built-ins", async () => {
-    const text = JSON.stringify({ defaultWebpQuality: 71 });
+  it.each([
+    ["no header", { defaultWebpQuality: 71 }],
+    ["another owner", { format: { owner: "gptimg", kind: "config", version: 1 }, defaultWebpQuality: 71 }],
+    ["another kind", { ...header("state"), defaultWebpQuality: 71 }],
+    ["a version that is not a positive integer", { ...header("config", 0), defaultWebpQuality: 71 }]
+  ])("refuses a file with %s as unreadable and leaves it byte-identical", async (_label, root) => {
+    const text = JSON.stringify(root);
     await fs.writeFile(settingsPath(), text);
-    const { settings, notice } = await loadSettings(settingsPath());
-    expect(settings).toEqual(defaults());
-    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
-    expect(await fs.readFile(notice!.path, "utf8")).toBe(text);
+    await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "RefusedFileError", filePath: settingsPath(), reason: "unreadable" });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
+    expect(await fs.readdir(dir)).toEqual(["config.json"]);
+  });
+
+  it("ignores writer when reading", async () => {
+    await fs.writeFile(settingsPath(), JSON.stringify({ format: header("config").format, writer: "anything", defaultWebpQuality: 71 }));
+    expect((await loadSettings(settingsPath())).settings.defaultWebpQuality).toBe(71);
   });
 
   it("writes the current version first and reads it back", async () => {
@@ -69,21 +78,21 @@ describe("the settings format version", () => {
     const text = `${JSON.stringify({ ...header("config", 2), defaultWebpQuality: 71 })}\n`;
     await fs.writeFile(settingsPath(), text);
 
-    await expect(loadSettings(settingsPath())).rejects.toEqual(expect.objectContaining({
-      name: "NewerFormatError",
-      filePath: settingsPath(),
-      found: 2,
-      supported: 1
-    }));
+    await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "RefusedFileError", filePath: settingsPath(), reason: "newer" });
     expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
     expect(await fs.readdir(dir)).toEqual(["config.json"]);
   });
 
-  it("quarantines a file whose format version is not a positive integer", async () => {
-    await fs.writeFile(settingsPath(), JSON.stringify({ ...header("config", 0), defaultWebpQuality: 71 }));
-    const { settings, notice } = await loadSettings(settingsPath());
-    expect(settings).toEqual(defaults());
-    expect(notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
+  it.each([
+    ["a newer FotoReady", header("config", 2), "newer"],
+    ["something unreadable", { defaultWebpQuality: 1 }, "unreadable"]
+  ] as const)("refuses a save once %s has replaced the file, leaving it byte-identical", async (_label, root, reason) => {
+    await save({ defaultWebpQuality: 71 });
+    const { settings, file } = await loadSettings(settingsPath());
+    const text = JSON.stringify(root);
+    await fs.writeFile(settingsPath(), text);
+    await expect(saveSettings(file, { ...settings, confirmDeleteTasks: false }, settings)).rejects.toMatchObject({ name: "StoreNotWritableError", reason: { key: reason === "newer" ? "failure.storeLeftNewer" : "failure.storeLeftUnreadable" } });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(text);
   });
 });
 
@@ -93,7 +102,6 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ defaultOutputFormat: "tiff" });
     const reopened = await loadSettings(settingsPath());
     expect(reopened.settings.defaultOutputFormat).toBe("tiff");
-    expect(reopened.notice).toBeNull();
   });
 
   it.each(["defaultOutputDirectory", "lutFolder", "stampFolder", "defaultWatermarkImage"] as const)(
@@ -109,7 +117,7 @@ describe("settings by set", () => {
   );
 
   it("loads built-ins on first run without writing any file", async () => {
-    expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), file: { path: settingsPath(), stored: {}, writable: true }, notice: null });
+    expect(await loadSettings(settingsPath())).toEqual({ settings: defaults(), file: { path: settingsPath(), stored: {} } });
     expect(await fs.readdir(dir)).toEqual([]);
   });
 
@@ -216,22 +224,12 @@ describe("settings by set", () => {
     expect(await written()).toEqual({ injectFields: { author: "John" } });
   });
 
-  it.skipIf(!accessDeniable)("leaves a file it cannot read in place, starts on built-ins and refuses to write it for the session", async () => {
+  it.skipIf(!accessDeniable)("refuses a file it cannot open as unreadable and leaves it in place", async () => {
     const text = `${JSON.stringify({ ...header("config"), defaultWebpQuality: 71 })}\n`;
     await fs.writeFile(settingsPath(), text);
     await fs.chmod(settingsPath(), 0o000);
     try {
-      const warn = vi.fn();
-      const loaded = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
-      expect(loaded.settings).toEqual(defaults());
-      expect(loaded.notice).toEqual({ kind: "unreadable", path: settingsPath() });
-      expect(loaded.file.writable).toBe(false);
-      expect(warn).toHaveBeenCalledWith("settings file could not be read; using built-ins and leaving it as it is for this session", expect.objectContaining({ err: expect.objectContaining({ code: "EACCES" }) }));
-
-      await expect(saveSettings(loaded.file, { ...loaded.settings, confirmDeleteTasks: false }, loaded.settings)).rejects.toMatchObject({
-        name: "StoreNotWritableError",
-        reason: { key: "failure.storeLeftUnreadable", values: { path: settingsPath() } },
-      });
+      await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "RefusedFileError", filePath: settingsPath(), reason: "unreadable", cause: expect.objectContaining({ code: "EACCES" }) });
       expect(await fs.readdir(dir)).toEqual(["config.json"]);
     } finally {
       await fs.chmod(settingsPath(), 0o600);
@@ -347,7 +345,6 @@ describe("settings by set", () => {
     await fs.writeFile(settingsPath(), original);
     const warn = vi.fn();
     const result = await loadSettings(settingsPath(), { warn } as unknown as AppLogger);
-    expect(result.notice).toBeNull();
     expect(result.settings).toEqual({ ...defaults(), confirmDeleteTasks: false });
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]?.[1].issue).toContain("settings.defaultWebpQuality");
@@ -355,21 +352,11 @@ describe("settings by set", () => {
     expect(await fs.readdir(dir)).toEqual(["config.json"]);
   });
 
-  it.each(["{ not valid json", "[]"])("moves unreadable bytes aside without writing a replacement: %s", async (corrupt) => {
+  it.each(["{ not valid json", "[]"])("refuses unreadable bytes without moving or replacing them: %s", async (corrupt) => {
     await fs.writeFile(settingsPath(), corrupt);
-    const result = await loadSettings(settingsPath());
-    expect(result.settings).toEqual(defaults());
-    expect(result.notice).toEqual({ kind: "setAside", path: expect.stringMatching(/config-\d{8}-\d{6}-utc\.invalid$/) });
-    expect(await fs.readFile(result.notice!.path, "utf8")).toBe(corrupt);
-    await expect(fs.stat(settingsPath())).rejects.toMatchObject({ code: "ENOENT" });
-    expect((await loadSettings(settingsPath())).notice).toBeNull();
-  });
-
-  it("does not overwrite unreadable bytes when quarantine fails", async () => {
-    await fs.writeFile(settingsPath(), "{ bad json");
-    vi.spyOn(fs, "copyFile").mockRejectedValueOnce(new Error("quarantine refused"));
-    await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "SettingsQuarantineError", filePath: settingsPath(), cause: expect.objectContaining({ message: "quarantine refused" }) });
-    expect(await fs.readFile(settingsPath(), "utf8")).toBe("{ bad json");
+    await expect(loadSettings(settingsPath())).rejects.toMatchObject({ name: "RefusedFileError", reason: "unreadable" });
+    expect(await fs.readFile(settingsPath(), "utf8")).toBe(corrupt);
+    expect(await fs.readdir(dir)).toEqual(["config.json"]);
   });
 });
 

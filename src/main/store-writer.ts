@@ -8,6 +8,8 @@ import type { StoreWriterData, StoreWriterRequest, StoreWriterResponse, StoreWri
 export type StoreWriterOptions = Omit<StoreWriterData, "writer"> & {
   /** Logs a failure the writer reported, such as a backup that could not be recorded. */
   onWarning(warning: StoreWriterWarning): void;
+  /** A store's database was refused and is off for the session; called once per store. */
+  onRefused?(store: "records" | "backups", reason: "newer" | "unreadable"): void;
 };
 
 export interface StoreWriter {
@@ -35,7 +37,7 @@ export interface StoreWriter {
 
 /** Starts the one owner of records.sqlite3 and backups.sqlite3 on its own worker thread. */
 export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
-  const { onWarning, ...data } = options;
+  const { onWarning, onRefused, ...data } = options;
   // The tests run the source under Node's TypeScript stripping; the app runs electron-vite's
   // workers/store-writer.js entry beside the main bundle.
   const entry = import.meta.url.endsWith(".ts") ? "./workers/store-writer.ts" : "./workers/store-writer.js";
@@ -95,6 +97,10 @@ export function startStoreWriter(options: StoreWriterOptions): StoreWriter {
   worker.on("message", (message: StoreWriterResponse) => {
     if (message.kind === "closed") {
       closedWaiter?.();
+      return;
+    }
+    if (message.kind === "refused") {
+      try { onRefused?.(message.store, message.reason); } catch (error) { console.error("[store-writer] a refused store could not be reported", error); }
       return;
     }
     if (message.kind === "read") {

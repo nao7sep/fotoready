@@ -8,7 +8,7 @@ import { createLogger, installCrashHandlers, type AppLogger } from "./logger";
 import { createRecordsStore, fallbackFile, writeFallbackRecord } from "./records-store";
 import { startStoreWriter } from "./store-writer";
 import { jsonSafe } from "./json-safe";
-import { loadSettings } from "./settings-io";
+import { effectiveSettings } from "./settings-io";
 import { createStateCoordinator, loadState } from "./state-io";
 import { registerIpcHandlers, type IpcWork } from "./ipc-router";
 import { setBackupWriter } from "./backup-store";
@@ -20,7 +20,8 @@ import { ProcessingQueue } from "./queues/processing-queue";
 import { PipelineWorkerPool } from "./workers/pipeline-pool";
 import { APP_NAME } from "@shared/constants";
 import { nowIso } from "@shared/time";
-import { showSettingsNotice } from "./startup-dialog";
+import { readLaunchFiles } from "./launch-files";
+import { showSideStoreOff } from "./startup-dialog";
 import { configureWindowActivity } from "./window-activity";
 import { configureRendererDiagnostics } from "./renderer-diagnostics";
 import {
@@ -119,6 +120,8 @@ export async function bootstrap(): Promise<void> {
   await app.whenReady();
   // Before anything is drawn, so even a startup failure speaks the computer's language.
   await detectComputerLanguage();
+  // Before anything is written: a refused file stops startup and is left exactly as it is.
+  const settingsFile = await readLaunchFiles(paths);
 
   // Debug is developer-only: on for unpackaged dev builds or an explicit opt-in,
   // off (never written to disk) in packaged release builds.
@@ -128,7 +131,9 @@ export async function bootstrap(): Promise<void> {
     backupsPath: paths.backupsPath,
     fallbackPath: fallbackFile(paths.logsDir, sessionStart),
     session: sessionStart.toISOString(),
-    onWarning: ({ message, fields }) => launchLogger?.warn(message, fields)
+    onWarning: ({ message, fields }) => launchLogger?.warn(message, fields),
+    // Off for the session and left as it is, said visibly once (store-recovery-conventions).
+    onRefused: (store, reason) => void showSideStoreOff(logger, store, store === "records" ? paths.recordsPath : paths.backupsPath, reason)
   });
   storeWriter.onStored(notifyRecordsChanged);
   const records = createRecordsStore(storeWriter, sessionStart);
@@ -137,7 +142,7 @@ export async function bootstrap(): Promise<void> {
   installCrashHandlers(logger);
   // Before any protected save, so config.json saves and imported LUTs and stamps reach the history.
   setBackupWriter(storeWriter);
-  const { settings, file: settingsFile, notice: settingsNotice } = await loadSettings(paths.settingsPath, logger);
+  const settings = effectiveSettings(settingsFile.stored, logger);
   // The saved theme reaches the title bar, the renderer's prefers-color-scheme, and any recovery
   // dialog before the first window exists, so launch never shows the OS appearance and then switches.
   applyThemePreference(settings.theme);
@@ -150,7 +155,6 @@ export async function bootstrap(): Promise<void> {
   const loadedState = await loadState(paths.statePath, logger);
   const uiState = loadedState.state;
   const stateCoordinator = createStateCoordinator(paths.statePath, loadedState);
-  if (settingsNotice) await showSettingsNotice(logger, settingsNotice);
   const visionQueue = new VisionQueue(paths, settings, logger, records);
   // One image worker per core; how many saves run at once also follows each photo's size (save-admission.ts).
   const cores = Math.max(1, os.cpus().length);

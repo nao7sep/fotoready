@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { checkFormat, FILE_FORMATS, FILE_OWNER, NewerFormatError, type FileKind, type FileWriter } from "../shared/file-header.ts";
 
@@ -74,5 +76,28 @@ export function openSqliteStore(file: string, kind: FileKind, schema: string, wr
   } catch (error) {
     try { db.close(); } catch { /* Preserve the admission failure. */ }
     throw error;
+  }
+}
+
+/**
+ * Whether a newer FotoReady wrote the store at `file`, checked at launch so a newer store stops
+ * startup before anything opens it for writing. The store is opened immutable, so not even a WAL or
+ * shared-memory file is created beside it. A missing store, or one that cannot be opened or read
+ * here, is left to the store writer, which switches it off with a notice when it refuses it.
+ */
+export function isNewerSqliteStore(file: string, kind: FileKind): boolean {
+  if (!fs.existsSync(file)) return false;
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(`${pathToFileURL(file).href}?immutable=1`, { readOnly: true });
+  } catch {
+    return false;
+  }
+  try {
+    return checkFormat(recordedFormat(db, userVersion(db)), kind).kind === "newer";
+  } catch {
+    return false;
+  } finally {
+    db.close();
   }
 }

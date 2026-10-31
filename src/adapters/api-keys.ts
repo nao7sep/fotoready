@@ -2,7 +2,7 @@ import fs, { type FileHandle } from "node:fs/promises";
 import { headeredJson, parseHeaderedJson, type HeaderedJsonRead } from "@shared/file-header";
 import { APP_WRITER } from "@main/app-writer";
 import { atomicWriteFile } from "@adapters/atomic-file";
-import { setAsideStore, StoreNotWritableError, type StoreLeftReason } from "./json-store";
+import { RefusedFileError, StoreNotWritableError, type StoreLeftReason } from "./json-store";
 import type { Logger } from "@shared/types/log";
 
 /**
@@ -27,12 +27,12 @@ import type { Logger } from "@shared/types/log";
  *     real protection.
  *   - On read: a group/world-readable file is warned about once and tightened to
  *     0600 (POSIX only).
- *   - Whether the session may write the file is decided once, by its first read, so
- *     a session never overwrites a file it could not read: malformed content is moved
- *     aside to a timestamped neighbour and treated as empty; a file that cannot be
- *     read, cannot be moved aside, or was written by a newer build reads as empty, is
- *     warned about once and left exactly as it is, and storing a key throws
- *     {@link StoreNotWritableError}.
+ *   - Startup checks the file ({@link checkApiKeysFile}) and stops on one it refuses.
+ *     Every read checks it again: a file that cannot be read, is malformed or was
+ *     written by a newer build reads as empty, is warned about once and left exactly
+ *     as it is, and storing a key throws {@link StoreNotWritableError}.
+ *   - A save keeps everything stored that it does not change, including ids and
+ *     values FotoReady cannot use.
  */
 
 const MARKER = "obf:";
@@ -41,8 +41,15 @@ const SECRETS_FILE_MODE = 0o600;
 const KEY_ID_RE = /^[a-z0-9]+(\.[a-z0-9]+)*$/;
 
 interface ApiKeysFile {
+  /** The usable keys by canonical id. */
   keys: Record<string, string>;
+  /** The file's content as stored, kept whole on save: unknown keys and values it cannot use stay. */
+  body: Record<string, unknown>;
+  /** Why the file is refused; it is then never written. */
+  refused?: StoreLeftReason;
 }
+
+const EMPTY_FILE = (): ApiKeysFile => ({ keys: {}, body: { keys: {} } });
 
 function assertKeyId(id: string): void {
   if (!KEY_ID_RE.test(id)) {
@@ -86,16 +93,21 @@ function decodeApiKey(stored: string): string | null {
 
 // Canonicalize the on-disk shape `{ keys: { id: value } }`: ids lowercased and
 // matched against the id grammar, values kept only when strings.
-function normalize(raw: unknown): ApiKeysFile | null {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const rawKeys = (raw as { keys?: unknown }).keys;
+function normalize(raw: Record<string, unknown>): ApiKeysFile | null {
+  const rawKeys = raw.keys;
   if (!rawKeys || typeof rawKeys !== "object" || Array.isArray(rawKeys)) return null;
   const keys: Record<string, string> = {};
   for (const [id, value] of Object.entries(rawKeys as Record<string, unknown>)) {
     const canonical = id.toLowerCase();
     if (typeof value === "string" && KEY_ID_RE.test(canonical)) keys[canonical] = value;
   }
-  return { keys };
+  return { keys, body: raw };
+}
+
+/** The stored `keys` with `id` replaced by `value`, or removed when `value` is null; every other entry stays as stored. */
+function withKey(file: ApiKeysFile, id: string, value: string | null): Record<string, unknown> {
+  const stored = Object.fromEntries(Object.entries(file.body.keys as Record<string, unknown>).filter(([key]) => key.toLowerCase() !== id));
+  return { ...file.body, keys: value === null ? stored : { ...stored, [id]: value } };
 }
 
 /**
@@ -119,8 +131,7 @@ export class ApiKeyStore {
   #modeInspectionWarned = false;
   #modeRepairWarned = false;
   #modeWarned = false;
-  /** Undefined until the first read; then null while writable, or why the file is left as it is. */
-  #left: StoreLeftReason | null | undefined = undefined;
+  #refusalLogged = false;
 
   constructor(
     private readonly filePath: string,
@@ -169,10 +180,8 @@ export class ApiKeyStore {
     const trimmed = value.trim();
     return this.latestWrite(async () => {
       const all = await this.readFile();
-      if (this.#left) throw new StoreNotWritableError(this.filePath, this.#left);
-      if (trimmed.length === 0) delete all.keys[id];
-      else all.keys[id] = encodeApiKey(trimmed);
-      await this.write(all);
+      if (all.refused) throw new StoreNotWritableError(this.filePath, all.refused);
+      await this.write(withKey(all, id, trimmed.length === 0 ? null : encodeApiKey(trimmed)));
     });
   }
 
@@ -180,11 +189,10 @@ export class ApiKeyStore {
   clear(id: string): Promise<void> {
     assertKeyId(id);
     return this.latestWrite(async () => {
-      // A file left as it is reads as holding no key, so there is nothing to clear and nothing is written.
+      // A refused file reads as holding no key, so there is nothing to clear and nothing is written.
       const all = await this.readFile();
-      if (id in all.keys) {
-        delete all.keys[id];
-        await this.write(all);
+      if (!all.refused && id in all.keys) {
+        await this.write(withKey(all, id, null));
       }
     });
   }
@@ -208,10 +216,10 @@ export class ApiKeyStore {
     return next;
   }
 
-  private async write(data: ApiKeysFile): Promise<void> {
+  private async write(body: Record<string, unknown>): Promise<void> {
     // not recorded: api-keys.json is a secret, kept out of the history so its lifetime is not extended
     // there (data-backup-conventions); the 0600 mode below is where this file's protection lives.
-    await atomicWriteFile(this.filePath, headeredJson("api-keys", APP_WRITER, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
+    await atomicWriteFile(this.filePath, headeredJson("api-keys", APP_WRITER, body), { mode: SECRETS_FILE_MODE });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -260,63 +268,57 @@ export class ApiKeyStore {
   }
 
   private async readFile(): Promise<ApiKeysFile> {
-    if (this.#left) return { keys: {} };
     let read: HeaderedJsonRead;
     try {
       const file = await fs.open(this.filePath, "r");
       try {
         read = parseHeaderedJson(await file.readFile("utf8"), "api-keys");
+        // Permissions change only on a file that passed its header check (store-recovery-conventions).
         if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
       } finally {
         await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return this.loaded({ keys: {} });
-      // An access failure never moves the file; it is reported as such, not as corruption.
-      return this.leave("unreadable", "api key file could not be read; treating as empty and leaving it as it is for this session", { err: error });
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return EMPTY_FILE();
+      return this.refuse("unreadable", { err: error });
     }
-    if (read.kind === "newer") {
-      return this.leave("newer", "api key file was written by a newer FotoReady; treating as empty and leaving it as it is", { formatVersion: read.found });
-    }
+    if (read.kind === "newer") return this.refuse("newer", { formatVersion: read.found });
     const normalized = read.kind === "current" ? normalize(read.body) : null;
-    if (normalized) return this.loaded(normalized);
-    // A session that already decided to write the file meets malformed content only through an
-    // unsupported outside edit; it reads as empty and the next save replaces it.
-    if (this.#left === null) {
-      this.logger?.warn("api key file changed outside FotoReady and could not be read; treating as empty", { mod: "api-keys", apiKeysPath: this.filePath });
-      return { keys: {} };
-    }
-    const detail = read.kind === "invalid" ? { err: parseFailure(read.error) } : {};
-    let movedTo: string;
-    try {
-      // not recorded: both the live file and this corrupt quarantine contain secrets.
-      movedTo = await setAsideStore(this.filePath);
-    } catch (moveError) {
-      return this.leave("unreadable", "api key file was not valid and could not be set aside; treating as empty and leaving it as it is for this session", { ...detail, moveErr: moveError });
-    }
-    this.logger?.warn("api key file was not valid JSON or had an unexpected shape; set aside and treating as empty", {
-      mod: "api-keys",
-      apiKeysPath: this.filePath,
-      movedTo,
-      ...detail,
-    });
-    return this.loaded({ keys: {} });
+    if (normalized) return normalized;
+    return this.refuse("unreadable", read.kind === "invalid" ? { err: parseFailure(read.error) } : {});
   }
 
-  /** The first read decides the session may write the file. */
-  private loaded(keys: ApiKeysFile): ApiKeysFile {
-    this.#left ??= null;
-    return keys;
-  }
-
-  /** Leaves the file exactly as it is for the session; only the first read can decide this. */
-  private leave(reason: StoreLeftReason, warning: string, detail: Record<string, unknown>): ApiKeysFile {
-    if (this.#left === undefined) {
-      this.#left = reason;
-      this.logger?.warn(warning, { mod: "api-keys", apiKeysPath: this.filePath, ...detail });
-    } else {
-      this.logger?.warn("api key file could not be read; treating as empty", { mod: "api-keys", apiKeysPath: this.filePath, ...detail });
+  /**
+   * A refused file reads as holding no key and is never written, moved or tightened; startup already
+   * stops on one, so this is a file changed during the session. Logged once.
+   */
+  private refuse(reason: StoreLeftReason, detail: Record<string, unknown>): ApiKeysFile {
+    if (!this.#refusalLogged) {
+      this.#refusalLogged = true;
+      this.logger?.warn(reason === "newer" ? "api key file was written by a newer FotoReady; leaving it as it is" : "api key file could not be read; leaving it as it is", {
+        mod: "api-keys",
+        apiKeysPath: this.filePath,
+        ...detail,
+      });
     }
-    return { keys: {} };
+    return { ...EMPTY_FILE(), refused: reason };
   }
+}
+
+/**
+ * The launch check of `api-keys.json` (store-recovery-conventions, What a refused file does): the
+ * file's refusal when it cannot be read, is malformed or a newer FotoReady wrote it, or null when it
+ * is missing or usable. Reads only; the file is never changed here.
+ */
+export async function checkApiKeysFile(filePath: string): Promise<RefusedFileError | null> {
+  let text: string;
+  try {
+    text = await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? null : new RefusedFileError(filePath, "unreadable", error);
+  }
+  const read = parseHeaderedJson(text, "api-keys");
+  if (read.kind === "newer") return new RefusedFileError(filePath, "newer");
+  if (read.kind === "invalid") return new RefusedFileError(filePath, "unreadable", parseFailure(read.error));
+  return normalize(read.body) ? null : new RefusedFileError(filePath, "unreadable");
 }

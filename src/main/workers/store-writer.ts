@@ -38,6 +38,11 @@ function refusedForSession(error: unknown): boolean {
   return error instanceof NewerFormatError || error instanceof InvalidSqliteFormatError;
 }
 
+/** Tells the main process a store is off for the session, so it can say so visibly. */
+function reportRefused(store: "records" | "backups", error: unknown): void {
+  port.postMessage({ kind: "refused", store, reason: error instanceof NewerFormatError ? "newer" : "unreadable" } satisfies StoreWriterResponse);
+}
+
 function appendFallback(line: string, level: RecordRow["level"]): void {
   try {
     fs.mkdirSync(path.dirname(data.fallbackPath), { recursive: true });
@@ -71,7 +76,10 @@ function recordsDatabase(): RecordsDatabase {
     fs.mkdirSync(path.dirname(data.recordsPath), { recursive: true });
     records = openRecordsDatabase(data.recordsPath, data.writer);
   } catch (error) {
-    if (refusedForSession(error)) recordsRefusal = error;
+    if (refusedForSession(error)) {
+      recordsRefusal = error;
+      reportRefused("records", error);
+    }
     noteRecordsFailure(error);
     throw error;
   }
@@ -110,6 +118,7 @@ function backupsDatabase(warnings: StoreWriterWarning[]): BackupsDatabase | null
     backups = openBackupsDatabase(data.backupsPath, data.writer);
   } catch (error) {
     backupsUnavailable = refusedForSession(error);
+    if (backupsUnavailable) reportRefused("backups", error);
     if (!backupsOpenWarned) {
       backupsOpenWarned = true;
       warnings.push({

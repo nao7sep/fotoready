@@ -28,4 +28,6 @@ export type StoreWriterResponse =
   | { kind: "done"; id: number; stored: number; warnings: StoreWriterWarning[] }
   | { kind: "read"; id: number; ok: true; value: RecordsReadResults[RecordsRead["op"]] }
   | { kind: "read"; id: number; ok: false; error: string }
-  | { kind: "closed" };
+  | { kind: "closed" }
+  /** Sent once per store when its database is refused for the session and left as it is. */
+  | { kind: "refused"; store: "records" | "backups"; reason: "newer" | "unreadable" };

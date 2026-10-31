@@ -186,16 +186,14 @@ describe("the task sidecar format version", () => {
     return root;
   }
 
-  it.each(["current", "legacy"] as const)("rejects duplicate op identities in a %s sidecar without rewriting the file", async (form) => {
+  it("rejects duplicate op identities in a sidecar without rewriting the file", async () => {
     const sidecarPath = path.join(await tempRoot(), "duplicate.json");
     const body = sidecarBody();
     body.task.pipeline.ops = [
       { id: "same-id", type: "stamp", enabled: true, params: structuredClone(getOpModule("stamp")!.defaultParams) },
       { id: "same-id", type: "watermark-text", enabled: false, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
     ];
-    const text = form === "current"
-      ? versionedJson(FORMAT_VERSIONS.taskSidecar, body)
-      : JSON.stringify({ version: 1, ...body });
+    const text = versionedJson(FORMAT_VERSIONS.taskSidecar, body);
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
@@ -210,16 +208,14 @@ describe("the task sidecar format version", () => {
     expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
   });
 
-  it.each(["current", "legacy"] as const)("preserves distinct op identities and order in a %s sidecar", async (form) => {
+  it("preserves distinct op identities and order in a sidecar", async () => {
     const sidecarPath = path.join(await tempRoot(), "distinct.json");
     const body = sidecarBody();
     body.task.pipeline.ops = [
       { id: "second", type: "watermark-text", enabled: true, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
       { id: "first", type: "watermark-text", enabled: false, params: structuredClone(getOpModule("watermark-text")!.defaultParams) },
     ];
-    const text = form === "current"
-      ? versionedJson(FORMAT_VERSIONS.taskSidecar, body)
-      : JSON.stringify({ version: 1, ...body });
+    const text = versionedJson(FORMAT_VERSIONS.taskSidecar, body);
     await fs.writeFile(sidecarPath, text, "utf8");
 
     const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
@@ -229,22 +225,9 @@ describe("the task sidecar format version", () => {
     expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
   });
 
-  it("reads v0.1.0's `version: 1` sidecar as its known earlier form, leaving the file as it is", async () => {
-    const sidecarPath = path.join(await tempRoot(), "photo.json");
-    const text = JSON.stringify({ version: 1, ...sidecarBody() });
-    await fs.writeFile(sidecarPath, text, "utf8");
-
-    const result = await loadTaskSidecars([sidecarPath], "resources/stamps");
-
-    expect(result.rejected).toEqual([]);
-    expect(result.loaded).toHaveLength(1);
-    expect(result.loaded[0]?.sidecar).not.toHaveProperty("version");
-    expect(await fs.readFile(sidecarPath, "utf8")).toBe(text);
-  });
-
   it.each([
     ["no marker at all", {}],
-    ["an unknown old `version`", { version: 2 }],
+    ["v0.1.0's `version: 1`", { version: 1 }],
   ])("rejects a sidecar with %s as invalid", async (_label, marker) => {
     const sidecarPath = path.join(await tempRoot(), "photo.json");
     const text = JSON.stringify({ ...marker, ...sidecarBody() });

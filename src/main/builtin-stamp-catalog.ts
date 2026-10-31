@@ -45,7 +45,7 @@ export function builtinStampPathFor(
 
 export function parseBuiltinStampCatalog(value: unknown): BuiltinStampCatalogEntry[] {
   const root = objectValue(value, "catalog");
-  const format = checkFormat(root.format, "stampCatalog");
+  const format = checkFormat(root.format, "stamp-catalog");
   if (format.kind !== "current") {
     throw new Error(format.kind === "newer" ? `Built-in stamp catalog format version ${format.found} is newer than this build reads.` : `Built-in stamp catalog: ${format.error.message}`);
   }

@@ -22,7 +22,7 @@ afterEach(() => {
 describe("built-in stamp catalog", () => {
   it("accepts an alphabetized, complete catalog", () => {
     const entries = parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [
         { slug: "cover-blob", file: "cover-blob.png", group: "cover", label: "Cover blob" },
         { slug: "heart", file: "heart.png", group: "marks", label: "Heart" }
@@ -35,21 +35,21 @@ describe("built-in stamp catalog", () => {
 
   it("accepts a WebP built-in", () => {
     const entries = parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
     });
 
     expect(entries.map((entry) => entry.file)).toEqual(["heart.webp"]);
     expect(() => assertBuiltinStampCatalogCompleteness(entries, ["heart.webp"])).not.toThrow();
     expect(() => parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart.gif", group: "marks", label: "Heart" }]
     })).toThrow(/slug plus \.png, \.svg or \.webp/i);
   });
 
   it("rejects duplicate identities and invalid groups", () => {
     expect(() => parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [
         { slug: "heart", file: "heart.png", group: "marks", label: "Heart" },
         { slug: "heart", file: "heart.svg", group: "marks", label: "Other heart" }
@@ -57,19 +57,19 @@ describe("built-in stamp catalog", () => {
     })).toThrow(/duplicates slug/i);
 
     expect(() => parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart.png", group: "objects", label: "Heart" }]
     })).toThrow(/not a built-in stamp group/i);
   });
 
   it("rejects unstable filenames and non-alphabetical entries", () => {
     expect(() => parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart-red.png", group: "marks", label: "Heart" }]
     })).toThrow(/slug plus/i);
 
     expect(() => parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [
         { slug: "heart", file: "heart.png", group: "marks", label: "Heart" },
         { slug: "cover-blob", file: "cover-blob.png", group: "cover", label: "Cover blob" }
@@ -79,7 +79,7 @@ describe("built-in stamp catalog", () => {
 
   it("rejects missing and uncatalogued packaged assets", () => {
     const entries = parseBuiltinStampCatalog({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart.png", group: "marks", label: "Heart" }]
     });
 
@@ -104,7 +104,7 @@ describe("built-in stamp catalog", () => {
 
 describe("saved stamp paths", () => {
   const entries = parseBuiltinStampCatalog({
-    ...header("stampCatalog"),
+    ...header("stamp-catalog"),
     stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
   });
 
@@ -124,7 +124,7 @@ describe("saved stamp paths", () => {
     fs.mkdirSync(bundled);
     fs.writeFileSync(path.join(bundled, "heart.webp"), "webp");
     fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({
-      ...header("stampCatalog"),
+      ...header("stamp-catalog"),
       stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }]
     }));
     const kept = path.join(root, "heart.png");
@@ -165,7 +165,7 @@ describe("saved stamp paths", () => {
     const luts = path.join(root, "my-luts");
     const bundledLuts = path.join(root, "bundled-luts");
     for (const dir of [bundled, imported, luts, bundledLuts]) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ ...header("stampCatalog"), stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }] }));
+    fs.writeFileSync(path.join(bundled, "catalog.json"), JSON.stringify({ ...header("stamp-catalog"), stamps: [{ slug: "heart", file: "heart.webp", group: "marks", label: "Heart" }] }));
     fs.writeFileSync(path.join(imported, "my-own.png"), "stamp");
     fs.writeFileSync(path.join(luts, "Warm.cube"), "lut");
     fs.writeFileSync(path.join(bundledLuts, "Film.cube"), "lut");

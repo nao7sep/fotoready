@@ -15,7 +15,7 @@ export const FILE_FORMATS = {
   /** `state.json`. */
   state: 1,
   /** `api-keys.json`. */
-  apiKeys: 1,
+  "api-keys": 1,
   /** A task sidecar written beside a saved image. */
   sidecar: 1,
   /** `records.sqlite3`. */
@@ -23,7 +23,7 @@ export const FILE_FORMATS = {
   /** `backups.sqlite3`. */
   backups: 1,
   /** The built-in stamps' `catalog.json`. */
-  stampCatalog: 1
+  "stamp-catalog": 1
 } as const;
 
 export type FileKind = keyof typeof FILE_FORMATS;

@@ -89,7 +89,7 @@ describe.each([
     expect(rawFailure.message).toContain(FAKE_KEY);
 
     const keysPath = path.join(root, "api-keys.json");
-    fs.writeFileSync(keysPath, `{"format":${JSON.stringify(header("apiKeys").format)},"keys":{"gemini":${STORED}}}`, { mode: 0o600 });
+    fs.writeFileSync(keysPath, `{"format":${JSON.stringify(header("api-keys").format)},"keys":{"gemini":${STORED}}}`, { mode: 0o600 });
     await expect(new ApiKeyStore(keysPath, logger).resolve("gemini")).resolves.toBeNull();
 
     expect(await writer.close({ drain: true })).toBe(true);

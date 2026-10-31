@@ -211,7 +211,7 @@ export class ApiKeyStore {
   private async write(data: ApiKeysFile): Promise<void> {
     // not recorded: api-keys.json is a secret, kept out of the history so its lifetime is not extended
     // there (data-backup-conventions); the 0600 mode below is where this file's protection lives.
-    await atomicWriteFile(this.filePath, headeredJson("apiKeys", APP_WRITER, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
+    await atomicWriteFile(this.filePath, headeredJson("api-keys", APP_WRITER, { keys: data.keys }), { mode: SECRETS_FILE_MODE });
   }
 
   // POSIX-only: runs on every read, per the api-key-storage-conventions — a
@@ -265,7 +265,7 @@ export class ApiKeyStore {
     try {
       const file = await fs.open(this.filePath, "r");
       try {
-        read = parseHeaderedJson(await file.readFile("utf8"), "apiKeys");
+        read = parseHeaderedJson(await file.readFile("utf8"), "api-keys");
         if (read.kind === "current" && normalize(read.body)) await this.warnIfInsecureMode(file);
       } finally {
         await file.close().catch((error) => this.logger?.warn("could not close inspected api key file", { mod: "api-keys", apiKeysPath: this.filePath, err: error }));

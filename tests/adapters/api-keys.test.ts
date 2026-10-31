@@ -80,7 +80,7 @@ describe("ApiKeyStore", () => {
   });
 
   it("peeks at raw stored plaintext and treats malformed encoded values as absent", async () => {
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: { gemini: "  pasted-key  ", "gemini.vision": "obf:invalid!!" } })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: { gemini: "  pasted-key  ", "gemini.vision": "obf:invalid!!" } })}\n`);
     const store = new ApiKeyStore(filePath);
     process.env[GEMINI_ENV] = "env-key";
 
@@ -138,7 +138,7 @@ describe("ApiKeyStore", () => {
   });
 
   it("treats an untagged stored value as plaintext and matches ids case-insensitively", async () => {
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: { Gemini: "  sk-plain-pasted  " } })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: { Gemini: "  sk-plain-pasted  " } })}\n`);
     const store = new ApiKeyStore(filePath);
     expect(await store.resolve("gemini")).toBe("sk-plain-pasted");
   });
@@ -198,7 +198,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix)("leaves wrong-shaped JSON it cannot set aside in place, refusing to store a key over it for the session", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const original = `${JSON.stringify({ ...header("apiKeys"), gemini: "recover-me" })}\n`;
+    const original = `${JSON.stringify({ ...header("api-keys"), gemini: "recover-me" })}\n`;
     fs.writeFileSync(filePath, original);
     const copyFile = vi.spyOn(fsPromises, "copyFile").mockRejectedValueOnce(Object.assign(new Error("read-only folder"), { code: "EROFS" }));
     const store = new ApiKeyStore(filePath, logger);
@@ -217,7 +217,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix && process.getuid?.() !== 0)("leaves a file it cannot read in place, unmoved, refusing to store a key over it for the session", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const original = `${JSON.stringify({ ...header("apiKeys"), keys: { gemini: "stored-key" } })}\n`;
+    const original = `${JSON.stringify({ ...header("api-keys"), keys: { gemini: "stored-key" } })}\n`;
     fs.writeFileSync(filePath, original);
     fs.chmodSync(filePath, 0o000);
     const store = new ApiKeyStore(filePath, logger);
@@ -243,7 +243,7 @@ describe("ApiKeyStore", () => {
 
   it("on Windows, stores and reads a key without inspecting or repairing POSIX modes", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: {} })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: {} })}\n`);
     if (isPosix) fs.chmodSync(filePath, 0o644);
     const handleChmod = vi.spyOn(await fileHandlePrototype(), "chmod");
     try {
@@ -261,7 +261,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix)("warns and tightens a group/world-readable secrets file back to 0600 on read", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: {} })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: {} })}\n`);
     fs.chmodSync(filePath, 0o644);
     expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
 
@@ -278,7 +278,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix)("does not warn for an already-0600 secrets file", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: {} })}\n`, { mode: 0o600 });
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: {} })}\n`, { mode: 0o600 });
     fs.chmodSync(filePath, 0o600);
 
     const store = new ApiKeyStore(filePath, logger);
@@ -290,7 +290,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix)("re-tightens a file widened again later in the same session, warning only once", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: {} })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: {} })}\n`);
     fs.chmodSync(filePath, 0o644);
 
     const store = new ApiKeyStore(filePath, logger);
@@ -309,7 +309,7 @@ describe("ApiKeyStore", () => {
 
   it.runIf(isPosix)("logs a failed permission repair while keeping the stored key readable", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: { gemini: "stored-key" } })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: { gemini: "stored-key" } })}\n`);
     fs.chmodSync(filePath, 0o644);
     const open = fsPromises.open;
     const chmod = vi.spyOn(fsPromises, "open").mockImplementation(async (...args) => {
@@ -329,7 +329,7 @@ describe("ApiKeyStore", () => {
 
   it("treats a malformed obf: value as absent, warns naming the key id, and never returns garbage", async () => {
     const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("apiKeys"), keys: { gemini: "obf:not-valid-base64!!" } })}\n`);
+    fs.writeFileSync(filePath, `${JSON.stringify({ ...header("api-keys"), keys: { gemini: "obf:not-valid-base64!!" } })}\n`);
     const store = new ApiKeyStore(filePath, logger);
 
     await expect(store.resolve("gemini")).resolves.toBeNull();
@@ -361,14 +361,14 @@ describe("ApiKeyStore", () => {
       await store.set("gemini", "stored-key");
       const onDisk = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
       expect(Object.keys(onDisk)).toEqual(["format", "writer", "keys"]);
-      expect(onDisk.format).toEqual(header("apiKeys").format);
+      expect(onDisk.format).toEqual(header("api-keys").format);
       await expect(new ApiKeyStore(filePath).resolve("gemini")).resolves.toBe("stored-key");
     });
 
     it.runIf(isPosix)("repairs only the inspected descriptor if the pathname is replaced during its read", async () => {
-      fs.writeFileSync(filePath, JSON.stringify({ ...header("apiKeys"), keys: { gemini: "old-synthetic" } }));
+      fs.writeFileSync(filePath, JSON.stringify({ ...header("api-keys"), keys: { gemini: "old-synthetic" } }));
       fs.chmodSync(filePath, 0o644);
-      const future = JSON.stringify({ ...header("apiKeys", 2), future: "kept" });
+      const future = JSON.stringify({ ...header("api-keys", 2), future: "kept" });
       const open = fsPromises.open;
       const spy = vi.spyOn(fsPromises, "open").mockImplementation(async (...args) => {
         const file = await open(...args);
@@ -390,7 +390,7 @@ describe("ApiKeyStore", () => {
     });
 
     it.runIf(isPosix)("leaves a newer file's broad permissions exactly as found", async () => {
-      fs.writeFileSync(filePath, JSON.stringify({ ...header("apiKeys", 2), keys: { gemini: "synthetic" } }));
+      fs.writeFileSync(filePath, JSON.stringify({ ...header("api-keys", 2), keys: { gemini: "synthetic" } }));
       fs.chmodSync(filePath, 0o644);
       const store = new ApiKeyStore(filePath);
       await expect(store.peek("gemini")).resolves.toBeNull();
@@ -399,7 +399,7 @@ describe("ApiKeyStore", () => {
 
     it("reads a newer file as no key, refuses to store over it, and leaves it byte-identical", async () => {
       const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-      const text = `${JSON.stringify({ ...header("apiKeys", 2), keys: { gemini: "stored-key" } })}\n`;
+      const text = `${JSON.stringify({ ...header("api-keys", 2), keys: { gemini: "stored-key" } })}\n`;
       fs.writeFileSync(filePath, text, { mode: 0o600 });
       const store = new ApiKeyStore(filePath, logger);
 

@@ -1,5 +1,5 @@
 {
-  "format": { "owner": "fotoready", "kind": "stampCatalog", "version": 1 },
+  "format": { "owner": "fotoready", "kind": "stamp-catalog", "version": 1 },
   "writer": { "name": "fotoready", "version": "1.0.0" },
   "stamps": [
     { "slug": "acorn", "file": "acorn.webp", "group": "seasonal", "label": "Acorn" },
